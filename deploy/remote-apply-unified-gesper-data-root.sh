@@ -122,8 +122,8 @@ REMOTE_PY="${REMOTE_PROJ}/.venv/bin/python"
 DJANGO_SETTINGS=settings_production
 systemctl start gesper
 sleep 1
-( cd "$REMOTE_PROJ" && DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS "$REMOTE_PY" manage.py migrate --noinput )
-( cd "$REMOTE_PROJ" && DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS "$REMOTE_PY" manage.py collectstatic --noinput ) || true
+( cd "$REMOTE_PROJ" && set -a; [[ -f "$ENVFILE" ]] && . "$ENVFILE"; set +a; DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS "$REMOTE_PY" manage.py migrate --noinput )
+( cd "$REMOTE_PROJ" && set -a; [[ -f "$ENVFILE" ]] && . "$ENVFILE"; set +a; DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS "$REMOTE_PY" manage.py collectstatic --noinput ) || true
 systemctl restart gesper
 systemctl is-active gesper
 echo "OK. Verifica: https://gesper1.plazapretoria.it/  e pannello Archivio documenti (percorsi coerenti)."

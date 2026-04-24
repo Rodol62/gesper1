@@ -188,6 +188,7 @@ fi
 REMOTE_PY="${REMOTE_PROJ}/.venv/bin/python"
 REMOTE_PIP="${REMOTE_PROJ}/.venv/bin/pip"
 REMOTE_SH="set -euo pipefail; cd '${REMOTE_PROJ}'"
+REMOTE_SH+="; if [[ -f /etc/gesper.env ]]; then set -a; source /etc/gesper.env; set +a; fi"
 if [[ -z "${GESPER_SKIP_PIP:-}" ]]; then
   REMOTE_SH+="; '${REMOTE_PIP}' install -r requirements.txt"
 fi

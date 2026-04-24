@@ -19,6 +19,7 @@
 # candidato solo OTP e-mail + template aggiornati.
 # Dopo migrate/restart: python manage.py verifica_registrazione_candidato
 # (se serve solo DB: stesso comando con --fix-db per sms_abilitato=False).
+# In /etc/gesper.env: GESPER_REDIS_URL=redis://127.0.0.1:6379/1 se Redis è installato (OTP tra worker Gunicorn).
 #
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -81,6 +82,8 @@ REMOTE_PY="${REMOTE}/.venv/bin/python"
 REMOTE_PIP="${REMOTE}/.venv/bin/pip"
 
 REMOTE_SH="set -euo pipefail; cd '${REMOTE}'"
+# Stesso DB e cache di systemd (GESPER_DATA_ROOT, GESPER_REDIS_URL, …)
+REMOTE_SH+="; if [[ -f /etc/gesper.env ]]; then set -a; source /etc/gesper.env; set +a; fi"
 if [[ -z "${GESPER_SKIP_PIP:-}" ]]; then
   REMOTE_SH+="; '${REMOTE_PIP}' install -r requirements.txt"
 fi

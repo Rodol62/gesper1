@@ -91,6 +91,11 @@ USE_X_FORWARDED_HOST = False
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/accounts/profile/'
 
+# === CACHE (OTP registrazione, login step-up) ===
+# Con più worker Gunicorn usare Redis (es. in /etc/gesper.env):
+#   GESPER_REDIS_URL=redis://127.0.0.1:6379/1
+# Senza variabile, settings.py usa LocMem (non condivisa tra worker).
+
 # === LOGGING PRODUZIONE ===
 _log_default = str(BASE_DIR / 'logs' / 'gesper.log')
 _LOG_FILE = os.environ.get('GESPER_LOG_FILE', '').strip() or _log_default

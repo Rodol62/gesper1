@@ -5,13 +5,14 @@
 # EnvironmentFile (consigliato): /etc/gesper.env con almeno:
 #   DJANGO_SETTINGS_MODULE=settings_production
 #   DJANGO_SECRET_KEY=...
-# Opzionale: GESPER_DATA_ROOT=/var/www/documento
+#   GESPER_DATA_ROOT=/var/www/gesper/documento   (DB + media unificati)
+#   GESPER_REDIS_URL=redis://127.0.0.1:6379/1   (cache OTP / rate limit tra worker)
 #
 # sudo systemctl daemon-reload && sudo systemctl enable --now gesper
 
 [Unit]
 Description=GESPER Gunicorn (gesper1, root /)
-After=network.target
+After=network.target redis-server.service
 
 [Service]
 User=root
