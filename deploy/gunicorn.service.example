@@ -1,0 +1,23 @@
+# /etc/systemd/system/gesper.service
+# Adattare User, Group, WorkingDirectory, EnvironmentFile, socket path.
+
+[Unit]
+Description=GESPER Gunicorn
+After=network.target redis-server.service
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/gesper
+EnvironmentFile=/home/ubuntu/gesper/.env
+# Opzionale in .env: GESPER_DATA_ROOT=/var/www/documento (DB + media + archivio/; allineare Nginx alias /media/)
+ExecStart=/home/ubuntu/gesper/.venv/bin/gunicorn \
+    --bind unix:/run/gesper/gunicorn.sock \
+    --workers 3 \
+    --timeout 120 \
+    wsgi:application
+RuntimeDirectory=gesper
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target

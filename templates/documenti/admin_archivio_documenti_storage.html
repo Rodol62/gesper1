@@ -1,0 +1,399 @@
+{% extends 'base.html' %}
+{% block title %}Archivio file documenti — Gesper{% endblock %}
+
+{% block content %}
+<div class="container py-3" style="max-width: 52rem">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h1 class="h5 mb-0"><i class="bi bi-folder2-open me-2"></i>Cartelle di salvataggio documenti</h1>
+    <div class="d-flex gap-2">
+      <a href="{% url 'admin_archivio_documenti_log' %}" class="btn btn-outline-dark btn-sm">Storico operazioni</a>
+      <a href="{% url 'dashboard_admin' %}" class="btn btn-outline-secondary btn-sm">Dashboard Admin</a>
+    </div>
+  </div>
+
+  <p class="text-muted small mb-3">
+    Percorsi sul <strong>server</strong> dove Django salva i file del modello <code>Documento</code>
+    (upload da web, import massivi, consulente). La URL pubblica dei file è <code>MEDIA_URL</code> + percorso relativo.
+    In produzione, <code>GESPER_DATA_ROOT</code> raggruppa DB SQLite, <code>media/</code> e cartella <code>archivio/</code> (dump manuali).
+  </p>
+
+  <div class="card mb-3">
+    <div class="card-header py-2 small fw-semibold">Impostazioni globali</div>
+    <div class="card-body py-2 small">
+      <dl class="row mb-0">
+        <dt class="col-sm-3">GESPER_DATA_ROOT</dt>
+        <dd class="col-sm-9"><code class="user-select-all">{{ gesper_data_root }}</code></dd>
+        <dt class="col-sm-3">Archivio (dump)</dt>
+        <dd class="col-sm-9"><code class="user-select-all">{{ gesper_archivio_root }}</code></dd>
+        <dt class="col-sm-3">MEDIA_ROOT</dt>
+        <dd class="col-sm-9"><code class="user-select-all">{{ media_root }}</code></dd>
+        <dt class="col-sm-3">MEDIA_URL</dt>
+        <dd class="col-sm-9"><code>{{ media_url }}</code></dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header py-2 small fw-semibold">Tipi con cartella dedicata</div>
+    <div class="table-responsive mb-0">
+      <table class="table table-sm table-bordered align-middle mb-0 small">
+        <thead class="table-light">
+          <tr>
+            <th>Tipo documento</th>
+            <th>Sottocartella</th>
+            <th>Percorso assoluto</th>
+            <th class="text-center">Cartella</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in righe_tipo %}
+          <tr>
+            <td>{{ r.tipo_label }} <span class="text-muted">({{ r.tipo_cod }})</span></td>
+            <td><code>{{ r.subdir }}</code></td>
+            <td><code class="user-select-all small">{{ r.path }}</code></td>
+            <td class="text-center">
+              {% if r.esiste %}<span class="text-success" title="Esiste sul filesystem">●</span>
+              {% else %}<span class="text-warning" title="Non ancora creata (verrà creata al primo upload)">○</span>{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-muted">Nessuna mappa tipo → cartella in <code>DOCUMENTO_TIPO_MEDIA_SUBDIRS</code>.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header py-2 small fw-semibold">Gestione cartelle (admin)</div>
+    <div class="card-body py-2 small">
+      <div class="row g-2">
+        <div class="col-12 col-lg-7">
+          <form method="post" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_folder">
+            <input type="hidden" name="browse" value="{{ browse_subdir }}">
+            <div class="col-12 col-md-8">
+              <label class="form-label mb-0 text-muted">Nuova cartella (sotto <code>MEDIA_ROOT</code>)</label>
+              <input type="text" name="new_subdir" class="form-control form-control-sm" placeholder="es. varie/non_classificati o buste_paghe/2024">
+            </div>
+            <div class="col-12 col-md-4">
+              <button type="submit" class="btn btn-sm btn-outline-primary w-100">Crea cartella</button>
+            </div>
+          </form>
+        </div>
+        <div class="col-12 col-lg-5">
+          <form method="post" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete_empty_folder">
+            <input type="hidden" name="browse" value="{{ browse_subdir }}">
+            <div class="col-12 col-md-8">
+              <label class="form-label mb-0 text-muted">Elimina cartella vuota</label>
+              <select name="target_subdir" class="form-select form-select-sm">
+                <option value="">— Seleziona —</option>
+                {% for s in browse_allowed %}
+                <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-4">
+              <button type="submit" class="btn btn-sm btn-outline-danger w-100">Elimina vuota</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header py-2 small fw-semibold">Qualità archivio documenti</div>
+    <div class="card-body py-2 small">
+      <div class="row g-2 mb-3">
+        <div class="col-12 col-md-3"><div class="border rounded p-2"><strong>{{ quality_non_assoc_count }}</strong><br><span class="text-muted">Documenti personali non associati</span></div></div>
+        <div class="col-12 col-md-3"><div class="border rounded p-2"><strong>{{ quality_non_classificati_count }}</strong><br><span class="text-muted">Non classificati / tipo altro</span></div></div>
+        <div class="col-12 col-md-3"><div class="border rounded p-2"><strong>{{ quality_missing_file_count }}</strong><br><span class="text-muted">Record senza file disponibile</span></div></div>
+        <div class="col-12 col-md-3"><div class="border rounded p-2"><strong>{{ quality_duplicate_filename_count }}</strong><br><span class="text-muted">Nomi file duplicati</span></div></div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-12 col-lg-6">
+          <h6 class="small fw-semibold mb-1">Non associati (campione)</h6>
+          {% if quality_non_assoc_sample %}
+          <ul class="mb-0">
+            {% for d in quality_non_assoc_sample %}
+            <li><code>#{{ d.id }}</code> — <code>{{ d.file.name }}</code> <span class="text-muted">({{ d.get_tipo_display }})</span></li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="text-muted mb-0">Nessun documento personale senza dipendente.</p>
+          {% endif %}
+        </div>
+        <div class="col-12 col-lg-6">
+          <h6 class="small fw-semibold mb-1">Senza file disponibile (campione)</h6>
+          {% if quality_missing_file_sample %}
+          <ul class="mb-0">
+            {% for d in quality_missing_file_sample %}
+            <li><code>#{{ d.id }}</code> — <code>{{ d.file.name }}</code></li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="text-muted mb-0">Nessun record orfano rilevato nel campione recente.</p>
+          {% endif %}
+        </div>
+        <div class="col-12 col-lg-6">
+          <h6 class="small fw-semibold mb-1">Non classificati / altro (campione)</h6>
+          {% if quality_non_classificati_sample %}
+          <ul class="mb-0">
+            {% for d in quality_non_classificati_sample %}
+            <li><code>#{{ d.id }}</code> — <code>{{ d.file.name }}</code> <span class="text-muted">({{ d.tipo }})</span></li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="text-muted mb-0">Nessun documento in stato non classificato.</p>
+          {% endif %}
+        </div>
+        <div class="col-12 col-lg-6">
+          <h6 class="small fw-semibold mb-1">Duplicati nome file (campione)</h6>
+          {% if quality_duplicate_filename_sample %}
+          <ul class="mb-0">
+            {% for x in quality_duplicate_filename_sample %}
+            <li><code>{{ x.filename }}</code> — {{ x.count }} occorrenze (id: {{ x.ids|join:", " }})</li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="text-muted mb-0">Nessun nome file duplicato nel campione recente.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header py-2 small fw-semibold">Indicizzazione storage da interfaccia</div>
+    <div class="card-body py-2 small">
+      <form method="post" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="run_storage_index">
+        <input type="hidden" name="browse" value="{{ browse_subdir }}">
+        <div class="col-12 col-md-3">
+          <label class="form-label mb-0 text-muted">Modalità</label>
+          <select name="index_mode" class="form-select form-select-sm">
+            <option value="dry">Simulazione (dry-run)</option>
+            <option value="apply">Applica su DB</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label mb-0 text-muted">Solo tipo (opzionale)</label>
+          <select name="index_tipo" class="form-select form-select-sm">
+            <option value="">Tutti i tipi</option>
+            {% for code,label in documento_tipo_choices %}
+            <option value="{{ code }}">{{ label }} ({{ code }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-5">
+          <button type="submit" class="btn btn-sm btn-outline-success w-100">
+            Esegui indicizzazione
+          </button>
+        </div>
+      </form>
+      <p class="text-muted mb-0 mt-2">
+        Questa funzione lancia il comando <code>indicizza_documenti_storage</code> usando l'azienda operativa corrente.
+      </p>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header py-2 small fw-semibold">Verifica destinazioni upload massivi (Buste/F24/CUD)</div>
+    <div class="card-body py-2 small">
+      <form method="post" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="audit_massive_destinations">
+        <input type="hidden" name="browse" value="{{ browse_subdir }}">
+        <div class="col-12 col-md-4">
+          <label class="form-label mb-0 text-muted">Modalità</label>
+          <select name="massive_mode" class="form-select form-select-sm">
+            <option value="dry">Solo verifica</option>
+            <option value="apply">Verifica + riallinea ed elimina legacy</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-8">
+          <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+            Esegui controllo destinazioni massive
+          </button>
+        </div>
+      </form>
+      <p class="text-muted mb-0 mt-2">
+        In modalità applica viene eseguito il riallineamento dei path su cartelle pertinenti e la rimozione file legacy sostituiti.
+      </p>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header py-2 small fw-semibold">Esplora e gestisci i PDF sul server</div>
+    <div class="card-body py-3 small">
+      <p class="text-muted mb-2">
+        Scegli una cartella consentita (stesse directory dell’archivio documenti). Puoi aprire i PDF nel browser
+        ed eliminarli dal disco; se il file è collegato a un <code>Documento</code>, viene eliminato anche il record
+        (gli admin non superuser solo per documenti dell’azienda operativa corrente).
+      </p>
+      <form method="get" class="row row-cols-sm-auto g-2 align-items-end mb-0">
+        <div class="col-12 col-sm-auto">
+          <label class="form-label mb-0 text-muted">Cartella</label>
+          <select name="browse" class="form-select form-select-sm" required>
+            <option value="" disabled {% if not browse_subdir %}selected{% endif %}>— Seleziona —</option>
+            {% for s in browse_allowed %}
+            <option value="{{ s }}" {% if browse_subdir == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-sm-auto">
+          <button type="submit" class="btn btn-primary btn-sm">Mostra elenco PDF</button>
+        </div>
+      </form>
+      {% if browse_subdir %}
+      <hr class="my-3">
+      {% if browse_truncated %}
+      <p class="text-warning mb-2">
+        Elenco troncato: mostrati al massimo {{ browse_max }} file. Riduci i file nella cartella o affina la struttura.
+      </p>
+      {% endif %}
+      {% if browse_files %}
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Percorso relativo</th>
+              <th>Est.</th>
+              <th class="text-end">Dimensione</th>
+              <th>Modifica</th>
+              <th>Documento</th>
+              <th class="text-nowrap">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in browse_files %}
+            <tr>
+              <td><code class="small user-select-all">{{ e.rel }}</code></td>
+              <td><span class="text-muted">{{ e.rel|slice:'-5:' }}</span></td>
+              <td class="text-end text-muted">{{ e.size_h }}</td>
+              <td class="text-muted">{{ e.mtime_dt|date:"d/m/Y H:i" }}</td>
+              <td>
+                {% if e.documento_id %}
+                <a href="{% url 'visualizza_documento' e.documento_id %}">#{{ e.documento_id }}</a>
+                <span class="text-muted">({{ e.documento_tipo }})</span>
+                {% if e.documento_dipendente %}
+                <div class="text-muted small">{{ e.documento_dipendente }}</div>
+                {% endif %}
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="text-nowrap">
+                {% if e.is_pdf %}
+                <a class="btn btn-outline-primary btn-sm py-0" href="{% url 'admin_archivio_documenti_pdf' %}?rel={{ e.rel|urlencode }}">Apri PDF</a>
+                {% endif %}
+                <form method="post" action="{% url 'admin_archivio_documenti_elimina_file' %}" class="d-inline" data-confirm-title="Elimina file" data-confirm-variant="danger" data-confirm-ok-label="Elimina file" data-confirm-message="Confermi l'eliminazione definitiva di questo file dallo storage?">
+                  {% csrf_token %}
+                  <input type="hidden" name="rel" value="{{ e.rel }}">
+                  <input type="hidden" name="browse" value="{{ browse_subdir }}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm py-0">Elimina</button>
+                </form>
+                <form method="post" action="{% url 'admin_archivio_documenti_storage' %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete_document_record">
+                  <input type="hidden" name="rel" value="{{ e.rel }}">
+                  <input type="hidden" name="browse" value="{{ browse_subdir }}">
+                  <button type="submit" class="btn btn-outline-secondary btn-sm py-0" title="Elimina solo il record DB">Solo record</button>
+                </form>
+                <details class="mt-1">
+                  <summary class="small text-muted">Associa / Sposta</summary>
+                  <div class="mt-1">
+                    <form method="post" action="{% url 'admin_archivio_documenti_storage' %}" class="row g-1 mb-1">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="associate_documento">
+                      <input type="hidden" name="rel" value="{{ e.rel }}">
+                      <input type="hidden" name="browse" value="{{ browse_subdir }}">
+                      <div class="col-12">
+                        <select name="dipendente_id" class="form-select form-select-sm">
+                          <option value="">Dipendente non associato</option>
+                          {% for d in dipendenti_assoc %}
+                          <option value="{{ d.id }}">{{ d.cognome }} {{ d.nome }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="col-12">
+                        <select name="tipo" class="form-select form-select-sm">
+                          {% for code,label in documento_tipo_choices %}
+                          <option value="{{ code }}" {% if code == e.documento_tipo %}selected{% endif %}>{{ label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="col-12">
+                        <input type="text" name="descrizione" class="form-control form-control-sm" placeholder="Descrizione (opzionale)">
+                      </div>
+                      <div class="col-12">
+                        <button type="submit" class="btn btn-sm btn-outline-success w-100 py-0">Salva associazione</button>
+                      </div>
+                    </form>
+                    <form method="post" action="{% url 'admin_archivio_documenti_storage' %}" class="row g-1">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="move_file">
+                      <input type="hidden" name="rel" value="{{ e.rel }}">
+                      <input type="hidden" name="browse" value="{{ browse_subdir }}">
+                      <div class="col-8">
+                        <select name="target_subdir" class="form-select form-select-sm">
+                          <option value="">Sposta in...</option>
+                          {% for s in browse_allowed %}
+                          <option value="{{ s }}">{{ s }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="col-4">
+                        <button type="submit" class="btn btn-sm btn-outline-dark w-100 py-0">Sposta</button>
+                      </div>
+                    </form>
+                  </div>
+                </details>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted mb-0">Nessun PDF in questa cartella (o cartella assente).</p>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header py-2 small fw-semibold">Altri tipi documento</div>
+    <div class="card-body py-2 small">
+      <p class="mb-2">I tipi non elencati sopra usano la cartella predefinita:</p>
+      <p class="mb-1"><strong><code>{{ default_subdir }}</code></strong>
+        {% if default_exists %}<span class="text-success ms-1">(presente)</span>
+        {% else %}<span class="text-warning ms-1">(assente fino al primo salvataggio)</span>{% endif %}
+      </p>
+      <p class="mb-0"><code class="user-select-all">{{ default_path }}</code></p>
+      <p class="text-muted mt-2 mb-0 small">Codici tipi: {% for c in altri_tipi %}<code>{{ c }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+    </div>
+  </div>
+
+  <div class="card border-secondary">
+    <div class="card-header py-2 small fw-semibold bg-light">Compatibilità percorsi legacy</div>
+    <div class="card-body py-2 small text-muted">
+      In caso di URL o file vecchi, il sistema può risolvere nomi file cercando anche in:
+      <code>{% for s in legacy_subdirs %}{{ s }}{% if not forloop.last %}, {% endif %}{% endfor %}</code>.
+    </div>
+  </div>
+
+  <div class="alert alert-info mt-3 small mb-0">
+    Per registrare in automatico file copiati manualmente nelle cartelle storage:
+    <code>python3 manage.py indicizza_documenti_storage --azienda-id ID</code>
+    (simulazione) e poi
+    <code>python3 manage.py indicizza_documenti_storage --azienda-id ID --applica</code>.
+  </div>
+</div>
+{% endblock %}

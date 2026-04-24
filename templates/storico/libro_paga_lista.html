@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+{% load l10n ruoli_tags format_it_tags %}
+{% block title %}Libro Unico del Lavoro{% endblock %}
+{% block content %}
+<style>
+  .libro-dip-head { cursor: pointer; user-select: none; }
+  .libro-dip-head .libro-dip-chevron { transition: transform .2s ease; }
+  .libro-dip-head.collapsed .libro-dip-chevron { transform: rotate(-90deg); }
+  .libro-anno-head { cursor: pointer; user-select: none; }
+  .libro-anno-head .libro-anno-chevron { transition: transform .2s ease; display: inline-block; }
+  .libro-anno-head.collapsed .libro-anno-chevron { transform: rotate(-90deg); }
+  .libro-anno-head:hover td { filter: brightness(0.97); }
+  /* Collapse su secondo tbody: Bootstrap non imposta display corretto sulle righe tabella */
+  tbody.libro-anno-body.collapse:not(.show) { display: none !important; }
+  tbody.libro-anno-body.collapse.show,
+  tbody.libro-anno-body.collapsing { display: table-row-group !important; }
+  .voce-motore-wrap { background: #f8fbff; border-left: 3px solid #5b9bd5; padding: .6rem .75rem; }
+  .voce-motore-table { font-size: .75rem; margin-bottom: 0; }
+  .voce-motore-table th { white-space: nowrap; }
+</style>
+<div class="container-fluid" style="max-width:1400px;margin:0 auto;padding:1.5rem 1rem">
+
+  <!-- Intestazione -->
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="mb-0" style="font-size:1.4rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-journal-richtext me-2"></i>Libro Unico del Lavoro
+      </h2>
+      <small class="text-muted">Art. 39 L. 133/2008 — Registro paghe dipendenti</small>
+    </div>
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+      {% if user.is_authenticated %}
+        {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
+      <form method="post" action="{% url 'libro_paga_ricarica_da_buste' %}" class="d-inline-flex flex-wrap align-items-center gap-1">
+        {% csrf_token %}
+        {% if azienda_id_sel %}<input type="hidden" name="azienda_id" value="{{ azienda_id_sel }}">{% endif %}
+        {% if dipendente_id_sel %}<input type="hidden" name="dipendente_id" value="{{ dipendente_id_sel }}">{% endif %}
+        <button type="submit" name="modo" value="buste" class="btn btn-primary btn-sm"
+                title="Solo righe Documenti (tipo busta paga) con PDF: niente simulazioni né import massivo senza documento"
+                >
+          <i class="bi bi-arrow-repeat"></i> Ricarica da buste
+        </button>
+        <button type="submit" name="modo" value="completo" class="btn btn-outline-primary btn-sm"
+                title="Simulazioni paghe + buste da Documenti (esclude movimenti import non collegati a documenti)"
+                >
+          <i class="bi bi-layers"></i> Completo
+        </button>
+      </form>
+      <form method="post" action="{% url 'libro_paga_svuota' %}" class="d-inline"
+            data-confirm-title="Svuota libro paga"
+            data-confirm-variant="danger"
+            data-confirm-ok-label="Svuota"
+            data-confirm-message="Confermi l'eliminazione delle voci del Libro Unico per il perimetro selezionato? L'operazione non e annullabile.">
+        {% csrf_token %}
+        {% if azienda_id_sel %}<input type="hidden" name="azienda_id" value="{{ azienda_id_sel }}">{% endif %}
+        {% if dipendente_id_sel %}<input type="hidden" name="dipendente_id" value="{{ dipendente_id_sel }}">{% endif %}
+        <button type="submit" class="btn btn-outline-danger btn-sm"
+                {% if not azienda_id_sel %}disabled title="Scegli un'azienda dal filtro sotto"{% endif %}>
+          <i class="bi bi-trash"></i> Svuota libro (azienda filtrata)
+        </button>
+      </form>
+      {% if user.is_superuser or user|has_ruolo:'admin' %}
+      <form method="post" action="{% url 'libro_paga_svuota' %}" class="d-inline"
+            data-confirm-title="Svuota tutte le aziende"
+            data-confirm-variant="danger"
+            data-confirm-ok-label="Svuota tutto"
+            data-confirm-message="Confermi l'eliminazione di tutte le voci Libro Unico per tutte le aziende? Operazione irreversibile.">
+        {% csrf_token %}
+        <input type="hidden" name="scope" value="tutto">
+        <button type="submit" class="btn btn-danger btn-sm">
+          <i class="bi bi-trash3"></i> Svuota tutte le aziende
+        </button>
+      </form>
+      {% endif %}
+        {% endif %}
+      {% endif %}
+      <a href="?{% if azienda_id_sel %}azienda_id={{ azienda_id_sel }}&{% endif %}{% if dipendente_id_sel %}dipendente_id={{ dipendente_id_sel }}&{% endif %}export=excel"
+         class="btn btn-outline-success btn-sm">
+        <i class="bi bi-file-earmark-excel"></i> Esporta Excel
+      </a>
+      {% if user.is_superuser or user|has_ruolo:'admin' %}
+      <a href="{% url 'estrazione_dati_buste_paga' %}" class="btn btn-outline-info btn-sm" title="Diagnostica PDF buste (motore separato dal Libro Unico)">
+        <i class="bi bi-file-earmark-pdf"></i> Estrazione dati buste
+      </a>
+      <a href="{% url 'admin_table_detail' 'storico' 'libropagastorico' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-pencil-square"></i> Gestisci voci (database)
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <div class="mb-1"><strong>Libro Unico del Lavoro.</strong> Questa pagina mostra il registro storico (<code>LibroPagaStorico</code>) popolabile con «Ricarica da buste» o <code>popolalibropaga</code>. Se usi come riferimento principale i <strong>dati estratti dalle buste</strong> (lettura cedolino, motore v4, conciliazione), puoi <strong>svuotare</strong> questo libro per evitare duplicazioni o dati obsoleti.</div>
+    <div class="mb-1 text-muted" style="font-size:.9em;">
+      Analisi da PDF: <a href="{% url 'buste_paga_conciliazione_cedolino' %}">Conciliazione buste</a>
+      · <a href="{% url 'buste_paga_lettura_cedolino' %}">Dettaglio lettura cedolino</a>
+      · <a href="{% url 'buste_paga_estrazione_motore_v4' %}">Memorizza estrazione v4</a>
+    </div>
+    <div class="mb-0 text-muted" style="font-size:.9em;">
+      <a href="{% url 'guida_modulo' 'paghe-controlli' %}">Guida: paghe e controlli</a>
+      — CLI: <code>python manage.py pulisci_libro_paga</code> (opz. <code>--azienda-id</code>, <code>--dry-run</code>)
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Filtri -->
+  <form method="get" class="row g-2 align-items-end mb-4 p-3 bg-light rounded border">
+    <div class="col-auto">
+      <label class="form-label mb-1 small fw-semibold">Azienda</label>
+      <select name="azienda_id" class="form-select form-select-sm">
+        <option value="">— Tutte le aziende —</option>
+        {% for az in aziende %}
+        <option value="{{ az.id }}" {% if azienda_id_sel == az.id|stringformat:"s" %}selected{% endif %}>{{ az.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Filtra</button>
+      <a href="{% url 'libro_paga_lista' %}" class="btn btn-outline-secondary btn-sm ms-1">Reset</a>
+    </div>
+    <div class="col-auto ms-auto">
+      <span class="badge bg-secondary">{{ totale_voci }} voci totali</span>
+    </div>
+  </form>
+
+  {% if messages %}
+  {% for message in messages %}
+  <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} py-2 small mb-2" style="white-space:pre-wrap">{{ message }}</div>
+  {% endfor %}
+  {% endif %}
+
+  {% if not dipendenti_gruppi %}
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>Nessun dato nel libro paga.
+    Da HR/Admin: usa <strong>Ricarica da buste</strong> in alto, oppure
+    <code>python manage.py popolalibropaga</code>, oppure
+    {% if user.is_superuser or user|has_ruolo:'admin' %}<a href="{% url 'admin_db_record_create' 'storico' 'libropagastorico' %}">aggiungi manualmente</a>{% else %}aggiungi tramite HR/Admin{% endif %}.
+  </div>
+  {% endif %}
+
+  <!-- Un blocco per ogni dipendente -->
+  {% for gruppo in dipendenti_gruppi %}
+  <div class="card mb-4 shadow-sm" id="dip-{{ gruppo.dipendente.id }}">
+
+    <!-- Intestazione dipendente (collapse) + riepiloghi -->
+    <div class="card-header py-2 libro-dip-head" style="background:#1b3a5f;color:#fff"
+         data-bs-toggle="collapse" data-bs-target="#libro-dip-body-{{ gruppo.dipendente.id }}"
+         aria-expanded="true" aria-controls="libro-dip-body-{{ gruppo.dipendente.id }}">
+      <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+        <div class="d-flex align-items-start gap-2 flex-grow-1 min-w-0">
+          <i class="bi bi-chevron-down libro-dip-chevron mt-1 flex-shrink-0" aria-hidden="true"></i>
+          <div class="min-w-0">
+            <div>
+              <strong style="font-size:1.05rem">{{ gruppo.dipendente.cognome }} {{ gruppo.dipendente.nome }}</strong>
+              {% if gruppo.dipendente.codice_fiscale %}
+              <span class="ms-2 opacity-75" style="font-size:.82rem">CF: {{ gruppo.dipendente.codice_fiscale }}</span>
+              {% endif %}
+            </div>
+            <div class="d-flex flex-wrap gap-x-3 gap-y-1 mt-1" style="font-size:.78rem;opacity:.92">
+              <span><i class="bi bi-list-ol me-1"></i>{{ gruppo.voci|length }} period{% if gruppo.voci|length == 1 %}o{% else %}i{% endif %}</span>
+              <span><i class="bi bi-calendar-range me-1"></i>{{ gruppo.per_anno|length }} ann{% if gruppo.per_anno|length == 1 %}o{% else %}i{% endif %}</span>
+              <span>Lordo <strong>{% if gruppo.totale_lordo is not None %}€ {{ gruppo.totale_lordo|euro_it }}{% else %}—{% endif %}</strong></span>
+              <span>INPS dip. <strong>{% if gruppo.totale_inps_dip is not None %}€ {{ gruppo.totale_inps_dip|euro_it }}{% else %}—{% endif %}</strong></span>
+              <span>IRPEF <strong>{% if gruppo.totale_irpef is not None %}€ {{ gruppo.totale_irpef|euro_it }}{% else %}—{% endif %}</strong></span>
+              <span>Netto <strong>€ {{ gruppo.totale_netto|euro_it }}</strong></span>
+              <span>TFR acc. <strong>{% if gruppo.totale_tfr is not None %}€ {{ gruppo.totale_tfr|euro_it }}{% else %}—{% endif %}</strong></span>
+              <span>Costo az. <strong>{% if gruppo.totale_costo is not None %}€ {{ gruppo.totale_costo|euro_it }}{% else %}—{% endif %}</strong></span>
+            </div>
+          </div>
+        </div>
+        <div class="d-flex gap-3 flex-wrap text-end" style="font-size:.83rem">
+          <span>
+            <i class="bi bi-calendar-check me-1"></i>
+            Assunzione:
+            <strong>{% if gruppo.data_inizio_rapporto %}{{ gruppo.data_inizio_rapporto|date:"d/m/Y" }}{% else %}—{% endif %}</strong>
+          </span>
+          <span>
+            <i class="bi bi-calendar-x me-1"></i>
+            Cessazione:
+            {% if gruppo.data_fine_rapporto %}
+            <strong>{{ gruppo.data_fine_rapporto|date:"d/m/Y" }}</strong>
+            {% else %}
+            <strong class="text-warning">In corso</strong>
+            {% endif %}
+          </span>
+          <span>
+            <i class="bi bi-building me-1"></i>{{ gruppo.dipendente.azienda }}
+          </span>
+        </div>
+      </div>
+      {% if gruppo.voci %}{% with gruppo.voci|first as prima_voce %}
+      {% if prima_voce.qualifica or prima_voce.livello_ccnl %}
+      <div style="font-size:.82rem;opacity:.85;margin-top:.35rem;padding-left:1.6rem">
+        {% if prima_voce.livello_ccnl %}Livello: <strong>{{ prima_voce.livello_ccnl }}</strong>{% endif %}
+        {% if prima_voce.qualifica %} &mdash; {{ prima_voce.qualifica }}{% endif %}
+        {% if prima_voce.tipo_contratto %} &mdash; {{ prima_voce.tipo_contratto }}{% endif %}
+      </div>
+      {% endif %}
+      {% endwith %}{% endif %}
+    </div>
+
+    <div id="libro-dip-body-{{ gruppo.dipendente.id }}" class="collapse show">
+    <!-- Tabella voci mensili (sottogruppi per anno) -->
+    <div class="card-body p-0 gesper-list-scroll">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.82rem">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-2" style="white-space:nowrap">#</th>
+              <th style="white-space:nowrap">Periodo</th>
+              <th style="white-space:nowrap">Data pag.</th>
+              <th class="text-end" style="white-space:nowrap" title="Ore ordinarie">Ore ord.</th>
+              <th class="text-end" style="white-space:nowrap" title="Ore straordinario">Ore str.</th>
+              <th class="text-end" style="white-space:nowrap" title="Ore assenza / ferie / ROL">Ore ass.</th>
+              <th class="text-end euro" style="white-space:nowrap" title="Retribuzione base">Ret. base €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="Indennità e accessori">Indenn. acc. €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="Lordo imponibile">Lordo €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="INPS a carico dipendente">INPS dip. €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="IRPEF trattenuta">IRPEF €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="Addizionali regionali e comunali">Addiz. €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="Altre trattenute">Altre tratt. €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="Trattamento integrativo / bonus">TI/Bonus €</th>
+              <th class="text-end euro" style="white-space:nowrap"><strong>Netto €</strong></th>
+              <th class="text-end euro" style="white-space:nowrap" title="TFR accantonato">TFR acc. €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="Rateo tredicesima">Rateo 13ª €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="Rateo quattordicesima">Rateo 14ª €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="INPS a carico azienda">INPS az. €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="INAIL a carico azienda">INAIL az. €</th>
+              <th class="text-end euro" style="white-space:nowrap" title="Costo totale azienda">Costo az. €</th>
+              <th style="white-space:nowrap">Fonte</th>
+              <th style="white-space:nowrap" title="Regole di valorizzazione colonna (motore v4)">Fonte calcolo</th>
+              <th style="white-space:nowrap">Note</th>
+            </tr>
+          </thead>
+          {% for block in gruppo.per_anno %}
+          <tbody class="border-top border-secondary">
+            <tr class="table-secondary libro-anno-head" style="font-weight:600;font-size:.8rem"
+                role="button" tabindex="0"
+                data-bs-toggle="collapse" data-bs-target="#libro-anno-{{ gruppo.dipendente.id }}-{{ block.anno }}"
+                aria-expanded="true" aria-controls="libro-anno-{{ gruppo.dipendente.id }}-{{ block.anno }}">
+              <td colspan="3" class="ps-2">
+                <i class="bi bi-chevron-down libro-anno-chevron me-1" aria-hidden="true"></i>
+                <i class="bi bi-calendar3 me-1"></i>Anno {{ block.anno_label }}
+                <span class="text-muted fw-normal ms-1">({{ block.voci|length }} period{% if block.voci|length == 1 %}o{% else %}i{% endif %})</span>
+              </td>
+              <td class="text-end">{% if block.totale_ore_ord %}{{ block.totale_ore_ord|num_it:1 }}{% else %}—{% endif %}</td>
+              <td class="text-end">{% if block.totale_ore_str %}{{ block.totale_ore_str|num_it:1 }}{% else %}—{% endif %}</td>
+              <td class="text-end">{% if block.totale_ore_ass %}{{ block.totale_ore_ass|num_it:1 }}{% else %}—{% endif %}</td>
+              <td class="text-end euro">{% if block.totale_retribuzione_base is not None %}€ {{ block.totale_retribuzione_base|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro">{% if block.totale_indennita is not None %}€ {{ block.totale_indennita|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#1a5276">{% if block.totale_lordo is not None %}€ {{ block.totale_lordo|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#922b21">{% if block.totale_inps_dip is not None %}€ {{ block.totale_inps_dip|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#922b21">{% if block.totale_irpef is not None %}€ {{ block.totale_irpef|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#922b21">{% if block.totale_addizionali is not None %}€ {{ block.totale_addizionali|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#922b21">{% if block.totale_altre_trattenute is not None %}€ {{ block.totale_altre_trattenute|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#1e8449">{% if block.totale_ti is not None %}€ {{ block.totale_ti|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro"><strong>€ {{ block.totale_netto|euro_it }}</strong></td>
+              <td class="text-end euro text-muted">{% if block.totale_tfr is not None %}€ {{ block.totale_tfr|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro text-muted">{% if block.totale_rateo_13 is not None %}€ {{ block.totale_rateo_13|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro text-muted">{% if block.totale_rateo_14 is not None %}€ {{ block.totale_rateo_14|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#6c3483">{% if block.totale_inps_az is not None %}€ {{ block.totale_inps_az|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#6c3483">{% if block.totale_inail is not None %}€ {{ block.totale_inail|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#922b21">{% if block.totale_costo is not None %}<strong>€ {{ block.totale_costo|euro_it }}</strong>{% else %}—{% endif %}</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+          </tbody>
+          <tbody id="libro-anno-{{ gruppo.dipendente.id }}-{{ block.anno }}" class="libro-anno-body collapse show">
+            {% for voce in block.voci %}
+            {% include "storico/_libro_paga_riga_voce.html" with voce=voce only %}
+            {% if voce.voci_motore %}
+            <tr class="table-light">
+              <td colspan="24" class="py-1">
+                <button class="btn btn-link btn-sm p-0 text-decoration-none" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#voci-motore-{{ voce.id }}"
+                        aria-expanded="false" aria-controls="voci-motore-{{ voce.id }}">
+                  <i class="bi bi-list-check me-1"></i>
+                  Dettaglio voci motore cedolino ({{ voce.voci_motore|length }})
+                  <span class="text-muted">— periodo {{ voce.periodo_riferimento }}</span>
+                </button>
+                <div id="voci-motore-{{ voce.id }}" class="collapse mt-1">
+                  <div class="voce-motore-wrap">
+                    <div class="small text-muted mb-2">
+                      Voci lette dal motore v4 (codice riga cedolino, categoria e importi) per questo dipendente/periodo.
+                    </div>
+                    <div class="table-responsive">
+                      <table class="table table-sm table-bordered voce-motore-table">
+                        <thead class="table-secondary">
+                          <tr>
+                            <th>Natura</th>
+                            <th>Codice</th>
+                            <th>Descrizione</th>
+                            <th>Tipo</th>
+                            <th class="text-end">Ore/gg</th>
+                            <th class="text-end">Base</th>
+                            <th class="text-end">Importo €</th>
+                            <th class="text-end">Calc. €</th>
+                            <th class="text-end">Delta €</th>
+                            <th>Check</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for vm in voce.voci_motore %}
+                          <tr>
+                            <td>{{ vm.cedolino.get_natura_busta_display }}</td>
+                            <td><code>{{ vm.codice }}</code></td>
+                            <td>{{ vm.descrizione }}</td>
+                            <td>{{ vm.tipo }}</td>
+                            <td class="text-end">{% if vm.ore_gg is not None %}{{ vm.ore_gg|num_it:2 }}{% else %}—{% endif %}</td>
+                            <td class="text-end">{% if vm.base_unitaria is not None %}{{ vm.base_unitaria|num_it:5 }}{% else %}—{% endif %}</td>
+                            <td class="text-end"><strong>{{ vm.importo|num_it:2 }}</strong></td>
+                            <td class="text-end">{% if vm.importo_calcolato is not None %}{{ vm.importo_calcolato|num_it:2 }}{% else %}—{% endif %}</td>
+                            <td class="text-end">{% if vm.delta_calc is not None %}{{ vm.delta_calc|num_it:2 }}{% else %}—{% endif %}</td>
+                            <td>{{ vm.esito_check|default:"—" }}</td>
+                          </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+          {% endfor %}
+
+          <!-- Riga totali dipendente -->
+          <tfoot class="table-secondary">
+            <tr style="font-weight:600;font-size:.83rem">
+              <td colspan="3" class="ps-2">Totali {{ gruppo.dipendente.cognome }} {{ gruppo.dipendente.nome }}</td>
+              <td class="text-end">{% if gruppo.totale_ore_ord %}{{ gruppo.totale_ore_ord|num_it:1 }}{% else %}—{% endif %}</td>
+              <td class="text-end">{% if gruppo.totale_ore_str %}{{ gruppo.totale_ore_str|num_it:1 }}{% else %}—{% endif %}</td>
+              <td class="text-end">{% if gruppo.totale_ore_ass %}{{ gruppo.totale_ore_ass|num_it:1 }}{% else %}—{% endif %}</td>
+              <td class="text-end euro">{% if gruppo.totale_retribuzione_base is not None %}€ {{ gruppo.totale_retribuzione_base|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro">{% if gruppo.totale_indennita is not None %}€ {{ gruppo.totale_indennita|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#1a5276">{% if gruppo.totale_lordo is not None %}€ {{ gruppo.totale_lordo|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#922b21">{% if gruppo.totale_inps_dip is not None %}€ {{ gruppo.totale_inps_dip|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#922b21">{% if gruppo.totale_irpef is not None %}€ {{ gruppo.totale_irpef|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#922b21">{% if gruppo.totale_addizionali is not None %}€ {{ gruppo.totale_addizionali|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#922b21">{% if gruppo.totale_altre_trattenute is not None %}€ {{ gruppo.totale_altre_trattenute|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#1e8449">{% if gruppo.totale_ti is not None %}€ {{ gruppo.totale_ti|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro"><strong>€ {{ gruppo.totale_netto|euro_it }}</strong></td>
+              <td class="text-end euro text-muted">{% if gruppo.totale_tfr is not None %}€ {{ gruppo.totale_tfr|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro text-muted">{% if gruppo.totale_rateo_13 is not None %}€ {{ gruppo.totale_rateo_13|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro text-muted">{% if gruppo.totale_rateo_14 is not None %}€ {{ gruppo.totale_rateo_14|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#6c3483">{% if gruppo.totale_inps_az is not None %}€ {{ gruppo.totale_inps_az|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#6c3483">{% if gruppo.totale_inail is not None %}€ {{ gruppo.totale_inail|euro_it }}{% else %}—{% endif %}</td>
+              <td class="text-end euro" style="color:#922b21">{% if gruppo.totale_costo is not None %}<strong>€ {{ gruppo.totale_costo|euro_it }}</strong>{% else %}—{% endif %}</td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Footer card: note e link admin -->
+    <div class="card-footer py-1 d-flex justify-content-between align-items-center" style="font-size:.78rem;background:#f8f9fa">
+      <span class="text-muted">{{ gruppo.voci|length }} period{% if gruppo.voci|length == 1 %}o{% else %}i{% endif %} registrat{% if gruppo.voci|length == 1 %}o{% else %}i{% endif %}</span>
+      {% if user.is_superuser or user|has_ruolo:'admin' %}
+      <a href="{% url 'admin_table_detail' 'storico' 'libropagastorico' %}?dipendente_id={{ gruppo.dipendente.id }}"
+         class="text-decoration-none" style="color:#1b3a5f">
+        <i class="bi bi-pencil-square me-1"></i>Modifica voci
+      </a>
+      {% endif %}
+    </div>
+
+    </div>{# collapse libro-dip-body #}
+
+  </div>
+  {% endfor %}
+
+</div>
+{% endblock %}

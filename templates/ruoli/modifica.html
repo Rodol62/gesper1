@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Modifica ruolo</h2>
+<form method="post">
+    {% csrf_token %}
+    <input type="text" name="nome" value="{{ ruolo.name }}">
+    <input type="submit" value="Salva">
+</form>
+<a href="{% url 'lista_ruoli' %}">Torna alla lista</a>
+{% endblock %}

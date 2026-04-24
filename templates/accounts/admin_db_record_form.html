@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}{% if is_create %}Nuovo {{ verbose_name }}{% else %}Modifica {{ verbose_name }}{% endif %} — Gesper{% endblock %}
+
+{% block extra_head %}
+<style>
+.form-header {
+  background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent) 100%);
+  color: #fff;
+  border-radius: 6px;
+  padding: .55rem 1rem;
+  margin-bottom: .65rem;
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap;
+}
+.form-header h4 { font-size: .85rem; font-weight: 800; margin: 0; }
+.gdb-field label { font-size: .68rem; font-weight: 600; color: var(--c-muted); text-transform: uppercase; letter-spacing: .03em; }
+.gdb-field .helptext, .gdb-field .form-text { font-size: .65rem; color: var(--c-muted); }
+.gdb-field ul.errorlist { font-size: .72rem; color: #b02a37; padding-left: 1rem; margin: .2rem 0 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="form-header">
+  <div>
+    <h4>
+      {% if is_create %}
+      <i class="bi bi-plus-circle"></i> Nuovo {{ verbose_name }}
+      {% else %}
+      <i class="bi bi-pencil"></i> Modifica {{ verbose_name }} #{{ obj.pk }}
+      {% endif %}
+    </h4>
+    <div style="font-size:.68rem;opacity:.85;font-family:monospace">{{ app_label }}.{{ model_name }}</div>
+  </div>
+  <a href="{% if obj %}{% url 'admin_db_record_detail' app_label model_name obj.pk %}{% else %}{% url 'admin_table_detail' app_label model_name %}{% endif %}" class="btn btn-sm btn-outline-light" style="font-size:.65rem">Annulla</a>
+</div>
+
+{% if model_name == 'user' %}
+<div class="alert alert-info py-2 mb-3" style="font-size:var(--sz-xs)">
+  Il campo password non è modificabile da questo modulo. Usa le funzioni di reset password o la scheda dedicata.
+</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm">
+  {% csrf_token %}
+  <div class="card-body py-3">
+    {% for field in form %}
+    <div class="gdb-field mb-3">
+      {% if field.field.widget.input_type == 'checkbox' %}
+      <div class="form-check">
+        {{ field }}
+        <label class="form-check-label" for="{{ field.id_for_label }}" style="font-size:var(--sz-sm)">{{ field.label }}</label>
+        {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+        {{ field.errors }}
+      </div>
+      {% else %}
+        {{ field.label_tag }}
+        {{ field }}
+        {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+        {{ field.errors }}
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger py-2" style="font-size:var(--sz-sm)">{{ form.non_field_errors }}</div>
+    {% endif %}
+  </div>
+  <div class="card-footer bg-white border-top py-2 d-flex gap-2">
+    <button type="submit" class="btn btn-primary btn-sm">Salva</button>
+    <a href="{% if obj %}{% url 'admin_db_record_detail' app_label model_name obj.pk %}{% else %}{% url 'admin_table_detail' app_label model_name %}{% endif %}" class="btn btn-outline-secondary btn-sm">Torna indietro</a>
+  </div>
+</form>
+
+{% endblock %}

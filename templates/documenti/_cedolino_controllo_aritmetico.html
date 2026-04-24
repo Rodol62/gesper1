@@ -1,0 +1,112 @@
+{% with c=report.controllo_aritmetico %}
+{% if c %}
+<div class="ced-section border-top pt-3 mt-3">
+  <h2>Controllo aritmetico (voci vs totali)</h2>
+  <p class="small text-muted mb-3" style="font-size:.72rem">{{ c.nota_metodo }}</p>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered align-middle mb-3">
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Voce</th>
+          <th scope="col" class="text-end">Importo</th>
+          <th scope="col" class="text-center">Esito</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Somma importi righe «Competenza» <span class="text-muted">({{ c.n_righe_competenza }} righe)</span></td>
+          <td class="text-end">{{ c.somma_importi_voci_competenza }} €</td>
+          <td class="text-center">—</td>
+        </tr>
+        <tr>
+          <td>Lordo da cedolino («Totale lordo»)</td>
+          <td class="text-end">{{ c.lordo_cedolino }} €</td>
+          <td class="text-center">
+            {% if c.coerenza_lordo_ok == True %}
+            <span class="badge text-bg-success">OK</span>
+            {% elif c.coerenza_lordo_ok == False %}
+            <span class="badge text-bg-warning">Δ {{ c.delta_lordo_vs_somma_competenze }} €</span>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% if c.coerenza_lordo_ok == False %}
+        <tr class="table-warning">
+          <td colspan="2">Scostamento lordo − somma competenze</td>
+          <td class="text-end">{{ c.delta_lordo_vs_somma_competenze }} €</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Percorso verso il netto</th>
+          <th scope="col" class="text-end">Importo</th>
+          <th scope="col" class="text-center">Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Somma importi righe «Trattenuta» <span class="text-muted">({{ c.n_righe_trattenuta }} righe)</span></td>
+          <td class="text-end">{{ c.somma_importi_voci_trattenuta }} €</td>
+          <td class="text-center text-muted small">controllo incrocio (non nella catena netto)</td>
+        </tr>
+        <tr>
+          <td>Contributi sociali (dip.) da sezione totali</td>
+          <td class="text-end">{{ c.contributi_da_totali }} €</td>
+          <td class="text-center text-muted small">se estratti</td>
+        </tr>
+        <tr>
+          <td>IRPEF netta</td>
+          <td class="text-end">{{ c.irpef_netta_componente }} €</td>
+          <td class="text-center text-muted small">totali o IRPEF Erario</td>
+        </tr>
+        <tr>
+          <td>Σ addizionali (blocco IRPEF)</td>
+          <td class="text-end">{{ c.addizionali_blocco_irpef }} €</td>
+          <td class="text-center text-muted small">regionale, comunale, acconti…</td>
+        </tr>
+        <tr class="table-light">
+          <td><strong>Netto atteso</strong> <span class="text-muted fw-normal">(catena fiscale)</span></td>
+          <td class="text-end"><strong>{{ c.netto_atteso_da_formula }} €</strong></td>
+          <td class="text-center">
+            {% if c.formula_netto_completa %}
+              {% if c.coerenza_netto_ok == True %}
+              <span class="badge text-bg-success">OK</span>
+              {% elif c.coerenza_netto_ok == False %}
+              <span class="badge text-bg-warning">Δ {{ c.delta_netto_vs_atteso }} €</span>
+              {% endif %}
+            {% else %}
+            <span class="badge text-bg-secondary">N/D</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td>Netto da cedolino («Netto in busta»)</td>
+          <td class="text-end">{{ c.netto_cedolino }} €</td>
+          <td class="text-center text-muted small">PDF</td>
+        </tr>
+        {% if c.formula_netto_completa and c.coerenza_netto_ok == False %}
+        <tr class="table-warning">
+          <td colspan="2">Scostamento netto cedolino − netto atteso</td>
+          <td class="text-end">{{ c.delta_netto_vs_atteso }} €</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if not c.formula_netto_completa %}
+  <p class="small text-muted mt-2 mb-0" style="font-size:.72rem">
+    Il netto atteso non è calcolato finché mancano «Totale lordo», «Netto in busta», contributi sociali o IRPEF netta nei dati estratti dal PDF. Le addizionali possono essere 0,00 €.
+  </p>
+  {% endif %}
+</div>
+{% endif %}
+{% endwith %}

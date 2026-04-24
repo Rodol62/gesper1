@@ -1,0 +1,75 @@
+{
+  "orario_fipe": {
+    "orario_contrattuale": {
+      "ore_settimanali": 40,
+      "ore_mensili": 173.33,
+      "giorni_settimana": [5, 6],
+      "limite_giornaliero_ore": 8
+    },
+
+    "fasce_orarie": {
+      "diurno": {
+        "start": "06:00",
+        "end": "22:00"
+      },
+      "notturno": {
+        "start": "22:00",
+        "end": "06:00"
+      }
+    },
+
+    "festivita_nazionali": [
+      "01-01",
+      "06-01",
+      "25-04",
+      "01-05",
+      "02-06",
+      "15-08",
+      "01-11",
+      "08-12",
+      "25-12",
+      "26-12"
+    ],
+
+    "straordinario": {
+      "definizione": "Ore oltre le 40 settimanali",
+      "limite_annuo_ore": 250,
+      "tipologie": {
+        "straordinario_feriale": true,
+        "straordinario_festivo": true,
+        "straordinario_notturno": true,
+        "straordinario_notturno_festivo": true
+      }
+    },
+
+    "turni": {
+      "turno_continuativo": true,
+      "turno_spezzato": true,
+      "numero_massimo_spezzature": 2,
+      "pausa_minima_minuti": 30
+    },
+
+    "riposi": {
+      "riposo_settimanale_ore": 24,
+      "riposo_giornaliero_ore": 11,
+      "riposo_compensativo_festivo": true,
+      "riposo_compensativo_domenicale": true
+    },
+
+    "part_time": {
+      "min_ore_settimanali": 8,
+      "max_ore_settimanali": 39,
+      "riproporzionamento": [
+        "ferie",
+        "rol",
+        "mensilita",
+        "indennita"
+      ]
+    },
+
+    "extra_intermittenti": {
+      "paga_omnicomprensiva": true,
+      "maggiorazioni_incluse": true
+    }
+  }
+}

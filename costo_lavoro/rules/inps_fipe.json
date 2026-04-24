@@ -1,0 +1,94 @@
+{
+  "inps_fipe": {
+    "aliquote_generali": {
+      "azienda": 0.2967,
+      "lavoratore": 0.0919,
+      "totale": 0.3886,
+      "descrizione": "Aliquote contributive ordinarie settore Turismo FIPE"
+    },
+
+    "aziende_minori": {
+      "abilitato": true,
+      "soglia_dipendenti": 15,
+      "aliquota_azienda": 0.2787,
+      "aliquota_lavoratore": 0.0919,
+      "totale": 0.3706,
+      "descrizione": "Aliquote ridotte per aziende minori del settore Turismo"
+    },
+
+    "apprendisti": {
+      "anno_1": {
+        "azienda": 0.115,
+        "lavoratore": 0.053,
+        "totale": 0.168
+      },
+      "anno_2": {
+        "azienda": 0.115,
+        "lavoratore": 0.053,
+        "totale": 0.168
+      },
+      "anno_3": {
+        "azienda": 0.115,
+        "lavoratore": 0.053,
+        "totale": 0.168
+      },
+      "descrizione": "Aliquote contributive apprendistato professionalizzante"
+    },
+
+    "contributi_aggiuntivi": {
+      "disoccupazione_naspi": 0.0161,
+      "fondo_garanzia_tfr": 0.002,
+      "fondo_interprofessionale": 0.003,
+      "malattia": 0.0244,
+      "maternita": 0.0068,
+      "cigs": 0.009,
+      "descrizione": "Contributi aggiuntivi obbligatori"
+    },
+
+    "contratti_a_termine": {
+      "addizionale": 0.014,
+      "riduzione_per_stagionali": true,
+      "descrizione": "Addizionale contributiva per contratti a termine"
+    },
+
+    "esenzioni_riduzioni": {
+      "giovani_sotto_30": {
+        "riduzione_azienda": 0.50,
+        "durata_mesi": 36
+      },
+      "donne_svantage": {
+        "riduzione_azienda": 0.50,
+        "durata_mesi": 18
+      },
+      "over_50": {
+        "riduzione_azienda": 0.50,
+        "durata_mesi": 12
+      }
+    },
+
+    "calcolo": {
+      "base_imponibile": "retribuzione_lorda_mensile",
+      "incluso": [
+        "paga base",
+        "contingenza",
+        "scatti anzianità",
+        "indennità continuative",
+        "straordinari"
+      ],
+      "escluso": [
+        "rimborsi spese",
+        "indennità occasionali",
+        "trasferte documentate"
+      ]
+    },
+
+    "regole_speciali": {
+      "part_time": {
+        "calcolo_proporzionale": true
+      },
+      "stagionali": {
+        "riduzioni_applicabili": true
+      }
+    }
+  }
+}

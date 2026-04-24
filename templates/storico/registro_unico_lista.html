@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h2>Registro Unico{% if azienda %} - {{ azienda.nome }}{% endif %}{% if dipendente %} - {{ dipendente.nome }}{% endif %}</h2>
+  <a href="?export=csv" class="btn btn-primary mb-2">Esporta CSV</a>
+  <a href="?export=excel" class="btn btn-success mb-2">Esporta Excel</a>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Utente</th>
+        <th>Azienda</th>
+        <th>Data Accesso</th>
+        <th>Descrizione</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for registro in registri %}
+      <tr>
+        <td>{{ registro.utente }}</td>
+        <td>{{ registro.azienda }}</td>
+        <td>{{ registro.data_accesso|date:'d/m/Y H:i' }}</td>
+        <td>{{ registro.descrizione }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4">Nessun dato disponibile.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

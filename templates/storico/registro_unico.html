@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Registro unico azienda</h2>
+<table>
+    <tr>
+        <th>Data</th>
+        <th>Dipendente</th>
+        <th>Tipo evento</th>
+        <th>Note</th>
+    </tr>
+    {% for movimento in registro %}
+    <tr>
+        <td>{{ movimento.data_movimento }}</td>
+        <td>{{ movimento.dipendente }}</td>
+        <td>{{ movimento.tipo }}</td>
+        <td>{{ movimento.note }}</td>
+    </tr>
+    {% endfor %}
+</table>
+<a href="{% url 'centro_moduli' %}">Torna al menu</a>
+{% endblock %}

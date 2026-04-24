@@ -1,0 +1,65 @@
+{% load ruoli_tags %}
+{% comment %}
+  posizioni_contrattuali: output di posizione_contrattuale_per_dipendente (lista di dict con rapporto, addenda, giorni_a_scadenza).
+  Opzionale: puo_registrare_addendum (default False) — solo admin/HR.
+{% endcomment %}
+{% if posizioni_contrattuali %}
+<div class="col-12">
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 d-flex align-items-center justify-content-between flex-wrap gap-2"
+         style="background:#f0f4f8;font-size:.8rem;font-weight:700;color:#1b3a5f">
+      <span><i class="bi bi-journal-bookmark me-1"></i>Contratti e storico (addendum)</span>
+      {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
+      <a href="{% url 'lista_contratti_scadenza' %}" class="btn btn-sm btn-outline-primary py-0" style="font-size:.75rem">
+        <i class="bi bi-calendar-event"></i> Scadenze TD
+      </a>
+      {% endif %}
+    </div>
+    <div class="card-body py-2 px-3" style="font-size:.8rem">
+      {% for riga in posizioni_contrattuali %}
+      {% with r=riga.rapporto %}
+      <div class="border-bottom pb-2 mb-2 {% if forloop.last %}border-0 mb-0 pb-0{% endif %}">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+          <div>
+            <strong class="font-monospace">{{ r.numero_contratto }}</strong>
+            <span class="text-muted">·</span> {{ r.tipo_contratto }}
+            <span class="text-muted">·</span> dal {{ r.data_inizio_rapporto|date:"d/m/Y" }}
+            {% if r.data_fine_rapporto %}
+            <span class="text-muted">·</span> al {{ r.data_fine_rapporto|date:"d/m/Y" }}
+            {% endif %}
+            <span class="badge ms-1 {% if r.stato == 'sottoscritto' %}bg-success{% elif r.stato == 'cessato' %}bg-secondary{% elif r.stato == 'sospeso' %}bg-warning text-dark{% else %}bg-light text-dark border{% endif %}" style="font-size:.68rem">{{ r.get_stato_display }}</span>
+            {% if riga.giorni_a_scadenza is not None %}
+              {% if riga.giorni_a_scadenza <= 30 and riga.giorni_a_scadenza >= 0 %}
+              <span class="badge bg-warning text-dark ms-1" style="font-size:.68rem">Scadenza TD tra {{ riga.giorni_a_scadenza }} gg</span>
+              {% elif riga.giorni_a_scadenza < 0 %}
+              <span class="badge bg-danger ms-1" style="font-size:.68rem">TD oltre la data fine (stato da allineare)</span>
+              {% endif %}
+            {% endif %}
+          </div>
+          <div class="text-nowrap">
+            <a class="btn btn-sm btn-outline-primary py-0" style="font-size:.72rem" href="{% url 'dettaglio_contratto' r.id %}">Scheda contratto</a>
+            {% if puo_registrare_addendum|default:False %}
+            <a class="btn btn-sm btn-outline-secondary py-0" style="font-size:.72rem" href="{% url 'addendum_contratto_nuovo' r.id %}">Nuovo addendum</a>
+            {% endif %}
+          </div>
+        </div>
+        {% if riga.addenda %}
+        <ul class="list-unstyled mb-0 mt-2 ms-1" style="font-size:.76rem;color:#444">
+          {% for ad in riga.addenda %}
+          <li class="mb-1">
+            <i class="bi bi-arrow-return-right text-muted me-1"></i>
+            {{ ad.data_decorrenza|date:"d/m/Y" }} — {{ ad.get_tipo_display }}
+            {% if ad.data_fine_rapporto_aggiornata %}· fine {{ ad.data_fine_rapporto_aggiornata|date:"d/m/Y" }}{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="text-muted mt-1" style="font-size:.74rem">Nessun addendum registrato su questo rapporto.</div>
+        {% endif %}
+      </div>
+      {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}

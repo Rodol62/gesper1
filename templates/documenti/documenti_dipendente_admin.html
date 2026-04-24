@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+{% block title %}Documenti {{ dipendente.cognome }} {{ dipendente.nome }} — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <a href="{% url 'lista_documenti' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.75rem">
+      <i class="bi bi-arrow-left"></i> Documenti
+    </a>
+    <div style="flex:1">
+      <h6 class="mb-0" style="color:#1b3a5f;font-weight:700">
+        <i class="bi bi-folder2-open"></i>
+        Documenti: {{ dipendente.cognome }} {{ dipendente.nome }}
+      </h6>
+      <div style="font-size:.75rem;color:#666">
+        {{ dipendente.azienda.nome }}
+        {% if dipendente.livello %} · Livello {{ dipendente.livello }}{% endif %}
+      </div>
+    </div>
+    <a href="{% url 'upload_documento' %}?dipendente_id={{ dipendente.id }}"
+       class="btn btn-sm" style="background:#1b3a5f;color:#fff;font-size:.78rem">
+      <i class="bi bi-upload"></i> Carica documento
+    </a>
+  </div>
+
+  {% if profilo_candidato %}
+  {% if profilo_candidato.file_documento or profilo_candidato.file_codice_fiscale %}
+  <div class="card border-0 shadow-sm mb-3" style="border-left:4px solid #c0392b!important">
+    <div class="card-header py-2" style="background:#fff8f6;font-size:.78rem;font-weight:700;color:#1b3a5f">
+      <i class="bi bi-person-badge" style="color:#c0392b"></i>
+      Documenti da profilo candidatura
+      <span class="badge bg-light text-dark border" style="font-size:.6rem">non archivio GESPER</span>
+    </div>
+    <div class="card-body py-2" style="font-size:.83rem">
+      <p class="text-muted small mb-2 mb-md-0">
+        Copie caricate dal candidato sul modulo profilo (tabella <code>ProfiloCandidato</code>), prima dell’archivio documenti standard.
+      </p>
+      <ul class="list-unstyled mb-0">
+        {% if profilo_candidato.file_documento %}
+        <li class="d-flex flex-wrap align-items-center gap-2 py-1 border-bottom">
+          <span><i class="bi bi-card-heading text-danger"></i> <strong>Documento di identità</strong>
+            {% if profilo_candidato.tipo_documento %}<span class="text-muted">({{ profilo_candidato.get_tipo_documento_display }})</span>{% endif %}
+          </span>
+          <a href="{{ profilo_candidato.file_documento.url }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">
+            <i class="bi bi-download"></i> Apri / scarica
+          </a>
+        </li>
+        {% endif %}
+        {% if profilo_candidato.file_codice_fiscale %}
+        <li class="d-flex flex-wrap align-items-center gap-2 py-1">
+          <span><i class="bi bi-credit-card-2-front text-secondary"></i> <strong>Tessera sanitaria / Codice fiscale</strong></span>
+          <a href="{{ profilo_candidato.file_codice_fiscale.url }}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">
+            <i class="bi bi-download"></i> Apri / scarica
+          </a>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {% if gruppi %}
+    {% for tipo_label, docs in gruppi.items %}
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.78rem;font-weight:700;color:#1b3a5f">
+        {% with tipo=docs.0.tipo %}
+          {% if tipo == 'busta_paga' %}<i class="bi bi-receipt-cutoff"></i>
+          {% elif tipo == 'contratto' %}<i class="bi bi-file-earmark-check-fill" style="color:#0a6640"></i>
+          {% elif tipo == 'privacy' %}<i class="bi bi-shield-check" style="color:#5a3f99"></i>
+          {% elif tipo == 'certificato' %}<i class="bi bi-file-earmark-ruled-fill" style="color:#b85a00"></i>
+          {% elif tipo == 'carichi_famiglia' %}<i class="bi bi-people-fill" style="color:#2d6199"></i>
+          {% elif tipo == 'documento_identita' %}<i class="bi bi-card-heading" style="color:#c0392b"></i>
+          {% elif tipo == 'permesso_soggiorno' %}<i class="bi bi-globe2" style="color:#c0392b"></i>
+          {% elif tipo == 'codice_fiscale_doc' %}<i class="bi bi-credit-card-2-front" style="color:#555"></i>
+          {% elif tipo == 'attestato' %}<i class="bi bi-award-fill" style="color:#b85a00"></i>
+          {% elif tipo == 'certificazione' %}<i class="bi bi-patch-check-fill" style="color:#0a6640"></i>
+          {% else %}<i class="bi bi-file-earmark"></i>
+          {% endif %}
+        {% endwith %}
+        {{ tipo_label }}
+        <span class="badge bg-secondary" style="font-size:.6rem">{{ docs|length }}</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" style="font-size:.83rem">
+            <thead style="background:#fafcff">
+              <tr>
+                <th style="font-size:.72rem;color:#666;font-weight:600;padding:.5rem .75rem">Descrizione / File</th>
+                <th style="font-size:.72rem;color:#666;font-weight:600">Data</th>
+                <th style="font-size:.72rem;color:#666;font-weight:600">Caricato da</th>
+                <th style="font-size:.72rem;color:#666;font-weight:600">Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for doc in docs %}
+              <tr>
+                <td style="padding:.5rem .75rem">
+                  {% if doc.descrizione %}
+                  <div style="font-weight:600">{{ doc.descrizione }}</div>
+                  {% endif %}
+                  <div style="color:#888;font-size:.75rem">
+                    <i class="bi bi-file-earmark" style="color:#c0392b"></i>
+                    {{ doc.nome_file }}
+                  </div>
+                </td>
+                <td style="color:#666">{{ doc.data_caricamento|date:"d/m/Y" }}</td>
+                <td>
+                  {% if doc.caricato_dal_dipendente %}
+                    <span class="badge" style="background:#2d6199;font-size:.6rem">Dipendente</span>
+                  {% else %}
+                    <span class="badge bg-secondary" style="font-size:.6rem">
+                      {{ doc.caricato_da.get_full_name|default:"Admin" }}
+                    </span>
+                  {% endif %}
+                  {% if not doc.visibile_al_dipendente %}
+                    <span class="badge bg-warning text-dark" style="font-size:.6rem">Non visibile</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <a href="{% url 'download_documento' doc.id %}"
+                     class="btn btn-sm btn-outline-primary" style="font-size:.72rem;padding:.2rem .5rem">
+                    <i class="bi bi-download"></i> Scarica
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    {% if profilo_candidato and profilo_candidato.file_documento or profilo_candidato and profilo_candidato.file_codice_fiscale %}
+    {% else %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body text-muted p-4 text-center" style="font-size:.83rem">
+      <i class="bi bi-folder2" style="font-size:2rem;opacity:.4"></i>
+      <div class="mt-2">Nessun documento in archivio GESPER per questo dipendente.</div>
+      {% if not profilo_candidato %}
+      <div class="mt-2 small">Se il candidato aveva caricato documenti sul profilo, il record profilo potrebbe essere stato rimosso dopo l’assunzione: in quel caso il file resta solo su backup/storage.</div>
+      {% endif %}
+    </div>
+  </div>
+    {% endif %}
+  {% endif %}
+
+</div>
+{% endblock %}

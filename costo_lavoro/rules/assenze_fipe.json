@@ -1,0 +1,93 @@
+{
+  "assenze_fipe": {
+    "malattia": {
+      "carenza": {
+        "giorni": 3,
+        "trattamento": {
+          "giorno_1": 0.0,
+          "giorno_2": 0.0,
+          "giorno_3": 0.0
+        }
+      },
+      "trattamento_economico": {
+        "dal_4_al_20": 0.50,
+        "dal_21_in_poi": 0.6667
+      },
+      "computo_ferie": false,
+      "computo_rol": false,
+      "computo_tfr": true,
+      "obbligo_certificato": true
+    },
+
+    "infortunio": {
+      "copertura_inail": true,
+      "trattamento_economico": {
+        "giorno_1": 0.60,
+        "dal_2_in_poi": 1.00
+      },
+      "computo_ferie": true,
+      "computo_rol": true,
+      "computo_tfr": true
+    },
+
+    "maternita_paternita": {
+      "astensione_obbligatoria": {
+        "durata_mesi": 5,
+        "retribuzione": 0.80
+      },
+      "congedo_parentale": {
+        "durata_massima_mesi": 6,
+        "retribuzione": 0.30
+      },
+      "computo_ferie": true,
+      "computo_rol": true,
+      "computo_tfr": true
+    },
+
+    "permessi_speciali": {
+      "lutto": {
+        "giorni": 3,
+        "retribuiti": true
+      },
+      "donazione_sangue": {
+        "giorni": 1,
+        "retribuiti": true
+      },
+      "legge_104": {
+        "ore_mensili": 24,
+        "retribuiti": true
+      }
+    },
+
+    "aspettativa_non_retribuita": {
+      "consentita": true,
+      "durata_massima_mesi": 12,
+      "computo_ferie": false,
+      "computo_rol": false,
+      "computo_tfr": false
+    },
+
+    "permessi_non_retribuiti": {
+      "limite_annuo_ore": 16,
+      "computo_ferie": false,
+      "computo_rol": false,
+      "computo_tfr": false
+    },
+
+    "assenza_ingiustificata": {
+      "retribuita": false,
+      "computo_ferie": false,
+      "computo_rol": false,
+      "computo_tfr": false,
+      "impatto_disciplinare": true,
+      "descrizione": "Assenza non giustificata dal lavoratore, senza diritto a retribuzione"
+    },
+
+    "ritardo": {
+      "trattenuta_oraria": true,
+      "calcolo_su_paga_oraria": true,
+      "impatto_disciplinare": true,
+      "descrizione": "Ritardo rispetto all'orario di inizio turno con trattenuta proporzionale"
+    }
+  }
+}

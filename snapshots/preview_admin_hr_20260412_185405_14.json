@@ -1,0 +1,142 @@
+{
+  "pdf": "/private/var/folders/nw/sr7j6wzn5vddsg2xt35mfvgh0000gn/T/tmpxkydyvm_.pdf",
+  "source_name": "8 PAGHE AGOSTO 2024.pdf",
+  "natura_busta_file": "ORDINARIA",
+  "azienda": {
+    "id": 1,
+    "nome": "Punto Zero SRLS"
+  },
+  "f24_pages": [
+    {
+      "page": 15,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 16,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 17,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    }
+  ],
+  "summary": {
+    "pages_total": 18,
+    "buste_pages": 14,
+    "f24_pages": 3,
+    "f24_importo_stimato": null,
+    "buste_uniche": 7,
+    "buste_duplicate_pages": [
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14
+    ],
+    "matched": 7,
+    "to_create": 0,
+    "ambiguous": 0,
+    "already_present": 7
+  },
+  "rows": [
+    {
+      "page": 1,
+      "periodo": "08/2024",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massimo",
+      "birth_date": "10/03/74",
+      "lordo_busta": "4.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 18,
+      "dipendente_nome": "Cardella Massimo"
+    },
+    {
+      "page": 2,
+      "periodo": "08/2024",
+      "cf": "GMSJSC92A42Z307O",
+      "full_name": "Gomes Ferreira Jessica Ailine",
+      "birth_date": "02/01/92",
+      "lordo_busta": "7.20",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 19,
+      "dipendente_nome": "Gomes Ferreira Jessica Aline"
+    },
+    {
+      "page": 3,
+      "periodo": "08/2024",
+      "cf": "BBSSWR98A47Z352H",
+      "full_name": "Abbassi Siwar",
+      "birth_date": "07/01/98",
+      "lordo_busta": "8.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 21,
+      "dipendente_nome": "Abbass War"
+    },
+    {
+      "page": 4,
+      "periodo": "08/2024",
+      "cf": "PCHRCC85H07G273Z",
+      "full_name": "Pochi' Rocco",
+      "birth_date": "07/06/85",
+      "lordo_busta": "8.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 22,
+      "dipendente_nome": "Pochì Rocco"
+    },
+    {
+      "page": 5,
+      "periodo": "08/2024",
+      "cf": "MDNSRN02M60G273D",
+      "full_name": "Md Namir Sabrina",
+      "birth_date": "20/08/02",
+      "lordo_busta": "8.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 23,
+      "dipendente_nome": "Md Nam Sabrna"
+    },
+    {
+      "page": 6,
+      "periodo": "08/2024",
+      "cf": "LVNMRA86L15G273D",
+      "full_name": "La Venia Mario",
+      "birth_date": "15/07/86",
+      "lordo_busta": "8.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 25,
+      "dipendente_nome": "La Venia Mario"
+    },
+    {
+      "page": 7,
+      "periodo": "08/2024",
+      "cf": "WREPNC99P12Z335Q",
+      "full_name": "Ewer Prince",
+      "birth_date": "12/09/99",
+      "lordo_busta": "8.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 24,
+      "dipendente_nome": "Ewerpr Nce"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "banca_ore_fipe": {
+    "abilitazione": {
+      "consentita": true,
+      "richiede_accordo_aziendale": true,
+      "descrizione": "La banca ore è attivabile solo tramite accordo aziendale o territoriale"
+    },
+
+    "accumulo": {
+      "fonti": [
+        "straordinario_full_time",
+        "lavoro_supplementare_part_time",
+        "maggiorazioni_convertibili",
+        "riposi_compensativi_non_fruiti"
+      ],
+      "limite_annuale_ore": 120,
+      "limite_mensile_ore": 20,
+      "note": "I limiti possono essere modificati da accordi aziendali"
+    },
+
+    "utilizzo": {
+      "modalita": [
+        "permessi_compensativi",
+        "riduzione_orario_giornaliero",
+        "giornate_di_riposo_aggiuntive"
+      ],
+      "preavviso_minimo_giorni": 5,
+      "compatibilita_con_esigenze_aziendali": true,
+      "descrizione": "L'utilizzo della banca ore deve essere concordato e compatibile con l'organizzazione del lavoro"
+    },
+
+    "conversione": {
+      "in_denaro": {
+        "consentita": true,
+        "tasso_conversione": "retribuzione_oraria_base",
+        "descrizione": "Le ore accumulate possono essere monetizzate su richiesta del lavoratore o per cessazione"
+      },
+      "in_permessi": {
+        "consentita": true
+      }
+    },
+
+    "scadenza": {
+      "validita_anni": 2,
+      "riporto_automatico": false,
+      "descrizione": "Le ore non utilizzate entro 2 anni devono essere liquidate"
+    },
+
+    "regole_speciali": {
+      "part_time": {
+        "accumulo_supplementare": true,
+        "limite_percentuale": 25,
+        "note": "Il lavoro supplementare può confluire in banca ore secondo le regole definite nel modulo part_time_fipe"
+      },
+      "stagionali": {
+        "abilitata": false,
+        "descrizione": "La banca ore non si applica ai contratti stagionali"
+      }
+    },
+
+    "validazioni": {
+      "massimo_accumulabile_annuo": 120,
+      "massimo_accumulabile_mensile": 20,
+      "ore_negative_non_consentite": true,
+      "descrizione": "Regole di validazione per evitare accumuli irregolari"
+    }
+  }
+}

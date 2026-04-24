@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+{% load humanize format_it_tags %}
+
+{% block title %}Simulazione Economica — {{ proposta.numero_proposta }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Layout stampa A4 orizzontale margini stretti ───────────────────────── */
+  @page {
+    size: A4 landscape;
+    margin: 8mm 10mm;
+  }
+  @media print {
+    .no-print { display: none !important; }
+    html, body { font-size: 9pt; width: 100%; margin: 0; padding: 0; }
+    .container-xl { max-width: 100% !important; padding: 0 !important; }
+    .card { border: 1px solid #aaa !important; page-break-inside: avoid; box-shadow: none !important; }
+    .card-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .tbl-voci tr.totale-a td,
+    .tbl-voci tr.totale-b td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .row.g-4 > .col-lg-6 { width: 50% !important; float: left; }
+    .card-footer { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    h1, h2, h3 { color: #000 !important; }
+    .page-break { page-break-before: always; }
+    a { color: inherit !important; text-decoration: none !important; }
+  }
+  /* ── Colori confronto ───────────────────────────────────────────────────── */
+  .delta-pos  { color: #0a5c2e; font-weight: 600; }
+  .delta-neg  { color: #8b0000; font-weight: 600; }
+  .delta-zero { color: #495057; font-weight: 600; }
+  /* ── Tabelle voci ───────────────────────────────────────────────────────── */
+  .tbl-voci td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  .tbl-voci tr.totale-a td  { font-weight: 700; border-top: 2px solid #0a5c2e; background: #1a7a42; color: #fff; }
+  .tbl-voci tr.totale-b td  { font-weight: 700; border-top: 2px solid #0a3d8f; background: #1756c8; color: #fff; }
+  .tbl-voci tr.subtotale td { font-weight: 600; border-top: 1px solid #ced4da; background: #f1f3f5; color: #212529; }
+  /* ── Intestazioni card ──────────────────────────────────────────────────── */
+  .header-a { background: #1a7a42; color: #fff; }
+  .header-a .text-muted { color: #c3e6cb !important; }
+  .header-b { background: #1756c8; color: #fff; }
+  .header-b .text-muted { color: #bfd1f5 !important; }
+  .header-warn { background: #7a5c00; color: #fff; }
+  /* ── Footer card ────────────────────────────────────────────────────────── */
+  .footer-a { background: #f4faf6; border-top: 2px solid #1a7a42; }
+  .footer-b { background: #f0f4fd; border-top: 2px solid #1756c8; }
+  .footer-a .kpi-val { color: #0a5c2e; font-size: 1.25rem; font-weight: 700; }
+  .footer-b .kpi-val { color: #0a3d8f; font-size: 1.25rem; font-weight: 700; }
+  .footer-a .kpi-lbl,
+  .footer-b .kpi-lbl { font-size: .72rem; color: #495057; text-transform: uppercase; letter-spacing: .04em; }
+  .footer-a .kpi-sub,
+  .footer-b .kpi-sub { font-size: .72rem; color: #6c757d; }
+  /* ── KPI box confronto ──────────────────────────────────────────────────── */
+  .kpi-box { border-radius: .5rem; padding: 1rem; text-align: center; }
+  .kpi-box .kpi-label { font-size: .72rem; color: #495057; text-transform: uppercase; letter-spacing: .05em; }
+  .kpi-box .kpi-value { font-size: 1.5rem; font-weight: 700; color: #212529; }
+  .kpi-box .kpi-sub   { font-size: .78rem; color: #495057; }
+  .kpi-a       { background: #d4edda; border: 2px solid #1a7a42; }
+  .kpi-a .kpi-value { color: #0a5c2e; }
+  .kpi-b       { background: #d0e4ff; border: 2px solid #1756c8; }
+  .kpi-b .kpi-value { color: #0a3d8f; }
+  .kpi-confronto { background: #fff3cd; border: 2px solid #7a5c00; }
+  .kpi-confronto .kpi-value { color: #5c4200; }
+  /* ── Badge percentuale ──────────────────────────────────────────────────── */
+  .badge-pct-ok  { background: #1a7a42; color: #fff; }
+  .badge-pct-low { background: #8b0000; color: #fff; }
+  /* ── Riepilogo costo azienda ────────────────────────────────────────────── */
+  .costo-val { font-size: 1.1rem; font-weight: 700; color: #212529; }
+  .costo-val-danger { font-size: 1.2rem; font-weight: 700; color: #8b0000; }
+  /* ── KPI evidenziato giallo ─────────────────────────────────────────────── */
+  .kpi-highlight {
+    background: #fff3cd;
+    border: 2px solid #ffc107;
+    border-radius: .45rem;
+    padding: 4px 6px;
+  }
+  .kpi-highlight .kpi-val { font-weight: 800; color: #212529; }
+  .kpi-highlight .kpi-lbl { color: #7a5c00; font-weight: 700; }
+  .kpi-highlight .kpi-sub { color: #856404; }
+  @media print {
+    .kpi-highlight { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-xl py-4">
+
+  {# ── Intestazione documento ──────────────────────────────────────────────── #}
+  <div class="d-flex justify-content-between align-items-start mb-3 no-print">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1">
+          <li class="breadcrumb-item"><a href="{% url 'lista_proposte_assunzione' %}">Proposte</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'dettaglio_proposta' proposta.pk %}">{{ proposta.numero_proposta }}</a></li>
+          <li class="breadcrumb-item active">Simulazione Economica</li>
+        </ol>
+      </nav>
+      <h1 class="h4 mb-0">Simulazione Economica — Proposta {{ proposta.numero_proposta }}</h1>
+    </div>
+    <div class="d-flex gap-2">
+      <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-printer"></i> Stampa / PDF
+      </button>
+      <a href="{% url 'dettaglio_proposta' proposta.pk %}" class="btn btn-outline-primary btn-sm">
+        ← Torna alla proposta
+      </a>
+    </div>
+  </div>
+
+  {# ── Errore ──────────────────────────────────────────────────────────────── #}
+  {% if errore %}
+  <div class="alert alert-danger">
+    <strong>Impossibile calcolare la simulazione:</strong> {{ errore }}
+  </div>
+  {% else %}
+
+  {# ── Header proposta ─────────────────────────────────────────────────────── #}
+  <div class="card mb-4">
+    <div class="card-body py-3">
+      <div class="row g-2">
+        <div class="col-md-4">
+          <small class="text-muted d-block">Candidato / Dipendente</small>
+          <strong>{{ proposta.dipendente.cognome }} {{ proposta.dipendente.nome }}</strong>
+        </div>
+        <div class="col-md-2">
+          <small class="text-muted d-block">Livello CCNL</small>
+          <strong>{{ proposta.livello_ccnl }}</strong>
+        </div>
+        <div class="col-md-3">
+          <small class="text-muted d-block">Posizione</small>
+          {{ proposta.posizione }}
+        </div>
+        <div class="col-md-3">
+          <small class="text-muted d-block">Mese simulato</small>
+          <strong>{{ nome_mese }} {{ anno|anno_it }}</strong>
+          <small class="text-muted">(mese tipo — presenza piena)</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  {# SEZIONE CONFRONTO ASPETTATIVE                                              #}
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  {% if paga_attesa %}
+  <div class="card mb-4">
+    <div class="card-header header-warn fw-bold">
+      <i class="bi bi-bullseye"></i> Confronto con le aspettative del candidato
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+
+        {# Attesa #}
+        <div class="col-md-3">
+          <div class="kpi-box kpi-confronto">
+            <div class="kpi-label">Paga giornaliera attesa</div>
+            <div class="kpi-value">€ {{ paga_attesa|euro_it }}</div>
+            <div class="kpi-sub">Indicata dal candidato</div>
+          </div>
+        </div>
+
+        {# Senza ratei #}
+        <div class="col-md-3">
+          <div class="kpi-box kpi-a">
+            <div class="kpi-label">Paga giornaliera netta</div>
+            <div class="kpi-value">€ {{ paga_gg_netta|euro_it }}</div>
+            <div class="kpi-sub">Solo stipendio mensile ÷ 26</div>
+            {% if delta_gg is not None %}
+              {% if delta_gg >= 0 %}
+                <span class="badge badge-pct-ok mt-1">+€ {{ delta_gg|euro_it }} / {{ pct_gg }}%</span>
+              {% else %}
+                <span class="badge badge-pct-low mt-1">− € {{ delta_gg|abs_num|euro_it }} / {{ pct_gg }}%</span>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+
+        {# Con ratei #}
+        <div class="col-md-3">
+          <div class="kpi-box kpi-b">
+            <div class="kpi-label">Paga giornaliera netta + ratei</div>
+            <div class="kpi-value">€ {{ paga_gg_ratei|euro_it }}</div>
+            <div class="kpi-sub">Con TFR, 13ª, 14ª, ferie accantonati</div>
+            {% if delta_gg_ratei is not None %}
+              {% if delta_gg_ratei >= 0 %}
+                <span class="badge badge-pct-ok mt-1">+€ {{ delta_gg_ratei|euro_it }} / {{ pct_gg_ratei }}%</span>
+              {% else %}
+                <span class="badge badge-pct-low mt-1">− € {{ delta_gg_ratei|abs_num|euro_it }} / {{ pct_gg_ratei }}%</span>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+
+        {# Nota esplicativa #}
+        <div class="col-md-3 d-flex align-items-center">
+          <div class="text-muted small">
+            <i class="bi bi-info-circle"></i>
+            <strong>Come leggere:</strong><br>
+            La colonna <em>A</em> mostra l'incasso mensile netto diviso per i 26 giorni convenzionali FIPE.<br>
+            La colonna <em>B</em> include anche i ratei accantonati ogni mese (TFR, 13ª, 14ª, ferie): rappresenta il costo del lavoro "equivalente" per giorno.<br>
+            {% if delta_gg_ratei is not None and delta_gg_ratei >= 0 %}
+            <span class="text-success fw-bold mt-1 d-block">✓ L'offerta supera o eguaglia le aspettative.</span>
+            {% elif delta_gg_ratei is not None %}
+            <span class="text-danger fw-bold mt-1 d-block">⚠ Con soli ratei inclusi l'offerta resta sotto le aspettative.</span>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  {# PROSPETTI AFFIANCATI A e B                                                 #}
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  <div class="row g-4">
+
+    {# ── Colonna A — Netto mensile ─────────────────────────────────────────── #}
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header header-a fw-bold">
+          <i class="bi bi-cash-coin"></i> A — Stipendio netto mensile (incl. ratei 13ª/14ª)
+          <small class="fw-normal ms-2">({{ nome_mese }} {{ anno|anno_it }}, presenza piena)</small>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm tbl-voci mb-0">
+            <tbody>
+              {% for nome, val in voci_a %}
+                {% if "NETTO" in nome %}
+                <tr class="totale-a">
+                {% elif "Lordo" in nome or "Imponibile" in nome %}
+                <tr class="subtotale">
+                {% else %}
+                <tr>
+                {% endif %}
+                  <td class="ps-3">{{ nome }}</td>
+                  <td class="pe-3">
+                    {% if val < 0 %}
+                      <span style="color:#8b0000;font-weight:600">− € {{ val|abs_num|euro_it }}</span>
+                    {% else %}
+                      € {{ val|euro_it }}
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="card-footer footer-a">
+          <div class="row g-2 text-center">
+            <div class="col-4">
+              <div class="kpi-lbl">Netto mensile</div>
+              <div class="kpi-val">€ {{ netto|euro_it }}</div>
+            </div>
+            <div class="col-4">
+              <div class="kpi-highlight">
+                <div class="kpi-lbl">Paga giornaliera</div>
+                <div class="kpi-val">€ {{ paga_gg_netta|euro_it }}</div>
+                <div class="kpi-sub">÷ 26 gg conv.</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="kpi-highlight">
+                <div class="kpi-lbl">Paga oraria</div>
+                <div class="kpi-val">€ {{ paga_ora_netta|num_it:4 }}</div>
+                <div class="kpi-sub">÷ {{ divisore_str }} h/mese</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Colonna B — Netto + ratei ─────────────────────────────────────────── #}
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header header-b fw-bold">
+          <i class="bi bi-piggy-bank"></i> B — Netto mensile (A) + TFR + Ferie accantonati
+          <small class="fw-normal ms-2">(col. A + ratei TFR e ferie)</small>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-sm tbl-voci mb-0">
+            <tbody>
+              <tr class="subtotale">
+                <td class="ps-3">Netto mensile col. A (incl. ratei 13ª/14ª)</td>
+                <td class="pe-3">€ {{ netto|euro_it }}</td>
+              </tr>
+              {% for nome, val in ratei_b %}
+                {% if "NETTO" in nome %}
+                <tr class="totale-b">
+                {% elif "Tot." in nome %}
+                <tr class="subtotale">
+                {% else %}
+                <tr>
+                {% endif %}
+                  <td class="ps-3">{{ nome }}</td>
+                  <td class="pe-3">€ {{ val|euro_it }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <div class="px-3 py-2 small border-top" style="background:#f8f9fa;color:#495057">
+            <i class="bi bi-info-circle"></i>
+            I ratei 13ª/14ª sono già inclusi nella colonna A (pagati mensilmente).
+            La colonna B aggiunge solo gli accantonamenti che restano differiti:
+            <ul class="mb-0 mt-1">
+              <li><strong>TFR</strong> — liquidato alla cessazione del rapporto (o anticipabile)</li>
+              <li><strong>Ferie</strong> — indennità sostitutiva se non godute</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card-footer footer-b">
+          <div class="row g-2 text-center">
+            <div class="col-4">
+              <div class="kpi-lbl">Netto + TFR + ferie</div>
+              <div class="kpi-val">€ {{ netto_ratei|euro_it }}</div>
+            </div>
+            <div class="col-4">
+              <div class="kpi-highlight">
+                <div class="kpi-lbl">Paga giornaliera + TFR/ferie</div>
+                <div class="kpi-val">€ {{ paga_gg_ratei|euro_it }}</div>
+                <div class="kpi-sub">÷ 26 gg conv.</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="kpi-highlight">
+                <div class="kpi-lbl">Paga oraria + TFR/ferie</div>
+                <div class="kpi-val">€ {{ paga_ora_ratei|num_it:4 }}</div>
+                <div class="kpi-sub">÷ {{ divisore_str }} h/mese</div>
+              </div>
+            </div>
+          </div>
+
+          {# ── Confronto paga attesa vs reale (solo se disponibile) ───────────── #}
+          {% if paga_attesa %}
+          <div class="mt-3 pt-2 border-top">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2"
+                 style="background:{% if delta_gg_ratei >= 0 %}#d4edda{% else %}#f8d7da{% endif %};
+                        border:2px solid {% if delta_gg_ratei >= 0 %}#1a7a42{% else %}#8b0000{% endif %};
+                        border-radius:.4rem;padding:.6rem .9rem">
+
+              <div style="font-size:.8rem;color:#212529">
+                <span style="display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:#495057">Paga giornaliera attesa dal candidato</span>
+                <strong style="font-size:1.1rem">€ {{ paga_attesa|euro_it }}</strong>
+              </div>
+
+              <div style="font-size:1.4rem;color:#495057;font-weight:300">→</div>
+
+              <div style="font-size:.8rem;color:#212529">
+                <span style="display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:#495057">Paga giornaliera netta + ratei</span>
+                <strong style="font-size:1.1rem">€ {{ paga_gg_ratei|euro_it }}</strong>
+              </div>
+
+              <div style="text-align:center">
+                <span style="display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:#495057">Differenza</span>
+                {% if delta_gg_ratei >= 0 %}
+                  <strong style="font-size:1.15rem;color:#0a5c2e">
+                    +€ {{ delta_gg_ratei|euro_it }} &nbsp;
+                    <span style="font-size:.85rem">(+{{ pct_gg_ratei }}%)</span>
+                  </strong>
+                  <span style="display:block;font-size:.72rem;color:#0a5c2e;font-weight:600">✓ L'offerta supera le aspettative</span>
+                {% else %}
+                  <strong style="font-size:1.15rem;color:#8b0000">
+                    − € {{ delta_gg_ratei|abs_num|euro_it }} &nbsp;
+                    <span style="font-size:.85rem">({{ pct_gg_ratei }}%)</span>
+                  </strong>
+                  <span style="display:block;font-size:.72rem;color:#8b0000;font-weight:600">⚠ Sotto le aspettative</span>
+                {% endif %}
+              </div>
+
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>{# /row #}
+
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  {# DETTAGLIO COSTO AZIENDA                                                    #}
+  {# ────────────────────────────────────────────────────────────────────────── #}
+  <div class="card mt-4" style="border-top:3px solid #343a40">
+    <div class="card-header fw-bold" style="background:#343a40;color:#fff">
+      <i class="bi bi-building"></i> Riepilogo costo azienda e contributi
+    </div>
+    <div class="card-body" style="background:#f8f9fa">
+      <div class="row g-3 text-center">
+        <div class="col-md-3">
+          <div class="kpi-lbl" style="font-size:.72rem;text-transform:uppercase;color:#495057">Lordo mensile (incl. ratei)</div>
+          <div class="costo-val">€ {{ lordo_con_1314|euro_it }}</div>
+        </div>
+        <div class="col-md-3">
+          <div class="kpi-lbl" style="font-size:.72rem;text-transform:uppercase;color:#495057">Contributi INPS datore</div>
+          <div class="costo-val">€ {{ r.inps_az|euro_it }}
+            <small style="color:#495057;font-size:.8rem">({{ r.inps_az_perc }}%)</small>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="kpi-lbl" style="font-size:.72rem;text-transform:uppercase;color:#495057">INAIL datore</div>
+          <div class="costo-val">€ {{ r.inail_az|euro_it }}
+            <small style="color:#495057;font-size:.8rem">({{ r.inail_perc }}%)</small>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="kpi-lbl" style="font-size:.72rem;text-transform:uppercase;color:#495057">Costo mensile totale</div>
+          <div class="costo-val-danger">€ {{ r.costo_mensile|euro_it }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Note legali / disclaimer ────────────────────────────────────────────── #}
+  <div class="alert alert-secondary mt-4 small">
+    <i class="bi bi-shield-check"></i>
+    <strong>Nota:</strong> Questa simulazione è calcolata con il motore retributivo GESPER applicando il
+    CCNL Turismo–FIPE vigente, le aliquote fiscali e contributive in vigore per l'anno {{ anno|anno_it }},
+    e ipotizzando una presenza completa nel mese di {{ nome_mese }} {{ anno|anno_it }} (incluse le domeniche lavorate).
+    I valori sono indicativi: l'importo netto effettivo dipenderà dalle presenze reali, dalle variazioni
+    fiscali individuali (addizionali comunali, carichi familiari, detrazioni personali) e da eventuali
+    trattenute o voci straordinarie. Il TFR è accantonato e non costituisce reddito immediato.
+  </div>
+
+  {% endif %}{# /if errore #}
+
+</div>{# /container #}
+{% endblock %}

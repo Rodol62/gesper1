@@ -1,0 +1,439 @@
+{% extends 'base.html' %}
+{% load presenze_extras format_it_tags pagination_tags %}
+{% block title %}Riepilogo presenze {{ mese_nome }} {{ anno|anno_it }} — GESPER{% endblock %}
+
+{% block content %}
+<style>
+  .rie-table th, .rie-table td {
+    font-size: .63rem; padding: .1rem .18rem; text-align: center;
+    border: 1px solid #dde4ec; white-space: nowrap; vertical-align: top;
+  }
+  .rie-table th { background: #f4f7fa; font-weight: 700; color: #1b3a5f; }
+  .rie-table th.we { background: #e9ecef; color: #888; }
+  .rie-table th.dom { background: #dbe4f0; color: #3d4f63; font-weight: 800; }
+  .rie-table th.fest { background: #ffe8a8; color: #8a5a00; font-weight: 800; }
+  .rie-table td.we  { background: #f5f5f5; }
+  .rie-table td.dom { background: #e8eef6; }
+  .rie-table td.fest { background: #fff3cd; }
+  .rie-table td.nr  { background: #fffde7; }
+  .rie-table td.ch  { background: #ececec; }
+  .rie-table td.fr  { background: #f8f9fa; color: #adb5bd; }
+  /* Presenza registrata ma giorno fuori periodo contrattuale (stessi dati del calendario dip.) */
+  .rie-table td.fuori-periodo { box-shadow: inset 0 0 0 1px #94a3b8; }
+  .rie-table th.rie-sum, .rie-table td.rie-sum {
+    background: #f0f7ff; font-size: .60rem; min-width: 38px; max-width: 48px;
+    font-weight: 700; color: #1b3a5f;
+  }
+  tr.rie-gap td { border: 0 !important; height: 8px; padding: 0 !important; background: #f8f9fb !important; }
+
+  /* Eccedenza ore vs contratto (stesso criterio del motore dopo «Salva riepilogo motore») */
+  .rie-table td.ecc-lav { box-shadow: inset 3px 0 0 #c45c00; }
+  .rie-table td.ecc-dom { box-shadow: inset 3px 0 0 #5c4d9d; }
+  .rie-table td.ecc-fest { box-shadow: inset 3px 0 0 #b8860b; }
+  .ecc-ore-val {
+    font-size: .54rem; font-weight: 800; margin-top: 2px; line-height: 1.15;
+    letter-spacing: -0.02em; display: block;
+  }
+  .ecc-ore-val.ecc-ore-lav { color: #b35400; }
+  .ecc-ore-val.ecc-ore-dom { color: #4a3d8a; }
+  .ecc-ore-val.ecc-ore-fest { color: #a67c00; }
+
+  tr.rie-sub td {
+    font-size: .56rem; padding: .08rem .14rem !important; vertical-align: middle;
+    background: #f8fafc; color: #475569; border-color: #e8edf3;
+  }
+  tr.rie-sub td.rie-sub-lbl {
+    text-align: left !important; position: sticky; left: 0; z-index: 1;
+    background: #f1f5f9 !important; font-weight: 700; color: #64748b;
+    white-space: nowrap; min-width: 118px;
+  }
+  tr.rie-sub td.rie-sub-cell { font-weight: 600; }
+  tr.rie-sub-ctr td.rie-sub-cell { color: #334155; }
+  tr.rie-sub-str td.rie-sub-cell { color: #9a3412; }
+
+  .cal-cella {
+    font-size: .66rem; font-weight: 700; border-radius: 3px; padding: 1px 4px;
+    display: inline-block; color: #fff;
+  }
+  /* Turni nel giorno */
+  .t-ore-row { font-size: .57rem; font-weight: 700; line-height: 1.5; }
+  .t-ore-row .t1c { color: #1b3a5f; }
+  .t-ore-row .t2c { color: #856404; }
+  .t-ore-row .t3c { color: #2d6a20; }
+  .t-ore-tot {
+    font-size: .63rem; font-weight: 800; color: #1b3a5f;
+    border-top: 1px solid #dde4ec; margin-top: 2px; padding-top: 1px;
+  }
+  .str-giorno-main {
+    font-size: .56rem; font-weight: 800; color: #9a3412; margin-top: 2px; line-height: 1.2;
+  }
+  .str-dich-main {
+    font-size: .54rem; font-weight: 700; color: #7c2d12; margin-top: 1px; line-height: 1.2;
+  }
+</style>
+
+<div class="container-fluid px-3 mt-3">
+
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <div class="mb-1"><strong>Griglia compatta.</strong> Per ogni dipendente: riga principale = <strong>ore lavorate</strong> (turni); sotto <strong>Std contr. /g</strong> e <strong>Straord. /g</strong> (eccedenza lavorate − std). Oltre soglia: barra colorata sul bordo per tipo giorno (feriale / domenica / festivo). Colonne <strong>Dom.</strong>, <strong>Fest.</strong>, <strong>Str. fer.</strong>, <strong>Str. fest.</strong>, <strong>Str. dom.</strong> = <em>riepilogo motore</em> cedolino. <strong>Salva riepilogo motore</strong> per aggiornarle.</div>
+    <div class="mb-1 text-muted" style="font-size:.9em;">
+      <strong>Elenco dipendenti</strong> (anche export Excel): <strong>candidati</strong> dell’azienda e <strong>attivi</strong> con almeno un rapporto di lavoro non in <em>Proposta</em> il cui periodo interseca <strong>{{ mese_nome }} {{ anno|anno_it }}</strong>. Fine rapporto assente = tempo indeterminato.
+      Per ogni giorno, «in rapporto» segue la <strong>data inizio</strong> sul contratto selezionato per quel mese (es. assunzione 02/04: il 01/04 è <em>fuori rapporto</em>), non solo la data in anagrafica se il contratto dice diversamente.
+    </div>
+    <div class="mb-0 text-muted" style="font-size:.9em;">
+      <a href="{% url 'guida_modulo' 'presenze-turni' %}">Guida: presenze e calendario</a>
+      · <a href="{% url 'riepilogo_mensile_motore' %}?anno={{ anno|anno_it }}&mese={{ mese }}">Riepilogo motore e cedolino</a>
+      {% if estendi_possibile %}
+      · <strong>Estendi orari</strong> (barra in alto): dal mese visualizzato ricava per ogni dipendente un orario tipo per giorno della settimana e lo replica sui mesi successivi fino al 31/12 dello stesso anno, rispettando la fine contratto. In modalità predefinita <strong>sovrascrive</strong> le presenze già presenti nei mesi destinazione; opzionalmente puoi limitare l’aggiornamento (solo giorni senza presenza «manuale», con eccezione per le teoriche automatiche <code>TEORICA_AUTO</code>).
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Header ──────────────────────────────────────────────────── #}
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:8px;
+              padding:.7rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;
+              justify-content:space-between;flex-wrap:wrap;gap:.6rem">
+    <div>
+      <div style="font-size:.7rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em">Riepilogo presenze</div>
+      <h5 style="margin:0;font-size:.97rem;font-weight:800">
+        <i class="bi bi-table"></i> {{ azienda.nome }} — {{ mese_nome }} {{ anno|anno_it }}
+      </h5>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <a href="?anno={{ anno_prev|anno_it }}&mese={{ mese_prev|stringformat:"d" }}{% if q_filter %}&amp;q={{ q_filter|urlencode }}{% endif %}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;font-size:.78rem">
+        <i class="bi bi-chevron-left"></i>
+      </a>
+      <span style="font-weight:700;font-size:.9rem;min-width:120px;text-align:center">
+        {{ mese_nome }} {{ anno|anno_it }}
+      </span>
+      <a href="?anno={{ anno_next|anno_it }}&mese={{ mese_next|stringformat:"d" }}{% if q_filter %}&amp;q={{ q_filter|urlencode }}{% endif %}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;font-size:.78rem">
+        <i class="bi bi-chevron-right"></i>
+      </a>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <form method="post" class="d-inline" action="">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="aggrega_riepiloghi_mese">
+        <input type="hidden" name="anno" value="{{ anno|anno_it }}">
+        <input type="hidden" name="mese" value="{{ mese|stringformat:'d' }}">
+        <button type="submit" class="btn btn-sm" style="background:#0d6efd;color:#fff;font-size:.75rem"
+                title="Calcola e salva su DB ore domenicali, festivi e straordinari (RiepilogoMensilePresenze) per tutti i dipendenti — usato dal motore cedolini">
+          <i class="bi bi-calculator-fill"></i> Salva riepilogo motore (mese)
+        </button>
+      </form>
+      <a href="{% url 'lista_dipendenti_presenze' %}?vista=elenco&amp;anno={{ anno|anno_it }}&mese={{ mese|stringformat:"d" }}{% if q_filter %}&amp;q={{ q_filter|urlencode }}{% endif %}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.3);font-size:.78rem"
+         title="Vista elenco con conteggi (legacy)">
+        <i class="bi bi-list-ul"></i> Vista elenco
+      </a>
+      <a href="{% url 'export_presenze_excel' %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:"d" }}"
+         class="btn btn-sm" style="background:#1a7a42;color:#fff;font-size:.78rem">
+        <i class="bi bi-file-earmark-excel-fill"></i> Esporta Excel
+      </a>
+      <a href="{% url 'export_presenze_excel' %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:"d" }}&formato=csv"
+         class="btn btn-sm" style="background:#0b7285;color:#fff;font-size:.78rem">
+        <i class="bi bi-filetype-csv"></i> Esporta CSV
+      </a>
+      {% if estendi_possibile %}
+      <form method="post" class="d-inline align-items-center"
+            action="{% url 'estendi_orari_riepilogo_mese' %}"
+            onsubmit="return confirm('Estendere il pattern settimanale degli orari di {{ mese_nome }} {{ anno|anno_it }} fino al 31/12/{{ estendi_ultimo_anno|anno_it }} (mesi da {{ estendi_primo_mese_nome }} a {{ estendi_ultimo_mese_nome }}) per tutti i dipendenti in elenco? In predefinito le presenze esistenti nei mesi successivi verranno sovrascritte con gli stessi orari del mese sorgente. Esclusi: giorni fuori contratto e mesi con riepilogo approvato/elaborato. Se hai spuntato solo non manuali, i giorni con presenza senza TEORICA_AUTO non vengono toccati.');">
+        {% csrf_token %}
+        <input type="hidden" name="anno_src" value="{{ anno|anno_it }}">
+        <input type="hidden" name="mese_src" value="{{ mese|stringformat:'d' }}">
+        <input type="hidden" name="anno_fine" value="{{ estendi_ultimo_anno|anno_it }}">
+        <input type="hidden" name="mese_fine" value="{{ estendi_ultimo_mese|stringformat:'d' }}">
+        {% if q_filter %}<input type="hidden" name="q" value="{{ q_filter }}">{% endif %}
+        {# hidden=0: sovrascrivi; se checkbox spuntata, invia anche 1 (stesso nome → Django usa l’ultimo valore) #}
+        <input type="hidden" name="solo_vuoti" value="0">
+        <label class="d-inline-flex align-items-center gap-1 me-1 mb-0 small text-white" style="opacity:.95;cursor:pointer;font-size:.68rem"
+               title="Se spuntato: non sovrascrive i giorni che hanno già una presenza senza nota TEORICA_AUTO (comportamento precedente, spesso non estendeva nulla).">
+          <input type="checkbox" name="solo_vuoti" value="1" class="form-check-input m-0">
+          solo non manuali
+        </label>
+        <button type="submit" class="btn btn-sm" style="background:#5f3dc4;color:#fff;font-size:.74rem"
+                title="Copia il pattern settimanale del mese corrente sui mesi successivi fino a dicembre; in predefinito sovrascrive le presenze esistenti">
+          <i class="bi bi-calendar-range"></i> Estendi orari → {{ estendi_primo_mese_nome }}–{{ estendi_ultimo_mese_nome }} {{ estendi_ultimo_anno|anno_it }}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Ricerca rapida (stesso criterio dell’elenco dipendenti) ─── #}
+  <div class="card mb-3 border-0 shadow-sm">
+    <div class="card-body py-2">
+      <form method="get" class="row g-2 align-items-end">
+        <input type="hidden" name="anno" value="{{ anno|anno_it }}">
+        <input type="hidden" name="mese" value="{{ mese|stringformat:'d' }}">
+        <div class="col-auto flex-grow-1" style="min-width:200px">
+          <label class="form-label mb-1 small fw-semibold text-muted">Cerca dipendente</label>
+          <input type="text" name="q" class="form-control form-control-sm" placeholder="Cognome, nome, CF o matricola…"
+                 value="{{ q_filter|default:'' }}">
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-search"></i> Cerca</button>
+          {% if q_filter %}
+          <a href="?anno={{ anno|anno_it }}&amp;mese={{ mese|stringformat:'d' }}" class="btn btn-sm btn-outline-secondary">Pulisci</a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# ── Tabella riepilogo ───────────────────────────────────────── #}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0 gesper-list-scroll" style="overflow-x:auto">
+      {% if page_obj.paginator.count %}
+      {% gesper_pagination page_obj "Paginazione riepilogo presenze mese" %}
+      <table class="rie-table w-100">
+        <thead>
+          <tr>
+            <th style="text-align:left;min-width:118px;position:sticky;left:0;z-index:2;background:#f4f7fa">
+              Dipendente
+            </th>
+            {% for d in date_mese %}
+            <th class="{% if d.weekday >= 5 %}we {% endif %}{% if d.weekday == 6 %}dom {% endif %}{% if d in festivi %}fest{% endif %}"
+                style="min-width:46px">
+              {{ d.day }}<br>
+              <span style="font-size:.52rem;font-weight:400;color:#888">{{ d|giorno_ita }}</span>
+            </th>
+            {% endfor %}
+            <th class="rie-sum" title="Ore lavorate in domenica (dentro soglia contrattuale) — da riepilogo motore">Dom.</th>
+            <th class="rie-sum" title="Ore in giorni festivi (non dom.) — da riepilogo motore">Fest.</th>
+            <th class="rie-sum" title="Straordinario feriale (diurno + notturno) — da riepilogo motore">Str. fer.</th>
+            <th class="rie-sum" title="Straordinario in festivi non domenica — da riepilogo motore">Str. fest.</th>
+            <th class="rie-sum" title="Straordinario in domenica — da riepilogo motore">Str. dom.</th>
+            <th style="background:#e8f0fe;min-width:52px">Tot.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for riga in righe %}
+          <tr>
+            <td style="text-align:left;font-weight:700;color:#1b3a5f;padding:.3rem .5rem;
+                       position:sticky;left:0;background:#fff;z-index:1">
+              <a href="{% url 'calendario_presenze' riga.dip.id %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:'d' }}"
+                 class="text-decoration-none" style="color:#1b3a5f"
+                 title="Apri calendario con orari">
+                {{ riga.dip.cognome }} {{ riga.dip.nome }}
+                <i class="bi bi-calendar3" style="font-size:.65rem;opacity:.6"></i>
+              </a>
+              <div style="font-size:.62rem;color:#888;font-weight:400">
+                {% if riga.dip.livello %}Liv.{{ riga.dip.livello }}{% endif %}
+              </div>
+              <div style="font-size:.60rem;color:#6c757d;font-weight:400">
+                {% if riga.periodo_start and riga.periodo_end %}
+                  {{ riga.periodo_start|date:"d/m" }}-{{ riga.periodo_end|date:"d/m" }}
+                {% else %}
+                  fuori periodo
+                {% endif %}
+              </div>
+              <div style="font-size:.58rem;color:#495057;font-weight:600" title="Proposta/CCNL, turno dip., part-time su rapporto, media da pianificazione orari, tabella livello, poi rapporto 40h÷5 o azienda">
+                Std {{ riga.ore_std_contratto|ore_hhmm_h }}<span style="font-weight:400;color:#888">/g</span>
+              </div>
+            </td>
+
+            {% for g in riga.giorni %}
+            {# Classe cella: chiusura / weekend / non registrato #}
+            {% if g.fuori_rapporto and not g.presenza %}
+              <td class="fr">-</td>
+            {% elif g.fuori_rapporto and g.presenza %}
+              <td class="fuori-periodo fr" style="vertical-align:middle;text-align:center"
+                  title="Esiste una presenza a sistema ma il giorno è prima dell’inizio contratto (o dopo la fine) per questo mese — ore non conteggiate. Correggere dal calendario se necessario.">
+                <span style="font-size:.58rem;color:#b91c1c;font-weight:700">Fuori contr.</span>
+              </td>
+            {% elif g.is_chiusura_sett and not g.presenza %}
+              <td class="ch{% if g.is_weekend %} we{% endif %}{% if g.is_domenica %} dom{% endif %}{% if g.is_festivo %} fest{% endif %}">
+                <span class="cal-cella" style="background:#ccc">R</span>
+              </td>
+            {% elif g.presenza %}
+              {% with p=g.presenza %}
+              <td class="{% if g.fuori_rapporto %}fuori-periodo {% endif %}{% if g.is_chiusura_sett %}ch {% endif %}{% if g.is_weekend %}we {% endif %}{% if g.is_domenica %}dom {% endif %}{% if g.is_festivo %}fest {% endif %}{% if g.eccesso_tipo == 'lav' %}ecc-lav{% elif g.eccesso_tipo == 'dom' %}ecc-dom{% elif g.eccesso_tipo == 'fest' %}ecc-fest{% endif %}"
+                  title="{% if g.fuori_rapporto %}Giorno fuori periodo contrattuale in anagrafica — {% endif %}{{ p.get_causale_display }}{% if p.ora_entrata %} T1 {{ p.ora_entrata|time:'H:i' }}-{{ p.ora_uscita|time:'H:i' }}{% endif %}{% if p.ora_entrata2 %} | T2 {{ p.ora_entrata2|time:'H:i' }}-{{ p.ora_uscita2|time:'H:i' }}{% endif %}{% if p.ora_entrata3 %} | T3 {{ p.ora_entrata3|time:'H:i' }}-{{ p.ora_uscita3|time:'H:i' }}{% endif %}{% if p.note %} — {{ p.note }}{% endif %}{% if g.eccesso_tipo == 'lav' %} — Eccedenza vs contratto → straordinario (diurno/notturno).{% elif g.eccesso_tipo == 'dom' %} — Eccedenza vs contratto → maggiorazione domenica + straord. festivo.{% elif g.eccesso_tipo == 'fest' %} — Eccedenza vs contratto → maggiorazione festivo + straord. festivo.{% endif %}">
+
+                {# Badge causale #}
+                <span class="cal-cella" style="background:{{ p.colore_causale }}">{{ p.causale }}</span>
+
+                {# Ore per turno (solo per causali con orari) #}
+                {% if p.causale == 'P' or p.causale == 'ST' or p.causale == 'SMART' or p.causale == 'FE' %}
+                  <div class="t-ore-row">
+                    {% if g.ore_t1 > 0 %}
+                    <div class="t1c">T1 {{ g.ore_t1|ore_hhmm }}</div>
+                    {% endif %}
+                    {% if g.ore_t2 > 0 %}
+                    <div class="t2c">T2 {{ g.ore_t2|ore_hhmm }}</div>
+                    {% endif %}
+                    {% if g.ore_t3 > 0 %}
+                    <div class="t3c">T3 {{ g.ore_t3|ore_hhmm }}</div>
+                    {% endif %}
+                  </div>
+                  {% if g.ore_giorno > 0 %}
+                  <div class="t-ore-tot">{{ g.ore_giorno|ore_hhmm_h }}</div>
+                  {% endif %}
+                {% endif %}
+                {% if g.straord_semplice %}
+                <div class="str-giorno-main"
+                     title="Straordinario: ore lavorate − std contr.{% if g.eccesso_tipo == 'lav' %} (giorno feriale){% elif g.eccesso_tipo == 'dom' %} (domenica){% elif g.eccesso_tipo == 'fest' %} (festivo){% endif %}">
+                  Str. {{ g.straord_semplice|ore_hhmm_h }}
+                </div>
+                {% endif %}
+                {% if p.ore_straordinario and p.ore_straordinario > 0 %}
+                <div class="str-dich-main" title="Ore straordinario dichiarate sul giorno (causale ST / campo presenza)">
+                  Str.dich. {{ p.ore_straordinario|ore_hhmm_h }}
+                </div>
+                {% endif %}
+
+              </td>
+              {% endwith %}
+            {% else %}
+              {# Nessuna presenza #}
+              <td class="{% if g.is_chiusura_sett %}ch {% endif %}{% if g.is_weekend %}we {% if g.is_domenica %}dom {% endif %}{% elif not g.is_festivo %}nr{% endif %}{% if g.is_festivo %}fest{% endif %}">
+                {% if not g.is_weekend %}<span style="color:#e0c040;font-size:.65rem">·</span>{% endif %}
+              </td>
+            {% endif %}
+            {% endfor %}
+
+            {# Totale ore mensili del dipendente #}
+            <td class="rie-sum" title="{% if riga.rie %}Riepilogo motore: stato {{ riga.rie.get_stato_display }}{% else %}Nessun riepilogo motore — usa «Salva riepilogo motore»{% endif %}">
+              {% if riga.rie %}
+                {{ riga.rie.ore_domenicali|ore_hhmm_h }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="rie-sum">
+              {% if riga.rie %}
+                {{ riga.rie.ore_festivi|ore_hhmm_h }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="rie-sum" title="Straord. diurno + notturno (feriali)">
+              {% if riga.straord_fer is not None %}
+                {{ riga.straord_fer|ore_hhmm_h }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="rie-sum" title="Straord. eccedenza festivi (non domenica)">
+              {% if riga.straord_fest is not None %}
+                {{ riga.straord_fest|ore_hhmm_h }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="rie-sum" title="Straord. eccedenza domenica">
+              {% if riga.straord_dom is not None %}
+                {{ riga.straord_dom|ore_hhmm_h }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td style="background:#e8f0fe;font-weight:800;color:#1b3a5f;font-size:.72rem;vertical-align:middle"
+                title="Somma ore T1+T2+T3 nei giorni in contratto, solo causali P / ST / SMART / FE (come le ore mostrate in griglia). Assenze con orari residui a DB non concorrono.">
+              {{ riga.ore_tot|ore_hhmm_h }}
+            </td>
+          </tr>
+          {# Come nel calendario dipendente: std giornaliero e straordinario semplice (lavorate − std) #}
+          <tr class="rie-sub rie-sub-ctr">
+            <td class="rie-sub-lbl" title="Stessa soglia usata per il motore (colonne riepilogo a destra)">
+              Std contr. /g
+            </td>
+            {% for g in riga.giorni %}
+            <td class="rie-sub-cell">
+              {% if g.presenza and g.presenza.causale == 'R' %}
+                <span class="text-muted">—</span>
+              {% else %}
+                {{ riga.ore_std_contratto|ore_hhmm_h }}
+              {% endif %}
+            </td>
+            {% endfor %}
+            <td class="rie-sum rie-sub-cell"><span class="text-muted">—</span></td>
+            <td class="rie-sum rie-sub-cell"><span class="text-muted">—</span></td>
+            <td class="rie-sum rie-sub-cell"><span class="text-muted">—</span></td>
+            <td class="rie-sum rie-sub-cell"><span class="text-muted">—</span></td>
+            <td class="rie-sum rie-sub-cell"><span class="text-muted">—</span></td>
+            <td class="rie-sub-cell" style="background:#eef6ff"><span class="text-muted">—</span></td>
+          </tr>
+          <tr class="rie-sub rie-sub-str">
+            <td class="rie-sub-lbl" title="Somma giornaliera max(0; ore lavorate − std), come riga Straordinario nel calendario">
+              Straord. /g
+            </td>
+            {% for g in riga.giorni %}
+            <td class="rie-sub-cell">
+              {% if g.straord_semplice %}
+                {{ g.straord_semplice|ore_hhmm_h }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            {% endfor %}
+            <td class="rie-sum rie-sub-cell"><span class="text-muted">—</span></td>
+            <td class="rie-sum rie-sub-cell"><span class="text-muted">—</span></td>
+            <td class="rie-sum rie-sub-cell"><span class="text-muted">—</span></td>
+            <td class="rie-sum rie-sub-cell"><span class="text-muted">—</span></td>
+            <td class="rie-sum rie-sub-cell"><span class="text-muted">—</span></td>
+            <td class="rie-sub-cell" style="background:#eef6ff;font-weight:800"
+                title="Somma nel mese degli eccedenti giornalieri (semplice)">
+              {% if riga.straord_semplice_mese > 0 %}
+                {{ riga.straord_semplice_mese|ore_hhmm_h }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% if not forloop.last %}
+          <tr class="rie-gap" aria-hidden="true"><td colspan="{{ tabella_colspan }}"></td></tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+      {% gesper_pagination page_obj "Paginazione riepilogo presenze mese" %}
+      <div class="text-muted small px-3 py-2 border-top">
+        {{ page_obj.paginator.count }} dipendente/i in elenco{% if q_filter %} (filtro ricerca){% endif %}
+        {% if page_obj.paginator.num_pages > 1 %} — pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} (25 per pagina){% endif %}.
+        Esportazioni Excel/CSV includono tutti i dipendenti del mese.
+      </div>
+      {% else %}
+      <div class="text-muted p-4 text-center" style="font-size:.85rem">
+        <i class="bi bi-table" style="font-size:2rem;opacity:.4"></i>
+        <div class="mt-2">
+          {% if q_filter %}
+            Nessun dipendente corrisponde a «{{ q_filter }}».
+            <a href="?anno={{ anno|anno_it }}&amp;mese={{ mese|stringformat:'d' }}">Rimuovi ricerca</a>
+          {% else %}
+            Nessun dipendente attivo trovato per questa azienda.
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Legenda ─────────────────────────────────────────────────── #}
+  <div class="mt-3 d-flex gap-2 flex-wrap align-items-center" style="font-size:.72rem">
+    <span style="color:#666;font-weight:700">Legenda:</span>
+    <span><span class="cal-cella" style="background:#0a6640">P</span> Presenza</span>
+    <span><span class="cal-cella" style="background:#1a4a20">ST</span> Straordinario</span>
+    <span><span class="cal-cella" style="background:#1b3a8f">F</span> Ferie</span>
+    <span><span class="cal-cella" style="background:#b85a00">PE</span> Permesso</span>
+    <span><span class="cal-cella" style="background:#c0392b">M</span> Malattia</span>
+    <span><span class="cal-cella" style="background:#7b1c1c">INF</span> Infortunio</span>
+    <span><span class="cal-cella" style="background:#8e44ad">MAT</span> Maternità</span>
+    <span><span class="cal-cella" style="background:#6d4c41">CIG</span> Cassa Integr.</span>
+    <span><span class="cal-cella" style="background:#922b21">A</span> Assenza ingiust.</span>
+    <span><span class="cal-cella" style="background:#888">R</span> Riposo</span>
+    <span style="background:#fffde7;border:1px solid #f0c040;padding:1px 5px;border-radius:3px">· non registrato</span>
+  </div>
+
+  <div class="mt-2" style="font-size:.72rem;color:#888">
+    <i class="bi bi-info-circle"></i>
+    Riga principale: T1/T2/T3 e totale giorno; <strong>Str.</strong> = eccedenza giornaliera vs std. Sotto: <strong>Std contr. /g</strong> e <strong>Straord. /g</strong> (ultima colonna = somma mensile semplice). <strong>Tot.</strong> = ore mese timbrate. Colonne <strong>Dom.</strong>, <strong>Fest.</strong>, <strong>Str. fer./fest./dom.</strong> = motore cedolino (dopo «Salva riepilogo motore»).
+    Barra colorata sul bordo della cella: tipo giorno dell’eccedenza (feriale / domenica / festivo).
+    Max 25 dipendenti per pagina.
+  </div>
+
+</div>
+{% endblock %}

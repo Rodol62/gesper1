@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Dettaglio documento</h2>
+<ul>
+    <li>Dipendente: {{ documento.dipendente }}</li>
+    <li>Tipo: {{ documento.tipo }}</li>
+    <li>Caricato da: {{ documento.caricato_da }}</li>
+    <li>Data caricamento: {{ documento.data_caricamento }}</li>
+    <li>File: <a href="{% url 'download_documento' documento.id %}">Scarica</a></li>
+</ul>
+<a href="{% url 'lista_documenti' %}">Torna alla lista</a>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% load pagination_tags %}
+{% block title %}Voci cedolino (motore v4) — Gesper{% endblock %}
+
+{% block extra_head %}
+<style>
+.vcm-wrap { font-size: var(--sz-sm); }
+.vcm-head {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem;
+  margin-bottom: .75rem;
+}
+.vcm-filters {
+  display: flex; flex-wrap: wrap; gap: .4rem; align-items: center;
+}
+.vcm-filters input, .vcm-filters select { font-size: var(--sz-xs); max-width: 10rem; }
+.vcm-table-wrap { overflow-x: auto; border: 1px solid var(--c-border); border-radius: 6px; background: #fff; }
+.vcm-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
+.vcm-table th, .vcm-table td { padding: .35rem .45rem; border-bottom: 1px solid #eee; vertical-align: top; }
+.vcm-table th { background: #f4f7fa; font-weight: 700; text-align: left; white-space: nowrap; }
+.vcm-table tr:hover td { background: #fafcff; }
+.vcm-muted { color: var(--c-muted); }
+.vcm-badge { font-size: .65rem; padding: .1rem .35rem; border-radius: 3px; font-weight: 600; }
+.badge-comp { background: #e0f2fe; color: #0369a1; }
+.badge-trat { background: #ffedd5; color: #c2410c; }
+.badge-bonus { background: #dcfce7; color: #166534; }
+.badge-nc { background: #f3e8ff; color: #6b21a8; }
+.vcm-pag { margin-top: .75rem; font-size: var(--sz-xs); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="vcm-wrap">
+  <div class="vcm-head">
+    <div>
+      <h4 class="mb-1"><i class="bi bi-list-columns-reverse text-primary"></i> Voci lette dal motore cedolino (v4)</h4>
+      <p class="text-muted mb-0" style="font-size:var(--sz-xs)">
+        Righe estratte posizionalmente e salvate in anagrafica (codice, descrizione, tipo, ore/gg, base, importo, controllo F2).
+        {% if azienda_operativa %}Filtrate per <strong>{{ azienda_operativa.nome }}</strong>.{% else %}Tutte le aziende.{% endif %}
+        — <strong>{{ total_filtered }}</strong> righe{% if page_obj.paginator.num_pages > 1 %} (pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}){% endif %}.
+      </p>
+    </div>
+    <a href="{% url 'dashboard_admin' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Dashboard admin</a>
+  </div>
+
+  <form method="get" class="vcm-filters mb-3">
+    <input type="search" name="q" value="{{ q }}" placeholder="Cerca codice, testo, CF…" class="form-control form-control-sm" style="min-width:12rem;max-width:16rem">
+    <select name="tipo" class="form-select form-select-sm">
+      <option value="">— Tipo —</option>
+      {% for t in tipi_distinti %}
+      <option value="{{ t }}" {% if tipo_f == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <input type="number" name="mese" min="1" max="12" value="{{ mese_f|default:'' }}" placeholder="Mese" class="form-control form-control-sm" style="width:5rem">
+    <input type="number" name="anno" min="2000" max="2100" value="{{ anno_f|default:'' }}" placeholder="Anno" class="form-control form-control-sm" style="width:5.5rem">
+    <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Filtra</button>
+    {% if q or tipo_f or mese_f or anno_f %}
+    <a href="{% url 'admin_voci_cedolino_motore_v4 %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+    {% endif %}
+  </form>
+
+  {% gesper_pagination page_obj "Paginazione voci cedolino motore v4" %}
+  <div class="vcm-table-wrap gesper-list-scroll">
+    <table class="vcm-table">
+      <thead>
+        <tr>
+          <th>Periodo</th>
+          <th>Dipendente</th>
+          <th>Azienda</th>
+          <th>Cod.</th>
+          <th>Descrizione</th>
+          <th>Tipo</th>
+          <th>Ore/gg</th>
+          <th>Base €</th>
+          <th>Importo €</th>
+          <th>Calc. €</th>
+          <th>Δ €</th>
+          <th>F2</th>
+          <th>Rif.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in page_obj %}
+        {% with c=v.cedolino dip=c.dipendente %}
+        <tr>
+          <td class="text-nowrap">{{ c.mese|stringformat:"02d" }}/{{ c.anno }}{% if c.natura_busta and c.natura_busta != 'ORDINARIA' %} <span class="vcm-muted">({{ c.get_natura_busta_display }})</span>{% endif %}</td>
+          <td>
+            {% if dip %}
+              <a href="{% url 'dettaglio_dipendente' dip.pk %}">{{ dip.cognome }} {{ dip.nome }}</a>
+              {% if dip.codice_fiscale %}<br><span class="vcm-muted">{{ dip.codice_fiscale }}</span>{% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>{% if dip and dip.azienda %}{{ dip.azienda.nome|truncatechars:28 }}{% else %}—{% endif %}</td>
+          <td class="text-nowrap"><code>{{ v.codice }}</code></td>
+          <td>{{ v.descrizione|truncatechars:56 }}</td>
+          <td>
+            {% if v.tipo == 'COMPETENZA' %}<span class="vcm-badge badge-comp">COMP</span>
+            {% elif v.tipo == 'TRATTENUTA' %}<span class="vcm-badge badge-trat">TRATT</span>
+            {% elif v.tipo == 'BONUS' %}<span class="vcm-badge badge-bonus">BONUS</span>
+            {% else %}<span class="vcm-badge badge-nc">{{ v.tipo|default:"—" }}</span>{% endif %}
+          </td>
+          <td class="text-end">{% if v.ore_gg is not None %}{{ v.ore_gg }}{% else %}<span class="vcm-muted">—</span>{% endif %}</td>
+          <td class="text-end">{% if v.base_unitaria is not None %}{{ v.base_unitaria }}{% else %}<span class="vcm-muted">—</span>{% endif %}</td>
+          <td class="text-end fw-semibold">{{ v.importo }}</td>
+          <td class="text-end">{% if v.importo_calcolato is not None %}{{ v.importo_calcolato }}{% else %}<span class="vcm-muted">—</span>{% endif %}</td>
+          <td class="text-end">{% if v.delta_calc is not None %}{{ v.delta_calc }}{% else %}<span class="vcm-muted">—</span>{% endif %}</td>
+          <td><span class="text-nowrap">{{ v.esito_check|default:"—" }}</span></td>
+          <td class="vcm-muted">{{ v.riferimento|truncatechars:12 }}</td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr><td colspan="13" class="text-center py-4 text-muted">Nessuna voce trovata. Verifica filtri o che le buste siano state elaborate con il motore v4 e memorizzate.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% gesper_pagination page_obj "Paginazione voci cedolino motore v4" %}
+</div>
+{% endblock %}

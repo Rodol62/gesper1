@@ -1,0 +1,326 @@
+{% extends 'base_candidato.html' %}
+{% load currency_filters format_it_tags %}
+{% block title %}Accettazione contratto — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:900px">
+
+  {# ── Header ────────────────────────────────────────────────── #}
+  <div style="background:linear-gradient(135deg,#1b5e20,#388e3c);color:#fff;border-radius:6px;
+              padding:.7rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;
+              justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+    <div>
+      <h5 style="margin:0;font-size:.95rem;font-weight:800">
+        <i class="bi bi-file-earmark-check-fill"></i> Contratto individuale di assunzione
+      </h5>
+      <div style="font-size:.72rem;opacity:.85;margin-top:2px">
+        {{ contratto.numero_contratto }} &nbsp;·&nbsp; {{ contratto.azienda.nome }}
+      </div>
+    </div>
+    <a href="{% url 'candidato_dashboard' %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">
+      ← Dashboard
+    </a>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="alert alert-info py-2 mb-3" style="font-size:.82rem">
+    <i class="bi bi-info-circle-fill"></i>
+    Leggi attentamente le condizioni del contratto. La firma digitale tramite spunta equivale
+    ad accettazione piena e incondizionata ai sensi dell'art. 1326 c.c.
+  </div>
+
+  <div class="row g-3">
+
+    {# ── Colonna SX ─────────────────────────────────────────── #}
+    <div class="col-12 col-md-7">
+
+      {# Condizioni contrattuali #}
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2 px-3"
+             style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+          <i class="bi bi-file-text"></i> Condizioni contrattuali
+        </div>
+        <div class="card-body py-2 px-3">
+          <div class="row g-2" style="font-size:.82rem">
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Datore di lavoro</span>
+              <strong>{{ contratto.azienda.nome }}</strong>
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Tipo contratto</span>
+              {{ contratto.tipo_contratto }}
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Data inizio</span>
+              <strong>{{ contratto.data_inizio_rapporto|date:"d/m/Y" }}</strong>
+            </div>
+            {% if contratto.data_fine_rapporto %}
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Scadenza (tempo determinato)</span>
+              <strong class="text-danger">{{ contratto.data_fine_rapporto|date:"d/m/Y" }}</strong>
+            </div>
+            {% endif %}
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Posizione / Qualifica</span>
+              {{ contratto.posizione }}{% if contratto.qualifica %} — {{ contratto.qualifica }}{% endif %}
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Livello CCNL</span>
+              {{ contratto.livello_ccnl }}
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Turno</span>
+              {{ contratto.get_turno_tipo_display }}
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Ore settimanali</span>
+              {{ contratto.ore_settimanali|ore_hm }} ore/sett.
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Ferie annuali</span>
+              {{ contratto.giorni_ferie_annuali }} giorni
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Permessi annuali</span>
+              {{ contratto.giorni_permesso_annuali }} giorni
+            </div>
+            {% if contratto.tredicesima or contratto.quattordicesima %}
+            <div class="col-12">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Mensilità aggiuntive</span>
+              {% if contratto.tredicesima %}<span class="badge bg-secondary me-1">13ª mensilità</span>{% endif %}
+              {% if contratto.quattordicesima %}<span class="badge bg-secondary me-1">14ª mensilità</span>{% endif %}
+            </div>
+            {% endif %}
+            {% if contratto.riposi_compensativi_regola %}
+            <div class="col-12">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Riposi compensativi</span>
+              {{ contratto.riposi_compensativi_regola }}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {# Maggiorazioni straordinario #}
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2 px-3"
+             style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+          <i class="bi bi-arrow-up-right-circle"></i> Maggiorazioni straordinario e scatti
+        </div>
+        <div class="card-body py-2 px-3">
+          <div class="row g-2" style="font-size:.82rem">
+            <div class="col-4 text-center">
+              <div class="text-muted" style="font-size:.7rem">Diurno</div>
+              <strong>+{{ contratto.ore_straordinario_diurno_maggiorazione }}%</strong>
+            </div>
+            <div class="col-4 text-center">
+              <div class="text-muted" style="font-size:.7rem">Notturno</div>
+              <strong>+{{ contratto.ore_straordinario_notturno_maggiorazione }}%</strong>
+            </div>
+            <div class="col-4 text-center">
+              <div class="text-muted" style="font-size:.7rem">Festivo</div>
+              <strong>+{{ contratto.ore_straordinario_festivo_maggiorazione }}%</strong>
+            </div>
+            <div class="col-12 mt-1" style="font-size:.78rem;color:#555">
+              Scatti di anzianità: ogni {{ contratto.scatto_periodicita_mesi }} mesi —
+              € {{ contratto.scatto_importo|euro_it }}/scatto — max {{ contratto.numero_scatti_massimi }} scatti.
+              &nbsp; TFR: {{ contratto.aliquota_tfr }}%.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Form accettazione #}
+      <div class="card border-0 shadow-sm mb-4" style="border-left:4px solid #1b5e20 !important">
+        <div class="card-body py-3 px-3">
+          <form method="post">
+            {% csrf_token %}
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="accetto" id="accetto" required>
+              <label class="form-check-label" for="accetto" style="font-size:.85rem;font-weight:600">
+                Dichiaro di aver letto e di accettare integralmente le condizioni del presente contratto
+                di assunzione e di essere consapevole delle responsabilità che ne derivano.
+              </label>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+              <button type="submit" class="btn btn-success btn-sm">
+                <i class="bi bi-check2-square"></i> Firma e accetta il contratto
+              </button>
+              <a href="{% url 'candidato_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                Annulla
+              </a>
+              <span style="font-size:.7rem;color:#888;margin-left:auto">
+                <i class="bi bi-shield-lock"></i>
+                La firma sarà registrata come Palermo, {% now "d/m/Y H:i" %}
+              </span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>{# /col SX #}
+
+    {# ── Colonna DX: dettaglio economico ─────────────────────── #}
+    <div class="col-12 col-md-5">
+
+      {# Retribuzione lorda #}
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2 px-3"
+             style="background:#e8f5e9;font-size:.82rem;font-weight:700;color:#1b5e20;border-bottom:1px solid #c8e6c9">
+          <i class="bi bi-cash-coin"></i> Retribuzione lorda mensile
+        </div>
+        <div class="card-body py-2 px-3" style="font-size:.82rem">
+          <div class="d-flex justify-content-between py-1 border-bottom">
+            <span class="text-muted">Lordo totale</span>
+            <strong style="color:#1b5e20;font-size:.95rem">€ {{ contratto.stipendio_lordo_mensile|euro_it }}</strong>
+          </div>
+          {% if contratto.paga_base_mensile %}
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">Paga base</span>
+            <span>€ {{ contratto.paga_base_mensile|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if contratto.contingenza_mensile %}
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">Contingenza</span>
+            <span>€ {{ contratto.contingenza_mensile|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if contratto.edr_mensile %}
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">EDR</span>
+            <span>€ {{ contratto.edr_mensile|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if contratto.premio_obiettivi %}
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">Premio obiettivi</span>
+            <span>€ {{ contratto.premio_obiettivi|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if contratto.tredicesima and calc_ret.rateo_13_lordo_m %}
+          <div class="d-flex justify-content-between py-1 border-top mt-1">
+            <span class="text-muted" style="font-size:.78rem">+ Rateo 13ª mensilità accantonato/mese (erogato a dic.)</span>
+            <span>€ {{ calc_ret.rateo_13_lordo_m|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if contratto.quattordicesima and calc_ret.rateo_14_lordo_m %}
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">+ Rateo 14ª mensilità accantonato/mese (erogato a lug.)</span>
+            <span>€ {{ calc_ret.rateo_14_lordo_m|euro_it }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# Simulazione cedolino #}
+      {% if calc_ret %}
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2 px-3"
+             style="background:#fff8e1;font-size:.82rem;font-weight:700;color:#7b4f00;border-bottom:1px solid #ffe082">
+          <i class="bi bi-calculator"></i> Simulazione cedolino mensile
+          <span class="badge bg-warning text-dark ms-1" style="font-size:.68rem;font-weight:500">Stima</span>
+        </div>
+        <div class="card-body py-2 px-3" style="font-size:.82rem">
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted">Imponibile fiscale</span>
+            <span>€ {{ calc_ret.imponibile_fiscale|euro_it }}</span>
+          </div>
+          <div class="d-flex justify-content-between py-1 text-danger">
+            <span>INPS dipendente ({{ calc_ret.inps_dip_perc|num_it:2 }}%)</span>
+            <span>- € {{ calc_ret.inps_dipendente|abs_num|euro_it }}</span>
+          </div>
+          <div class="d-flex justify-content-between py-1 text-danger">
+            <span>IRPEF lorda</span>
+            <span>- € {{ calc_ret.irpef_lorda|abs_num|euro_it }}</span>
+          </div>
+          <div class="d-flex justify-content-between py-1 text-success">
+            <span>Detrazioni lavoro</span>
+            <span>+ € {{ calc_ret.detrazioni|abs_num|euro_it }}</span>
+          </div>
+          {% if calc_ret.trattamento_integrativo %}
+          <div class="d-flex justify-content-between py-1 text-success">
+            <span>Tratt. integrativo (ex bonus 80€)</span>
+            <span>+ € {{ calc_ret.trattamento_integrativo|abs_num|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if calc_ret.bonus_l207 %}
+          <div class="d-flex justify-content-between py-1 text-success">
+            <span>Bonus L.207/2024</span>
+            <span>+ € {{ calc_ret.bonus_l207|abs_num|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if calc_ret.addiz_reg_mensile %}
+          <div class="d-flex justify-content-between py-1 text-danger">
+            <span style="font-size:.78rem">Add. regionale/comunale (mensile)</span>
+            <span style="font-size:.78rem">- € {{ calc_ret.addiz_reg_mensile|abs_num|euro_it }}</span>
+          </div>
+          {% endif %}
+          <div class="d-flex justify-content-between py-1 mt-1"
+               style="border-top:2px solid #dee2e6;font-size:.9rem">
+            <strong>Netto mensile stimato</strong>
+            <strong style="color:#1b5e20">€ {{ calc_ret.netto_mensile|euro_it }}</strong>
+          </div>
+        </div>
+      </div>
+
+      {# Ratei e costo orario #}
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2 px-3"
+             style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+          <i class="bi bi-pie-chart"></i> Ratei e valori orari
+        </div>
+        <div class="card-body py-2 px-3" style="font-size:.82rem">
+          <div class="row g-1">
+            <div class="col-6">
+              <div class="text-muted" style="font-size:.7rem">Paga oraria lorda</div>
+              <strong>€ {{ calc_ret.paga_oraria_lorda|num_it:4 }}</strong>
+            </div>
+            <div class="col-6">
+              <div class="text-muted" style="font-size:.7rem">Paga oraria netta</div>
+              <strong>€ {{ calc_ret.paga_oraria_netta|num_it:4 }}</strong>
+            </div>
+            <div class="col-6">
+              <div class="text-muted" style="font-size:.7rem">Rateo 13ª/gg</div>
+              <span>€ {{ calc_ret.rateo_13_lordo_g|num_it:4 }}</span>
+            </div>
+            {% if calc_ret.quattordicesima %}
+            <div class="col-6">
+              <div class="text-muted" style="font-size:.7rem">Rateo 14ª/gg</div>
+              <span>€ {{ calc_ret.rateo_14_lordo_g|num_it:4 }}</span>
+            </div>
+            {% endif %}
+            <div class="col-6">
+              <div class="text-muted" style="font-size:.7rem">Rateo TFR/gg</div>
+              <span>€ {{ calc_ret.rateo_tfr_lordo_g|num_it:4 }}</span>
+            </div>
+            <div class="col-6">
+              <div class="text-muted" style="font-size:.7rem">Netto con ratei/gg</div>
+              <strong>€ {{ calc_ret.netto_con_ratei|euro_it }}</strong>
+            </div>
+          </div>
+          <div class="mt-2 pt-1" style="border-top:1px solid #dee2e6;font-size:.75rem;color:#888">
+            <i class="bi bi-info-circle"></i>
+            Simulazione calcolata con i parametri CCNL FIPE in vigore. Il cedolino definitivo
+            potrà variare in base alle presenze effettive e alle variazioni normative.
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="alert alert-secondary py-2" style="font-size:.8rem">
+        <i class="bi bi-info-circle"></i>
+        La simulazione economica non è disponibile. I dati retributivi sono indicati
+        nella sezione "Retribuzione lorda mensile".
+      </div>
+      {% endif %}
+
+    </div>{# /col DX #}
+  </div>{# /row #}
+
+</div>
+{% endblock %}

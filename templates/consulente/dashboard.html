@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% load ruoli_tags guida_tags %}
+{% load l10n format_it_tags %}
+{% block title %}Dashboard Consulente — {{ azienda.nome }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1100px;margin:0 auto;padding:1.5rem 1rem">
+
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="mb-0" style="font-size:1.4rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-briefcase-fill me-2"></i>Consulente del Lavoro{% guida_link "modulo-consulente" %}
+      </h2>
+      <div class="text-muted" style="font-size:.85rem;margin-top:.2rem">
+        {{ azienda.nome }} &mdash; {{ mese_corrente }} {{ anno_corrente|anno_it }}
+      </div>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert" style="font-size:.88rem">
+        {{ msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <div class="mb-1"><strong>Area consulente.</strong> Dati filtrati sull’azienda del profilo.</div>
+    <div class="d-flex flex-wrap gap-2 align-items-center" style="font-size:.88rem">
+      <a href="{% url 'guida_modulo' 'modulo-consulente' %}">Guida</a>
+      <span class="text-muted">·</span>
+      <a href="{% url 'consulente_carica_documento' %}">Carica documenti paghe</a>
+      <span class="text-muted">·</span>
+      <a href="{% url 'libro_paga_lista' %}">Libro paga</a>
+      <span class="text-muted">·</span>
+      <a href="{% url 'consulente_import_pdf_unico' %}">Import PDF unico</a>
+    </div>
+  </div>
+
+  <!-- KPI (nessun duplicato con le card sotto) -->
+  <div class="row g-2 g-md-3 mb-4">
+    <div class="col-6 col-md">
+      <a href="{% url 'lista_dipendenti' %}?stato=attivo" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #1b3a5f !important">
+          <div class="card-body text-center py-3">
+            <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ dipendenti_attivi }}</div>
+            <div class="text-muted" style="font-size:.78rem">Dipendenti attivi</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-6 col-md">
+      <a href="{% url 'consulente_candidati' %}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center py-3">
+            <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ candidati_count }}</div>
+            <div class="text-muted" style="font-size:.78rem">Candidati</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-6 col-md">
+      <a href="{% url 'consulente_candidati' %}?stato=firmata_candidato" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100 {% if proposte_da_approvare > 0 %}border-warning border-2{% endif %}">
+          <div class="card-body text-center py-3">
+            <div style="font-size:1.75rem;font-weight:700;{% if proposte_da_approvare > 0 %}color:#c87f00{% else %}color:#1b3a5f{% endif %}">{{ proposte_da_approvare }}</div>
+            <div class="text-muted" style="font-size:.78rem">Proposte da approvare{% if proposte_da_approvare > 0 %} <i class="bi bi-exclamation-circle text-warning"></i>{% endif %}</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-6 col-md">
+      <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno_corrente }}&mese={{ mese_corrente_num }}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center py-3">
+            <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ presenze_mese_count }}</div>
+            <div class="text-muted" style="font-size:.78rem"><i class="bi bi-calendar-check me-1"></i>Presenze</div>
+            <div class="text-muted" style="font-size:.68rem">Griglia mese · {{ mese_corrente }} {{ anno_corrente|anno_it }}</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-6 col-md">
+      <a href="{% url 'lista_documenti' %}?categoria=buste&tipo=busta_paga&anno=&dipendente=" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center py-3">
+            <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ buste_paga_count }}</div>
+            <div class="text-muted" style="font-size:.78rem">Buste paga</div>
+            <div class="text-muted" style="font-size:.68rem">Documenti in archivio</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-6 col-md">
+      <a href="{% url 'lista_f24_documenti' %}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center py-3">
+            <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ f24_documenti_count }}</div>
+            <div class="text-muted" style="font-size:.78rem">F24</div>
+            <div class="text-muted" style="font-size:.68rem">Documenti in archivio</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-6 col-md">
+      <a href="{% url 'lista_cud_documenti' %}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center py-3">
+            <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ cud_certificati_count }}</div>
+            <div class="text-muted" style="font-size:.78rem">CUD / certificati</div>
+            <div class="text-muted" style="font-size:.68rem">Documenti in archivio</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-6 col-md">
+      <a href="{% url 'lista_contratti_scadenza' %}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100 {% if td_in_scadenza or td_scaduti_aperti %}border-warning border-2{% endif %}">
+          <div class="card-body text-center py-3">
+            <div style="font-size:1.75rem;font-weight:700;{% if td_scaduti_aperti %}color:#b02a37{% elif td_in_scadenza %}color:#c87f00{% else %}color:#1b3a5f{% endif %}">{{ td_in_scadenza|add:td_scaduti_aperti }}</div>
+            <div class="text-muted" style="font-size:.78rem">TD scadenze{% if td_scaduti_aperti %} <span class="text-danger">({{ td_scaduti_aperti }} scaduti)</span>{% endif %}</div>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Accesso rapido: raggruppato, senza ripetere le stesse voci -->
+  <h5 class="mb-2" style="font-size:1rem;font-weight:600;color:#1b3a5f">Accesso rapido</h5>
+  <div class="row g-2 mb-4">
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body py-3">
+          <div class="fw-semibold mb-2" style="font-size:.9rem;color:#1b3a5f"><i class="bi bi-person-lines-fill me-1"></i>Anagrafica &amp; candidature</div>
+          <div class="d-flex flex-column gap-1" style="font-size:.84rem">
+            <a href="{% url 'consulente_candidati' %}">Candidati e proposte</a>
+            <a href="{% url 'lista_dipendenti' %}?stato=attivo">Elenco dipendenti attivi</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body py-3">
+          <div class="fw-semibold mb-2" style="font-size:.9rem;color:#1b3a5f"><i class="bi bi-file-earmark-person me-1"></i>Documenti dipendenti</div>
+          <div class="d-flex flex-column gap-1" style="font-size:.84rem">
+            <a href="{% url 'consulente_documenti' %}">Elenco documenti (per dipendente)</a>
+            <a href="{% url 'lista_documenti' %}?tipo=altro&anno=&dipendente=">Archivio generale (filtri)</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body py-3">
+          <div class="fw-semibold mb-2" style="font-size:.9rem;color:#1b3a5f"><i class="bi bi-calendar-check me-1"></i>Presenze</div>
+          <div class="d-flex flex-column gap-1" style="font-size:.84rem">
+            <a href="{% url 'consulente_presenze' %}">Export presenze (schermata / CSV)</a>
+            <a href="{% url 'riepilogo_presenze_mese' %}">Griglia mese tutti i dipendenti</a>
+            <a href="{% url 'export_presenze_excel' %}">Export Excel mese corrente</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body py-3">
+          <div class="fw-semibold mb-2" style="font-size:.9rem;color:#1b3a5f"><i class="bi bi-receipt-cutoff me-1"></i>Paghe, F24, CUD</div>
+          <div class="d-flex flex-column gap-1" style="font-size:.84rem">
+            <a href="{% url 'lista_documenti' %}?categoria=buste&tipo=busta_paga&anno=&dipendente=">Buste paga &amp; F24 (liste)</a>
+            <a href="{% url 'consulente_partitario_paghe' %}">Partitario paghe</a>
+            <a href="{% url 'consulente_riepilogo_f24_annuale' %}">Riepilogo F24 annuale</a>
+            <a href="{% url 'lista_cud_documenti' %}">CUD — elenco</a>
+            <a href="{% url 'consulente_upload_cud' %}">CUD — caricamento</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4" id="candidati-dashboard">
+    <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between" style="font-size:.88rem;font-weight:600;color:#1b3a5f">
+      <span><i class="bi bi-person-badge me-1"></i> Candidati recenti</span>
+      <a href="{% url 'consulente_candidati' %}" class="text-muted" style="font-size:.8rem">Vedi tutti →</a>
+    </div>
+    <div class="card-body p-0">
+      {% if candidati_recenti %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" style="font-size:.84rem">
+          <thead style="background:#f8f9fa">
+            <tr>
+              <th class="py-2 px-3">Candidato</th>
+              <th class="py-2">Ruolo</th>
+              <th class="py-2">Contatti</th>
+              <th class="py-2 text-end pe-3">Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dip in candidati_recenti %}
+            <tr>
+              <td class="py-2 px-3">
+                <div style="font-weight:600">{{ dip.cognome }} {{ dip.nome }}</div>
+                {% if dip.codice_fiscale %}
+                  <div class="text-muted" style="font-size:.75rem;font-family:monospace">{{ dip.codice_fiscale }}</div>
+                {% endif %}
+              </td>
+              <td class="py-2">
+                {% with info=candidati_posizione|get_item:dip.id %}
+                  {% if info.posizione %}
+                    <div style="font-weight:500">{{ info.posizione }}</div>
+                    {% if info.livello %}<div class="text-muted" style="font-size:.76rem">Liv. {{ info.livello }}</div>{% endif %}
+                  {% else %}
+                    <span class="text-muted">&mdash;</span>
+                  {% endif %}
+                {% endwith %}
+              </td>
+              <td class="py-2">
+                {% if dip.email %}<div>{{ dip.email }}</div>{% endif %}
+                {% if dip.telefono %}<div class="text-muted">{{ dip.telefono }}</div>{% endif %}
+                {% if not dip.email and not dip.telefono %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td class="py-2 text-end pe-3">
+                <span class="badge" style="background:#e7f1ff;color:#0b4ea2">{{ dip.get_stato_display }}</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted" style="font-size:.86rem">
+        Nessun candidato presente per questa azienda.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if ultimi_docs %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom" style="font-size:.88rem;font-weight:600;color:#1b3a5f">
+      <i class="bi bi-clock-history me-1"></i> Ultimi documenti da te caricati
+    </div>
+    <div class="card-body p-0">
+      <ul class="list-group list-group-flush">
+        {% for d in ultimi_docs %}
+        <li class="list-group-item d-flex align-items-center justify-content-between py-2 px-3">
+          <div style="font-size:.85rem">
+            <i class="bi bi-file-earmark me-1 text-muted"></i>
+            {% if d.dipendente %}
+              <strong>{{ d.dipendente.cognome }} {{ d.dipendente.nome }}</strong> —
+            {% endif %}
+            {{ d.get_tipo_display }}
+            {% if d.descrizione %}
+              <span class="text-muted">({{ d.descrizione }})</span>
+            {% endif %}
+          </div>
+          <small class="text-muted ms-2 flex-shrink-0">{{ d.data_caricamento|date:"d/m/Y H:i" }}</small>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

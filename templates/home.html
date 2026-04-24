@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+{% load ruoli_tags %}
+{% block title %}Gesper — Moduli{% endblock %}
+
+{% block extra_head %}
+<style>
+.welcome-hero {
+  background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent) 100%);
+  color: #fff;
+  border-radius: 8px;
+  padding: 1.5rem 2rem;
+  margin-bottom: 1rem;
+}
+.welcome-hero h2 { font-size: 1.3rem; font-weight: 800; margin: 0 0 .25rem; }
+.welcome-hero p  { font-size: var(--sz-sm); opacity: .85; margin: 0; }
+
+.module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .6rem; }
+.module-card {
+  background: #fff;
+  border: 1px solid var(--c-border);
+  border-top: 3px solid var(--c-accent);
+  border-radius: 5px;
+  padding: .75rem .9rem;
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow .15s, transform .15s;
+  display: flex; flex-direction: column; gap: .2rem;
+}
+.module-card:hover {
+  box-shadow: 0 4px 14px rgba(0,0,0,.1);
+  transform: translateY(-2px);
+  color: inherit;
+  border-top-color: var(--c-primary);
+}
+.module-card .mc-icon { font-size: 1.3rem; color: var(--c-accent); }
+.module-card .mc-title { font-size: var(--sz-sm); font-weight: 700; color: var(--c-primary); }
+.module-card .mc-desc  { font-size: var(--sz-xs); color: var(--c-muted); line-height: 1.4; }
+
+.module-card.mc-admin { border-top-color: #b8770d; }
+.module-card.mc-admin .mc-icon { color: #b8770d; }
+.module-card.mc-prior { border-top-color: var(--c-green); }
+.module-card.mc-prior .mc-icon { color: var(--c-green); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="welcome-hero">
+  <h2>Benvenuto in Gesper</h2>
+  {% if user.is_authenticated %}
+    {% if user.is_superuser or user|has_ruolo:'admin' %}
+    <p>Gestione Personale Multiaziendale &mdash; seleziona un modulo per iniziare</p>
+    {% elif user|has_ruolo:'consulente' %}
+    <p>Area consulente &mdash; dashboard e strumenti documenti/presenze/paghe</p>
+    {% elif user|has_ruolo:'dipendente' %}
+    <p>Portale dipendente &mdash; i tuoi dati, presenze e documenti</p>
+    {% elif user|has_ruolo:'candidato' %}
+    <p>Portale candidato &mdash; completa il profilo e segui la tua candidatura</p>
+    {% else %}
+    <p>Gestione Personale Multiaziendale &mdash; seleziona un modulo per iniziare</p>
+    {% endif %}
+  {% else %}
+  <p>Gestione Personale Multiaziendale &mdash; accedi per continuare</p>
+  {% endif %}
+</div>
+
+{% if user.is_authenticated %}
+  {# ── Portale dipendente ───────────────────────────────────── #}
+  {% if user|has_ruolo:'dipendente' %}
+  <div class="module-grid">
+    <a href="{% url 'profile' %}" class="module-card mc-prior">
+      <span class="mc-icon"><i class="bi bi-person-circle"></i></span>
+      <span class="mc-title">Profilo</span>
+      <span class="mc-desc">Dati account, contratti e riepiloghi</span>
+    </a>
+    <a href="{% url 'lista_presenze' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calendar-check-fill"></i></span>
+      <span class="mc-title">Presenze</span>
+      <span class="mc-desc">Timbrature e calendario</span>
+    </a>
+    <a href="{% url 'lista_documenti' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-text-fill"></i></span>
+      <span class="mc-title">Documenti</span>
+      <span class="mc-desc">Archivio personale</span>
+    </a>
+    <a href="{% url 'lista_richieste' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-chat-dots-fill"></i></span>
+      <span class="mc-title">Richieste</span>
+      <span class="mc-desc">Ferie, permessi e richieste</span>
+    </a>
+  </div>
+
+  {# ── Portale candidato (senza ruolo dipendente) ───────────── #}
+  {% elif user|has_ruolo:'candidato' %}
+  <div class="module-grid">
+    <a href="{% url 'candidato_dashboard' %}" class="module-card mc-prior">
+      <span class="mc-icon"><i class="bi bi-person-circle"></i></span>
+      <span class="mc-title">La mia area</span>
+      <span class="mc-desc">Dashboard candidatura</span>
+    </a>
+    <a href="{% url 'profile' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-person-badge"></i></span>
+      <span class="mc-title">Profilo account</span>
+      <span class="mc-desc">Dati di accesso e privacy</span>
+    </a>
+  </div>
+
+  {# ── HR / admin (prima del consulente: admin+consulente → griglia completa) ── #}
+  {% elif user.is_superuser or user|has_ruolo:'admin' %}
+  <div class="module-grid">
+    <a href="{% url 'index_anagrafiche' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-people-fill"></i></span>
+      <span class="mc-title">Anagrafiche</span>
+      <span class="mc-desc">Dipendenti, aziende e anagrafica generale</span>
+    </a>
+    <a href="{% url 'lista_documenti' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-text-fill"></i></span>
+      <span class="mc-title">Documenti</span>
+      <span class="mc-desc">Archivio documenti e allegati</span>
+    </a>
+    <a href="{% url 'lista_presenze' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calendar-check-fill"></i></span>
+      <span class="mc-title">Presenze</span>
+      <span class="mc-desc">Registrazione e gestione timbrature</span>
+    </a>
+    <a href="{% url 'lista_richieste' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-chat-dots-fill"></i></span>
+      <span class="mc-title">Richieste</span>
+      <span class="mc-desc">Ferie, permessi e richieste del personale</span>
+    </a>
+    <a href="{% url 'lista_proposte_assunzione' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-briefcase-fill"></i></span>
+      <span class="mc-title">Proposte / Contratti</span>
+      <span class="mc-desc">Proposte di assunzione e contratti di lavoro</span>
+    </a>
+    <a href="{% url 'storico_home' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-clock-history"></i></span>
+      <span class="mc-title">Storico</span>
+      <span class="mc-desc">Registro accessi, storico dipendenti</span>
+    </a>
+    <a href="{% url 'simulazione_2026_config' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-graph-up-arrow"></i></span>
+      <span class="mc-title">Simulazione annua</span>
+      <span class="mc-desc">Organico per ruoli vs dipendenti in carico; costo annuo CCNL FIPE</span>
+    </a>
+    <a href="{% url 'calendario_aziendale' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calendar3"></i></span>
+      <span class="mc-title">Calendario</span>
+      <span class="mc-desc">Giorni lavorativi, festività e chiusure aziendali</span>
+    </a>
+    <a href="{% url 'gestione_riferimenti_economici' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-currency-euro"></i></span>
+      <span class="mc-title">Rif. Economici</span>
+      <span class="mc-desc">Parametri CCNL, contributi e aliquote</span>
+    </a>
+    <a href="{% url 'dashboard_admin' %}" class="module-card mc-admin">
+      <span class="mc-icon"><i class="bi bi-speedometer2"></i></span>
+      <span class="mc-title">Dashboard Admin</span>
+      <span class="mc-desc">Panoramica sistema e accesso rapido</span>
+    </a>
+  </div>
+
+  {# ── Consulente del lavoro (solo consulente, non admin) ───── #}
+  {% elif user|has_ruolo:'consulente' %}
+  <div class="module-grid">
+    <a href="{% url 'consulente_dashboard' %}" class="module-card mc-prior">
+      <span class="mc-icon"><i class="bi bi-speedometer2"></i></span>
+      <span class="mc-title">Dashboard</span>
+      <span class="mc-desc">Panoramica e collegamenti rapidi</span>
+    </a>
+    <a href="{% url 'consulente_candidati' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-person-lines-fill"></i></span>
+      <span class="mc-title">Anagrafiche</span>
+      <span class="mc-desc">Candidati e proposte</span>
+    </a>
+    <a href="{% url 'consulente_documenti' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-text-fill"></i></span>
+      <span class="mc-title">Elenco documenti</span>
+      <span class="mc-desc">Documenti per dipendente</span>
+    </a>
+    <a href="{% url 'consulente_carica_documento' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-cloud-arrow-up"></i></span>
+      <span class="mc-title">Carica documenti paghe</span>
+      <span class="mc-desc">Upload verso archivio dipendenti</span>
+    </a>
+    <a href="{% url 'riepilogo_presenze_mese' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-grid-3x3-gap-fill"></i></span>
+      <span class="mc-title">Griglia presenze mese</span>
+      <span class="mc-desc">Riepilogo mensile tutti i dipendenti</span>
+    </a>
+    <a href="{% url 'consulente_presenze' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-download"></i></span>
+      <span class="mc-title">Export presenze</span>
+      <span class="mc-desc">Esportazione da schermata</span>
+    </a>
+    <a href="{% url 'export_presenze_excel' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-excel-fill"></i></span>
+      <span class="mc-title">Export Excel</span>
+      <span class="mc-desc">Mese corrente</span>
+    </a>
+    <a href="{% url 'riepilogo_mensile_motore' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calculator-fill"></i></span>
+      <span class="mc-title">Cedolino da riepilogo</span>
+      <span class="mc-desc">Motore da presenze mensili</span>
+    </a>
+    <a href="{% url 'consulente_upload_buste_paga' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-arrow-up"></i></span>
+      <span class="mc-title">Buste paga</span>
+      <span class="mc-desc">Caricamento buste paga</span>
+    </a>
+    <a href="{% url 'consulente_upload_cud' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-ruled"></i></span>
+      <span class="mc-title">CUD</span>
+      <span class="mc-desc">Certificazioni uniche</span>
+    </a>
+    <a href="{% url 'consulente_partitario_paghe' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-journal-text"></i></span>
+      <span class="mc-title">Partitario paghe</span>
+      <span class="mc-desc">Vista partitario</span>
+    </a>
+    <a href="{% url 'consulente_riepilogo_f24_annuale' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-bar-graph"></i></span>
+      <span class="mc-title">Riepilogo F24 annuale</span>
+      <span class="mc-desc">Quadro riepilogativo</span>
+    </a>
+    <a href="{% url 'consulente_import_pdf_unico' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-filetype-pdf"></i></span>
+      <span class="mc-title">Import PDF unico</span>
+      <span class="mc-desc">Import massivo da PDF</span>
+    </a>
+    <a href="{% url 'lista_proposte_assunzione' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-briefcase-fill"></i></span>
+      <span class="mc-title">Proposte / Contratti</span>
+      <span class="mc-desc">Rapporti di lavoro</span>
+    </a>
+    <a href="{% url 'storico_home' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-clock-history"></i></span>
+      <span class="mc-title">Storico</span>
+      <span class="mc-desc">Registri e storico dipendenti</span>
+    </a>
+    <a href="{% url 'profile' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-person"></i></span>
+      <span class="mc-title">Profilo</span>
+      <span class="mc-desc">Account e impostazioni</span>
+    </a>
+  </div>
+
+  {# ── HR / altri ruoli interni (senza fascia solo-admin) ─── #}
+  {% else %}
+  <div class="module-grid">
+    <a href="{% url 'index_anagrafiche' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-people-fill"></i></span>
+      <span class="mc-title">Anagrafiche</span>
+      <span class="mc-desc">Dipendenti, aziende e anagrafica generale</span>
+    </a>
+    <a href="{% url 'lista_documenti' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-text-fill"></i></span>
+      <span class="mc-title">Documenti</span>
+      <span class="mc-desc">Archivio documenti e allegati</span>
+    </a>
+    <a href="{% url 'lista_presenze' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calendar-check-fill"></i></span>
+      <span class="mc-title">Presenze</span>
+      <span class="mc-desc">Registrazione e gestione timbrature</span>
+    </a>
+    <a href="{% url 'lista_richieste' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-chat-dots-fill"></i></span>
+      <span class="mc-title">Richieste</span>
+      <span class="mc-desc">Ferie, permessi e richieste del personale</span>
+    </a>
+    <a href="{% url 'lista_proposte_assunzione' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-briefcase-fill"></i></span>
+      <span class="mc-title">Proposte / Contratti</span>
+      <span class="mc-desc">Proposte di assunzione e contratti di lavoro</span>
+    </a>
+    <a href="{% url 'storico_home' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-clock-history"></i></span>
+      <span class="mc-title">Storico</span>
+      <span class="mc-desc">Registro accessi, storico dipendenti</span>
+    </a>
+  </div>
+  {% endif %}
+{% else %}
+<div class="card text-center" style="max-width:360px;margin:3rem auto">
+  <div class="card-body" style="padding:1.5rem">
+    <i class="bi bi-lock-fill" style="font-size:2rem;color:var(--c-muted)"></i>
+    <p style="margin:.75rem 0 1rem;font-size:var(--sz-sm)">Accedi per utilizzare Gesper</p>
+    <a href="{% url 'login' %}" class="btn btn-primary btn-sm w-100">Accedi</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

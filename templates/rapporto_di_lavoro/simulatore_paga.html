@@ -1,0 +1,1099 @@
+{% extends 'base.html' %}
+{% load currency_filters format_it_tags %}
+
+{% block title %}Simulatore Motore Paga — GESPER{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Layout ──────────────────────────────────────────────────────────── */
+.sim-sidebar {
+  position: sticky;
+  top: 58px;
+  max-height: calc(100vh - 68px);
+  overflow-y: auto;
+}
+.sim-sidebar::-webkit-scrollbar { width: 4px; }
+.sim-sidebar::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 2px; }
+
+/* ── Sezioni form ────────────────────────────────────────────────────── */
+.form-section-title {
+  font-size: var(--sz-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--c-green);
+  border-bottom: 1px solid var(--c-border);
+  padding-bottom: .2rem;
+  margin: .8rem 0 .4rem;
+}
+.form-label-xs {
+  font-size: var(--sz-xs);
+  font-weight: 600;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  margin-bottom: .15rem;
+}
+
+/* ── Box risultati ───────────────────────────────────────────────────── */
+.res-card { border: 1px solid var(--c-border); border-radius: .375rem; overflow: hidden; margin-bottom: .75rem; }
+.res-card-head {
+  padding: .4rem .75rem;
+  font-size: var(--sz-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.res-card-body { padding: .65rem .75rem; }
+
+.rh-gray   { background: #555; color: #fff; }
+.rh-green  { background: var(--c-green); color: #fff; }
+.rh-blue   { background: var(--c-primary); color: #fff; }
+.rh-red    { background: var(--c-red); color: #fff; }
+.rh-amber  { background: var(--c-amber); color: #fff; }
+.rh-teal   { background: #16a085; color: #fff; }
+.rh-purple { background: #6c3483; color: #fff; }
+
+/* ── Tabella voci ────────────────────────────────────────────────────── */
+.voce-tbl { font-size: var(--sz-xs); width: 100%; border-collapse: collapse; }
+.voce-tbl th { background: var(--c-alt); padding: .3rem .5rem; font-weight: 700;
+               border-bottom: 2px solid var(--c-border); color: #333; }
+.voce-tbl td { padding: .28rem .5rem; border-bottom: 1px solid #f0f0f0; }
+.voce-tbl tr:hover td { background: #fafafa; }
+.voce-tbl .amt { text-align: right; font-weight: 700; font-family: monospace; }
+.voce-tbl tfoot td { font-weight: 900; background: var(--c-alt); border-top: 2px solid var(--c-border); }
+.voce-neg td { color: var(--c-red) !important; }
+.voce-zero td { color: #ccc; }
+.badge-si  { background: #d4edda; color: #155724; font-size: .6rem; font-weight: 700; }
+.badge-no  { background: #f8d7da; color: #721c24; font-size: .6rem; font-weight: 700; }
+
+/* ── Righe riepilogo ─────────────────────────────────────────────────── */
+.rline {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: .22rem 0; border-bottom: 1px solid #f0f0f0;
+  font-size: var(--sz-sm);
+}
+.rline:last-child { border-bottom: none; }
+.rline .lbl { color: var(--c-muted); }
+.rline .val { font-weight: 700; font-family: monospace; }
+.rline.neg .val  { color: var(--c-red); }
+.rline.pos .val  { color: var(--c-green); }
+.rline.total     { font-weight: 900; font-size: var(--sz-md); border-top: 2px solid var(--c-border);
+                   border-bottom: none; padding-top: .35rem; margin-top: .1rem; }
+.rline.hilite    { background: var(--c-alt); padding: .3rem .5rem; border-radius: 3px;
+                   border-bottom: none; margin: .2rem 0; }
+
+/* ── Mini calendario ─────────────────────────────────────────────────── */
+.cal-mini { width: 100%; border-collapse: collapse; font-size: var(--sz-xs); }
+.cal-mini th { padding: .2rem; text-align: center; font-weight: 700;
+               border-bottom: 1px solid var(--c-border); color: var(--c-muted); }
+.cal-mini td { text-align: center; padding: .18rem .2rem; border: 1px solid #f0f0f0; }
+.cal-lav   { background: #e8f5ee; color: var(--c-green); font-weight: 700; }
+.cal-chius { background: var(--c-alt); color: #bbb; }
+.cal-fest  { background: #fff3cd; color: #856404; font-weight: 700; }
+.cal-extra { background: #fdf0f0; color: var(--c-red); font-weight: 700; }
+.cal-empty { background: #fafafa; }
+
+/* ── Stat pills ──────────────────────────────────────────────────────── */
+.stat-pill { display: flex; flex-direction: column; align-items: center;
+             background: var(--c-alt); border: 1px solid var(--c-border);
+             border-radius: .375rem; padding: .4rem .5rem; }
+.stat-pill .sp-num { font-size: 1.25rem; font-weight: 900; line-height: 1; }
+.stat-pill .sp-lbl { font-size: .62rem; font-weight: 600; color: var(--c-muted);
+                     text-transform: uppercase; text-align: center; margin-top: .1rem; }
+.stat-pill.sp-green { background: #e8f5ee; border-color: var(--c-green); }
+.stat-pill.sp-green .sp-num { color: var(--c-green); }
+.stat-pill.sp-blue  { background: #e8edf5; border-color: var(--c-primary); }
+.stat-pill.sp-blue  .sp-num { color: var(--c-primary); }
+.stat-pill.sp-red   { background: #fdf0f0; border-color: #e88; }
+.stat-pill.sp-red   .sp-num { color: var(--c-red); }
+
+/* ── Banda periodo ───────────────────────────────────────────────────── */
+.periodo-bar {
+  background: var(--c-primary);
+  color: #fff;
+  border-radius: .375rem .375rem 0 0;
+  padding: .45rem .75rem;
+  font-size: var(--sz-sm);
+  font-weight: 600;
+}
+
+/* ── Ore formula display ─────────────────────────────────────────────── */
+.ore-formula {
+  display: inline-flex; align-items: center; gap: .3rem;
+  background: #e8f0fe; border: 1px solid #a8c4fb; border-radius: .375rem;
+  padding: .3rem .6rem; font-size: .72rem; font-weight: 600; color: #1a3a8f;
+  flex-wrap: wrap;
+}
+.ore-formula .of-sep { color: #6b84c0; font-weight: 400; }
+.ore-formula .of-result { color: var(--c-green); font-weight: 900; }
+
+/* ── Stampa PDF ───────────────────────────────────────────────────────── */
+@media print {
+  @page { size: A4 landscape; margin: 8mm 10mm; }
+
+  /* ── Elementi da nascondere ─────────────────────────────────────────── */
+  .navbar, nav, header, footer,
+  .sim-sidebar,
+  .col-lg-3,
+  #scenari-panel,
+  .no-print,
+  .btn, button, a.btn,
+  #btn_nuova_sim { display: none !important; }
+
+  /* ── Layout: colonna risultati a piena larghezza ────────────────────── */
+  body, html { margin: 0 !important; padding: 0 !important; }
+  .container-fluid { padding: 0 !important; max-width: 100% !important; }
+  .row.g-3:first-of-type { display: block !important; }   /* riga sidebar + results */
+  .col-lg-9 {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+    padding: 0 !important;
+  }
+
+  /* ── Reimposta overflow/position ────────────────────────────────────── */
+  * { overflow: visible !important; box-shadow: none !important; }
+
+  /* ── Intestazione visibile solo in stampa ───────────────────────────── */
+  .print-header { display: block !important; font-size: 8pt; color: #555; margin-bottom: 3mm; }
+
+  /* ── Box risultati ──────────────────────────────────────────────────── */
+  .res-card { break-inside: avoid; margin-bottom: 4mm !important; border: 1px solid #bbb !important; }
+  .res-card-head { padding: 1.5mm 3mm !important; font-size: 7pt !important; }
+  .res-card-body { padding: 2mm 3mm !important; }
+
+  /* ── Banda periodo ──────────────────────────────────────────────────── */
+  .periodo-bar {
+    font-size: 8.5pt !important;
+    margin-bottom: 3mm !important;
+    border-radius: 0 !important;
+    background: #1a3a8f !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Tabella voci (Box 1) ───────────────────────────────────────────── */
+  .voce-tbl, .voce-tbl th, .voce-tbl td { font-size: 7pt !important; padding: 1mm 2mm !important; }
+  .voce-tbl th {
+    background: #eee !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Colonne Box 2+3 e Box 6 ────────────────────────────────────────── */
+  .col-md-6 { width: calc(50% - 3mm) !important; float: left; padding: 0 1.5mm !important; }
+  .col-md-4 { width: calc(33.3% - 2mm) !important; float: left; padding: 0 1mm !important; }
+  .row.g-3 { margin: 0 !important; }
+
+  /* ── Stat pills Box 0 ───────────────────────────────────────────────── */
+  .stat-pill { padding: 1mm 2mm !important; }
+  .stat-pill .sp-num { font-size: 9pt !important; }
+  .stat-pill .sp-lbl { font-size: 5.5pt !important; }
+
+  /* ── Calendario mini ────────────────────────────────────────────────── */
+  .cal-mini, .cal-mini td, .cal-mini th { font-size: 6pt !important; padding: .4mm !important; }
+  .overflow-auto { max-height: none !important; }
+
+  /* ── Righe riepilogo ────────────────────────────────────────────────── */
+  .rline { font-size: 7.5pt !important; padding: .4mm 0 !important; }
+
+  /* ── Forza colori header box ────────────────────────────────────────── */
+  .rh-gray, .rh-green, .rh-blue, .rh-red,
+  .rh-amber, .rh-teal, .rh-purple,
+  .badge-si, .badge-no {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Alert interni compatti ─────────────────────────────────────────── */
+  .alert { font-size: 6.5pt !important; padding: 1mm 2mm !important; }
+
+  /* ── Salti pagina ───────────────────────────────────────────────────── */
+  #box-ratei, #box-costo { break-before: auto; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3">
+
+  <!-- Intestazione pagina -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h4 class="mb-0"><i class="bi bi-calculator me-2"></i>Simulatore Motore Paga Mensile</h4>
+      <small class="text-muted">Calcolo completo: voci CCNL, contributi, IRPEF, ratei, F24, costo azienda</small>
+    </div>
+    <div class="d-flex gap-2">
+      {% if ha_scenario %}
+      <form method="post" class="d-inline" id="btn_nuova_sim">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="nuova">
+        <button type="submit" class="btn btn-sm btn-outline-danger no-print">
+          <i class="bi bi-plus-circle me-1"></i> Nuova simulazione
+        </button>
+      </form>
+      {% endif %}
+      {% if risultato %}
+      <button type="button" class="btn btn-sm btn-outline-secondary no-print" onclick="window.print()" title="Stampa/Salva PDF">
+        <i class="bi bi-printer me-1"></i> Stampa PDF
+      </button>
+      {% endif %}
+      <a href="{% url 'simulazione_2026_config' %}" class="btn btn-sm btn-outline-secondary no-print">
+        <i class="bi bi-graph-up"></i> Simulazione annua
+      </a>
+    </div>
+  </div>
+
+  <div class="alert alert-light border py-2 small mb-3 no-print" role="status">
+    <div class="mb-1"><strong>Simulazione su singolo mese.</strong> Calcolo completo del cedolino con parametri modificabili; utile per verifiche e confronti. Per scenari su tutto l’anno e organico usa la <strong>Simulazione annua</strong> dal menu Admin.</div>
+    <div class="mb-0 text-muted" style="font-size:.9em;">
+      <a href="{% url 'guida_modulo' 'paghe-controlli' %}">Guida: paghe e controlli</a>
+    </div>
+  </div>
+
+  {% if errore %}
+  <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i><strong>Errore nel calcolo:</strong> {{ errore }}</div>
+  {% endif %}
+
+  <div class="row g-3">
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         COLONNA SINISTRA — FORM PARAMETRI
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="col-lg-3">
+    <div class="sim-sidebar">
+    <form method="post">
+      {% csrf_token %}
+      <div class="card">
+        <div class="card-header py-2 fw-bold" style="background:var(--c-primary);color:#fff;font-size:var(--sz-sm)">
+          <i class="bi bi-sliders me-1"></i> Parametri scenario
+          {% if ha_scenario %}<span class="badge bg-warning text-dark ms-2" style="font-size:.6rem">In corso</span>{% endif %}
+        </div>
+        <div class="card-body p-2">
+
+          <p class="form-section-title mb-1">Identificazione</p>
+
+          <div class="mb-2">
+            <label class="form-label-xs">Nome scenario</label>
+            <input type="text" name="nome_test" class="form-control form-control-sm"
+                   placeholder="es. Cuoco 4L FT marzo 2026"
+                   value="{{ form_data.nome_test|default:'' }}">
+          </div>
+
+          <!-- ── Importa da presenze ──────────────────────────────── -->
+          <div class="mb-2">
+            <label class="form-label-xs">Dipendente (importa presenze)</label>
+            <select id="sim_dipendente_id" class="form-select form-select-sm">
+              <option value="">— Nessuno (inserimento manuale) —</option>
+              {% for dip in dipendenti %}
+              <option value="{{ dip.pk }}"
+                {% if form_data.dipendente_id == dip.pk|stringformat:"s" %}selected{% endif %}>
+                {{ dip.cognome }} {{ dip.nome }}
+              </option>
+              {% endfor %}
+            </select>
+            <small class="text-muted" style="font-size:.6rem">Seleziona per caricare automaticamente straordinari, assenze e ore dom./festive dal registro presenze</small>
+          </div>
+          <div id="btn_carica_presenze_wrap" style="display:none" class="mb-2">
+            <button type="button" id="btn_carica_presenze"
+                    class="btn btn-sm w-100"
+                    style="background:#0d6efd;color:#fff;font-size:.72rem">
+              <i class="bi bi-cloud-download me-1"></i> Carica dati da presenze
+            </button>
+            <div id="carica_presenze_info" class="mt-1" style="font-size:.6rem;color:#666"></div>
+          </div>
+
+          <!-- Mese e Anno separati -->
+          <div class="row g-1 mb-2">
+            <div class="col-7">
+              <label class="form-label-xs">Mese *</label>
+              <select name="mese" class="form-select form-select-sm" required>
+                <option value="">— Mese —</option>
+                {% for nome_mese in mesi_nomi %}
+                <option value="{{ forloop.counter }}"
+                  {% if form_data.mese == forloop.counter|stringformat:"s" %}selected{% endif %}>
+                  {{ nome_mese }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-5">
+              <label class="form-label-xs">Anno *</label>
+              <select name="anno" class="form-select form-select-sm" required>
+                <option value="">— Anno —</option>
+                {% for a in anni_range %}
+                <option value="{{ a|stringformat:"d" }}"
+                  {% if form_data.anno == a|stringformat:"d" %}selected{% endif %}>
+                  {{ a|stringformat:"d" }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label-xs">Azienda (per calendario)</label>
+            <select name="azienda" class="form-select form-select-sm">
+              <option value="">— Solo festività nazionali —</option>
+              {% for az in aziende %}
+              <option value="{{ az.pk }}"
+                {% if form_data.azienda == az.pk|stringformat:"s" %}selected{% endif %}>
+                {{ az.nome }}
+              </option>
+              {% endfor %}
+            </select>
+            <small class="text-muted" style="font-size:.6rem">Legge chiusure settimanali, festività e chiusure aziendali</small>
+          </div>
+
+          <p class="form-section-title">Contratto</p>
+
+          <div class="mb-2">
+            <label class="form-label-xs">Livello CCNL *</label>
+            <select id="sel_ccnl" name="parametro_ccnl" class="form-select form-select-sm" required>
+              <option value="">— Seleziona —</option>
+              {% for p in parametri_ccnl %}
+              <option value="{{ p.pk }}"
+                data-da="{{ p.decorrenza_validita_da|date:'Y-m-d'|default:'' }}"
+                data-a="{{ p.decorrenza_validita_a|date:'Y-m-d'|default:'' }}"
+                {% if form_data.parametro_ccnl == p.pk|stringformat:"s" %}selected{% endif %}>
+                {{ p.ccnl }} Lv.{{ p.livello }} — {{ p.qualifica }}
+                {% if p.decorrenza_validita_da %} (dal {{ p.decorrenza_validita_da|date:"m/Y" }}{% if p.decorrenza_validita_a %} al {{ p.decorrenza_validita_a|date:"m/Y" }}{% endif %}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            <small id="ccnl_filter_note" class="text-muted" style="font-size:.6rem;display:none">
+              <i class="bi bi-funnel me-1"></i>Filtrati per il mese selezionato
+            </small>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label-xs">Tipo contratto *</label>
+            <select name="tipo_contratto" class="form-select form-select-sm" required>
+              <option value="">— Seleziona —</option>
+              {% for t in tipi_contratto %}
+              <option value="{{ t.pk }}"
+                {% if form_data.tipo_contratto == t.pk|stringformat:"s" %}selected{% endif %}>
+                {{ t.nome }}{% if t.coefficiente_ore != 1 %} ({{ t.coefficiente_ore|num_it:0 }}%){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="row g-1 mb-2">
+            <div class="col-6">
+              <label class="form-label-xs">Data inizio</label>
+              <input type="date" name="data_inizio_rapporto" class="form-control form-control-sm"
+                     value="{{ form_data.data_inizio_rapporto|default:'' }}">
+              <small class="text-muted" style="font-size:.6rem">≥15 gg = mese intero</small>
+            </div>
+            <div class="col-6">
+              <label class="form-label-xs">Data fine</label>
+              <input type="date" name="data_fine_rapporto" class="form-control form-control-sm"
+                     value="{{ form_data.data_fine_rapporto|default:'' }}">
+            </div>
+          </div>
+
+          <p class="form-section-title">Divisore e ore</p>
+
+          <div class="mb-2">
+            <label class="form-label-xs">Divisore *</label>
+            <select name="divisore" class="form-select form-select-sm" required>
+              {% for val, lbl in divisori %}
+              <option value="{{ val }}"
+                {% if form_data.divisore == val %}selected{% elif not form_data.divisore and val == '26' %}selected{% endif %}>
+                {{ lbl }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <p class="form-section-title">Voci aggiuntive</p>
+
+          <div class="row g-1 mb-2">
+            <div class="col-6">
+              <label class="form-label-xs">Superminimo €</label>
+              <input type="number" name="superminimo" min="0" step="0.01" class="form-control form-control-sm"
+                     value="{{ form_data.superminimo|default:'0' }}">
+            </div>
+            <div class="col-6">
+              <label class="form-label-xs">Ind. turno €</label>
+              <input type="number" name="indennita_turno" min="0" step="0.01" class="form-control form-control-sm"
+                     value="{{ form_data.indennita_turno|default:'0' }}">
+            </div>
+          </div>
+
+          <p class="form-section-title">Straordinari (ore)</p>
+
+          <div class="row g-1 mb-2">
+            <div class="col-6">
+              <label class="form-label-xs">Diurno +15%</label>
+              <input type="number" name="ore_straord_diurno" min="0" step="0.5" class="form-control form-control-sm"
+                     value="{{ form_data.ore_straord_diurno|default:'0' }}">
+            </div>
+            <div class="col-6">
+              <label class="form-label-xs">Notturno +30%</label>
+              <input type="number" name="ore_straord_notturno" min="0" step="0.5" class="form-control form-control-sm"
+                     value="{{ form_data.ore_straord_notturno|default:'0' }}">
+            </div>
+            <div class="col-6">
+              <label class="form-label-xs">Festivo +30% (no dom.)</label>
+              <input type="number" name="ore_straord_festivo" min="0" step="0.5" class="form-control form-control-sm"
+                     value="{{ form_data.ore_straord_festivo|default:'0' }}">
+            </div>
+            <div class="col-6">
+              <label class="form-label-xs">Domenica ecc. +30%</label>
+              <input type="number" name="ore_straord_domenica" min="0" step="0.5" class="form-control form-control-sm"
+                     value="{{ form_data.ore_straord_domenica|default:'0' }}">
+            </div>
+            <div class="col-6">
+              <label class="form-label-xs">Nott-fest +60%</label>
+              <input type="number" name="ore_straord_nott_fest" min="0" step="0.5" class="form-control form-control-sm"
+                     value="{{ form_data.ore_straord_nott_fest|default:'0' }}">
+            </div>
+          </div>
+
+          <!-- Domenicali / festivi (da calendario) -->
+          <p class="form-section-title">Ore dom. e festivi lavorati
+            <span class="text-muted fw-normal" style="text-transform:none;font-size:.58rem">
+              (maggiorazione su ore × paga/h)
+            </span>
+          </p>
+          {% if risultato %}
+          <div class="alert py-1 px-2 mb-1" style="font-size:.65rem;background:#fff3cd;border:1px solid #ffc107;border-radius:3px">
+            <i class="bi bi-calendar3"></i>
+            Dal calendario: <strong>{{ risultato.cal_domeniche_n }} domeniche</strong>
+            e <strong>{{ risultato.cal_festivi_lav_n }} festivi</strong> nel mese
+          </div>
+          {% endif %}
+          <div class="row g-1 mb-2">
+            <div class="col-6">
+              <label class="form-label-xs">Ore domenicali (h)</label>
+              <input type="number" name="ore_domenicali" min="0" step="0.5"
+                     class="form-control form-control-sm"
+                     value="{{ form_data.ore_domenicali|default:'0' }}">
+              <small class="text-muted" style="font-size:.6rem">ore × paga/h × {{ risultato.magg_dom_pct|default:"15" }}%</small>
+            </div>
+            <div class="col-6">
+              <label class="form-label-xs">Ore festive (h)</label>
+              <input type="number" name="ore_festivi_lavorati" min="0" step="0.5"
+                     class="form-control form-control-sm"
+                     value="{{ form_data.ore_festivi_lavorati|default:'0' }}">
+              <small class="text-muted" style="font-size:.6rem">ore × paga/h × {{ risultato.magg_fest_day_pct|default:"20" }}%</small>
+            </div>
+          </div>
+
+          <p class="form-section-title">Presenze / assenze</p>
+
+          <div class="row g-1 mb-3">
+            <div class="col-4">
+              <label class="form-label-xs">Ass. ing. (gg)</label>
+              <input type="number" name="giorni_assenza_ingiust" min="0" step="0.5" class="form-control form-control-sm"
+                     value="{{ form_data.giorni_assenza_ingiust|default:'0' }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label-xs">Ferie (gg)</label>
+              <input type="number" name="giorni_ferie_godute" min="0" step="0.5" class="form-control form-control-sm"
+                     value="{{ form_data.giorni_ferie_godute|default:'0' }}">
+            </div>
+            <div class="col-4">
+              <label class="form-label-xs">Permessi (h)</label>
+              <input type="number" name="ore_permessi_goduti" min="0" step="0.5" class="form-control form-control-sm"
+                     value="{{ form_data.ore_permessi_goduti|default:'0' }}">
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-sm w-100" style="background:var(--c-green);color:#fff;font-weight:700">
+            <i class="bi bi-play-fill me-1"></i> Calcola e salva scenario
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <!-- ── Scenari salvati ──────────────────────────────────────────── -->
+    {% if scenari_salvati %}
+    <div id="scenari-panel" class="card mt-3 shadow-sm" style="border-radius:6px;border:1px solid #d1e3f0">
+      <div class="card-header py-1 px-2" style="background:#e8f0f8;font-size:.72rem;font-weight:700;color:var(--c-primary)">
+        <i class="bi bi-bookmark-star me-1"></i>Scenari salvati
+        <span class="badge bg-secondary ms-1" style="font-size:.6rem">{{ scenari_salvati|length }}</span>
+      </div>
+      <div class="card-body p-0">
+        <div style="max-height:320px;overflow-y:auto">
+          {% for sc in scenari_salvati %}
+          <div class="d-flex align-items-start gap-1 px-2 py-1" style="border-bottom:1px solid #eef2f7;{% if forloop.last %}border-bottom:none{% endif %}">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:.72rem;font-weight:600;color:#1a3a5c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ sc.nome }}">
+                {{ sc.nome }}
+              </div>
+              <div style="font-size:.62rem;color:#666">
+                {{ sc.mese_nome }} {{ sc.anno|anno_it }}
+                {% if sc.ccnl_livello %}&nbsp;·&nbsp;L{{ sc.ccnl_livello }}{% endif %}
+                {% if sc.netto_totale %}&nbsp;·&nbsp;<strong style="color:var(--c-green)">netto € {{ sc.netto_totale|euro_it }}</strong>{% endif %}
+              </div>
+            </div>
+            <div class="d-flex gap-1 flex-shrink-0">
+              <a href="{% url 'carica_scenario_paga' sc.pk %}"
+                 class="btn btn-sm py-0 px-1"
+                 style="font-size:.62rem;background:var(--c-primary);color:#fff"
+                 title="Carica questo scenario nel form">
+                <i class="bi bi-arrow-up-circle"></i>
+              </a>
+              <form method="post" action="{% url 'elimina_scenario_paga' sc.pk %}" style="display:inline" >
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm py-0 px-1"
+                        style="font-size:.62rem;background:#dc3545;color:#fff"
+                        title="Elimina scenario">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    </div>
+    </div><!-- fine col sinistra -->
+
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         COLONNA DESTRA — RISULTATI
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="col-lg-9">
+
+    {% if not risultato and not errore %}
+      <div class="card text-center py-5 text-muted">
+        <div style="font-size:3rem">⚙</div>
+        <div class="mt-2">Compila i parametri a sinistra e clicca <strong>Calcola</strong>.</div>
+      </div>
+    {% endif %}
+
+    {% if risultato %}
+
+    <!-- Intestazione visibile solo in stampa -->
+    <div class="print-header" style="display:none">
+      GESPER — Simulazione paga mensile &nbsp;·&nbsp; Stampato il {% now "d/m/Y H:i" %}
+    </div>
+
+    <!-- Banda identificativa -->
+    <div class="periodo-bar mb-3">
+      <i class="bi bi-calculator me-1"></i>
+      {% if risultato.nome_test %}<strong>{{ risultato.nome_test }}</strong> &nbsp;·&nbsp; {% endif %}
+      <strong>{{ risultato.ccnl_nome }}</strong> &nbsp;·&nbsp;
+      Liv. {{ risultato.ccnl_livello }} — {{ risultato.ccnl_qualifica }}
+      &nbsp;·&nbsp; {{ risultato.tipo_contratto }}
+      &nbsp;·&nbsp; <strong>{{ risultato.mese_nome }} {{ risultato.anno|anno_it }}</strong>
+      {% if risultato.ccnl_decorrenza_da %}
+      &nbsp;·&nbsp; <span class="badge bg-light text-dark" style="font-size:.65rem">decorrenza {{ risultato.ccnl_decorrenza_da|date:"m/Y" }}</span>
+      {% endif %}
+      {% if risultato.prorata %}
+      &nbsp;·&nbsp; <span class="badge bg-warning text-dark">Pro-rata {{ risultato.giorni_lavorati }}/{{ risultato.cal_giorni_lavorativi }} gg</span>
+      {% endif %}
+    </div>
+
+    <!-- ── Box 0: Calendario ──────────────────────────────────────────── -->
+    <div class="res-card">
+      <div class="res-card-head rh-gray"><i class="bi bi-calendar3 me-1"></i>Box 0 — Calendario lavorativo</div>
+      <div class="res-card-body">
+        <div class="row g-2 mb-2">
+          <div class="col"><div class="stat-pill sp-green"><span class="sp-num">{{ risultato.cal_giorni_lavorativi }}</span><span class="sp-lbl">Gg lav. mese</span></div></div>
+          <div class="col"><div class="stat-pill"><span class="sp-num">{{ risultato.cal_chiusure_settimanali }}</span><span class="sp-lbl">Chiusure sett.</span></div></div>
+          <div class="col"><div class="stat-pill" style="background:#fff8e1;border-color:#f59e0b"><span class="sp-num" style="color:#b45309">{{ risultato.cal_domeniche_n }}</span><span class="sp-lbl">Domeniche</span></div></div>
+          <div class="col"><div class="stat-pill"><span class="sp-num">{{ risultato.cal_festivi }}</span><span class="sp-lbl">Festività</span></div></div>
+          <div class="col"><div class="stat-pill"><span class="sp-num">{{ risultato.cal_chiusure_extra }}</span><span class="sp-lbl">Chius. extra</span></div></div>
+          <div class="col"><div class="stat-pill"><span class="sp-num">{{ risultato.giorni_nel_mese }}</span><span class="sp-lbl">Gg calendario</span></div></div>
+          <div class="col"><div class="stat-pill sp-blue"><span class="sp-num">{{ risultato.cal_giorni_conv_26 }}</span><span class="sp-lbl">Conv. base 26</span></div></div>
+          {% if risultato.prorata %}<div class="col"><div class="stat-pill sp-red"><span class="sp-num">{{ risultato.giorni_lavorati }}</span><span class="sp-lbl">Gg dip.</span></div></div>{% endif %}
+        </div>
+
+        <!-- Formula ore settimanali → giornaliere → mensili -->
+        <div class="mb-2 d-flex flex-wrap align-items-center gap-2">
+          <div class="ore-formula">
+            <span>{{ risultato.ore_settimanali_contr|ore_hm }}h/sett</span>
+            <span class="of-sep">÷</span>
+            <span>{{ risultato.giorni_eff_settimana }} gg/sett</span>
+            <span class="of-sep">=</span>
+            <span class="of-result">{{ risultato.ore_giornaliere|ore_hm }}h/gg</span>
+            <span class="of-sep">×</span>
+            <span>{{ risultato.cal_giorni_lavorativi }} gg lav.</span>
+            <span class="of-sep">=</span>
+            <span class="of-result">{{ risultato.ore_mensili|ore_hm }}h/mese</span>
+          </div>
+        </div>
+
+        <!-- Riepilogo domeniche / festivi per maggiorazioni -->
+        <div class="alert py-1 px-2 mb-2" style="font-size:.7rem;background:#fffbeb;border:1px solid #f59e0b;border-radius:4px">
+          <i class="bi bi-sun me-1" style="color:#b45309"></i>
+          <strong>{{ risultato.cal_domeniche_n }} domeniche</strong>
+          {% if risultato.cal_dom_fest_n %}
+            <span class="text-muted">(di cui <strong>{{ risultato.cal_dom_fest_n }}</strong> coincide con festività)</span>
+          {% endif %}
+          &nbsp;&bull;&nbsp;
+          <strong>{{ risultato.cal_festivi_lav_n }} festivi non domenicali</strong>
+          <span class="text-muted">({{ risultato.cal_festivi }} festività totali)</span>
+          &nbsp;&bull;&nbsp;
+          <span style="color:#0d6efd">ore/gg: <strong>{{ risultato.ore_giornaliere|ore_hm }}h</strong></span>
+          &nbsp;&bull;&nbsp;
+          <span style="color:#166534">suggerito: dom <strong>{{ risultato.ore_dom_suggerite|ore_hm }}h</strong> · fest <strong>{{ risultato.ore_fest_suggerite|ore_hm }}h</strong></span>
+          <button type="button" id="btn_applica_cal"
+                  class="btn btn-sm py-0 px-2 ms-2 float-end"
+                  style="font-size:.65rem;background:#f59e0b;color:#fff;border:none"
+                  data-ore-dom="{{ risultato.ore_dom_suggerite }}"
+                  data-ore-fest="{{ risultato.ore_fest_suggerite }}">
+            ↺ Forza valori calendario
+          </button>
+        </div>
+
+        <div class="overflow-auto mb-2">
+          <table class="cal-mini">
+            <thead>
+              <tr>
+                <th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th>
+                <th style="color:var(--c-muted)">Sab</th>
+                <th style="color:var(--c-red)">Dom</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for settimana in risultato.cal_griglia %}
+              <tr>
+                {% for g in settimana %}
+                {% if g %}
+                  {% if g.is_chiusura_sett %}<td class="cal-chius">{{ g.giorno }}</td>
+                  {% elif g.is_festivo %}<td class="cal-fest" title="{{ g.festivo_nome }}">{{ g.giorno }}<br><small>🎉</small></td>
+                  {% elif g.is_chiusura_extra %}<td class="cal-extra" title="Chiusura az.">{{ g.giorno }}<br><small>🔒</small></td>
+                  {% else %}<td class="cal-lav">{{ g.giorno }}</td>
+                  {% endif %}
+                {% else %}<td class="cal-empty"></td>{% endif %}
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex gap-3 flex-wrap" style="font-size:.7rem">
+          <span><span class="badge" style="background:#e8f5ee;color:var(--c-green);border:1px solid var(--c-green)">■</span> Lavorativo</span>
+          <span><span class="badge" style="background:var(--c-alt);color:#bbb;border:1px solid #ccc">■</span> Chiusura sett.</span>
+          <span><span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #856404">■</span> Festività</span>
+          <span><span class="badge" style="background:#fdf0f0;color:var(--c-red);border:1px solid #e88">■</span> Chiusura extra</span>
+        </div>
+
+        {% if risultato.cal_festivita %}
+        <div class="alert alert-warning py-1 px-2 mt-2 mb-1" style="font-size:.72rem">
+          🎉 Festività del mese:
+          {% for d in risultato.cal_festivita %}
+            <strong>{{ d|date:"j N" }}</strong>{% if d.weekday == 6 %} <span class="badge" style="background:#f59e0b;color:#fff;font-size:.6rem">dom</span>{% endif %}{% if not forloop.last %}, {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="text-muted mt-2" style="font-size:.72rem">
+          <i class="bi bi-building me-1"></i>{{ risultato.azienda_nome }}
+          &nbsp;·&nbsp;
+          Pro-rata: {% if risultato.prorata %}<strong>Sì</strong> ({{ risultato.giorni_lavorati }} gg lav. / {{ risultato.cal_giorni_lavorativi }}){% else %}<strong>No</strong> — mese intero{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Box 1: Voci retributive ────────────────────────────────────── -->
+    <div class="res-card">
+      <div class="res-card-head rh-gray"><i class="bi bi-list-ul me-1"></i>Box 1 — Voci retributive e imponibilità</div>
+      <div class="res-card-body p-0">
+        <div class="table-responsive">
+        <table class="voce-tbl">
+          <thead>
+            <tr>
+              <th>Voce</th><th>Ore/Gg</th><th class="amt">Importo €</th>
+              <th>INPS</th><th>IRPEF</th><th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in risultato.voci %}
+            <tr class="{% if v.negativo %}voce-neg{% elif v.zero %}voce-zero{% endif %}"
+                style="{% if v.zero %}opacity:.55{% endif %}">
+              <td>
+                {{ v.nome }}
+                {% if v.cal_hint %}
+                  <span style="font-size:.6rem;background:#e2e8f0;color:#475569;border-radius:3px;padding:.05rem .3rem;margin-left:.3rem"
+                        title="Giorni presenti nel mese dal calendario">cal: {{ v.cal_hint }}</span>
+                {% endif %}
+              </td>
+              <td>{% if v.ore %}{{ v.ore|ore_hm }}h{% endif %}{% if v.gg %}{{ v.gg }}gg{% endif %}</td>
+              <td class="amt euro">{% if v.negativo %}−{% endif %} € {{ v.importo|euro_it }}</td>
+              <td><span class="badge {% if v.inps %}badge-si{% else %}badge-no{% endif %}">{% if v.inps %}Sì{% else %}No{% endif %}</span></td>
+              <td><span class="badge {% if v.irpef %}badge-si{% else %}badge-no{% endif %}">{% if v.irpef %}Sì{% else %}No{% endif %}</span></td>
+              <td class="text-muted">{{ v.note|default:'' }}</td>
+            </tr>
+            {% endfor %}
+            {% if risultato.rat13_m %}
+            <tr>
+              <td><strong>Rateo 13ª lordo (1/12)</strong></td>
+              <td>—</td>
+              <td class="amt">€ {{ risultato.rat13_m|euro_it }}</td>
+              <td><span class="badge badge-si">Sì</span></td>
+              <td><span class="badge badge-si">Sì</span></td>
+              <td class="text-muted">pagato mensilmente</td>
+            </tr>
+            {% endif %}
+            {% if risultato.rat14_m %}
+            <tr>
+              <td><strong>Rateo 14ª lordo (1/12)</strong></td>
+              <td>—</td>
+              <td class="amt">€ {{ risultato.rat14_m|euro_it }}</td>
+              <td><span class="badge badge-si">Sì</span></td>
+              <td><span class="badge badge-si">Sì</span></td>
+              <td class="text-muted">pagato mensilmente</td>
+            </tr>
+            {% endif %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2"><strong>Lordo mensile (incl. ratei 13ª/14ª)</strong></td>
+              <td class="amt" style="color:var(--c-primary)">€ {{ risultato.lordo_con_1314|euro_it }}</td>
+              <td colspan="3" class="text-muted">
+                Base: € {{ risultato.lordo_base|euro_it }}
+                {% if risultato.tot_straord %} + Straord.: € {{ risultato.tot_straord|euro_it }}{% endif %}
+                {% if risultato.tot_dom_fest %} + Dom./Fest.: € {{ risultato.tot_dom_fest|euro_it }}{% endif %}
+                {% if risultato.decurt_assenze %} − Assenze: € {{ risultato.decurt_assenze|euro_it }}{% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" class="text-muted">Paga oraria / giornaliera (÷{{ risultato.divisore }})</td>
+              <td class="amt text-muted">€ {{ risultato.paga_oraria|num_it:4 }} / € {{ risultato.paga_giornaliera|num_it:4 }}</td>
+              <td colspan="3" class="text-muted">Ore/mese: {{ risultato.ore_mensili|ore_hm }}h · Ore/gg: {{ risultato.ore_giornaliere|ore_hm }}h</td>
+            </tr>
+          </tfoot>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Box 2 + 3: Contributi e IRPEF su 2 colonne ───────────────── -->
+    <div class="row g-3 mb-0">
+      <div class="col-md-6">
+      <div class="res-card h-100">
+        <div class="res-card-head rh-red"><i class="bi bi-percent me-1"></i>Box 2 — Contributi INPS / INAIL</div>
+        <div class="res-card-body">
+          <div class="small fw-bold text-danger mb-1">c/Dipendente</div>
+          <div class="rline neg">
+            <span class="lbl">INPS dip. ({{ risultato.inps_dip_perc }}%)</span>
+            <span class="val">− € {{ risultato.inps_dip|abs_num|euro_it }}</span>
+          </div>
+          <div class="rline total neg mb-2">
+            <span class="lbl">Totale c/dip.</span><span class="val">− € {{ risultato.tot_contrib_dip|abs_num|euro_it }}</span>
+          </div>
+          <div class="small fw-bold text-danger mb-1">c/Azienda</div>
+          <div class="rline neg">
+            <span class="lbl">INPS az. ({{ risultato.inps_az_perc }}%)</span>
+            <span class="val">€ {{ risultato.inps_az|euro_it }}</span>
+          </div>
+          <div class="rline neg">
+            <span class="lbl">INAIL ({{ risultato.inail_perc }}%)</span>
+            <span class="val">€ {{ risultato.inail_az|euro_it }}</span>
+          </div>
+          <div class="rline total neg">
+            <span class="lbl">Totale c/azienda</span><span class="val">€ {{ risultato.tot_contrib_az|euro_it }}</span>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      <div class="col-md-6">
+      <div class="res-card h-100">
+        <div class="res-card-head rh-amber"><i class="bi bi-receipt me-1"></i>Box 3 — IRPEF e bonus fiscali</div>
+        <div class="res-card-body">
+          <div class="rline"><span class="lbl">Imponibile /mese</span><span class="val">€ {{ risultato.imponibile_m|euro_it }}</span></div>
+          <div class="rline"><span class="lbl">Imponibile /anno (×12)</span><span class="val">€ {{ risultato.imponibile_ann|euro_it }}</span></div>
+          <div class="rline neg"><span class="lbl">IRPEF lorda</span><span class="val">€ {{ risultato.irpef_lorda|euro_it }}</span></div>
+          <div class="rline pos"><span class="lbl">Detrazioni (art. 13)</span><span class="val">+ € {{ risultato.detrazioni|abs_num|euro_it }}</span></div>
+          <div class="rline total neg mb-2"><span class="lbl">IRPEF netta</span><span class="val">− € {{ risultato.irpef_netta|abs_num|euro_it }}</span></div>
+          {% if risultato.ti %}
+          <div class="rline pos"><span class="lbl">+ TI DL 3/2020</span><span class="val">+ € {{ risultato.ti|abs_num|euro_it }}</span></div>
+          {% endif %}
+          {% if risultato.l207 %}
+          <div class="rline pos"><span class="lbl">+ Bonus L.207/2024</span><span class="val">+ € {{ risultato.l207|abs_num|euro_it }}</span></div>
+          {% endif %}
+          <div class="rline"><span class="lbl text-muted">Addiz. reg. Sicilia /mese</span><span class="val text-muted">€ {{ risultato.add_reg_m|euro_it }}</span></div>
+          <div class="rline"><span class="lbl text-muted">Addiz. com. /mese</span><span class="val text-muted">€ {{ risultato.add_com_m|euro_it }}</span></div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <!-- ── Box 4: Ratei e TFR ─────────────────────────────────────────── -->
+    <div class="res-card mt-3" id="box-ratei">
+      <div class="res-card-head rh-teal"><i class="bi bi-piggy-bank me-1"></i>Box 4 — Ratei e TFR (lordi e netti)</div>
+      <div class="res-card-body p-0">
+        <div class="table-responsive">
+        <table class="voce-tbl">
+          <thead>
+            <tr><th>Voce</th><th>Coefficiente</th><th class="amt">Lordo/mese</th><th class="amt">Lordo/gg</th><th class="amt">Lordo/ora</th><th class="amt">Netto/mese</th><th>Fonte</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>TFR</strong></td><td>{{ risultato.c_tfr }}</td><td class="amt">€ {{ risultato.tfr_m|euro_it }}</td><td class="amt text-muted">€ {{ risultato.tfr_gg|euro_it }}</td><td class="amt text-muted">€ {{ risultato.tfr_ora|num_it:4 }}</td><td class="amt" style="color:var(--c-green)">€ {{ risultato.tfr_n|euro_it }}</td><td class="text-muted">Lordo × coeff</td></tr>
+            <tr><td><strong>Rateo 13ª</strong></td><td>{{ risultato.c_13 }}</td><td class="amt">€ {{ risultato.rat13_m|euro_it }}</td><td class="amt text-muted">€ {{ risultato.rat13_gg|euro_it }}</td><td class="amt text-muted">€ {{ risultato.rat13_ora|num_it:4 }}</td><td class="amt" style="color:var(--c-green)">€ {{ risultato.rat13_n|euro_it }}</td><td class="text-muted">pagato mensilmente</td></tr>
+            <tr><td><strong>Rateo 14ª</strong></td><td>{{ risultato.c_14 }}</td><td class="amt">€ {{ risultato.rat14_m|euro_it }}</td><td class="amt text-muted">—</td><td class="amt text-muted">—</td><td class="amt" style="color:var(--c-green)">€ {{ risultato.rat14_n|euro_it }}</td><td class="text-muted">pagato mensilmente</td></tr>
+            <tr><td><strong>Rateo ferie</strong></td><td>{{ risultato.c_fer }}</td><td class="amt">€ {{ risultato.rat_fer_m|euro_it }}</td><td class="amt text-muted">—</td><td class="amt text-muted">—</td><td class="amt" style="color:var(--c-green)">€ {{ risultato.rat_fer_n|euro_it }}</td><td class="text-muted">26/225 gg lav.</td></tr>
+          </tbody>
+          <tfoot>
+            <tr><td colspan="2"><strong>Totale ratei</strong></td><td class="amt">€ {{ risultato.tot_ratei_lordi|euro_it }}</td><td colspan="2"></td><td class="amt" style="color:var(--c-green)">€ {{ risultato.tot_ratei_netti|euro_it }}</td><td class="text-muted" style="font-size:.68rem">ratio netto/lordo: {{ risultato.ratio }}</td></tr>
+          </tfoot>
+        </table>
+        </div>
+        <div class="px-3 pb-2 text-muted" style="font-size:.68rem">
+          ℹ Ratei netti = ratio netto/lordo ({{ risultato.netto_base }}/{{ risultato.lordo_mensile }}) — TI e Bonus L207 esclusi perché non si applicano a 13ª, 14ª e TFR.
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Box 5: Riepilogo busta paga ───────────────────────────────── -->
+    <div class="res-card">
+      <div class="res-card-head rh-green"><i class="bi bi-cash-stack me-1"></i>Box 5 — Riepilogo busta paga dipendente</div>
+      <div class="res-card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="small fw-bold mb-2" style="color:var(--c-green)">NETTO MENSILE (incl. ratei 13ª/14ª)</div>
+            <div class="rline"><span class="lbl">Lordo mensile</span><span class="val">€ {{ risultato.lordo_mensile|euro_it }}</span></div>
+            <div class="rline neg"><span class="lbl">− INPS c/dipendente</span><span class="val">− € {{ risultato.inps_dip|abs_num|euro_it }}</span></div>
+            <div class="rline neg"><span class="lbl">− IRPEF netta</span><span class="val">− € {{ risultato.irpef_netta|abs_num|euro_it }}</span></div>
+            <div class="rline hilite"><span class="lbl fw-bold">= Netto base</span><span class="val fw-bold">€ {{ risultato.netto_base|euro_it }}</span></div>
+            {% if risultato.ti %}<div class="rline pos"><span class="lbl">+ TI DL 3/2020</span><span class="val">+ € {{ risultato.ti|abs_num|euro_it }}</span></div>{% endif %}
+            {% if risultato.l207 %}<div class="rline pos"><span class="lbl">+ Bonus L.207/2024</span><span class="val">+ € {{ risultato.l207|abs_num|euro_it }}</span></div>{% endif %}
+            {% if risultato.rat13_n %}<div class="rline pos"><span class="lbl">+ Rateo 13ª netto (1/12)</span><span class="val">+ € {{ risultato.rat13_n|abs_num|euro_it }}</span></div>{% endif %}
+            {% if risultato.rat14_n %}<div class="rline pos"><span class="lbl">+ Rateo 14ª netto (1/12)</span><span class="val">+ € {{ risultato.rat14_n|abs_num|euro_it }}</span></div>{% endif %}
+            <div class="rline total" style="color:var(--c-green)">
+              <span class="lbl fw-bold">✓ NETTO IN BUSTA</span>
+              <span class="val">€ {{ risultato.netto_mensile_con_1314|euro_it }}</span>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="small fw-bold mb-2" style="color:var(--c-primary)">VALORE GLOBALE (incl. TFR + ferie)</div>
+            <div class="rline"><span class="lbl">Lordo mensile</span><span class="val">€ {{ risultato.lordo_mensile|euro_it }}</span></div>
+            <div class="rline pos"><span class="lbl">+ Ratei lordi (13ª+14ª+TFR+ferie)</span><span class="val">+ € {{ risultato.tot_ratei_lordi|abs_num|euro_it }}</span></div>
+            <div class="rline total mb-2"><span class="lbl">= Lordo globale</span><span class="val">€ {{ risultato.lordo_con_ratei|euro_it }}</span></div>
+            <div class="rline"><span class="lbl">Netto in busta (incl. 13ª/14ª)</span><span class="val">€ {{ risultato.netto_mensile_con_1314|euro_it }}</span></div>
+            <div class="rline pos"><span class="lbl">+ TFR + ferie netti</span><span class="val">+ € {{ risultato.tfr_fer_netti|abs_num|euro_it }}</span></div>
+            <div class="rline total" style="color:var(--c-primary)">
+              <span class="lbl fw-bold">= Netto globale</span>
+              <span class="val">€ {{ risultato.netto_con_ratei|euro_it }}</span>
+            </div>
+            <div class="text-muted mt-1" style="font-size:.68rem">
+              Addizionali stima /mese: − € {{ risultato.add_reg_m|abs_num|euro_it }} (reg.) − € {{ risultato.add_com_m|abs_num|euro_it }} (com.)
+            </div>
+          </div>
+        </div>
+
+        <!-- Paga netta giornaliera -->
+        <hr class="my-2">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <div class="rline" style="background:#f0fdf4;border-radius:4px;padding:.25rem .5rem">
+              <span class="lbl" style="font-size:.72rem">Paga netta/gg <em style="font-weight:400;color:var(--c-muted)">(÷ {{ risultato.divisore_gg_conv }}, incl. 13ª/14ª)</em></span>
+              <span class="val fw-bold" style="color:var(--c-green)">€ {{ risultato.netto_giornaliero|euro_it }}</span>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="rline" style="background:#eff6ff;border-radius:4px;padding:.25rem .5rem">
+              <span class="lbl" style="font-size:.72rem">Paga netta/gg <em style="font-weight:400;color:var(--c-muted)">(÷ {{ risultato.divisore_gg_conv }}, incl. tutti i ratei)</em></span>
+              <span class="val fw-bold" style="color:var(--c-primary)">€ {{ risultato.netto_giornaliero_con_ratei|euro_it }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Box 6: Costo azienda e F24 ────────────────────────────────── -->
+    <div class="res-card" id="box-costo">
+      <div class="res-card-head rh-blue"><i class="bi bi-building me-1"></i>Box 6 — Costo azienda e sviluppo F24</div>
+      <div class="res-card-body">
+        <div class="row g-3">
+
+          <div class="col-md-4">
+            <div class="small fw-bold mb-2" style="color:var(--c-primary)">COSTO DIRETTO MENSILE</div>
+            <div class="rline"><span class="lbl">Lordo mensile</span><span class="val">€ {{ risultato.lordo_mensile|euro_it }}</span></div>
+            <div class="rline"><span class="lbl">+ INPS az. ({{ risultato.inps_az_perc }}%)</span><span class="val">€ {{ risultato.inps_az|euro_it }}</span></div>
+            <div class="rline"><span class="lbl">+ INAIL ({{ risultato.inail_perc }}%)</span><span class="val">€ {{ risultato.inail_az|euro_it }}</span></div>
+            <div class="rline total mb-2"><span class="lbl">Costo corrente</span><span class="val">€ {{ risultato.costo_corrente|euro_it }}</span></div>
+            <div class="rline pos"><span class="lbl">+ Ratei differiti</span><span class="val">€ {{ risultato.costo_differito|euro_it }}</span></div>
+            <div class="rline total" style="color:var(--c-primary)"><span class="lbl fw-bold">Costo totale /mese</span><span class="val">€ {{ risultato.costo_mensile|euro_it }}</span></div>
+            <div class="rline"><span class="lbl text-muted">Costo stimato /anno</span><span class="val text-muted">€ {{ risultato.costo_annuo|euro_it }}</span></div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="small fw-bold mb-2 text-danger">DETTAGLIO c/DIPENDENTE</div>
+            <div class="rline"><span class="lbl">Lordo</span><span class="val">€ {{ risultato.lordo_mensile|euro_it }}</span></div>
+            <div class="rline neg"><span class="lbl">− INPS dip.</span><span class="val">€ {{ risultato.inps_dip|euro_it }}</span></div>
+            <div class="rline neg"><span class="lbl">− IRPEF netta</span><span class="val">€ {{ risultato.irpef_netta|euro_it }}</span></div>
+            <div class="rline pos"><span class="lbl">+ TI + Bonus L207</span><span class="val">€ {{ risultato.crediti_imposta|euro_it }}</span></div>
+            <div class="rline total pos" style="color:var(--c-green)">
+              <span class="lbl fw-bold">= Netto in busta</span><span class="val">€ {{ risultato.netto_totale|euro_it }}</span>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="small fw-bold mb-2" style="color:#6c3483">SVILUPPO F24 MENSILE</div>
+            <div class="small text-muted fw-bold mb-1">Sezione INPS</div>
+            <div class="rline"><span class="lbl">INPS c/dipendente</span><span class="val">€ {{ risultato.inps_dip|euro_it }}</span></div>
+            <div class="rline"><span class="lbl">INPS c/azienda</span><span class="val">€ {{ risultato.inps_az|euro_it }}</span></div>
+            <div class="rline total mb-2" style="color:#6c3483"><span class="lbl fw-bold">F24 INPS</span><span class="val">€ {{ risultato.f24_inps|euro_it }}</span></div>
+            <div class="small text-muted fw-bold mb-1">Sezione Erario</div>
+            <div class="rline"><span class="lbl">IRPEF netta (debito)</span><span class="val">€ {{ risultato.f24_erario_lord|euro_it }}</span></div>
+            <div class="rline pos"><span class="lbl">− Crediti TI + L207</span><span class="val">− € {{ risultato.crediti_imposta|abs_num|euro_it }}</span></div>
+            <div class="rline total mb-2" style="color:#6c3483"><span class="lbl fw-bold">F24 Erario netto</span><span class="val">€ {{ risultato.f24_erario|euro_it }}</span></div>
+            <div class="rline" style="border-top:2px solid #6c3483;padding-top:.4rem;font-size:var(--sz-md)">
+              <span class="lbl fw-bold" style="color:#6c3483">TOTALE F24</span>
+              <span class="val fw-bold" style="color:#6c3483;font-size:1.05rem">€ {{ risultato.f24_totale|euro_it }}</span>
+            </div>
+            <div class="text-muted mt-1" style="font-size:.68rem">
+              ℹ TI e L207 anticipati dall'azienda, compensati in F24 Erario.
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    {% endif %}<!-- fine if risultato -->
+    </div><!-- fine col destra -->
+  </div><!-- fine row -->
+</div>
+
+<script>
+(function () {
+  /* ── Applica valori calendario → aggiorna campi e ri-calcola ──────── */
+  const btnApplica = document.getElementById('btn_applica_cal');
+  if (btnApplica) {
+    btnApplica.addEventListener('click', () => {
+      const oreD = btnApplica.dataset.oreDom;
+      const oreF = btnApplica.dataset.oreFest;
+      const elD = document.querySelector('[name="ore_domenicali"]');
+      const elF = document.querySelector('[name="ore_festivi_lavorati"]');
+      if (elD) elD.value = oreD;
+      if (elF) elF.value = oreF;
+      btnApplica.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Ricalcolo…';
+      btnApplica.disabled = true;
+      // ri-sottomette automaticamente per aggiornare i risultati
+      const form = document.querySelector('form');
+      if (form) form.submit();
+    });
+  }
+})();
+
+(function () {
+  const API_URL = '{% url "api_presenze_simulatore" %}';
+
+  const selDip   = document.getElementById('sim_dipendente_id');
+  const selMese  = document.querySelector('[name=mese]');
+  const selAnno  = document.querySelector('[name=anno]');
+  const selAz    = document.querySelector('[name=azienda]');
+  const btnWrap  = document.getElementById('btn_carica_presenze_wrap');
+  const btnLoad  = document.getElementById('btn_carica_presenze');
+  const infoEl   = document.getElementById('carica_presenze_info');
+
+  function _toggleBtn() {
+    const show = selDip && selDip.value && selMese && selMese.value && selAnno && selAnno.value;
+    if (btnWrap) btnWrap.style.display = show ? '' : 'none';
+  }
+
+  [selDip, selMese, selAnno].forEach(el => el && el.addEventListener('change', _toggleBtn));
+  _toggleBtn();
+
+  if (btnLoad) {
+    btnLoad.addEventListener('click', async () => {
+      const dipId = selDip.value;
+      const anno  = selAnno.value;
+      const mese  = selMese.value;
+      const azId  = selAz ? selAz.value : '';
+
+      btnLoad.disabled = true;
+      btnLoad.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Caricamento…';
+      infoEl.textContent = '';
+
+      try {
+        const params = new URLSearchParams({ dipendente_id: dipId, anno, mese });
+        if (azId) params.append('azienda_id', azId);
+        const resp = await fetch(`${API_URL}?${params}`);
+        if (!resp.ok) {
+          const e = await resp.json().catch(() => ({}));
+          infoEl.textContent = 'Errore: ' + (e.errore || resp.statusText);
+          return;
+        }
+        const d = await resp.json();
+        const _set = (name, val) => {
+          const el = document.querySelector(`[name="${name}"]`);
+          if (el) el.value = val % 1 === 0 ? val : parseFloat(val).toFixed(2);
+        };
+        _set('ore_straord_diurno',    d.ore_straord_diurno);
+        _set('ore_straord_notturno',  d.ore_straord_notturno);
+        _set('ore_straord_festivo',   d.ore_straord_festivo);
+        _set('ore_straord_domenica',  d.ore_straord_domenica);
+        _set('ore_straord_nott_fest', d.ore_straord_nott_fest);
+        _set('ore_domenicali',        d.ore_domenicali);
+        _set('ore_festivi_lavorati',  d.ore_festivi_lavorati);
+        _set('giorni_assenza_ingiust', d.giorni_assenza_ingiust);
+        _set('giorni_ferie_godute',    d.giorni_ferie_godute);
+        _set('ore_permessi_goduti',    d.ore_permessi_goduti);
+        infoEl.innerHTML = '<span style="color:green"><i class="bi bi-check2"></i> Dati caricati dal registro presenze</span>';
+      } catch (err) {
+        infoEl.textContent = 'Errore di rete: ' + err.message;
+      } finally {
+        btnLoad.disabled = false;
+        btnLoad.innerHTML = '<i class="bi bi-cloud-download me-1"></i> Carica dati da presenze';
+      }
+    });
+  }
+})();
+
+/* ── Filtro CCNL per data mese/anno selezionato ─────────────────────── */
+(function () {
+  const selMese = document.querySelector('[name=mese]');
+  const selAnno = document.querySelector('[name=anno]');
+  const selCcnl = document.getElementById('sel_ccnl');
+  const noteEl  = document.getElementById('ccnl_filter_note');
+  if (!selCcnl) return;
+
+  // Raccoglie tutte le opzioni (esclusa la prima vuota) una volta sola
+  const allOpts = Array.from(selCcnl.options).slice(1);
+
+  // Parsa "YYYY-MM-DD" come data LOCALE (non UTC) per evitare sfasamenti di fuso orario
+  function _localDate(s) {
+    if (!s) return null;
+    const p = s.split('-');
+    if (p.length !== 3) return null;
+    return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
+  }
+
+  function _filterCcnl() {
+    const mese = selMese ? parseInt(selMese.value) : 0;
+    const anno = selAnno ? parseInt(selAnno.value) : 0;
+    if (!mese || !anno) {
+      allOpts.forEach(o => { o.hidden = false; o.disabled = false; });
+      if (noteEl) noteEl.style.display = 'none';
+      return;
+    }
+    // Intersezione tra validità CCNL e mese selezionato:
+    //   da <= ultimo_giorno_mese  E  a >= primo_giorno_mese
+    const primoGiorno  = new Date(anno, mese - 1, 1);
+    const ultimoGiorno = new Date(anno, mese, 0);   // giorno 0 del mese successivo = ultimo del mese
+    let hidden = 0;
+    allOpts.forEach(o => {
+      const da = _localDate(o.dataset.da);  // null = nessun limite di inizio
+      const a  = _localDate(o.dataset.a);   // null = nessuna scadenza
+      const valid = (!da || da <= ultimoGiorno) && (!a || a >= primoGiorno);
+      o.hidden   = !valid;
+      o.disabled = !valid;
+      if (!valid) hidden++;
+    });
+    if (noteEl) noteEl.style.display = hidden > 0 ? '' : 'none';
+    // Se la selezione corrente è ora nascosta, azzera la scelta
+    if (selCcnl.value && selCcnl.selectedOptions.length && selCcnl.selectedOptions[0].hidden) {
+      selCcnl.value = '';
+    }
+  }
+
+  [selMese, selAnno].forEach(el => el && el.addEventListener('change', _filterCcnl));
+  _filterCcnl(); // applica al caricamento pagina
+})();
+</script>
+{% endblock %}

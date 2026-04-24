@@ -1,0 +1,35 @@
+{% extends 'base_candidato.html' %}
+{% load format_it_tags %}
+{% block title %}Esprimi interesse — GESPER{% endblock %}
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:600px">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2" style="background:#1b3a5f;color:#fff;font-weight:700;font-size:.88rem">
+      <i class="bi bi-hand-thumbs-up-fill"></i> Conferma interesse per la posizione
+    </div>
+    <div class="card-body">
+      <p style="font-size:.85rem">Stai per esprimere interesse per la seguente posizione:</p>
+      <table style="width:100%;font-size:.82rem;border-collapse:collapse;margin-bottom:16px">
+        <tr><td style="color:#666;padding:3px 0;width:40%">Azienda</td><td><strong>{{ proposta.azienda.nome }}</strong></td></tr>
+        <tr><td style="color:#666;padding:3px 0">Livello CCNL</td><td>{{ proposta.livello_ccnl }}</td></tr>
+        <tr><td style="color:#666;padding:3px 0">Tipo contratto</td><td>{{ proposta.tipo_contratto.nome|default:"—" }}</td></tr>
+        <tr><td style="color:#666;padding:3px 0">Inizio</td><td>{{ proposta.data_inizio_rapporto|date:"d/m/Y" }}</td></tr>
+        <tr><td style="color:#666;padding:3px 0">Lordo mensile</td><td><strong style="color:#0a6640">€ {{ proposta.stipendio_lordo_mensile|euro_it }}</strong></td></tr>
+      </table>
+      <p style="font-size:.78rem;color:#5c6b7d">
+        Confermando, il tuo profilo verrà collegato a questa proposta e l'ufficio HR
+        ti contatterà per i passi successivi.
+      </p>
+      <form method="post">
+        {% csrf_token %}
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check2-circle"></i> Conferma interesse
+          </button>
+          <a href="{% url 'candidato_ruoli_disponibili' %}" class="btn btn-outline-secondary btn-sm">Annulla</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

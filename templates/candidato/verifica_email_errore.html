@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Link non valido — GESPER</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #e8eef5 0%, #dde6f0 100%);
+      font-family: Arial, sans-serif; font-size: 14px; color: #222;
+    }
+    .card {
+      background: #fff; border-radius: 10px; box-shadow: 0 2px 20px rgba(0,0,0,.1);
+      padding: 40px 36px; max-width: 480px; width: 100%; text-align: center;
+    }
+    .icon { font-size: 3rem; color: #c33; margin-bottom: 16px; }
+    h1 { font-size: 1.15rem; color: #1b3a5f; margin-bottom: 10px; }
+    p { color: #555; line-height: 1.6; margin-bottom: 14px; font-size: .86rem; }
+    .motivo { background: #fdecea; border: 1px solid #f5c5c0; border-radius: 5px;
+              padding: 10px 14px; font-size: .82rem; color: #9c1c1c; margin-bottom: 16px; }
+    .btn { display: inline-block; margin: 4px; padding: 9px 20px;
+           background: #1b3a5f; color: #fff; border-radius: 5px;
+           text-decoration: none; font-size: .86rem; font-weight: 700; }
+    .btn-outline { background: #fff; color: #1b3a5f; border: 1px solid #1b3a5f; }
+  </style>
+<style>html{font-size:16px}:root{--sz-xs:.82rem;--sz-sm:.92rem;--sz-base:1rem}</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon"><i class="bi bi-x-circle-fill"></i></div>
+  <h1>Link di verifica non valido</h1>
+  <div class="motivo"><i class="bi bi-exclamation-triangle"></i> {{ motivo }}</div>
+  <p>Puoi richiedere un nuovo link di verifica inserendo la tua e-mail.</p>
+  <a href="{% url 'reinvia_verifica' %}" class="btn">Richiedi nuovo link</a>
+  <a href="{% url 'login' %}" class="btn btn-outline">← Login</a>
+</div>
+</body>
+</html>

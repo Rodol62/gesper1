@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load l10n %}
+{% load format_it_tags %}
+{% block title %}Partitario paghe{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1100px;margin:0 auto;padding:1.5rem 1rem">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h2 class="mb-0" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+      <i class="bi bi-receipt-cutoff me-2"></i>Partitario paghe mensili
+    </h2>
+    <a href="{% url 'consulente_dashboard' %}" class="btn btn-outline-secondary btn-sm">Dashboard</a>
+  </div>
+
+  <form method="get" class="card border-0 shadow-sm mb-3">
+    <div class="card-body row g-2 align-items-end">
+      <div class="col-6 col-md-2">
+        <label class="form-label mb-1">Anno</label>
+        <select name="anno" class="form-select form-select-sm">
+          {% for a in anni %}
+            <option value="{{ a|anno_it }}" {% if a == anno %}selected{% endif %}>{{ a|anno_it }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label mb-1">Mese</label>
+        <select name="mese" class="form-select form-select-sm">
+          <option value="">Tutti i mesi</option>
+          {% for m_id, m_label in mesi %}
+            <option value="{{ m_id }}" {% if m_id == mese %}selected{% endif %}>{{ m_label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label mb-1">Dipendente</label>
+        <select name="dipendente" class="form-select form-select-sm">
+          <option value="">Tutti i dipendenti</option>
+          {% for d in dipendenti %}
+            <option value="{{ d.id }}" {% if dipendente_filter == d.id|stringformat:'s' %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-3 d-grid">
+        <button class="btn btn-primary btn-sm" type="submit">Filtra</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white" style="font-weight:600;color:#1b3a5f">Totali per dipendente</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:.88rem">
+          <thead>
+            <tr>
+              <th class="px-3 py-2">Dipendente</th>
+              <th class="py-2 text-end pe-3">Totale netto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in totali_dipendente %}
+              <tr>
+                <td class="px-3 py-2">{{ r.dipendente__cognome }} {{ r.dipendente__nome }}</td>
+                <td class="py-2 text-end pe-3">{% if r.totale is not None %}€ {{ r.totale|euro_it }}{% else %}<span class="text-muted">N/D</span>{% endif %}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2" class="px-3 py-3 text-muted">Nessun movimento disponibile per i filtri selezionati.</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th class="px-3 py-2">Totale generale</th>
+              <th class="py-2 text-end pe-3">{% if totale_generale is not None %}€ {{ totale_generale|euro_it }}{% else %}<span class="text-muted">N/D</span>{% endif %}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white" style="font-weight:600;color:#1b3a5f">Dettaglio mensile</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0" style="font-size:.86rem">
+          <thead>
+            <tr>
+              <th class="px-3 py-2">Periodo</th>
+              <th class="py-2">Dipendente</th>
+              <th class="py-2">CF</th>
+              <th class="py-2 text-end">Netto</th>
+              <th class="py-2 text-center pe-3">Documento</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in movimenti %}
+              <tr>
+                <td class="px-3 py-2">{% if m.periodo_label %}{{ m.periodo_label }}{% else %}{{ m.mese|stringformat:'02d' }}/{{ m.anno|anno_it }}{% endif %}</td>
+                <td class="py-2">{{ m.dipendente.cognome }} {{ m.dipendente.nome }}</td>
+                <td class="py-2" style="font-family:monospace">{{ m.cf_estratto|default:"—" }}</td>
+                <td class="py-2 text-end">{% if m.importo is not None %}€ {{ m.importo|euro_it }}{% else %}<span class="text-muted">N/D</span>{% endif %}</td>
+                <td class="py-2 text-center pe-3">
+                  {% if m.documento and m.documento.file %}
+                    <a href="{% url 'visualizza_documento' m.documento.id %}" class="btn btn-outline-primary btn-sm">Apri</a>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="px-3 py-3 text-muted">Nessun dettaglio disponibile.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+# /etc/systemd/system/gesper.service
+# GESPER in root su gesper1.* — Nginx → 127.0.0.1:8000 (deploy/nginx-gesper-vps-standalone.conf).
+# Copiare su gesper1, adattare User/Group se non usi root.
+#
+# EnvironmentFile (consigliato): /etc/gesper.env con almeno:
+#   DJANGO_SETTINGS_MODULE=settings_production
+#   DJANGO_SECRET_KEY=...
+# Opzionale: GESPER_DATA_ROOT=/var/www/documento
+#
+# sudo systemctl daemon-reload && sudo systemctl enable --now gesper
+
+[Unit]
+Description=GESPER Gunicorn (gesper1, root /)
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/var/www/gesper
+EnvironmentFile=-/etc/gesper.env
+Environment=DJANGO_SETTINGS_MODULE=settings_production
+ExecStart=/var/www/gesper/.venv/bin/gunicorn wsgi:application \
+    --bind 127.0.0.1:8000 --workers 3 --timeout 900 --graceful-timeout 120
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

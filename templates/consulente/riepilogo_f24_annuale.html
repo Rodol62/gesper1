@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load l10n %}
+{% load format_it_tags %}
+{% block title %}Riepilogo F24 annuale{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1000px;margin:0 auto;padding:1.5rem 1rem">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h2 class="mb-0" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+      <i class="bi bi-bank me-2"></i>Riepilogo annuale F24
+    </h2>
+    <a href="{% url 'consulente_dashboard' %}" class="btn btn-outline-secondary btn-sm">Dashboard</a>
+  </div>
+
+  <form method="get" class="card border-0 shadow-sm mb-3">
+    <div class="card-body row g-2 align-items-end">
+      <div class="col-6 col-md-3">
+        <label class="form-label mb-1">Anno</label>
+        <select name="anno" class="form-select form-select-sm">
+          {% for a in anni %}
+            <option value="{{ a|anno_it }}" {% if a == anno %}selected{% endif %}>{{ a|anno_it }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3 d-grid">
+        <button class="btn btn-primary btn-sm" type="submit">Aggiorna</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex align-items-center justify-content-between" style="font-weight:600;color:#1b3a5f">
+      <span>Dettaglio mensile {{ anno|anno_it }}</span>
+      <span>Totale annuo: <strong>{% if totale_annuo %}€ {{ totale_annuo|euro_it }}{% else %}<span class="text-muted">N/D</span>{% endif %}</strong></span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:.88rem">
+          <thead>
+            <tr>
+              <th class="px-3 py-2">Mese</th>
+              <th class="py-2 text-end">Importo F24</th>
+              <th class="py-2 text-center pe-3">Documento</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in dettaglio %}
+              <tr>
+                <td class="px-3 py-2">{{ r.mese_nome }}</td>
+                <td class="py-2 text-end">{% if r.importo is not None %}€ {{ r.importo|euro_it }}{% else %}<span class="text-muted">N/D</span>{% endif %}</td>
+                <td class="py-2 text-center pe-3">
+                  {% if r.documento and r.documento.documento and r.documento.documento.file %}
+                    <a href="{% url 'visualizza_documento' r.documento.documento.id %}" class="btn btn-outline-primary btn-sm">Apri</a>
+                  {% elif r.documento and r.documento.documento_id %}
+                    <span class="text-muted">Doc non disponibile</span>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

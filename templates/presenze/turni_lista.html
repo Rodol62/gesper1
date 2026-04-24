@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% load format_it_tags %}
+{% block title %}Turni — {{ dipendente.cognome }} {{ dipendente.nome }} — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  {# ── Header ──────────────────────────────────────────────────── #}
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:8px;
+              padding:.7rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;
+              justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+    <div>
+      <a href="{% url 'calendario_presenze' dipendente.id %}?anno={{ anno|anno_it }}&mese={{ mese }}"
+         style="color:rgba(255,255,255,.75);text-decoration:none;font-size:.8rem">
+        <i class="bi bi-arrow-left"></i> Calendario presenze
+      </a>
+      <h5 style="margin:2px 0 0;font-size:.97rem;font-weight:800">
+        <i class="bi bi-clock-history"></i>
+        Turni lavorativi — {{ dipendente.cognome }} {{ dipendente.nome }}
+      </h5>
+      <div style="font-size:.72rem;opacity:.85">
+        {{ dipendente.ruolo }}{% if dipendente.livello %} · Livello {{ dipendente.livello }}{% endif %}
+        · {{ dipendente.azienda.nome }}
+      </div>
+    </div>
+    <a href="{% url 'modifica_dipendente' dipendente.pk %}#gesper-turni-dipendente"
+       class="btn btn-sm" style="background:#1a7a42;color:#fff;font-size:.78rem"
+       title="Assegna turni da Modifica dipendente (anagrafica)">
+      <i class="bi bi-plus-lg"></i> Agganci turni
+    </a>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 px-3 mb-2" style="font-size:.82rem">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% if turni %}
+  {% for turno in turni %}
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 d-flex align-items-center justify-content-between"
+         style="background:#f4f7fa;font-size:.78rem;font-weight:700;color:#1b3a5f">
+      <span>
+        <i class="bi bi-calendar-week"></i> {{ turno.nome }}
+        <span style="font-weight:400;color:#666;margin-left:.5rem">
+          dal {{ turno.data_inizio|date:"d/m/Y" }}
+          {% if turno.data_fine %} al {{ turno.data_fine|date:"d/m/Y" }}{% else %} (illimitato){% endif %}
+        </span>
+      </span>
+      <div class="d-flex gap-2">
+        <a href="{% url 'modifica_dipendente' dipendente.pk %}#gesper-turni-dipendente"
+           class="btn btn-sm btn-outline-secondary" style="font-size:.72rem"
+           title="Modifica assegnazioni turno in anagrafica">
+          <i class="bi bi-pencil"></i> Anagrafica
+        </a>
+        <a href="{% url 'modifica_dipendente' dipendente.pk %}#gesper-turni-dipendente"
+           class="btn btn-sm btn-outline-danger" style="font-size:.72rem"
+           title="Elimina l’aggancio da Modifica dipendente (checkbox Elimina)">
+          <i class="bi bi-trash"></i>
+        </a>
+      </div>
+    </div>
+    <div class="card-body p-3">
+
+      {# Griglia giorni del turno #}
+      <div class="row g-2 mb-3">
+        {% for wd in "0123456" %}
+        {% with conf=turno.schedule|default_if_none:"{}" %}
+        {# Usiamo JS per leggere lo schedule, qui iteriamo i giorni staticamente #}
+        {% endwith %}
+        {% endfor %}
+      </div>
+
+      {# Tabella riepilogo settimanale #}
+      <table class="table table-sm mb-3" style="font-size:.8rem;max-width:700px">
+        <thead style="background:#f4f7fa">
+          <tr>
+            <th style="font-size:.72rem;color:#666">Giorno</th>
+            <th style="font-size:.72rem;color:#666">Stato</th>
+            <th style="font-size:.72rem;color:#666">1° Entrata</th>
+            <th style="font-size:.72rem;color:#666">1° Uscita</th>
+            <th style="font-size:.72rem;color:#666">2° Entrata</th>
+            <th style="font-size:.72rem;color:#666">2° Uscita</th>
+            <th style="font-size:.72rem;color:#666">Causale</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for wd_idx in "0123456" %}
+          <tr id="tur{{ turno.id }}_wd{{ wd_idx }}">
+            <td><strong>{{ giorni_nomi|slice:wd_idx|last }}</strong></td>
+            <td class="tur-stato-{{ turno.id }}-{{ wd_idx }}">—</td>
+            <td class="tur-entrata-{{ turno.id }}-{{ wd_idx }}">—</td>
+            <td class="tur-uscita-{{ turno.id }}-{{ wd_idx }}">—</td>
+            <td class="tur-entrata2-{{ turno.id }}-{{ wd_idx }}">—</td>
+            <td class="tur-uscita2-{{ turno.id }}-{{ wd_idx }}">—</td>
+            <td class="tur-causale-{{ turno.id }}-{{ wd_idx }}">—</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <script>
+      (function(){
+        const sch = {{ turno.schedule_json|safe }};
+        const cauLabel = { {% for c,l in causale_choices %}'{{ c }}':'{{ l }}',{% endfor %} };
+        for (let wd = 0; wd < 7; wd++) {
+          const conf = sch[String(wd)] || {};
+          const tid = {{ turno.id }};
+          const att = conf.attivo;
+          const dop = att && conf.doppio;
+          document.querySelector('.tur-stato-'    + tid + '-' + wd).innerHTML =
+            att ? '<span style="color:#0a6640;font-weight:700">' + (dop ? 'Doppio turno' : 'Lavorativo') + '</span>'
+                : '<span style="color:#888">Riposo</span>';
+          document.querySelector('.tur-entrata-'  + tid + '-' + wd).textContent = att ? (conf.entrata  || '—') : '—';
+          document.querySelector('.tur-uscita-'   + tid + '-' + wd).textContent = att ? (conf.uscita   || '—') : '—';
+          document.querySelector('.tur-entrata2-' + tid + '-' + wd).textContent = dop ? (conf.entrata2 || '—') : '—';
+          document.querySelector('.tur-uscita2-'  + tid + '-' + wd).textContent = dop ? (conf.uscita2  || '—') : '—';
+          document.querySelector('.tur-causale-'  + tid + '-' + wd).textContent = att ? (cauLabel[conf.causale] || conf.causale || '—') : '—';
+        }
+      })();
+      </script>
+
+      <div style="background:#e8f0fe;border-radius:6px;padding:.7rem 1rem;font-size:.76rem;color:#334">
+        <i class="bi bi-info-circle"></i>
+        Per applicare entrata/uscita e causali al mese usare il
+        <a href="{% url 'calendario_presenze_mese' dipendente.id anno mese %}">calendario presenze</a>
+        (stesso mese/anno selezionati in questa pagina). Gli agganci turno si gestiscono in
+        <a href="{% url 'modifica_dipendente' dipendente.pk %}#gesper-turni-dipendente">Modifica dipendente</a>.
+      </div>
+
+    </div>
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body text-center p-4" style="font-size:.85rem;color:#aaa">
+      <i class="bi bi-calendar-week" style="font-size:2rem;opacity:.4"></i>
+      <div class="mt-2">Nessun turno definito per questo dipendente.</div>
+      <a href="{% url 'modifica_dipendente' dipendente.pk %}#gesper-turni-dipendente"
+         class="btn btn-sm mt-2" style="background:#1b3a5f;color:#fff;font-size:.8rem">
+        <i class="bi bi-plus-lg"></i> Agganci turni in anagrafica
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+// Imposta il mese corrente nei select (se presenti in futuro)
+document.querySelectorAll('select[name="mese"]').forEach(sel => {
+  sel.value = '{{ mese }}';
+});
+</script>
+{% endblock %}

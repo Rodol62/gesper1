@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% load l10n %}
+{% load format_it_tags %}
+{% block title %}Carica buste paga massivo{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1000px;margin:0 auto;padding:1.5rem 1rem">
+  <h2 class="mb-1" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+    <i class="bi bi-file-earmark-zip me-2"></i>Import PDF unico (buste + F24)
+  </h2>
+  <p class="text-muted mb-3" style="font-size:.85rem">
+    Carica uno o più PDF unici. L'import massivo può contenere buste di mesi diversi nella stessa operazione.
+    Il sistema divide le singole buste, scarta le doppie copie e memorizza l'F24 separatamente.
+  </p>
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <div class="mb-0 text-muted" style="font-size:.9em">
+      <a href="{% url 'guida_modulo' 'documenti-compliance' %}">Guida: documenti e compliance</a>
+      · <a href="{% url 'guida_modulo' 'paghe-controlli' %}">Guida: paghe e controlli</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert" style="font-size:.88rem">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {% if forza_reimport_applicata %}
+  <div class="alert alert-warning border-warning mb-3" role="status" style="font-size:.85rem">
+    <strong>Re-import forzato attivo in questa richiesta.</strong>
+    Le buste con la stessa periodicità sono state trattate come aggiornamento (PDF e movimenti), non come duplicati da scartare.
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" id="massiveUploadForm">
+    {% csrf_token %}
+
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header d-flex align-items-center justify-content-between" style="background:#f8f9fa;border-bottom:1px solid #e5e8ec">
+        <span style="font-size:.88rem;font-weight:600;color:#1b3a5f">
+          <i class="bi bi-file-earmark-pdf me-1"></i>PDF unici mensili — {{ azienda.nome }}
+        </span>
+        <span class="text-muted" style="font-size:.8rem">Sono accettati file PDF protetti</span>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info mb-3" role="alert" style="font-size:.82rem;">
+          <div class="fw-semibold mb-1"><i class="bi bi-info-circle me-1"></i>Regola nome file per mensilità aggiuntive</div>
+          <div>
+            Per riconoscere correttamente <strong>13ª</strong> e <strong>14ª</strong> nel motore unico, inserire nel nome file:
+            <ul class="mb-0 mt-1 ps-3">
+              <li><strong>TREDICESIMA</strong> (es. <em>TREDICESIMA DICEMBRE 2024.pdf</em>)</li>
+              <li><strong>QUATTORDICESIMA</strong> (es. <em>QUATTORDICESIMA LUGLIO 2024.pdf</em>)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label" style="font-size:.82rem;font-weight:600">Seleziona uno o più PDF unici</label>
+            <input type="file" name="pdf_files" class="form-control form-control-sm" multiple accept="application/pdf,.pdf,.PDF" required>
+          </div>
+          <div class="col-12 text-muted" style="font-size:.8rem">
+            I PDF protetti da password sono supportati con password <strong>DOLCEMASCOLO</strong>. Le pagine duplicate vengono escluse e l'F24 viene gestito separatamente.
+          </div>
+          <div class="col-12">
+            <div class="form-check border rounded px-3 py-2 bg-light">
+              <input class="form-check-input" type="checkbox" name="forza_reimport" value="1" id="forzaReimport">
+              <label class="form-check-label small" for="forzaReimport">
+                <strong>Forza re-import</strong> — sovrascrive buste già registrate per lo stesso periodo (PDF su disco, movimenti import e importi). Usare se il sistema segnala «già presente» ma vuoi sostituire i file con questo caricamento.
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <button type="submit" class="btn btn-primary px-4" id="btnStartImport">
+        <i class="bi bi-cloud-upload me-1"></i>Importa PDF selezionati
+      </button>
+      <a href="{% url 'lista_documenti' %}?tipo=busta_paga" class="btn btn-outline-secondary">Torna a Buste paga</a>
+    </div>
+
+    <div id="uploadProgressWrap" class="card border-0 shadow-sm mt-3" style="display:none;">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2" style="font-size:.84rem;">
+          <strong id="uploadProgressLabel" style="color:#1b3a5f">Caricamento file in corso…</strong>
+          <span id="uploadProgressPct" class="text-muted">0%</span>
+        </div>
+        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="height:12px;">
+          <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
+        </div>
+        <div id="uploadProgressHint" class="text-muted mt-2" style="font-size:.78rem;">
+          Dopo il caricamento il sistema elabora le buste/F24. Non chiudere questa pagina.
+        </div>
+      </div>
+    </div>
+  </form>
+
+  {% if risultati %}
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-header" style="font-size:.88rem;font-weight:600;color:#1b3a5f;background:#f8f9fa;border-bottom:1px solid #e5e8ec">
+      <i class="bi bi-list-check me-1"></i>Esito per file importato
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" style="font-size:.84rem">
+        <thead style="background:#e9ecef">
+          <tr>
+            <th class="py-2 px-3">File</th>
+            <th class="py-2 text-center">Esito</th>
+            <th class="py-2 text-center">Buste uniche</th>
+            <th class="py-2 text-center">Match</th>
+            <th class="py-2 text-center">Da creare</th>
+            <th class="py-2 text-center">Già presenti</th>
+            <th class="py-2 text-center">Pagine F24</th>
+            <th class="py-2">Dettaglio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in risultati %}
+          <tr>
+            <td class="py-2 px-3">{{ r.file }}</td>
+            <td class="py-2 text-center">
+              {% if r.ok %}<span class="badge bg-success">OK</span>{% else %}<span class="badge bg-danger">Errore</span>{% endif %}
+            </td>
+            <td class="py-2 text-center">{{ r.buste_uniche|default:'-' }}</td>
+            <td class="py-2 text-center">{{ r.matched|default:'-' }}</td>
+            <td class="py-2 text-center">{{ r.to_create|default:'-' }}</td>
+            <td class="py-2 text-center">{{ r.already_present|default:'-' }}</td>
+            <td class="py-2 text-center">{{ r.f24_pages|default:'-' }}</td>
+            <td class="py-2">
+              {% if r.ok %}<span class="text-muted" style="font-size:.78rem">Report: {{ r.report }}</span>{% else %}<span class="text-danger" style="font-size:.78rem">{{ r.errore }}</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if import_results %}
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-header d-flex align-items-center justify-content-between" style="background:#f8f9fa;border-bottom:1px solid #e5e8ec">
+      <span style="font-size:.88rem;font-weight:600;color:#1b3a5f">
+        <i class="bi bi-clipboard-check me-1"></i>Riepilogo singole buste importate
+      </span>
+      <span class="text-muted" style="font-size:.8rem">{{ import_results|length }} file analizzati</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table mb-0" style="font-size:.84rem">
+        <thead style="background:#e9ecef">
+          <tr>
+            <th class="py-2 px-3">PDF sorgente</th>
+            <th class="py-2">Periodo</th>
+            <th class="py-2">Natura</th>
+            <th class="py-2">Dipendente</th>
+            <th class="py-2 text-end">Lordo</th>
+            <th class="py-2 text-end">Netto</th>
+            <th class="py-2">Esito</th>
+            <th class="py-2">Dettaglio</th>
+            <th class="py-2 text-center">Documento</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in import_results %}
+          <tr>
+            <td class="py-2 px-3">{{ r.filename }}</td>
+            <td class="py-2">{{ r.periodo }}</td>
+            <td class="py-2"><span class="badge bg-light text-dark border">{{ r.natura_busta|default:'Ordinaria' }}</span></td>
+            <td class="py-2">{% if r.dipendente %}{{ r.dipendente.cognome }} {{ r.dipendente.nome }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td class="py-2 text-end">{% if r.lordo != None %}€ {{ r.lordo|euro_it }}{% else %}<span class="text-muted">N/D</span>{% endif %}</td>
+            <td class="py-2 text-end">{% if r.netto != None %}€ {{ r.netto|euro_it }}{% else %}<span class="text-muted">N/D</span>{% endif %}</td>
+            <td class="py-2">
+              {% if r.esito == 'ok' %}
+                <span class="badge bg-success">OK</span> <span class="text-muted">{{ r.messaggio }}</span>
+              {% elif r.esito == 'attenzione' %}
+                <span class="badge bg-warning text-dark">Attenzione</span> <span class="text-muted">{{ r.messaggio }}</span>
+              {% elif r.esito == 'scartato' %}
+                <span class="badge bg-warning text-dark">Scartato</span> <span class="text-muted">{{ r.messaggio }}</span>
+              {% else %}
+                <span class="badge bg-danger">Errore</span> <span class="text-muted">{{ r.messaggio }}</span>
+              {% endif %}
+            </td>
+            <td class="py-2">
+              {% if r.anomalia %}
+                <span class="text-danger" style="font-size:.78rem">{{ r.anomalia }}</span>
+              {% else %}
+                <span class="text-muted" style="font-size:.78rem">—</span>
+              {% endif %}
+            </td>
+            <td class="py-2 text-center">
+              {% if r.documento_id %}
+                <a href="{% url 'visualizza_documento' r.documento_id %}" class="btn btn-sm btn-outline-secondary">Visualizza</a>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+<script>
+(function(){
+  const form = document.getElementById('massiveUploadForm');
+  if (!form) return;
+
+  const btn = document.getElementById('btnStartImport');
+  const wrap = document.getElementById('uploadProgressWrap');
+  const bar = document.getElementById('uploadProgressBar');
+  const pct = document.getElementById('uploadProgressPct');
+  const lbl = document.getElementById('uploadProgressLabel');
+  const hint = document.getElementById('uploadProgressHint');
+  const fileInput = form.querySelector('input[name="pdf_files"]');
+
+  let submitted = false;
+  let fakeTimer = null;
+
+  function setProgress(v){
+    const val = Math.max(0, Math.min(100, Math.round(v)));
+    bar.style.width = val + '%';
+    pct.textContent = val + '%';
+    const progressEl = bar.closest('.progress');
+    if (progressEl) progressEl.setAttribute('aria-valuenow', String(val));
+  }
+
+  function startFakeProcessing(){
+    if (fakeTimer) window.clearInterval(fakeTimer);
+    fakeTimer = window.setInterval(function(){
+      const curr = parseInt((pct.textContent || '95').replace('%',''), 10) || 95;
+      if (curr < 99) setProgress(curr + 1);
+    }, 2500);
+  }
+
+  form.addEventListener('submit', function(ev){
+    if (submitted) {
+      ev.preventDefault();
+      return;
+    }
+
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+      return;
+    }
+
+    ev.preventDefault();
+    submitted = true;
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Importazione in corso…';
+    }
+
+    wrap.style.display = 'block';
+    setProgress(1);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', window.location.href, true);
+
+    xhr.upload.addEventListener('progress', function(e){
+      if (!e.lengthComputable) return;
+      const value = (e.loaded / e.total) * 90;
+      setProgress(value);
+      lbl.textContent = 'Caricamento file in corso…';
+    });
+
+    xhr.upload.addEventListener('load', function(){
+      lbl.textContent = 'Elaborazione buste/F24 lato server…';
+      hint.textContent = 'Upload completato. Attendere il completamento dell\'importazione.';
+      setProgress(95);
+      startFakeProcessing();
+    });
+
+    xhr.onreadystatechange = function(){
+      if (xhr.readyState !== 4) return;
+      if (fakeTimer) window.clearInterval(fakeTimer);
+
+      if (xhr.status >= 200 && xhr.status < 400) {
+        setProgress(100);
+        lbl.textContent = 'Importazione completata';
+        document.open();
+        document.write(xhr.responseText);
+        document.close();
+      } else {
+        lbl.textContent = 'Errore durante importazione';
+        hint.textContent = 'Si è verificato un errore. Riprova o contatta assistenza.';
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-cloud-upload me-1"></i>Importa PDF selezionati';
+        }
+        submitted = false;
+      }
+    };
+
+    const data = new FormData(form);
+    xhr.send(data);
+  });
+})();
+</script>
+{% endblock %}

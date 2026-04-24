@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}{{ titolo }} — GESPER{% endblock %}
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:600px">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2" style="background:#fff3cd;font-size:.82rem;font-weight:700;color:#856404">
+      {% if azione == 'annulla' %}
+        <i class="bi bi-x-circle"></i> Conferma annullamento proposta
+      {% else %}
+        <i class="bi bi-hand-thumbs-down"></i> Conferma reiezione proposta
+      {% endif %}
+    </div>
+    <div class="card-body py-3" style="font-size:.85rem">
+      <p>{{ messaggio }}</p>
+      <p><strong>Proposta:</strong> {{ proposta.numero_proposta }}<br>
+         <strong>Candidato:</strong> {{ candidato.first_name }} {{ candidato.last_name }}<br>
+         <strong>Stato attuale:</strong> {{ proposta.get_stato_display }}
+      </p>
+      <div class="alert alert-warning py-2" style="font-size:.8rem">
+        <i class="bi bi-info-circle"></i> La proposta sarà impostata come <strong>Rifiutata (admin)</strong>.
+        Sarà possibile creare una nuova proposta per questo candidato.
+      </div>
+      <div class="d-flex gap-2">
+        <form method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-warning btn-sm">
+            {% if azione == 'annulla' %}
+              <i class="bi bi-x-circle"></i> Sì, annulla proposta
+            {% else %}
+              <i class="bi bi-hand-thumbs-down"></i> Sì, respingi proposta
+            {% endif %}
+          </button>
+        </form>
+        <a href="{% url 'candidato_admin_dettaglio' candidato.id %}" class="btn btn-outline-secondary btn-sm">
+          Torna indietro
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

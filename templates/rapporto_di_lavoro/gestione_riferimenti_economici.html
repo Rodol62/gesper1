@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+{% load currency_filters guida_tags pagination_tags %}
+
+{% block title %}Gestione riferimenti economici{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Riferimenti economici contratti{% guida_link "paghe-controlli" %}</h2>
+    <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-outline-secondary">Torna a Proposte/Contratti</a>
+  </div>
+
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <div class="mb-1"><strong>Parametri CCNL e motori.</strong> Allineano proposte, simulazioni e calcoli retributivi; le tabelle Django Admin integrano la configurazione avanzata.</div>
+    <div class="mb-0 text-muted" style="font-size:.9em">
+      <a href="{% url 'guida_modulo' 'paghe-controlli' %}">Guida: paghe e controlli</a>
+      · <a href="{% url 'guida_modulo' 'modulo-admin' %}">Guida: modulo admin</a>
+    </div>
+  </div>
+
+  <div class="alert alert-info">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <strong>Nuovo aggancio attivo:</strong> il form proposta usa ora i dati da <em>costo_lavoro</em> + tabelle DB parametrizzate (con fallback legacy).
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'admin:rapporto_di_lavoro_ccnl_changelist' %}" class="btn btn-sm btn-outline-dark">CCNL</a>
+        <a href="{% url 'admin:rapporto_di_lavoro_parametroorario_changelist' %}" class="btn btn-sm btn-outline-dark">Orari</a>
+        <a href="{% url 'admin:rapporto_di_lavoro_parametromaggiorazione_changelist' %}" class="btn btn-sm btn-outline-dark">Maggiorazioni</a>
+        <a href="{% url 'admin:rapporto_di_lavoro_parametrocontributi_changelist' %}" class="btn btn-sm btn-outline-dark">Contributi</a>
+        <a href="{% url 'admin:rapporto_di_lavoro_parametroratei_changelist' %}" class="btn btn-sm btn-outline-dark">Ratei</a>
+        <a href="{% url 'admin:rapporto_di_lavoro_fringebenefitsoglia_changelist' %}" class="btn btn-sm btn-outline-dark">Fringe benefit</a>
+      </div>
+    </div>
+    {% if ccnl_parametrizzati %}
+      <small class="d-block mt-2 text-muted">
+        CCNL parametrizzati attivi:
+        {% for c in ccnl_parametrizzati %}
+          {{ c.sigla }} ({{ c.anno_inizio_validita }}{% if c.anno_fine_validita %}-{{ c.anno_fine_validita }}{% else %}-attuale{% endif %}){% if not forloop.last %}, {% endif %}
+        {% endfor %}
+      </small>
+    {% endif %}
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Parametri economici CCNL</strong>
+      <div class="d-flex gap-2">
+        <a href="{% url 'parametro_economico_nuovo' %}" class="btn btn-sm btn-primary">Nuovo parametro</a>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <form method="post" action="{% url 'parametri_economici_elimina_multipli' %}" id="bulk-parametri-form" data-confirm-title="Elimina voci retributive" data-confirm-variant="warning" data-confirm-ok-label="Elimina" data-confirm-message="Confermi l'eliminazione delle voci retributive selezionate in questa pagina?">
+        {% csrf_token %}
+      {% gesper_pagination parametri_page "Paginazione parametri economici CCNL" page_param="p_page" %}
+      <div class="gesper-list-scroll">
+      <div class="table-responsive">
+        <table class="table table-striped table-sm mb-0">
+          <thead>
+            <tr>
+              <th style="width: 45px;">
+                <input type="checkbox" class="form-check-input" id="select-all-parametri" title="Seleziona/Deseleziona tutti">
+              </th>
+              <th>ID</th>
+              <th>CCNL</th>
+              <th>Versione</th>
+              <th>Livello</th>
+              <th>Qualifica</th>
+              <th>Lordo legacy</th>
+              <th>Lordo costo_lavoro</th>
+              <th>Delta</th>
+              <th>Aggancio</th>
+              <th class="table-success">Netto dip.</th>
+              <th class="table-warning">Costo az.</th>
+              <th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in parametri %}
+              <tr>
+                <td>
+                  <input type="checkbox" class="form-check-input parametro-check" name="parametro_ids" value="{{ p.id }}">
+                </td>
+                <td>{{ p.id }}</td>
+                <td>{{ p.ccnl }}</td>
+                <td>{{ p.versione }}</td>
+                <td>{{ p.livello }}</td>
+                <td>{{ p.qualifica }}</td>
+                <td>{{ p.importo_lordo_mensile|euro_full }}</td>
+                <td>{{ p.lordo_costo_lavoro|euro_full }}</td>
+                <td>
+                  {% if p.delta_lordo > 0 %}
+                    <span class="text-success">+{{ p.delta_lordo|euro_full }}</span>
+                  {% elif p.delta_lordo < 0 %}
+                    <span class="text-danger">{{ p.delta_lordo|euro_full }}</span>
+                  {% else %}
+                    <span class="text-muted">{{ p.delta_lordo|euro_full }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if p.agganciato_costo_lavoro %}
+                    <span class="badge bg-success">costo_lavoro</span>
+                  {% else %}
+                    <span class="badge bg-secondary">legacy</span>
+                  {% endif %}
+                </td>
+                <td class="table-success"><strong>{{ p.netto_dipendente|euro_full }}</strong></td>
+                <td class="table-warning"><strong>{{ p.costo_azienda_mensile|euro_full }}</strong></td>
+                <td>
+                  <a href="{% url 'dettaglio_calcolo_economico' p.id %}" class="btn btn-sm btn-info" title="Vedi calcolo dettagliato">📊 Dettaglio</a>
+                  <a href="{% url 'parametro_economico_modifica' p.id %}" class="btn btn-sm btn-outline-primary">Modifica</a>
+                  <small class="text-muted d-block">Per eliminare usa la selezione multipla.</small>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="13" class="text-center text-muted py-3">Nessun parametro presente.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      </div>
+      {% gesper_pagination parametri_page "Paginazione parametri economici CCNL" page_param="p_page" %}
+      {% if parametri_page.paginator.count %}
+      <div class="px-3 pb-2 small text-muted">{{ parametri_page.paginator.count }} parametri{% if parametri_page.paginator.num_pages > 1 %} — pagina {{ parametri_page.number }} di {{ parametri_page.paginator.num_pages }}{% endif %}</div>
+      {% endif %}
+      <div class="p-3 border-top bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <small class="text-muted">Seleziona una o più righe in <strong>questa pagina</strong>, poi conferma l'eliminazione multipla. Per altre righe cambia pagina.</small>
+        <button type="submit" class="btn btn-sm btn-danger" id="bulk-delete-parametri-btn">
+          Elimina selezionati
+        </button>
+      </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Regole normative CCNL</strong>
+      <a href="{% url 'regola_normativa_nuova' %}" class="btn btn-sm btn-primary">Nuova regola</a>
+    </div>
+    <div class="card-body p-0">
+      <form method="post" action="{% url 'regole_normative_elimina_multiple' %}" id="bulk-regole-form" data-confirm-title="Elimina regole normative" data-confirm-variant="warning" data-confirm-ok-label="Elimina" data-confirm-message="Confermi l'eliminazione delle regole normative selezionate in questa pagina?">
+        {% csrf_token %}
+      {% gesper_pagination regole_page "Paginazione regole normative CCNL" page_param="r_page" %}
+      <div class="gesper-list-scroll">
+      <div class="table-responsive">
+        <table class="table table-striped table-sm mb-0">
+          <thead>
+            <tr>
+              <th style="width: 45px;">
+                <input type="checkbox" class="form-check-input" id="select-all-regole" title="Seleziona/Deseleziona tutti">
+              </th>
+              <th>ID</th>
+              <th>CCNL</th>
+              <th>Versione</th>
+              <th>Livello</th>
+              <th>Ore sett.</th>
+              <th>Ferie</th>
+              <th>Permessi</th>
+              <th>Scatti</th>
+              <th>Fonte</th>
+              <th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in regole %}
+              <tr>
+                <td>
+                  <input type="checkbox" class="form-check-input regola-check" name="regola_ids" value="{{ r.id }}">
+                </td>
+                <td>{{ r.id }}</td>
+                <td>{{ r.ccnl }}</td>
+                <td>{{ r.versione }}</td>
+                <td>{{ r.livello }}</td>
+                <td>{{ r.ore_settimanali_agg }}</td>
+                <td>{{ r.ferie_annue_giorni_agg }}</td>
+                <td>{{ r.permessi_annui_ore_agg }}</td>
+                <td>{{ r.scatto_periodicita_mesi_agg }} mesi / {{ r.scatto_importo_agg|euro }}</td>
+                <td>
+                  {% if r.fonte_normativa == 'costo_lavoro_db' %}
+                    <span class="badge bg-success">costo_lavoro_db</span>
+                  {% else %}
+                    <span class="badge bg-secondary">legacy</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <a href="{% url 'regola_normativa_modifica' r.id %}" class="btn btn-sm btn-outline-primary">Modifica</a>
+                  <small class="text-muted d-block">Per eliminare usa la selezione multipla.</small>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="11" class="text-center text-muted py-3">Nessuna regola presente.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      </div>
+      {% gesper_pagination regole_page "Paginazione regole normative CCNL" page_param="r_page" %}
+      {% if regole_page.paginator.count %}
+      <div class="px-3 pb-2 small text-muted">{{ regole_page.paginator.count }} regole{% if regole_page.paginator.num_pages > 1 %} — pagina {{ regole_page.number }} di {{ regole_page.paginator.num_pages }}{% endif %}</div>
+      {% endif %}
+      <div class="p-3 border-top bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <small class="text-muted">Seleziona una o più righe in <strong>questa pagina</strong>, poi conferma l'eliminazione multipla.</small>
+        <button type="submit" class="btn btn-sm btn-danger" id="bulk-delete-regole-btn">
+          Elimina selezionate
+        </button>
+      </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function toggleAll(masterId, itemSelector) {
+    const master = document.getElementById(masterId);
+    const items = document.querySelectorAll(itemSelector);
+    if (!master) return;
+    master.addEventListener('change', function () {
+      items.forEach(i => i.checked = master.checked);
+    });
+  }
+
+  function bindBulkConfirm(formId, itemSelector, entityName) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+      const selected = document.querySelectorAll(`${itemSelector}:checked`).length;
+      if (selected === 0) {
+        e.preventDefault();
+        alert('Seleziona almeno una voce.');
+        return;
+      }
+    });
+  }
+
+  toggleAll('select-all-parametri', '.parametro-check');
+  toggleAll('select-all-regole', '.regola-check');
+  bindBulkConfirm('bulk-parametri-form', '.parametro-check', 'voci retributive');
+  bindBulkConfirm('bulk-regole-form', '.regola-check', 'regole normative');
+</script>
+{% endblock %}

@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+{% block title %}Crea proposte dalla simulazione annua{% endblock %}
+
+{% block extra_head %}
+<style>
+:root {
+  --c-primary: #1b3a5f;
+  --c-accent:  #2d6199;
+  --c-border:  #c5d0dc;
+  --c-muted:   #5c6b7d;
+  --c-alt:     #f4f7fa;
+  --c-green:   #0a6640;
+  --sz-xs:     0.66rem;
+  --sz-sm:     0.72rem;
+  --sz-base:   0.78rem;
+}
+body { font-size: var(--sz-base); }
+
+.page-header {
+  background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent) 100%);
+  color: #fff;
+  border-radius: 6px;
+  padding: .6rem 1rem;
+  margin-bottom: .8rem;
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+}
+.page-header h5 { margin: 0; font-size: .92rem; font-weight: 800; }
+.page-header .sub { font-size: var(--sz-xs); opacity: .8; margin-top: 2px; }
+
+.ruolo-card {
+  border: 1px solid var(--c-border);
+  border-radius: 5px;
+  margin-bottom: .6rem;
+  background: #fff;
+  overflow: hidden;
+}
+.ruolo-card .rc-head {
+  background: var(--c-alt);
+  border-bottom: 1px solid var(--c-border);
+  padding: .4rem .75rem;
+  display: flex; align-items: center; gap: .6rem;
+}
+.ruolo-card .rc-head label { margin: 0; cursor: pointer; font-weight: 700; color: var(--c-primary); font-size: var(--sz-sm); }
+.ruolo-card .rc-body { padding: .5rem .75rem; }
+.ruolo-card.selected { border-color: var(--c-accent); }
+.ruolo-card.selected .rc-head { background: #ddeeff; }
+
+.field-group { display: flex; flex-wrap: wrap; gap: .6rem 1.5rem; }
+.field-item { display: flex; flex-direction: column; gap: 2px; }
+.field-item label { font-size: var(--sz-xs); color: var(--c-muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+.field-item .val { font-size: var(--sz-sm); font-weight: 700; color: var(--c-primary); }
+.field-item .val.green { color: var(--c-green); }
+
+.qta-input { width: 60px; text-align: center; font-size: var(--sz-sm); padding: .15rem .3rem; border: 1px solid var(--c-border); border-radius: 3px; }
+
+.info-box {
+  background: #fff8e1;
+  border: 1px solid #f5d882;
+  border-radius: 5px;
+  padding: .5rem .75rem;
+  font-size: var(--sz-xs);
+  margin-bottom: .8rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-2">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div>
+      <h5><i class="bi bi-briefcase-fill"></i> Da simulazione annua → proposte di assunzione</h5>
+      <div class="sub">Azienda: <strong>{{ azienda.nome }}</strong> &mdash; Seleziona i ruoli da convertire in proposte</div>
+    </div>
+    <a href="{% url 'simulazione_2026_risultato' %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">
+      ← Risultato
+    </a>
+  </div>
+
+  <!-- Info -->
+  <div class="info-box">
+    <i class="bi bi-info-circle text-primary"></i>
+    Per ogni slot selezionato verrà creato un <strong>Dipendente candidato</strong> (anagrafica provvisoria) e una
+    <strong>Proposta di assunzione in bozza</strong> con i parametri CCNL del livello simulato.
+    L'anagrafica completa (CF, data di nascita, indirizzo, ecc.) dovrà essere integrata successivamente
+    &mdash; dal candidato o dall'operatore HR &mdash; prima di procedere all'approvazione.
+  </div>
+
+  {% if messages %}
+  {% for msg in messages %}
+  <div class="alert alert-{{ msg.tags|default:'info' }} py-1 small mb-2">{{ msg }}</div>
+  {% endfor %}
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="querystring" value="{{ querystring }}">
+
+    {% if ruoli %}
+      {% for ruolo in ruoli %}
+      <div class="ruolo-card" id="card_{{ ruolo.id }}">
+        <div class="rc-head">
+          <input type="checkbox" name="ruoli_selezionati" value="{{ ruolo.id }}"
+                 id="chk_{{ ruolo.id }}" class="ruolo-chk"
+                 onchange="toggleCard('{{ ruolo.id }}', this.checked)">
+          <label for="chk_{{ ruolo.id }}">
+            <i class="bi bi-person-badge"></i>
+            {{ ruolo.nome }}
+            &nbsp;<span style="font-weight:400;color:var(--c-muted)">— Livello {{ ruolo.livello }}</span>
+          </label>
+          <span class="ms-auto badge bg-secondary" style="font-size:.65rem">{{ ruolo.quantita }} slot</span>
+        </div>
+        <div class="rc-body">
+          <div class="field-group">
+            <div class="field-item">
+              <label>Livello CCNL</label>
+              <span class="val">{{ ruolo.livello }}</span>
+            </div>
+            {% if ruolo.parametro_ccnl %}
+            <div class="field-item">
+              <label>Qualifica</label>
+              <span class="val">{{ ruolo.parametro_ccnl.qualifica }}</span>
+            </div>
+            {% endif %}
+            <div class="field-item">
+              <label>Tipo rapporto</label>
+              <span class="val">{{ ruolo.tipo_rapporto|default:"indeterminato"|capfirst }}</span>
+            </div>
+            <div class="field-item">
+              <label>Orario (simulazione)</label>
+              <span class="val">{{ ruolo.tc_pt_nome }} &mdash; &times;{{ ruolo.coeff_ore }}</span>
+            </div>
+            <div class="field-item">
+              <label>Tipo contratto proposta</label>
+              <span class="val" style="color:var(--c-accent)">{{ ruolo.tipo_contratto_proposta }}</span>
+            </div>
+            <div class="field-item">
+              <label>Inizio rapporto</label>
+              <span class="val">{{ ruolo.data_inizio|date:"d/m/Y" }}</span>
+            </div>
+            {% if ruolo.tipo_rapporto == 'determinato' %}
+            <div class="field-item">
+              <label>Fine rapporto</label>
+              <span class="val">{{ ruolo.data_fine|date:"d/m/Y"|default:"—" }}</span>
+            </div>
+            {% endif %}
+            {% if ruolo.lordo_ft %}
+            <div class="field-item">
+              <label>Lordo FT (tabella CCNL)</label>
+              <span class="val" style="color:var(--c-muted)">{{ ruolo.lordo_ft|euro }}</span>
+            </div>
+            {% endif %}
+            {% if ruolo.lordo_mensile %}
+            <div class="field-item">
+              <label>Lordo effettivo proposta</label>
+              <span class="val green">{{ ruolo.lordo_mensile|euro }}</span>
+            </div>
+            {% endif %}
+            <div class="field-item">
+              <label>Proposte da creare</label>
+              <input type="number" name="qta_{{ ruolo.id }}" value="{{ ruolo.quantita }}"
+                     min="1" max="{{ ruolo.quantita }}" class="qta-input"
+                     id="qta_{{ ruolo.id }}" disabled>
+            </div>
+          </div>
+          {% if not ruolo.parametro_ccnl %}
+          <div class="mt-2" style="font-size:var(--sz-xs);color:#8b1c1c">
+            <i class="bi bi-exclamation-triangle"></i>
+            Nessun parametro CCNL trovato per il livello <strong>{{ ruolo.livello }}</strong>.
+            La proposta verrà creata con importi a zero — aggiornare successivamente.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="bi bi-check2-circle"></i> Crea proposte selezionate
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="selezionaTutti()">
+          Seleziona tutti
+        </button>
+        <a href="{% url 'simulazione_2026_risultato' %}" class="btn btn-outline-secondary btn-sm">
+          Annulla
+        </a>
+      </div>
+
+    {% else %}
+      <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i> Nessun ruolo trovato nella simulazione.
+        <a href="{% url 'simulazione_2026_config' %}">Configura la simulazione annua</a>.
+      </div>
+    {% endif %}
+
+  </form>
+</div>
+
+<script>
+function toggleCard(rid, checked) {
+  const card = document.getElementById('card_' + rid);
+  const qtaInput = document.getElementById('qta_' + rid);
+  if (checked) {
+    card.classList.add('selected');
+    if (qtaInput) qtaInput.disabled = false;
+  } else {
+    card.classList.remove('selected');
+    if (qtaInput) qtaInput.disabled = true;
+  }
+}
+
+function selezionaTutti() {
+  document.querySelectorAll('.ruolo-chk').forEach(chk => {
+    if (!chk.checked) {
+      chk.checked = true;
+      toggleCard(chk.value, true);
+    }
+  });
+}
+</script>
+{% endblock %}

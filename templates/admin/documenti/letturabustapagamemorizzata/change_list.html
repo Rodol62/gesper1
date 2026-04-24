@@ -1,0 +1,13 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+  <li>
+    <a href="{{ confronto_busta_inps_url }}"
+       class="addlink"
+       style="background:#205067;color:#fff;padding:.4rem 1rem;border-radius:4px;font-weight:700;text-decoration:none">
+      {% translate "Confronto imponibile INPS (prova busta PDF)" %}
+    </a>
+  </li>
+  {{ block.super }}
+{% endblock %}

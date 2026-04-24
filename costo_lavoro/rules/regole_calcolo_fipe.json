@@ -1,0 +1,127 @@
+{
+  "regole_calcolo_fipe": {
+    "ordine_calcolo": [
+      "validazioni_input",
+      "determinazione_orario",
+      "calcolo_retribuzione_base",
+      "applicazione_scatti_anzianita",
+      "calcolo_supplementare_part_time",
+      "calcolo_maggiorazioni",
+      "calcolo_indennita",
+      "gestione_assenze",
+      "calcolo_retribuzione_lorda",
+      "calcolo_contributi_inps",
+      "calcolo_premio_inail",
+      "calcolo_irpef",
+      "calcolo_addizionali",
+      "calcolo_netto",
+      "calcolo_tfr"
+    ],
+
+    "validazioni_input": {
+      "livello_valido": true,
+      "mansione_compatibile": true,
+      "orario_coerente": true,
+      "assenze_valide": true,
+      "contratto_valido": true,
+      "descrizione": "Validazioni preliminari per garantire la correttezza dei dati"
+    },
+
+    "determinazione_orario": {
+      "fonte": "monte_ore_fipe",
+      "regole": [
+        "se part_time → applica limiti part_time",
+        "se part_time → abilita lavoro supplementare",
+        "se full_time → applica 40 ore settimanali",
+        "se stagionale → applica flessibilità oraria"
+      ]
+    },
+
+    "calcolo_retribuzione_base": {
+      "formula": "minimo_tabellare + contingenza + EDR + superminimi",
+      "fonte": "retribuzioni_fipe"
+    },
+
+    "applicazione_scatti_anzianita": {
+      "fonte": "scatti_anzianita_fipe",
+      "formula": "importo_scatti_livello * numero_scatti"
+    },
+
+    "calcolo_supplementare_part_time": {
+      "fonte": "part_time_fipe",
+      "condizione": "solo_se_contratto_part_time",
+      "formula": "ore_supplementari * retribuzione_oraria * (1 + maggiorazione_supplementare)",
+      "note": "Il supplementare è distinto dallo straordinario e non può superare il 25% dell'orario contrattuale"
+    },
+
+    "calcolo_maggiorazioni": {
+      "fonte": "maggiorazioni_fipe",
+      "regole": [
+        "straordinario_full_time → oltre 40 ore settimanali",
+        "notturno → fascia 22:00-06:00",
+        "festivo → domeniche e festività",
+        "notturno_festivo → combinazione",
+        "turni → applica maggiorazioni specifiche"
+      ]
+    },
+
+    "calcolo_indennita": {
+      "fonte": "indennita_fipe",
+      "incluso": [
+        "cassa",
+        "maneggio_denaro",
+        "turni",
+        "vitto/alloggio"
+      ]
+    },
+
+    "gestione_assenze": {
+      "fonte": "assenze_fipe",
+      "regole": [
+        "malattia → paga INPS + integrazione aziendale",
+        "infortunio → paga INAIL + integrazione",
+        "ferie → retribuzione piena",
+        "permessi → retribuzione piena",
+        "104 → retribuzione piena"
+      ]
+    },
+
+    "calcolo_retribuzione_lorda": {
+      "formula": "retribuzione_base + scatti + supplementare + maggiorazioni + indennita - trattenute_assenze"
+    },
+
+    "calcolo_contributi_inps": {
+      "fonte": "inps_fipe",
+      "formula": "imponibile_inps * aliquota",
+      "distinzione": [
+        "azienda",
+        "lavoratore"
+      ]
+    },
+
+    "calcolo_premio_inail": {
+      "fonte": "inail_fipe",
+      "formula": "imponibile_inail * tasso_applicato"
+    },
+
+    "calcolo_irpef": {
+      "fonte": "irpef_fipe",
+      "formula": "imponibile_irpef * aliquota_scaglione - detrazioni"
+    },
+
+    "calcolo_addizionali": {
+      "regionale": "aliquota_regione * imponibile",
+      "comunale": "aliquota_comune * imponibile"
+    },
+
+    "calcolo_netto": {
+      "formula": "retribuzione_lorda - contributi_lavoratore - irpef - addizionali"
+    },
+
+    "calcolo_tfr": {
+      "fonte": "tfr_fipe",
+      "formula": "retribuzione_annua / 13.5",
+      "rivalutazione": "1.5% + 75% inflazione"
+    }
+  }
+}

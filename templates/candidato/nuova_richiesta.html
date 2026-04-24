@@ -1,0 +1,124 @@
+{% extends 'base_candidato.html' %}
+{% block title %}Nuova richiesta — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:600px">
+
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <a href="{% url 'candidato_mie_richieste' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.75rem">
+      <i class="bi bi-arrow-left"></i> Richieste
+    </a>
+    <h6 class="mb-0" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-plus-circle-fill"></i> Nuova richiesta
+    </h6>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body py-4 px-3">
+      <form method="post" id="formRichiesta">
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label style="font-size:.8rem;font-weight:700;color:#1b3a5f">Tipo richiesta *</label>
+          <select name="tipo" id="selectTipo" class="form-select form-select-sm" required
+                  style="font-size:.83rem" onchange="aggiornaCampi()">
+            <option value="">— Seleziona —</option>
+            {% for key, label in tipi_richiesta_disponibili %}
+            <option value="{{ key }}">{% if key == 'ferie' %}🌞{% elif key == 'permesso' %}⏳{% elif key == 'malattia' %}🌡{% elif key == 'generica' %}💬{% else %}📄{% endif %} {{ label }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text" style="font-size:.7rem">
+            {% if puo_richiedere_assenze %}
+              Puoi inviare richieste informative e anche ferie, permessi o malattia.
+            {% else %}
+              In stato candidato puoi inviare solo richieste informative o altri chiarimenti all'HR.
+            {% endif %}
+          </div>
+        </div>
+
+        {# Sezione date — solo per ferie/permesso/malattia #}
+        <div id="sezDate" style="display:none">
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label style="font-size:.8rem;font-weight:700;color:#1b3a5f">Dal *</label>
+              <input type="date" name="data_inizio" id="dataInizio"
+                     class="form-control form-control-sm" style="font-size:.83rem">
+            </div>
+            <div class="col-6">
+              <label style="font-size:.8rem;font-weight:700;color:#1b3a5f">Al *</label>
+              <input type="date" name="data_fine" id="dataFine"
+                     class="form-control form-control-sm" style="font-size:.83rem">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label style="font-size:.8rem;font-weight:700;color:#1b3a5f">Motivo / Note brevi</label>
+            <input type="text" name="motivo" class="form-control form-control-sm"
+                   style="font-size:.83rem" placeholder="Facoltativo…" maxlength="255">
+          </div>
+        </div>
+
+        {# Sezione testo libero — per generica/altro #}
+        <div id="sezTesto" style="display:none">
+          <div class="mb-3">
+            <label style="font-size:.8rem;font-weight:700;color:#1b3a5f">Oggetto / Titolo</label>
+            <input type="text" name="motivo" class="form-control form-control-sm"
+                   style="font-size:.83rem" placeholder="Breve oggetto della richiesta…" maxlength="255">
+          </div>
+          <div class="mb-3">
+            <label style="font-size:.8rem;font-weight:700;color:#1b3a5f">Testo della richiesta *</label>
+            <textarea name="testo_richiesta" id="testoRichiesta"
+                      class="form-control form-control-sm" rows="5"
+                      style="font-size:.83rem"
+                      placeholder="Descrivi la tua richiesta o chiarimento in dettaglio…"></textarea>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-2">
+          <button type="submit" class="btn btn-sm"
+                  style="background:#1b3a5f;color:#fff;font-size:.82rem">
+            <i class="bi bi-send"></i> Invia richiesta
+          </button>
+          <a href="{% url 'candidato_mie_richieste' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.82rem">
+            Annulla
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function aggiornaCampi() {
+  const tipo = document.getElementById('selectTipo').value;
+  const sezDate = document.getElementById('sezDate');
+  const sezTesto = document.getElementById('sezTesto');
+  const dataInizio = document.getElementById('dataInizio');
+  const dataFine = document.getElementById('dataFine');
+  const testoRichiesta = document.getElementById('testoRichiesta');
+
+  if (tipo === 'ferie' || tipo === 'permesso' || tipo === 'malattia') {
+    sezDate.style.display = '';
+    sezTesto.style.display = 'none';
+    dataInizio.required = true;
+    dataFine.required = true;
+    testoRichiesta.required = false;
+  } else if (tipo === 'generica' || tipo === 'altro') {
+    sezDate.style.display = 'none';
+    sezTesto.style.display = '';
+    dataInizio.required = false;
+    dataFine.required = false;
+    testoRichiesta.required = true;
+  } else {
+    sezDate.style.display = 'none';
+    sezTesto.style.display = 'none';
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% load ruoli_tags %}
+{% load l10n format_it_tags %}
+{% block title %}Carica buste paga — Consulente{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1000px;margin:0 auto;padding:1.5rem 1rem">
+
+  <nav aria-label="breadcrumb" style="font-size:.82rem;margin-bottom:1rem">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'consulente_dashboard' %}">Consulente</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_carica_documento' %}">Carica documento</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Buste paga</li>
+    </ol>
+  </nav>
+
+  <h2 class="mb-1" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+    <i class="bi bi-file-earmark-arrow-up me-2"></i>Carica buste paga
+  </h2>
+  <p class="text-muted mb-4" style="font-size:.85rem">
+    Seleziona il mese, poi carica il file PDF per ogni dipendente. I file saranno visibili al dipendente nella propria area.
+  </p>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert" style="font-size:.88rem">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <!-- Selezione mese/anno (GET per cambiare periodo) -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body py-3">
+        <div class="d-flex align-items-end gap-3 flex-wrap">
+          <div>
+            <label class="form-label mb-1" style="font-size:.82rem;font-weight:600">Mese di competenza</label>
+            <select id="id_mese" class="form-select form-select-sm" style="min-width:130px"
+                  onchange="window.location='{{ request.path }}?anno={{ anno|anno_it }}&mese='+this.value">
+              {% for n, nome in mesi %}
+                <option value="{{ n }}" {% if n == mese %}selected{% endif %}>{{ nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label mb-1" style="font-size:.82rem;font-weight:600">Anno</label>
+            <select id="id_anno" class="form-select form-select-sm" style="min-width:90px"
+                    onchange="window.location='{{ request.path }}?anno='+this.value+'&mese={{ mese }}{% if dipendente_filter %}&dipendente={{ dipendente_filter }}{% endif %}'">
+              {% for a in anni %}
+                <option value="{{ a|anno_it }}" {% if a == anno %}selected{% endif %}>{{ a|anno_it }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label mb-1" style="font-size:.82rem;font-weight:600">Dipendente (visualizzazione)</label>
+            <select id="id_dipendente_filter" class="form-select form-select-sm" style="min-width:240px"
+                    onchange="window.location='{{ request.path }}?anno={{ anno|anno_it }}&mese={{ mese }}&dipendente='+this.value">
+              <option value="" {% if not dipendente_filter %}selected{% endif %}>Tutti i dipendenti</option>
+              {% for d in dipendenti_tutti %}
+                <option value="{{ d.id }}" {% if dipendente_filter == d.id|stringformat:'s' %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="text-muted" style="font-size:.82rem;padding-bottom:.35rem">
+            Periodo: <strong>{{ mese_nome }} {{ anno|anno_it }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if dipendenti %}
+    <!-- Grid dipendenti -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header d-flex align-items-center justify-content-between" style="background:#f8f9fa;border-bottom:1px solid #e5e8ec">
+        <span style="font-size:.88rem;font-weight:600;color:#1b3a5f">
+          <i class="bi bi-people me-1"></i>Dipendenti attivi — {{ azienda.nome }}
+        </span>
+        <span class="text-muted" style="font-size:.8rem">
+          {{ dipendenti|length }} dipendenti
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0" style="font-size:.85rem">
+          <thead style="background:#e9ecef">
+            <tr>
+              <th class="py-2 px-3" style="width:35%">Dipendente</th>
+              <th class="py-2">Carica file (PDF)</th>
+              <th class="py-2 text-center" style="width:180px">Già caricata</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dip in dipendenti %}
+            <tr {% if buste_esistenti|get_item:dip.id %}style="background:#f8fff8"{% endif %}>
+              <td class="py-2 px-3">
+                <div style="font-weight:600">{{ dip.cognome }} {{ dip.nome }}</div>
+                {% if dip.ruolo %}
+                  <div class="text-muted" style="font-size:.76rem">{{ dip.ruolo }}</div>
+                {% endif %}
+              </td>
+              <td class="py-2">
+                <input type="file" name="busta_paga_{{ dip.id }}"
+                       class="form-control form-control-sm"
+                       accept=".pdf,.PDF"
+                       style="font-size:.8rem;max-width:350px">
+              </td>
+              <td class="py-2 text-center">
+                {% if dip.id in buste_esistenti %}
+                  {% with doc=buste_esistenti|get_item:dip.id %}
+                  <span class="badge" style="background:#d1e7dd;color:#0a3622;font-size:.74rem">
+                    <i class="bi bi-check2 me-1"></i>{{ doc.data_caricamento|date:"d/m" }}
+                  </span>
+                  <a href="{% url 'download_documento' doc.id %}" class="btn btn-sm btn-link p-0 ms-1" style="font-size:.75rem" title="Scarica">
+                    <i class="bi bi-download"></i>
+                  </a>
+                  {% endwith %}
+                {% else %}
+                  <span class="text-muted" style="font-size:.8rem">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pulsante submit con campi mese/anno nascosti (POST) -->
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <input type="hidden" name="anno" value="{{ anno|anno_it }}">
+      <input type="hidden" name="mese" value="{{ mese }}">
+      <input type="hidden" name="dipendente" value="{{ dipendente_filter }}">
+      <button type="submit" class="btn btn-primary px-4">
+        <i class="bi bi-cloud-upload me-1"></i>Carica buste paga selezionate
+      </button>
+      <span class="text-muted" style="font-size:.82rem">
+        Solo i dipendenti con un file selezionato verranno aggiornati.
+      </span>
+    </div>
+
+    {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-people" style="font-size:2.5rem;opacity:.4"></i>
+      <p class="mt-2" style="font-size:.9rem">Nessun dipendente attivo trovato.</p>
+    </div>
+    {% endif %}
+
+  </form>
+
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-header d-flex align-items-center justify-content-between" style="background:#f8f9fa;border-bottom:1px solid #e5e8ec">
+      <span style="font-size:.88rem;font-weight:600;color:#1b3a5f">
+        <i class="bi bi-file-earmark-text me-1"></i>Buste caricate — {{ mese_nome }} {{ anno|anno_it }}
+      </span>
+      <span class="text-muted" style="font-size:.8rem">{{ buste_periodo|length }} documenti</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table mb-0" style="font-size:.84rem">
+        <thead style="background:#e9ecef">
+          <tr>
+            <th class="py-2 px-3">Dipendente</th>
+            <th class="py-2">Descrizione</th>
+            <th class="py-2">Caricata il</th>
+            <th class="py-2 text-center" style="width:120px">Azione</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in buste_periodo %}
+          <tr>
+            <td class="py-2 px-3">
+              {% if d.dipendente %}
+                {{ d.dipendente.cognome }} {{ d.dipendente.nome }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="py-2">{{ d.descrizione|default:'—' }}</td>
+            <td class="py-2">{{ d.data_caricamento|date:"d/m/Y H:i" }}</td>
+            <td class="py-2 text-center">
+              <a href="{% url 'download_documento' d.id %}" class="btn btn-sm btn-outline-primary" style="font-size:.75rem">
+                <i class="bi bi-download me-1"></i>Apri
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="4" class="py-3 text-center text-muted">Nessuna busta trovata per i filtri selezionati.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

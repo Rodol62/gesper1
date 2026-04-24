@@ -1,0 +1,31 @@
+{% load format_it_tags %}
+<tr>
+  <td class="ps-2 text-muted">{{ voce.ordinamento }}</td>
+  <td><strong>{{ voce.periodo_riferimento }}</strong></td>
+  <td style="white-space:nowrap">{{ voce.data_pagamento|date:"d/m/Y" }}</td>
+  <td class="text-end">{% if voce.ore_ordinarie %}{{ voce.ore_ordinarie|num_it:1 }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end">{% if voce.ore_straordinario and voce.ore_straordinario > 0 %}<span style="color:#7d6608">{{ voce.ore_straordinario|num_it:1 }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end">{% if voce.ore_assenza %}{{ voce.ore_assenza|num_it:1 }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end euro">{% if voce.retribuzione_base %}€ {{ voce.retribuzione_base|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end euro">{% if voce.indennita_accessorie %}€ {{ voce.indennita_accessorie|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end euro" style="color:#1a5276">{% if voce.lordo_mensile %}<strong>€ {{ voce.lordo_mensile|euro_it }}</strong>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end euro" style="color:#922b21">{% if voce.inps_dipendente %}€ {{ voce.inps_dipendente|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end euro" style="color:#922b21">{% if voce.irpef %}€ {{ voce.irpef|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end euro" style="color:#922b21">{% if voce.addizionali %}€ {{ voce.addizionali|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end euro" style="color:#922b21">{% if voce.altre_trattenute %}€ {{ voce.altre_trattenute|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end euro" style="color:#1e8449">{% if voce.trattamento_integrativo %}+€ {{ voce.trattamento_integrativo|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end euro"><strong style="font-size:.9rem">€ {{ voce.importo|euro_it }}</strong></td>
+  <td class="text-end euro text-muted">{% if voce.tfr_mensile %}€ {{ voce.tfr_mensile|euro_it }}{% else %}—{% endif %}</td>
+  <td class="text-end euro text-muted">{% if voce.rateo_13 %}€ {{ voce.rateo_13|euro_it }}{% else %}—{% endif %}</td>
+  <td class="text-end euro text-muted">{% if voce.rateo_14 %}€ {{ voce.rateo_14|euro_it }}{% else %}—{% endif %}</td>
+  <td class="text-end euro" style="color:#6c3483">{% if voce.inps_azienda %}€ {{ voce.inps_azienda|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end euro" style="color:#6c3483">{% if voce.inail_azienda %}€ {{ voce.inail_azienda|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="text-end euro" style="color:#922b21">{% if voce.costo_azienda %}<strong>€ {{ voce.costo_azienda|euro_it }}</strong>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td>
+    <span class="badge {% if voce.fonte_dati == 'simulazione' %}bg-primary{% elif voce.fonte_dati == 'documento' %}bg-success{% elif voce.fonte_dati == 'importazione' %}bg-warning text-dark{% else %}bg-secondary{% endif %}" style="font-size:.65rem">
+      {{ voce.get_fonte_dati_display }}
+    </span>
+  </td>
+  <td class="small text-muted" style="max-width:16rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ voce.fonte_calcolo|default:'—' }}">{{ voce.fonte_calcolo|default:"—"|truncatechars:64 }}</td>
+  <td class="small text-muted" style="max-width:10rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ voce.note|default:'' }}">{{ voce.note|default:""|truncatechars:32 }}</td>
+</tr>

@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Registra Presenza{% endblock %}
+{% block content %}
+<h2 class="mb-4">Registra Presenza per {{ dipendente }}</h2>
+<form method="post" class="mb-3">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      {{ form.data.label_tag }}
+      {{ form.data }}
+    </div>
+    <div class="col-md-4">
+      {{ form.ora_entrata.label_tag }}
+      {{ form.ora_entrata }}
+    </div>
+    <div class="col-md-4">
+      {{ form.ora_uscita.label_tag }}
+      {{ form.ora_uscita }}
+    </div>
+    <div class="col-12">
+      {{ form.note.label_tag }}
+      {{ form.note }}
+    </div>
+  </div>
+  <button type="submit" class="btn btn-success mt-4">Salva Presenza</button>
+</form>
+<a href="{% url 'lista_presenze' %}" class="btn btn-secondary">Torna alla lista</a>
+{% endblock %}

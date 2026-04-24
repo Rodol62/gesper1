@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}Cedolino — {{ documento.descrizione|default:documento.nome_file|truncatechars:40 }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.ced-top {
+  background: var(--c-primary);
+  color: #fff;
+  padding: .55rem 1rem;
+  border-radius: 6px;
+  margin-bottom: .85rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .65rem;
+}
+.ced-top h1 { font-size: 1rem; font-weight: 700; margin: 0; line-height: 1.25; }
+.ced-top .sub { font-size: .72rem; opacity: .88; margin: .15rem 0 0; }
+.ced-actions { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+.ced-section {
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  margin-bottom: .75rem;
+  overflow: hidden;
+  background: #fff;
+}
+.ced-section h2 {
+  background: var(--c-primary);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin: 0;
+  padding: .4rem .75rem;
+}
+.ced-kv { margin: 0; font-size: .82rem; }
+.ced-kv dt {
+  color: var(--c-muted);
+  font-weight: 600;
+  font-size: .74rem;
+  padding: .35rem .75rem 0;
+}
+.ced-kv dd {
+  margin: 0;
+  padding: .1rem .75rem .4rem;
+  border-bottom: 1px solid #e8edf2;
+  font-variant-numeric: tabular-nums;
+}
+.ced-kv dd:last-of-type { border-bottom: none; }
+.ced-note {
+  font-size: .78rem;
+  color: var(--c-muted);
+  border-left: 3px solid var(--c-accent);
+  padding: .4rem .65rem;
+  background: var(--c-alt);
+  border-radius: 0 4px 4px 0;
+  margin-bottom: .85rem;
+}
+.ced-table-wrap { padding: 0 .5rem .5rem; }
+.ced-table-wrap .table { font-size: .78rem; margin-bottom: 0; }
+.ced-table-wrap .table th { font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; color: var(--c-muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav aria-label="Percorso" class="mb-2">
+  <ol class="breadcrumb mb-0" style="font-size:.8rem">
+    <li class="breadcrumb-item"><a href="{% url 'lista_documenti' %}?categoria=buste&tipo=busta_paga&anno=&dipendente=">Documenti / Buste</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Cedolino</li>
+  </ol>
+</nav>
+
+<div class="ced-top">
+  <div>
+    <h1><i class="bi bi-table me-1"></i> Estrazione cedolino</h1>
+    <p class="sub">
+      {% if documento.dipendente %}{{ documento.dipendente.cognome }} {{ documento.dipendente.nome }} — {% endif %}
+      {{ documento.descrizione|default:documento.nome_file }}
+    </p>
+  </div>
+  <div class="ced-actions">
+    <a href="{% url 'visualizza_documento' documento.id %}" class="btn btn-sm btn-light">
+      <i class="bi bi-file-earmark-pdf"></i> PDF
+    </a>
+    <a href="{% url 'download_documento' documento.id %}" class="btn btn-sm btn-outline-light">
+      <i class="bi bi-download"></i> Scarica
+    </a>
+    <a href="?format=json" class="btn btn-sm btn-outline-light" title="Risposta JSON per integrazioni">
+      <i class="bi bi-braces"></i> JSON
+    </a>
+  </div>
+</div>
+
+<p class="ced-note mb-3">
+  Estrazione dalla prima pagina del PDF (regex layout TeamSystem tipico). Sono inclusi, se rilevabili nel testo, anche i <strong>dati azienda / datore</strong>.
+  Con layout diversi alcuni campi possono risultare &laquo;N/D&raquo;.
+</p>
+
+{% include "documenti/_cedolino_busta_sections.html" %}
+{% endblock %}

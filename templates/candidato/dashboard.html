@@ -1,0 +1,1561 @@
+{% extends 'base_candidato.html' %}
+{% load currency_filters format_it_tags %}
+{% block title %}{{ e_dipendente|yesno:"La mia area,La mia candidatura" }} — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="alert alert-light border py-2 small mb-2" role="status">
+    <div class="mb-1"><strong>Portale.</strong> Profilo, proposta, richieste, documenti e presenze (se dipendente) da qui o dal menu in alto.</div>
+    <div class="mb-0 text-muted" style="font-size:.9em">
+      <a href="{% url 'guida_modulo' 'portale-dipendente' %}">Guida: portale dipendente</a>
+    </div>
+  </div>
+
+  {% if richieste_con_risposta_count %}
+  <div class="alert alert-info py-2 mb-2" style="font-size:.82rem">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div>
+        <i class="bi bi-reply-fill"></i>
+        Hai ricevuto <strong>{{ richieste_con_risposta_count }}</strong> risposta/e alle tue richieste.
+      </div>
+      <a href="{% url 'candidato_mie_richieste' %}" class="btn btn-sm btn-outline-primary" style="font-size:.75rem">
+        <i class="bi bi-eye"></i> Leggi dettagli
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if richiesta_ricevuta_attiva %}
+  <div class="alert alert-warning py-2 mb-2" style="font-size:.82rem">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div>
+        <i class="bi bi-megaphone"></i>
+        Hai ricevuto una richiesta dal datore di lavoro: <strong>{{ richiesta_ricevuta_attiva.titolo }}</strong>.
+      </div>
+      <a href="{% url 'candidato_dettaglio_richiesta_ricevuta' richiesta_ricevuta_attiva.id %}" class="btn btn-sm btn-outline-dark" style="font-size:.75rem">
+        <i class="bi bi-file-text"></i> Apri dettaglio
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not e_dipendente %}
+  {% if richiesta_integrazione_attiva or ultima_richiesta_integrazione %}
+  {% with richiesta=richiesta_integrazione_attiva|default:ultima_richiesta_integrazione %}
+  <div class="alert {% if richiesta.stato == 'approvata_hr' %}alert-success{% elif richiesta.stato == 'completata_candidato' %}alert-info{% else %}alert-warning{% endif %} py-2 mb-3" style="font-size:.84rem">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <strong><i class="bi bi-clipboard2-check"></i> {{ richiesta.titolo }}</strong><br>
+        {% if richiesta.stato == 'inviata' %}
+          L'ufficio HR ti ha chiesto di integrare il profilo prima della convalida.
+        {% elif richiesta.stato == 'completata_candidato' %}
+          Hai completato l'integrazione. HR sta verificando i dati prima della convalida.
+        {% else %}
+          L'integrazione è stata approvata da HR. La candidatura può procedere.
+        {% endif %}
+        {% if checklist_integrazione.mancanti and richiesta.stato == 'inviata' %}
+        <div class="mt-1">
+          <strong>Mancano ancora:</strong> {{ checklist_integrazione.mancanti|join:", " }}.
+        </div>
+        {% endif %}
+      </div>
+      <a href="{% url 'candidato_completa_profilo' %}" class="btn btn-sm btn-outline-dark" style="font-size:.78rem">
+        <i class="bi bi-pencil-square"></i> Apri profilo
+      </a>
+    </div>
+  </div>
+  {% endwith %}
+  {% endif %}
+  {% endif %}
+
+  {% if e_dipendente %}
+  {# ════════════════════════════════════════════════════════════════ #}
+  {# MODALITÀ DIPENDENTE                                              #}
+  {# ════════════════════════════════════════════════════════════════ #}
+
+  {# ── Header benvenuto (compact) ───────────────────────────────── #}
+  <div style="background:linear-gradient(135deg,#0a6640,#1a8c57);color:#fff;border-radius:7px;
+              padding:.45rem .9rem;margin-bottom:.5rem;display:flex;align-items:center;
+              justify-content:space-between;flex-wrap:wrap;gap:.3rem">
+    <div>
+      <div style="font-size:.75rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em">Area Dipendente</div>
+      <div style="font-size:.9rem;font-weight:800;margin:1px 0">
+        <i class="bi bi-person-badge-fill"></i>
+        {{ request.user.first_name }} {{ request.user.last_name }}
+      </div>
+      {% if contratto %}
+      <div style="font-size:.82rem;opacity:.9">
+        {{ contratto.azienda.nome }} &nbsp;·&nbsp; {{ contratto.livello_ccnl }}
+        &nbsp;·&nbsp; {{ contratto.posizione }}
+        &nbsp;·&nbsp; dal {{ contratto.data_inizio_rapporto|date:"d/m/Y" }}
+      </div>
+      {% endif %}
+    </div>
+    <div class="d-flex gap-1 flex-wrap">
+      <a href="{% url 'candidato_mio_contratto' %}"
+         style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.35);
+                font-size:.8rem;padding:.2rem .55rem;border-radius:4px;text-decoration:none">
+        <i class="bi bi-file-text"></i> Contratto
+      </a>
+      <a href="{% url 'candidato_completa_profilo' %}"
+         style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.35);
+                font-size:.8rem;padding:.2rem .55rem;border-radius:4px;text-decoration:none">
+        <i class="bi bi-pencil-square"></i> Profilo
+      </a>
+    </div>
+  </div>
+
+  {# ── Layout principale: colonna SX contratto + colonna DX funzioni ── #}
+  <div class="row g-2">
+
+    {# ── Colonna SX: Riepilogo contratto ───────────────────────── #}
+    {% if contratto %}
+    <div class="col-12 col-lg-5">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header py-1 px-3" style="background:#f0faf4;font-size:.83rem;font-weight:700;
+                                                   color:#0a6640;border-bottom:1px solid #c8ebd8">
+          <i class="bi bi-file-earmark-check-fill"></i>
+          Riepilogo — {{ contratto.numero_contratto }}
+        </div>
+        <div class="card-body py-2 px-3">
+
+          {# Dati contratto: griglia 3 colonne compatta #}
+          <div class="row g-1" style="font-size:.86rem">
+            <div class="col-4">
+              <div style="color:#2f4a6b;font-size:.72rem;text-transform:uppercase;font-weight:600">Tipo</div>
+              <div style="font-weight:700;color:#1b3a5f;font-size:.83rem">{{ contratto.tipo_contratto.nome }}</div>
+            </div>
+            <div class="col-4">
+              <div style="color:#2f4a6b;font-size:.72rem;text-transform:uppercase;font-weight:600">Livello CCNL</div>
+              <div style="font-weight:700;color:#1b3a5f;font-size:.83rem">{{ contratto.livello_ccnl }}</div>
+            </div>
+            <div class="col-4">
+              <div style="color:#2f4a6b;font-size:.72rem;text-transform:uppercase;font-weight:600">Qualifica</div>
+              <div style="font-weight:700;color:#1b3a5f;font-size:.83rem">{{ contratto.qualifica }}</div>
+            </div>
+            <div class="col-4">
+              <div style="color:#2f4a6b;font-size:.72rem;text-transform:uppercase;font-weight:600">Ore/sett.</div>
+              <div style="font-weight:700;color:#1b3a5f;font-size:.83rem">{{ contratto.ore_settimanali|ore_hm }}h</div>
+            </div>
+            <div class="col-4">
+              <div style="color:#2f4a6b;font-size:.72rem;text-transform:uppercase;font-weight:600">Lordo/mese</div>
+              <div style="font-weight:700;color:#0a6640;font-size:.88rem">€ {% if calc_ret and calc_ret.lordo_mensile %}{{ calc_ret.lordo_mensile|euro_it }}{% elif contratto.stipendio_lordo_mensile is not None %}{{ contratto.stipendio_lordo_mensile|euro_it }}{% else %}—{% endif %}</div>
+            </div>
+            <div class="col-4">
+              <div style="color:#2f4a6b;font-size:.72rem;text-transform:uppercase;font-weight:600">Ferie · perm. (contratto)</div>
+              <div style="font-weight:700;color:#1b3a5f;font-size:.83rem">
+                {{ contratto.giorni_ferie_annuali }} gg · {{ contratto.giorni_permesso_annuali }} gg
+              </div>
+            </div>
+            <div class="col-4">
+              <div style="color:#2f4a6b;font-size:.72rem;text-transform:uppercase;font-weight:600">Paga base</div>
+              <div style="font-weight:600;color:#555;font-size:.83rem">€ {% if calc_ret and calc_ret.paga_base %}{{ calc_ret.paga_base|euro_it }}{% elif contratto.paga_base_mensile is not None %}{{ contratto.paga_base_mensile|euro_it }}{% else %}—{% endif %}</div>
+            </div>
+            <div class="col-4">
+              <div style="color:#2f4a6b;font-size:.72rem;text-transform:uppercase;font-weight:600">13ª · 14ª</div>
+              <div>
+                {% if contratto.tredicesima %}<span class="badge bg-success" style="font-size:.67rem">13ª</span>{% endif %}
+                {% if contratto.quattordicesima %}<span class="badge bg-success" style="font-size:.67rem">14ª</span>{% endif %}
+                {% if not contratto.tredicesima and not contratto.quattordicesima %}<span class="badge bg-secondary" style="font-size:.67rem">—</span>{% endif %}
+              </div>
+            </div>
+            <div class="col-4">
+              <div style="color:#2f4a6b;font-size:.72rem;text-transform:uppercase;font-weight:600">
+                {% if origine_data == 'contratto' %}Inizio rapporto{% else %}Disponibile dal{% endif %}
+              </div>
+              <div style="font-weight:700;color:#1b3a5f;font-size:.83rem">
+                {{ data_inizio_validita|date:"d/m/Y"|default:"—" }}
+              </div>
+            </div>
+          </div>
+
+          {# Diritti annuali (normativa) + ratei mensili 13ª / 14ª / TFR #}
+          {% if preview_parametri_ferie_rol or ratei_mensili_riepilogo %}
+          <div class="mt-2 pt-2" style="border-top:1px solid #c8ebd8">
+            <div style="font-size:.7rem;font-weight:700;color:#0a6640;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem">
+              <i class="bi bi-calculator"></i> Ferie, permessi e ratei (riferimento attuale)
+            </div>
+            <div class="row g-1" style="font-size:.82rem">
+              {% if preview_parametri_ferie_rol %}
+              <div class="col-6">
+                <div style="color:#2f4a6b;font-size:.68rem;text-transform:uppercase;font-weight:600">Ferie contrattuali spettanti</div>
+                <div style="font-weight:700;color:#1b3a5f">{{ preview_parametri_ferie_rol.ferie_annue_giorni|floatformat:2 }} gg</div>
+                <div style="font-size:.65rem;color:#666">da normativa CCNL applicata al rapporto</div>
+              </div>
+              <div class="col-6">
+                <div style="color:#2f4a6b;font-size:.68rem;text-transform:uppercase;font-weight:600">Permessi retribuiti (ROL annui)</div>
+                <div style="font-weight:700;color:#1b3a5f">{{ preview_parametri_ferie_rol.rol_annui_ore|floatformat:2 }} h</div>
+                <div style="font-size:.65rem;color:#666">ore annuali per il calcolo maturazioni</div>
+              </div>
+              {% endif %}
+              {% if ratei_mensili_riepilogo and calc_ret %}
+              <div class="col-12 mt-1">
+                <div style="color:#2f4a6b;font-size:.68rem;font-weight:600;text-transform:uppercase">Ratei mensili accantonati</div>
+                <div class="row g-1 mt-1">
+                  <div class="col-12 col-md-4">
+                    <div style="background:#fafafa;border:1px solid #ddeedd;border-radius:4px;padding:.25rem .4rem">
+                      <div style="font-size:.65rem;color:#555">13ª / mese</div>
+                      {% if calc_ret.tredicesima %}
+                      <div style="font-size:.78rem">L € {{ ratei_mensili_riepilogo.r13_lordo_m|euro_it }} · N € {{ ratei_mensili_riepilogo.r13_netto_m|euro_it }}</div>
+                      {% else %}<div style="font-size:.74rem;color:#aaa">Non prevista</div>{% endif %}
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <div style="background:#fafafa;border:1px solid #ddeedd;border-radius:4px;padding:.25rem .4rem">
+                      <div style="font-size:.65rem;color:#555">14ª / mese</div>
+                      {% if calc_ret.quattordicesima %}
+                      <div style="font-size:.78rem">L € {{ ratei_mensili_riepilogo.r14_lordo_m|euro_it }} · N € {{ ratei_mensili_riepilogo.r14_netto_m|euro_it }}</div>
+                      {% else %}<div style="font-size:.74rem;color:#aaa">Non prevista</div>{% endif %}
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <div style="background:#fafafa;border:1px solid #ddeedd;border-radius:4px;padding:.25rem .4rem">
+                      <div style="font-size:.65rem;color:#555">TFR / mese</div>
+                      <div style="font-size:.78rem">L € {{ ratei_mensili_riepilogo.rtfr_lordo_m|euro_it }} · N € {{ ratei_mensili_riepilogo.rtfr_netto_m|euro_it }}</div>
+                    </div>
+                  </div>
+                </div>
+                <div style="font-size:.6rem;color:#888;margin-top:.25rem">Netti ratei senza trattamento integrativo / bonus (come in busta).</div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+
+          {# Sezione retribuzione primo mese #}
+          {% if calc_ret %}
+          <div style="border-top:1px solid #c8ebd8;margin:.5rem 0 .4rem"></div>
+
+          {# ── Simulazione primo mese ───────────────────────────── #}
+          {% if calc_ret_primo_mese %}
+          {# HEADER periodo #}
+          <div style="background:#1b3a5f;color:#fff;border-radius:5px 5px 0 0;padding:.35rem .65rem;
+                      display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem">
+            <div style="font-size:.8rem;font-weight:700">
+              <i class="bi bi-calendar2-event"></i>
+              Simulazione — {{ calc_ret_primo_mese.data_inizio|date:"d/m/Y" }} → {{ calc_ret_primo_mese.data_fine|date:"d/m/Y" }}
+            </div>
+            <div style="font-size:.75rem;opacity:.85">
+              <strong>{{ calc_ret_primo_mese.giorni_lavorati }}</strong> gg lavorativi
+              su {{ calc_ret_primo_mese.giorni_nel_mese }} · lun–dom festivi inclusi
+              {% if origine_data == 'contratto' %}
+              <span style="background:rgba(255,255,255,.2);border-radius:3px;padding:.05rem .3rem;margin-left:.3rem;font-size:.7rem">da contratto</span>
+              {% else %}
+              <span style="background:rgba(255,255,255,.2);border-radius:3px;padding:.05rem .3rem;margin-left:.3rem;font-size:.7rem">da profilo</span>
+              {% endif %}
+            </div>
+          </div>
+
+          {# CORPO simulazione parziale #}
+          <div style="border:1px solid #c8ebd8;border-top:none;border-radius:0 0 5px 5px;padding:.5rem .65rem .45rem;margin-bottom:.35rem">
+
+            {# Totale periodo #}
+            <div style="display:flex;gap:1.5rem;align-items:center;margin-bottom:.4rem;
+                        padding:.3rem .5rem;background:#f8fffe;border-radius:4px">
+              <div>
+                <div style="font-size:.7rem;color:#2f4a6b;text-transform:uppercase;font-weight:600">Lordo periodo</div>
+                <div style="font-weight:700;color:#1b3a5f;font-size:.88rem">€ {{ calc_ret_primo_mese.lordo|euro_it }}</div>
+              </div>
+              <div style="color:#c8ebd8">|</div>
+              <div>
+                <div style="font-size:.7rem;color:#0a6640;text-transform:uppercase;font-weight:700">Netto periodo</div>
+                <div style="font-weight:800;color:#0a6640;font-size:1.1rem">€ {{ calc_ret_primo_mese.netto|euro_it }}</div>
+              </div>
+              <div style="margin-left:auto;text-align:right">
+                <div style="font-size:.7rem;color:#888">Dal 2° mese</div>
+                <div style="font-weight:800;color:#0a6640;font-size:.85rem">€ {{ calc_ret.netto_mensile|euro_it }}</div>
+              </div>
+            </div>
+
+            {# Separatore: Analisi giornaliera #}
+            <div style="font-size:.72rem;font-weight:700;color:#2f4a6b;text-transform:uppercase;
+                        letter-spacing:.06em;margin:.3rem 0 .25rem;border-top:1px dashed #c8ebd8;padding-top:.3rem">
+              <i class="bi bi-grid-1x2-fill" style="color:#1b3a5f"></i> Analisi giornaliera
+            </div>
+
+            {# Paga oraria e giornaliera #}
+            <div class="row g-1 mb-1">
+              <div class="col-3">
+                <div style="background:#f4f7fa;border-radius:3px;padding:.25rem .35rem">
+                  <div style="color:#2f4a6b;font-size:.68rem;text-transform:uppercase;font-weight:600">€/h lorda</div>
+                  <div style="font-weight:700;color:#1b3a5f;font-size:.88rem">€ {{ calc_ret.paga_oraria_lorda|num_it:4 }}</div>
+                </div>
+              </div>
+              <div class="col-3">
+                <div style="background:#e8f5ee;border-radius:3px;padding:.25rem .35rem" title="Include TI DL 3/2020{% if calc_ret.bonus_l207 %} e Bonus L.207/2024{% endif %}">
+                  <div style="color:#0a6640;font-size:.68rem;text-transform:uppercase;font-weight:700">€/h netta</div>
+                  <div style="font-weight:800;color:#0a6640;font-size:.88rem">€ {{ calc_ret.paga_oraria_netta|num_it:4 }}</div>
+                  {% if calc_ret.trattamento_integrativo or calc_ret.bonus_l207 %}<div style="font-size:.58rem;color:#1a7a1a">incl. bonus</div>{% endif %}
+                </div>
+              </div>
+              <div class="col-3">
+                <div style="background:#f4f7fa;border-radius:3px;padding:.25rem .35rem">
+                  <div style="color:#2f4a6b;font-size:.68rem;text-transform:uppercase;font-weight:600">€/gg lorda</div>
+                  <div style="font-weight:700;color:#1b3a5f;font-size:.88rem">€ {{ calc_ret.paga_giornaliera_lorda|euro_it }}</div>
+                </div>
+              </div>
+              <div class="col-3">
+                <div style="background:#e8f5ee;border-radius:3px;padding:.25rem .35rem" title="Include TI DL 3/2020{% if calc_ret.bonus_l207 %} e Bonus L.207/2024{% endif %}">
+                  <div style="color:#0a6640;font-size:.68rem;text-transform:uppercase;font-weight:700">€/gg netta</div>
+                  <div style="font-weight:800;color:#0a6640;font-size:.88rem">€ {{ calc_ret.paga_giornaliera_netta|euro_it }}</div>
+                  {% if calc_ret.trattamento_integrativo or calc_ret.bonus_l207 %}<div style="font-size:.58rem;color:#1a7a1a">incl. bonus</div>{% endif %}
+                </div>
+              </div>
+            </div>
+
+            {# Ratei giornalieri #}
+            <div style="font-size:.7rem;color:#2f4a6b;font-weight:600;text-transform:uppercase;margin:.2rem 0 .15rem"
+                 title="Ratei netti calcolati senza TI/L207 (non si applicano a 13ª/14ª/TFR)">
+              Ratei accantonati al giorno (lordo / netto)
+            </div>
+            <div class="row g-1 mb-1">
+              <div class="col-4">
+                <div style="background:#fafafa;border:1px solid #ddeedd;border-radius:3px;padding:.2rem .35rem">
+                  <div style="color:#2f4a6b;font-size:.67rem;font-weight:600">13ª /gg</div>
+                  {% if calc_ret.tredicesima %}
+                    <div style="font-size:.83rem">
+                      <span style="color:#555;font-weight:600">L €{{ calc_ret.rateo_13_lordo_g|euro_it }}</span>
+                      <span style="color:#aaa"> · </span>
+                      <span style="color:#0a6640;font-weight:700">N €{{ calc_ret.rateo_13_netto_g|euro_it }}</span>
+                    </div>
+                  {% else %}<div style="font-size:.77rem;color:#aaa">Non prevista</div>{% endif %}
+                </div>
+              </div>
+              <div class="col-4">
+                <div style="background:#fafafa;border:1px solid #ddeedd;border-radius:3px;padding:.2rem .35rem">
+                  <div style="color:#2f4a6b;font-size:.67rem;font-weight:600">14ª /gg</div>
+                  {% if calc_ret.quattordicesima %}
+                    <div style="font-size:.83rem">
+                      <span style="color:#555;font-weight:600">L €{{ calc_ret.rateo_14_lordo_g|euro_it }}</span>
+                      <span style="color:#aaa"> · </span>
+                      <span style="color:#0a6640;font-weight:700">N €{{ calc_ret.rateo_14_netto_g|euro_it }}</span>
+                    </div>
+                  {% else %}<div style="font-size:.77rem;color:#aaa">Non prevista</div>{% endif %}
+                </div>
+              </div>
+              <div class="col-4">
+                <div style="background:#fafafa;border:1px solid #ddeedd;border-radius:3px;padding:.2rem .35rem">
+                  <div style="color:#2f4a6b;font-size:.67rem;font-weight:600">TFR /gg</div>
+                  <div style="font-size:.83rem">
+                    <span style="color:#555;font-weight:600">L €{{ calc_ret.rateo_tfr_lordo_g|euro_it }}</span>
+                    <span style="color:#aaa"> · </span>
+                    <span style="color:#0a6640;font-weight:700">N €{{ calc_ret.rateo_tfr_netto_g|euro_it }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {# Barra totale netto/gg #}
+            <div style="background:#0a6640;color:#fff;border-radius:4px;padding:.3rem .6rem;
+                        display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.3rem">
+              <div>
+                <div style="font-size:.72rem;opacity:.85;font-weight:600;text-transform:uppercase;letter-spacing:.04em">
+                  Totale netto/giorno (paga + ratei accantonati)
+                </div>
+                <div style="font-size:.7rem;opacity:.75">
+                  Paga netta/gg
+                  {% if calc_ret.tredicesima %} + 13ª{% endif %}
+                  {% if calc_ret.quattordicesima %} + 14ª{% endif %}
+                  + TFR
+                </div>
+              </div>
+              <div style="font-size:1.1rem;font-weight:800">€ {{ calc_ret.totale_netto_g|euro_it }}</div>
+            </div>
+
+            {# Box educativo — personalizzato se paga_giornaliera_attesa valorizzata #}
+            {% if profilo.paga_giornaliera_attesa %}
+            <div style="background:#fffbe6;border:1px solid #f0d060;border-radius:4px;
+                        padding:.35rem .55rem;margin-top:.35rem;font-size:.75rem;color:#5a4000;line-height:1.55">
+              <div style="font-weight:700;margin-bottom:.2rem">
+                <i class="bi bi-lightbulb-fill" style="color:#c07000"></i>
+                Paga attesa vs contratto
+              </div>
+              <div>
+                Hai indicato di voler guadagnare
+                <strong>€ {{ profilo.paga_giornaliera_attesa|euro_it }}/gg netti</strong>.
+                Paga netta/gg in busta: <strong style="color:#0a6640">€ {{ calc_ret.paga_giornaliera_netta|euro_it }}</strong>.
+                Valore totale/gg inclusi ratei: <strong style="color:#0a6640">€ {{ calc_ret.totale_netto_g|euro_it }}</strong>.
+              </div>
+              {% if calc_ret.totale_netto_g >= profilo.paga_giornaliera_attesa %}
+              <div style="margin-top:.2rem;color:#0a4a2a;font-weight:700">
+                <i class="bi bi-check-circle-fill" style="color:#0a6640"></i>
+                Obiettivo raggiunto! Il contratto supera le tue aspettative.
+              </div>
+              {% else %}
+              <div style="margin-top:.2rem;color:#7a5000">
+                <i class="bi bi-arrow-right-circle-fill"></i>
+                Il valore complessivo/gg (€ {{ calc_ret.totale_netto_g|euro_it }}) include
+                13ª{% if calc_ret.quattordicesima %}, 14ª{% endif %} e TFR accantonati — considera il quadro completo!
+              </div>
+              {% endif %}
+            </div>
+            {% else %}
+            <div style="background:#f0f7ff;border:1px solid #c0d8f0;border-radius:4px;
+                        padding:.35rem .55rem;margin-top:.35rem;font-size:.75rem;color:#1a3a5c;line-height:1.55">
+              <div style="font-weight:700;margin-bottom:.15rem">
+                <i class="bi bi-info-circle-fill" style="color:#2d6199"></i>
+                Il valore economico della tua giornata
+              </div>
+              <div>
+                Busta paga: <strong style="color:#0a6640">€ {{ calc_ret.paga_giornaliera_netta|euro_it }}/gg</strong>.
+                Con ratei (13ª{% if calc_ret.quattordicesima %}, 14ª{% endif %}, TFR):
+                <strong style="color:#0a6640">€ {{ calc_ret.totale_netto_g|euro_it }}/gg</strong>.
+                <a href="{% url 'candidato_completa_profilo' %}" style="color:#1b3a5f;font-weight:700;white-space:nowrap">Imposta la paga attesa →</a>
+              </div>
+            </div>
+            {% endif %}
+
+          </div>{# /corpo simulazione #}
+
+          {% else %}
+          {# Mese intero (inizia dal 1°) — stesso layout senza il periodo #}
+          <div style="background:#f0faf4;border:1px solid #b7dfc9;border-radius:5px;padding:.35rem .6rem;
+                      display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+            <div style="font-size:.75rem;color:#555;font-weight:700">
+              <i class="bi bi-calendar2-check-fill" style="color:#0a6640"></i>
+              Retribuzione mensile (dal 1° del mese)
+            </div>
+            <div>
+              <span style="font-size:.72rem;color:#0a6640;font-weight:600">netto/mese</span>
+              <span style="font-weight:800;color:#0a6640;font-size:1.05rem;margin-left:.4rem">€ {{ calc_ret.netto_mensile|euro_it }}</span>
+            </div>
+          </div>
+          {% endif %}
+
+          {# ── Dettaglio fiscale (collapsibile) ─────────────────────── #}
+          <div style="margin-bottom:.4rem">
+            <button type="button"
+              onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'"
+              style="background:none;border:1px solid #b7dfc9;border-radius:4px;padding:.2rem .5rem;
+                     font-size:.72rem;color:#1b4a30;cursor:pointer;width:100%;text-align:left">
+              <i class="bi bi-calculator"></i> Dettaglio calcolo fiscale mensile ▾
+            </button>
+            <div style="display:none;background:#f8fffe;border:1px solid #b7dfc9;border-radius:0 0 4px 4px;
+                        padding:.4rem .6rem;font-size:.72rem">
+              <table style="width:100%;border-collapse:collapse">
+                <tr>
+                  <td style="color:#555;padding:.08rem 0">Lordo mensile</td>
+                  <td class="text-end" style="font-weight:700;color:#1b3a5f">€ {{ calc_ret.lordo_mensile|euro_it }}</td>
+                </tr>
+                {% if calc_ret.rateo_13_lordo_m %}
+                <tr>
+                  <td style="color:#555">+ Rateo 13ª mensilità accantonato/mese (erogato a dic.)</td>
+                  <td class="text-end euro" style="color:#1b3a5f">€ {{ calc_ret.rateo_13_lordo_m|euro_it }}</td>
+                </tr>
+                {% endif %}
+                {% if calc_ret.rateo_14_lordo_m %}
+                <tr>
+                  <td style="color:#555">+ Rateo 14ª mensilità accantonato/mese (erogato a lug.)</td>
+                  <td class="text-end euro" style="color:#1b3a5f">€ {{ calc_ret.rateo_14_lordo_m|euro_it }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                  <td style="color:#555">− INPS dipendente ({{ calc_ret.inps_dip_perc|num_it:2 }}% — CCNL FIPE)</td>
+                  <td class="text-end" style="color:#c0392b">− € {{ calc_ret.inps_dipendente|abs_num|euro_it }}</td>
+                </tr>
+                <tr style="border-top:1px dashed #cde">
+                  <td style="color:#555">= Imponibile fiscale mensile</td>
+                  <td class="text-end" style="font-weight:600">€ {{ calc_ret.imponibile_fiscale|euro_it }}</td>
+                </tr>
+                <tr>
+                  <td style="color:#555;padding-left:.5rem">IRPEF lorda (scaglioni 23/35/43% — art. 11 TUIR)</td>
+                  <td class="text-end" style="color:#c0392b">− € {{ calc_ret.irpef_lorda|abs_num|euro_it }}</td>
+                </tr>
+                <tr>
+                  <td style="color:#1a7a1a;padding-left:.5rem">+ Detrazioni lavoro dipendente (art. 13 TUIR)</td>
+                  <td class="text-end" style="color:#1a7a1a">+ € {{ calc_ret.detrazioni|abs_num|euro_it }}</td>
+                </tr>
+                <tr style="border-top:1px dashed #cde">
+                  <td style="color:#555">= IRPEF netta da trattenere</td>
+                  <td class="text-end" style="color:#c0392b;font-weight:600">− € {{ calc_ret.irpef_netta|abs_num|euro_it }}</td>
+                </tr>
+                <tr style="border-top:1px solid #b7dfc9">
+                  <td style="color:#555;font-weight:600">Netto base (lordo − INPS − IRPEF)</td>
+                  <td class="text-end" style="font-weight:700;color:#0a6640">€ {{ calc_ret.netto_base|euro_it }}</td>
+                </tr>
+                {% if calc_ret.trattamento_integrativo %}
+                <tr>
+                  <td style="color:#1a7a1a">
+                    + Trattamento Integrativo DL 3/2020
+                    {% if calc_ret.ti_eligible %}<span style="background:#e8f5e9;color:#1a7a1a;font-size:.65rem;padding:.0rem .25rem;border-radius:3px;margin-left:.2rem">spettante</span>{% endif %}
+                  </td>
+                  <td class="text-end" style="color:#1a7a1a">+ € {{ calc_ret.trattamento_integrativo|abs_num|euro_it }}</td>
+                </tr>
+                {% endif %}
+                {% if calc_ret.bonus_l207 %}
+                <tr>
+                  <td style="color:#1a7a1a">
+                    + Bonus L. 207/2024 (art. 1 c. 4)
+                    {% if calc_ret.l207_eligible %}<span style="background:#e8f5e9;color:#1a7a1a;font-size:.65rem;padding:.0rem .25rem;border-radius:3px;margin-left:.2rem">spettante</span>{% endif %}
+                  </td>
+                  <td class="text-end" style="color:#1a7a1a">+ € {{ calc_ret.bonus_l207|abs_num|euro_it }}</td>
+                </tr>
+                {% endif %}
+                <tr style="border-top:2px solid #0a6640;background:#e8f5ee">
+                  <td style="font-weight:800;color:#0a6640;padding:.1rem 0">NETTO MENSILE IN BUSTA</td>
+                  <td class="text-end" style="font-weight:800;color:#0a6640;font-size:.9rem">€ {{ calc_ret.netto_mensile|euro_it }}</td>
+                </tr>
+                {% if calc_ret.addiz_reg_mensile or calc_ret.addiz_com_mensile %}
+                <tr style="border-top:1px dashed #ccc">
+                  <td colspan="2" style="color:#888;font-style:italic;font-size:.65rem;padding-top:.15rem">
+                    Stima addizionali (versate anno succ.): reg. Sicilia ≈ € {{ calc_ret.addiz_reg_mensile|euro_it }}/mese
+                    + com. ≈ € {{ calc_ret.addiz_com_mensile|euro_it }}/mese
+                    (totale annuo ≈ € {{ calc_ret.addiz_totale_annuo|euro_it }})
+                  </td>
+                </tr>
+                {% endif %}
+                <tr style="border-top:1px dashed #ccc">
+                  <td colspan="2" style="color:#888;font-size:.62rem;padding-top:.1rem">
+                    Calcolo: CCNL FIPE 2023 · IRPEF art. 11 TUIR · Detrazioni art. 13 TUIR (L. 213/2023)
+                    · TI DL 3/2020 · Bonus L. 207/2024
+                    · Imponibile annuo base: € {{ calc_ret.imponibile_annuo|num_it:0 }}
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </div>
+
+          {# Riga accredito compatta #}
+          <div style="font-size:.75rem;color:#1b4a30;padding:.25rem .5rem;
+                      background:#e8f5ee;border-radius:4px;border:1px solid #b7dfc9;margin-bottom:.4rem;line-height:1.5">
+            <i class="bi bi-bank2"></i>
+            Accredito entro il <strong>15 del mese successivo</strong>
+            {% if profilo and profilo.iban %} · IBAN <strong style="font-family:monospace">{{ profilo.iban }}</strong>{% endif %}
+            · senza ratei
+            {% if calc_ret.tredicesima %} · <strong>13ª</strong> a dicembre{% endif %}
+            {% if calc_ret.quattordicesima %} · <strong>14ª</strong> a luglio{% endif %}
+            · TFR a fine rapporto
+          </div>
+
+          {# Pulsante unico: Dettaglio completo → mio_contratto (include A regime) #}
+          <div class="d-flex gap-1 flex-wrap">
+            <a href="{% url 'candidato_mio_contratto' %}" class="btn btn-sm"
+               style="background:#0a6640;color:#fff;font-size:.8rem;padding:.2rem .55rem">
+              <i class="bi bi-zoom-in"></i> Dettaglio completo — trattamento a regime
+            </a>
+          </div>
+
+          {% endif %}{# /calc_ret #}
+        </div>{# /card-body #}
+      </div>{# /card #}
+    </div>{# /col SX #}
+    {% endif %}{# /contratto #}
+
+    {# ── Colonna DX: Griglia funzioni + Nuova richiesta ──────────── #}
+    <div class="col-12 {% if contratto %}col-lg-7{% endif %}">
+      <div class="row g-2">
+
+        {# Documenti: buste, CUD e altri (un solo ingresso) #}
+        <div class="col-6 col-md-3">
+          <a href="{% url 'candidato_miei_documenti' %}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100" style="transition:.15s;cursor:pointer"
+                 onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+              <div class="card-body text-center py-2 px-2">
+                <div style="font-size:1.4rem;color:#1b3a5f;margin-bottom:.2rem"><i class="bi bi-folder2-open"></i></div>
+                <div style="font-weight:700;font-size:.88rem;color:#1b3a5f">Documenti</div>
+                <div style="font-size:.8rem;color:#666;margin-top:.1rem">Buste, CUD, altri file</div>
+                {% if buste_paga_count or cud_count %}
+                <div class="mt-1 d-flex flex-wrap justify-content-center gap-1">
+                  {% if buste_paga_count %}<span class="badge" style="background:#1b3a5f;font-size:.68rem">{{ buste_paga_count }} buste</span>{% endif %}
+                  {% if cud_count %}<span class="badge" style="background:#2d6199;font-size:.68rem">{{ cud_count }} CUD</span>{% endif %}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </a>
+        </div>
+
+        {# Presenze #}
+        <div class="col-6 col-md-3">
+          <a href="{% url 'candidato_mie_presenze' %}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100" style="transition:.15s;cursor:pointer"
+                 onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+              <div class="card-body text-center py-2 px-2">
+                <div style="font-size:1.4rem;color:#2d6199;margin-bottom:.2rem"><i class="bi bi-calendar2-check-fill"></i></div>
+                <div style="font-weight:700;font-size:.88rem;color:#1b3a5f">Presenze</div>
+                <div style="font-size:.8rem;color:#666;margin-top:.1rem">Storico mensile</div>
+                {% if presenze_mese %}<div class="mt-1"><span class="badge" style="background:#2d6199;font-size:.72rem">{{ presenze_mese }} questo mese</span></div>{% endif %}
+              </div>
+            </div>
+          </a>
+        </div>
+
+        {# Ferie #}
+        <div class="col-6 col-md-3">
+          <a href="{% url 'candidato_mie_richieste' %}?tipo=ferie" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100" style="transition:.15s;cursor:pointer"
+                 onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+              <div class="card-body text-center py-2 px-2">
+                <div style="font-size:1.4rem;color:#0a6640;margin-bottom:.2rem"><i class="bi bi-sun-fill"></i></div>
+                <div style="font-weight:700;font-size:.88rem;color:#1b3a5f">Ferie</div>
+                <div style="font-size:.72rem;color:#666;margin-top:.1rem">Residuo teorico (maturato − goduto)</div>
+                {% if portale_maturazione_ferie_rol and portale_maturazione_ferie_rol.mat_disponibile %}
+                <div class="mt-1 d-flex flex-wrap justify-content-center gap-1">
+                  <span class="badge" style="background:#0a6640;font-size:.68rem">{{ portale_maturazione_ferie_rol.mat_ferie_residue_teoria|floatformat:2 }} gg</span>
+                  <span class="badge bg-light text-dark border" style="font-size:.65rem">{{ portale_maturazione_ferie_rol.mat_ferie_residue_hhmm_equiv }} eq.</span>
+                </div>
+                <div style="font-size:.58rem;color:#888;margin-top:.15rem">Calcolatore ferie e ROL · mese corrente</div>
+                {% elif contratto %}
+                <div class="mt-1"><span class="badge" style="background:#0a6640;font-size:.72rem">{{ contratto.giorni_ferie_annuali }} gg/anno contr.</span></div>
+                {% endif %}
+              </div>
+            </div>
+          </a>
+        </div>
+
+        {# Permessi / ROL #}
+        <div class="col-6 col-md-3">
+          <a href="{% url 'candidato_mie_richieste' %}?tipo=permesso" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100" style="transition:.15s;cursor:pointer"
+                 onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+              <div class="card-body text-center py-2 px-2">
+                <div style="font-size:1.4rem;color:#b85a00;margin-bottom:.2rem"><i class="bi bi-hourglass-split"></i></div>
+                <div style="font-weight:700;font-size:.88rem;color:#1b3a5f">Permessi</div>
+                <div style="font-size:.72rem;color:#666;margin-top:.1rem">ROL — residuo teorico (ore)</div>
+                {% if portale_maturazione_ferie_rol and portale_maturazione_ferie_rol.mat_disponibile %}
+                <div class="mt-1 d-flex flex-wrap justify-content-center gap-1">
+                  <span class="badge" style="background:#b85a00;font-size:.68rem">{{ portale_maturazione_ferie_rol.mat_rol_residue_teoria|floatformat:2 }} h</span>
+                  <span class="badge bg-light text-dark border" style="font-size:.65rem">{{ portale_maturazione_ferie_rol.mat_rol_residue_hhmm }}</span>
+                </div>
+                <div style="font-size:.58rem;color:#888;margin-top:.15rem">Calcolatore ferie e ROL · mese corrente</div>
+                {% elif contratto %}
+                <div class="mt-1"><span class="badge" style="background:#b85a00;font-size:.72rem">{{ contratto.giorni_permesso_annuali }} gg/anno contr.</span></div>
+                {% endif %}
+              </div>
+            </div>
+          </a>
+        </div>
+
+        {# Richieste #}
+        <div class="col-6 col-md-3">
+          <a href="{% url 'candidato_mie_richieste' %}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100" style="transition:.15s;cursor:pointer"
+                 onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+              <div class="card-body text-center py-2 px-2">
+                <div style="font-size:1.4rem;color:#c0392b;margin-bottom:.2rem"><i class="bi bi-send-fill"></i></div>
+                <div style="font-weight:700;font-size:.88rem;color:#1b3a5f">Richieste</div>
+                <div style="font-size:.8rem;color:#666;margin-top:.1rem">Gestione e invio</div>
+                {% if richieste_in_attesa %}<div class="mt-1"><span class="badge bg-danger" style="font-size:.72rem">{{ richieste_in_attesa }} in attesa</span></div>{% endif %}
+              </div>
+            </div>
+          </a>
+        </div>
+
+        {# Nuova richiesta — barra compatta #}
+        <div class="col-12">
+          <div class="p-2" style="background:#f4f7fa;border-radius:5px;border:1px solid #dde4ec;
+                                  display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+            <div style="flex:1;min-width:140px">
+              <div style="font-weight:700;font-size:.86rem;color:#1b3a5f">
+                <i class="bi bi-plus-circle-fill"></i> Invia una nuova richiesta
+              </div>
+              <div style="font-size:.77rem;color:#666">Ferie, permesso, malattia o altra comunicazione</div>
+            </div>
+            <a href="{% url 'candidato_nuova_richiesta' %}" class="btn btn-sm"
+               style="background:#1b3a5f;color:#fff;font-size:.83rem;padding:.25rem .6rem">
+              <i class="bi bi-send"></i> Nuova richiesta
+            </a>
+          </div>
+        </div>
+
+      </div>{# /row DX #}
+    </div>{# /col DX #}
+
+  </div>{# /row layout #}
+
+  {% else %}
+  {# ════════════════════════════════════════════════════════════════ #}
+  {# MODALITÀ CANDIDATO                                              #}
+  {# ════════════════════════════════════════════════════════════════ #}
+
+  {# ── CSS stepper + dot colori ───────────────────────────────── #}
+  <style>
+    .tl-done{background:#0a6640;color:#fff}
+    .tl-danger{background:#c0392b;color:#fff}
+    .tl-warning{background:#8a5700;color:#fff}
+    .tl-primary{background:#1b3a5f;color:#fff}
+    .tl-pending{background:#dee2e6;color:#aaa}
+    .tl-c-done{color:#0a6640}.tl-c-danger{color:#c0392b}
+    .tl-c-warning{color:#8a5700}.tl-c-primary{color:#1b3a5f}.tl-c-muted{color:#aaa}
+
+    .hs-grid{display:grid !important;gap:0;margin-bottom:.5rem}
+    .hs-4{grid-template-columns:repeat(4,1fr) !important}
+    .hs-3{grid-template-columns:repeat(3,1fr) !important}
+    .hs-2{grid-template-columns:repeat(2,1fr) !important}
+    @media(max-width:500px){
+      .hs-4{grid-template-columns:repeat(2,1fr) !important}
+    }
+    .hs-item{display:flex;flex-direction:column;align-items:center;
+             padding:.2rem .05rem .45rem;min-width:0}
+    .hs-conn{display:flex;align-items:center;width:100%}
+    .hs-ln{flex:1;height:2px;background:#dde4ec}
+    .hs-ln-done{background:#0a6640}
+    .hs-dot{width:26px;height:26px;border-radius:50%;flex-shrink:0;
+            display:flex;align-items:center;justify-content:center;
+            font-size:.88rem;position:relative;z-index:1}
+    /* Nascondi linee esterne: prima cella → nascondi hs-ln sinistro;
+       ultima cella → nascondi hs-ln destro */
+    .hs-item:first-child .hs-conn .hs-ln:first-child{visibility:hidden}
+    .hs-item:last-child  .hs-conn .hs-ln:last-child {visibility:hidden}
+    .hs-lbl{font-size:.64rem;font-weight:700;text-align:center;
+            margin-top:.3rem;line-height:1.25;padding:0 .15rem}
+    .hs-sub{font-size:.7rem;color:#888;text-align:center;
+            line-height:1.2;margin-top:1px;padding:0 .1rem}
+    .hs-act{font-size:.72rem;font-weight:700;text-decoration:none;
+            margin-top:.2rem;display:block;text-align:center}
+  </style>
+
+  {# ── Banner proposta da firmare (nuovo flusso) ───────────────── #}
+  {% if proposta_da_firmare %}
+  <div style="background:#e8f5e9;border:2px solid #2d9a5f;border-radius:6px;
+              padding:.65rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+    <i class="bi bi-pen-fill fs-5" style="color:#0a6640;flex-shrink:0"></i>
+    <div style="flex:1;min-width:200px">
+      <strong style="color:#0a6640;font-size:.85rem">Hai una proposta di assunzione da firmare!</strong><br>
+      <span style="font-size:.88rem;color:#555">
+        {{ proposta_da_firmare.numero_proposta }} — {{ proposta_da_firmare.azienda.nome }}
+        {% if proposta_da_firmare.tipo_contratto %}, {{ proposta_da_firmare.tipo_contratto }}{% endif %}
+      </span>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'firma_proposta_candidato' proposta_da_firmare.id %}"
+         style="background:#0a6640;color:#fff;font-weight:700;font-size:.9rem;padding:.35rem .9rem;
+                border-radius:5px;text-decoration:none;white-space:nowrap">
+        <i class="bi bi-pen-fill"></i> Leggi e firma
+      </a>
+      <a href="{% url 'proposta_pdf' proposta_da_firmare.id %}"
+         style="background:#fff;color:#555;border:1px solid #c5d0dc;font-size:.9rem;padding:.35rem .8rem;
+                border-radius:5px;text-decoration:none;white-space:nowrap">
+        <i class="bi bi-file-earmark-pdf"></i> PDF
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Banner contratto legacy da firmare (vecchio flusso) ─────── #}
+  {% if contratto_da_firmare %}
+  <div style="background:#e8f5e9;border:2px solid #2d9a5f;border-radius:6px;
+              padding:.65rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+    <i class="bi bi-pen-fill fs-5" style="color:#0a6640;flex-shrink:0"></i>
+    <div style="flex:1;min-width:200px">
+      <strong style="color:#0a6640;font-size:.85rem">Hai un contratto di assunzione da firmare!</strong><br>
+      <span style="font-size:.88rem;color:#555">
+        {{ contratto_da_firmare.numero_contratto }} — {{ contratto_da_firmare.azienda.nome }}
+        {% if contratto_da_firmare.tipo_contratto %}, {{ contratto_da_firmare.tipo_contratto.nome }}{% endif %}
+      </span>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'accetta_contratto_dipendente' contratto_da_firmare.id %}"
+         style="background:#0a6640;color:#fff;font-weight:700;font-size:.9rem;padding:.35rem .9rem;
+                border-radius:5px;text-decoration:none;white-space:nowrap">
+        <i class="bi bi-pen-fill"></i> Leggi e firma
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Banner proposte ────────────────────────────────────────── #}
+  {% for p in proposte %}
+    {% if p.stato == 'inviata_candidato' and not proposta_da_firmare %}
+    {# Nuovo flusso: proposta inviata, il candidato deve firmare #}
+    <div style="background:#fff8e1;border:2px solid #f0a020;border-radius:6px;
+                padding:.65rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <i class="bi bi-pen-fill fs-5" style="color:#8a5700;flex-shrink:0"></i>
+      <div style="flex:1;min-width:200px">
+        <strong style="color:#8a5700;font-size:.85rem">
+          <i class="bi bi-exclamation-circle-fill"></i> La proposta è pronta per la tua firma!
+        </strong><br>
+        <span style="font-size:.88rem;color:#555">
+          {{ p.numero_proposta }} — {{ p.azienda.nome }}{% if p.livello_ccnl %}, Livello {{ p.livello_ccnl }}{% endif %}
+        </span>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'firma_proposta_candidato' p.id %}"
+           style="background:#8a5700;color:#fff;font-weight:700;font-size:.9rem;padding:.35rem .9rem;
+                  border-radius:5px;text-decoration:none;white-space:nowrap">
+          <i class="bi bi-check2-square"></i> Leggi e firma
+        </a>
+        <a href="{% url 'proposta_pdf' p.id %}"
+           style="background:#fff;color:#555;border:1px solid #c5d0dc;font-size:.9rem;padding:.35rem .8rem;
+                  border-radius:5px;text-decoration:none;white-space:nowrap">
+          <i class="bi bi-file-earmark-pdf"></i> PDF
+        </a>
+      </div>
+    </div>
+    {% elif p.stato == 'firmata_candidato' %}
+    {# Proposta firmata, in attesa della firma definitiva del datore #}
+    <div style="background:#f4f7fa;border:1px solid #c5d0dc;border-radius:6px;
+                padding:.65rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <i class="bi bi-hourglass-split fs-5" style="color:#5c6b7d;flex-shrink:0"></i>
+      <div style="flex:1;min-width:200px">
+        <strong style="color:#1b3a5f;font-size:.85rem">Proposta firmata — in attesa della firma aziendale</strong><br>
+        <span style="font-size:.88rem;color:#777">
+          {{ p.numero_proposta }} — {{ p.azienda.nome }}
+          &nbsp;·&nbsp; <em>firmata il {{ p.data_firma_candidato|date:"d/m/Y H:i" }}</em>
+        </span>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'proposta_pdf' p.id %}"
+           style="background:#1b3a5f;color:#fff;font-size:.9rem;padding:.35rem .9rem;
+                  border-radius:5px;text-decoration:none;white-space:nowrap">
+          <i class="bi bi-file-earmark-pdf"></i> Visualizza PDF
+        </a>
+      </div>
+    </div>
+    {% elif p.stato == 'inviata_al_dipendente' %}
+    {# Legacy: proposta inviata (vecchio flusso) #}
+    <div style="background:#f4f7fa;border:1px solid #c5d0dc;border-radius:6px;
+                padding:.65rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <i class="bi bi-hourglass-split fs-5" style="color:#5c6b7d;flex-shrink:0"></i>
+      <div style="flex:1;min-width:200px">
+        <strong style="color:#1b3a5f;font-size:.85rem">Hai una proposta di assunzione da esaminare</strong><br>
+        <span style="font-size:.88rem;color:#777">
+          {{ p.numero_proposta }} — {{ p.azienda.nome }}{% if p.livello_ccnl %}, Livello {{ p.livello_ccnl }}{% endif %}
+          &nbsp;·&nbsp; <em>in attesa di approvazione aziendale</em>
+        </span>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'dettaglio_proposta' p.id %}"
+           style="background:#1b3a5f;color:#fff;font-size:.9rem;padding:.35rem .9rem;
+                  border-radius:5px;text-decoration:none;white-space:nowrap">
+          <i class="bi bi-eye-fill"></i> Leggi
+        </a>
+        <a href="{% url 'proposta_pdf' p.id %}"
+           style="background:#fff;color:#555;border:1px solid #c5d0dc;font-size:.9rem;padding:.35rem .8rem;
+                  border-radius:5px;text-decoration:none;white-space:nowrap">
+          <i class="bi bi-file-earmark-pdf"></i> PDF
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+
+  {# ── Header candidato ────────────────────────────────────────── #}
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:8px;
+              padding:.75rem 1.2rem;margin-bottom:1rem;display:flex;align-items:center;
+              justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+    <div>
+      <div style="font-size:.82rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em">Portale Candidati</div>
+      <h5 style="margin:2px 0;font-size:1rem;font-weight:800">
+        <i class="bi bi-person-circle"></i>
+        Ciao, {{ request.user.first_name|default:request.user.username }}!
+      </h5>
+      <div style="font-size:.86rem;opacity:.85">Segui gli step per completare la tua candidatura</div>
+    </div>
+    <a href="{% url 'candidato_completa_profilo' %}" class="btn btn-sm btn-light" style="font-size:.86rem">
+      <i class="bi bi-pencil-square"></i> Modifica profilo
+    </a>
+  </div>
+
+  {# ── Banner completezza profilo ──────────────────────────────── #}
+  {% if completezza %}
+  <div class="card border-0 shadow-sm mb-3" style="font-size:.85rem">
+    <div class="card-body py-2 px-3">
+      <div class="d-flex align-items-center justify-content-between mb-1 flex-wrap gap-1">
+        <span style="font-weight:700;color:#1b3a5f;font-size:.88rem">
+          <i class="bi bi-clipboard-check"></i> Completezza profilo
+        </span>
+        <span class="badge {% if completezza.percentuale >= 100 %}bg-success{% elif completezza.percentuale >= 70 %}bg-warning text-dark{% else %}bg-danger{% endif %}" style="font-size:.8rem">
+          {{ completezza.percentuale }}%
+        </span>
+      </div>
+      <div class="progress mb-2" style="height:8px;border-radius:4px">
+        <div class="progress-bar {% if completezza.percentuale >= 100 %}bg-success{% elif completezza.percentuale >= 70 %}bg-warning{% else %}bg-danger{% endif %}"
+             role="progressbar" style="width:{{ completezza.percentuale }}%"
+             aria-valuenow="{{ completezza.percentuale }}" aria-valuemin="0" aria-valuemax="100"></div>
+      </div>
+      {% if completezza.mancanti %}
+      <div class="alert alert-danger py-1 px-2 mb-1" style="font-size:.8rem">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <strong>Campi obbligatori mancanti:</strong>
+        {% for _, label in completezza.mancanti %}
+        <span class="badge bg-danger text-white me-1">{{ label }}</span>
+        {% endfor %}
+        <a href="{% url 'candidato_completa_profilo' %}" class="ms-1 fw-bold">Completa ora →</a>
+      </div>
+      {% endif %}
+      {% if completezza.consigliati %}
+      <div class="alert alert-warning py-1 px-2 mb-1" style="font-size:.8rem">
+        <i class="bi bi-info-circle-fill"></i>
+        <strong>Consigliati:</strong>
+        {% for _, label in completezza.consigliati %}
+        <span class="badge bg-warning text-dark me-1">{{ label }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if completezza.doc_scaduto %}
+      <div class="alert alert-danger py-1 px-2 mb-1" style="font-size:.8rem">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <strong>Documento di identità scaduto.</strong> Aggiorna i dati del documento nel tuo profilo.
+      </div>
+      {% endif %}
+      {% if completezza.percentuale >= 100 and not completezza.doc_scaduto %}
+      <div class="alert alert-success py-1 px-2 mb-0" style="font-size:.8rem">
+        <i class="bi bi-check-circle-fill"></i>
+        <strong>Profilo completo!</strong> Tutti i dati necessari per la proposta di assunzione sono presenti.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── I tuoi dati ─────────────────────────────────────────────── #}
+  {% if profilo and profilo.profilo_completato %}
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center"
+         style="background:#f4f7fa;font-size:.9rem;font-weight:700;color:#1b3a5f">
+      <span><i class="bi bi-person-vcard"></i> I tuoi dati</span>
+      <a href="{% url 'candidato_completa_profilo' %}" class="btn btn-sm btn-outline-primary" style="font-size:.83rem;padding:.15rem .55rem">
+        <i class="bi bi-pencil"></i> Modifica
+      </a>
+    </div>
+    <div class="card-body py-3" style="font-size:.92rem">
+      <div class="row g-2">
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Nome e cognome</div>
+          <div style="font-weight:700">{{ request.user.first_name }} {{ request.user.last_name }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Codice Fiscale</div>
+          <div style="font-weight:600">{{ profilo.codice_fiscale|default:"—" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Data di nascita</div>
+          <div>{{ profilo.data_nascita|date:"d/m/Y"|default:"—" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Telefono</div>
+          <div>{{ profilo.telefono|default:"—" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Indirizzo</div>
+          <div>{{ profilo.indirizzo|default:"—" }}{% if profilo.citta %}, {{ profilo.citta }}{% endif %}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">IBAN</div>
+          <div style="font-family:monospace;font-size:.88rem">{{ profilo.iban|default:"—" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Familiari a carico</div>
+          <div style="font-weight:600">{{ profilo.num_familiari_a_carico }}</div>
+          {% if profilo.dettaglio_familiari %}
+          <div style="font-size:.82rem;color:#888">{{ profilo.dettaglio_familiari }}</div>
+          {% endif %}
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Disponibile dal</div>
+          <div>{{ profilo.data_disponibilita|date:"d/m/Y"|default:"—" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Tipo rapporto</div>
+          <div>{{ profilo.get_tipo_rapporto_preferito_display|default:"—" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Livello aspirato</div>
+          <div>{{ profilo.livello_aspirato|default:"—" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Azienda interesse</div>
+          <div>{{ profilo.azienda_interesse.nome|default:"—" }}</div>
+        </div>
+      </div>
+
+      {# ── Trattamento economico proposto ── #}
+      {% if calc_ret %}
+      <div style="margin-top:1rem;padding-top:.75rem;border-top:1px solid #dde4ec">
+        <div style="font-weight:700;font-size:.88rem;color:#1b3a5f;margin-bottom:.5rem">
+          <i class="bi bi-currency-euro"></i> Trattamento economico proposto
+        </div>
+        <div class="row g-2">
+
+          {# Orario contrattuale #}
+          <div class="col-6 col-md-3">
+            <div style="background:#f4f7fa;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Ore settimanali</div>
+              <div style="font-weight:700;color:#1b3a5f">{{ calc_ret.ore_settimanali|ore_hm }} h</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div style="background:#f4f7fa;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Ore mensili</div>
+              <div style="font-weight:700;color:#1b3a5f">{{ calc_ret.ore_mensili|ore_hm }} h</div>
+              <div style="font-size:.75rem;color:#aaa">div. 172 h/mese FIPE</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div style="background:#f4f7fa;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Ore giornaliere</div>
+              <div style="font-weight:700;color:#1b3a5f">{{ calc_ret.ore_giornaliere_hhmm }} h</div>
+              <div style="font-size:.75rem;color:#aaa">su 6 gg. lav.</div>
+            </div>
+          </div>
+          {% if profilo.iban %}
+          <div class="col-6 col-md-3">
+            <div style="background:#f4f7fa;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">IBAN accredito</div>
+              <div style="font-weight:600;font-family:monospace;font-size:.86rem;color:#1b3a5f">{{ profilo.iban }}</div>
+            </div>
+          </div>
+          {% endif %}
+
+          {# Separatore paga #}
+          <div class="col-12"><div style="border-top:1px dashed #dde4ec;margin:.1rem 0"></div></div>
+
+          {# Paga oraria #}
+          <div class="col-6 col-md-3">
+            <div style="background:#f0f4fa;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Paga oraria lorda</div>
+              <div style="font-weight:700;color:#1b3a5f;font-size:.9rem">€ {{ calc_ret.paga_oraria_lorda|num_it:4 }}</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div style="background:#f0f4fa;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Paga oraria netta</div>
+              <div style="font-weight:700;color:#0a6640;font-size:.9rem">€ {{ calc_ret.paga_oraria_netta|num_it:4 }}</div>
+            </div>
+          </div>
+
+          {# Paga giornaliera #}
+          <div class="col-6 col-md-3">
+            <div style="background:#f0f4fa;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Paga giornaliera lorda</div>
+              <div style="font-weight:700;color:#1b3a5f;font-size:.9rem">€ {{ calc_ret.paga_giornaliera_lorda|euro_it }}</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div style="background:#e8f5ee;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Paga giornaliera netta</div>
+              <div style="font-weight:700;color:#0a6640;font-size:.9rem">€ {{ calc_ret.paga_giornaliera_netta|euro_it }}</div>
+            </div>
+          </div>
+
+          {# Separatore ratei #}
+          <div class="col-12"><div style="border-top:1px dashed #dde4ec;margin:.1rem 0"></div></div>
+
+          {# Rateo 13^ — sempre visibile #}
+          <div class="col-6 col-md-3">
+            <div style="background:#fafafa;border:1px solid #e8edf3;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Rateo 13ª — lordo/giorno</div>
+              {% if calc_ret.tredicesima %}
+                <div style="font-weight:600;color:#555">€ {{ calc_ret.rateo_13_lordo_g|euro_it }}</div>
+              {% else %}
+                <div style="font-weight:500;color:#aaa;font-size:.86rem">Non prevista</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div style="background:#fafafa;border:1px solid #e8edf3;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Rateo 13ª — netto/giorno</div>
+              {% if calc_ret.tredicesima %}
+                <div style="font-weight:600;color:#0a6640">€ {{ calc_ret.rateo_13_netto_g|euro_it }}</div>
+              {% else %}
+                <div style="font-weight:500;color:#aaa;font-size:.86rem">Non prevista</div>
+              {% endif %}
+            </div>
+          </div>
+
+          {# Rateo 14^ — sempre visibile #}
+          <div class="col-6 col-md-3">
+            <div style="background:#fafafa;border:1px solid #e8edf3;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Rateo 14ª — lordo/giorno</div>
+              {% if calc_ret.quattordicesima %}
+                <div style="font-weight:600;color:#555">€ {{ calc_ret.rateo_14_lordo_g|euro_it }}</div>
+              {% else %}
+                <div style="font-weight:500;color:#aaa;font-size:.86rem">Non prevista</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div style="background:#fafafa;border:1px solid #e8edf3;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Rateo 14ª — netto/giorno</div>
+              {% if calc_ret.quattordicesima %}
+                <div style="font-weight:600;color:#0a6640">€ {{ calc_ret.rateo_14_netto_g|euro_it }}</div>
+              {% else %}
+                <div style="font-weight:500;color:#aaa;font-size:.86rem">Non prevista</div>
+              {% endif %}
+            </div>
+          </div>
+
+          {# Rateo TFR — sempre visibile #}
+          <div class="col-6 col-md-3">
+            <div style="background:#fafafa;border:1px solid #e8edf3;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Rateo TFR — lordo/giorno</div>
+              <div style="font-weight:600;color:#555">€ {{ calc_ret.rateo_tfr_lordo_g|euro_it }}</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div style="background:#fafafa;border:1px solid #e8edf3;border-radius:5px;padding:.4rem .6rem">
+              <div style="color:#666;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em">Rateo TFR — netto/giorno</div>
+              <div style="font-weight:600;color:#0a6640">€ {{ calc_ret.rateo_tfr_netto_g|euro_it }}</div>
+            </div>
+          </div>
+
+          {# Totale netto giornaliero con ratei #}
+          <div class="col-12">
+            <div style="background:#0a6640;color:#fff;border-radius:5px;padding:.5rem .75rem;
+                        display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+              <div>
+                <div style="font-size:.8rem;opacity:.85;text-transform:uppercase;letter-spacing:.06em">
+                  Totale netto/giorno (paga + ratei)
+                </div>
+                <div style="font-size:.82rem;opacity:.8">
+                  Paga netta
+                  {% if calc_ret.tredicesima %} + 13ª{% endif %}
+                  {% if calc_ret.quattordicesima %} + 14ª{% endif %}
+                  + TFR
+                </div>
+              </div>
+              <div style="font-size:1.15rem;font-weight:800">€ {{ calc_ret.totale_netto_g|euro_it }}</div>
+            </div>
+          </div>
+
+        </div>
+        {# Dettaglio fiscale mensile — A regime #}
+        <div style="margin-top:.5rem;border:1px solid #dde4ec;border-radius:5px;overflow:hidden">
+          <div style="background:#e8f0fb;padding:.25rem .6rem;font-size:.7rem;font-weight:700;
+                      color:#1b3a5f;letter-spacing:.04em;text-transform:uppercase">
+            <i class="bi bi-calculator"></i> Dettaglio calcolo fiscale mensile — motore simulazione 2026
+          </div>
+          <div style="padding:.4rem .6rem;font-size:.72rem">
+            <table style="width:100%;border-collapse:collapse">
+              <tr>
+                <td style="color:#555;padding:.07rem 0">Lordo mensile contrattuale</td>
+                <td class="text-end" style="font-weight:700;color:#1b3a5f">€ {{ calc_ret.lordo_mensile|euro_it }}</td>
+              </tr>
+              {% if calc_ret.rateo_13_lordo_m %}
+              <tr>
+                <td style="color:#555">+ Rateo 13ª mensilità accantonato/mese (erogato a dic.)</td>
+                <td class="text-end euro" style="color:#1b3a5f">€ {{ calc_ret.rateo_13_lordo_m|euro_it }}</td>
+              </tr>
+              {% endif %}
+              {% if calc_ret.rateo_14_lordo_m %}
+              <tr>
+                <td style="color:#555">+ Rateo 14ª mensilità accantonato/mese (erogato a lug.)</td>
+                <td class="text-end euro" style="color:#1b3a5f">€ {{ calc_ret.rateo_14_lordo_m|euro_it }}</td>
+              </tr>
+              {% endif %}
+              <tr>
+                <td style="color:#555">− INPS c/dipendente ({{ calc_ret.inps_dip_perc|num_it:2 }}% CCNL FIPE — Circ. INPS 15/2025)</td>
+                <td class="text-end" style="color:#c0392b">− € {{ calc_ret.inps_dipendente|abs_num|euro_it }}</td>
+              </tr>
+              <tr style="border-top:1px dashed #dde4ec">
+                <td style="color:#333;font-weight:600">Imponibile fiscale mensile / annuo</td>
+                <td class="text-end" style="font-weight:600">€ {{ calc_ret.imponibile_fiscale|euro_it }} / € {{ calc_ret.imponibile_annuo|num_it:0 }}</td>
+              </tr>
+              <tr>
+                <td style="color:#555;padding-left:.5rem">IRPEF lorda (scaglioni 23%/35%/43% — art. 11 TUIR, L. 213/2023)</td>
+                <td class="text-end" style="color:#c0392b">− € {{ calc_ret.irpef_lorda|abs_num|euro_it }}</td>
+              </tr>
+              <tr>
+                <td style="color:#1a7a1a;padding-left:.5rem">Detrazioni lav. dipendente (art. 13 TUIR — L. 213/2023)</td>
+                <td class="text-end" style="color:#1a7a1a">+ € {{ calc_ret.detrazioni|abs_num|euro_it }}</td>
+              </tr>
+              <tr style="border-top:1px dashed #dde4ec">
+                <td style="color:#555">IRPEF netta trattenuta</td>
+                <td class="text-end" style="color:#c0392b;font-weight:600">− € {{ calc_ret.irpef_netta|abs_num|euro_it }}</td>
+              </tr>
+              <tr style="border-top:1px solid #b7cbe8">
+                <td style="font-weight:700;color:#1b3a5f">Netto base (lordo − INPS − IRPEF netta)</td>
+                <td class="text-end" style="font-weight:700;color:#0a6640">€ {{ calc_ret.netto_base|euro_it }}</td>
+              </tr>
+              {% if calc_ret.trattamento_integrativo %}
+              <tr>
+                <td style="color:#1a7a1a">
+                  + Trattamento Integrativo DL 3/2020 (art. 1)
+                  <span style="background:#e8f5e9;color:#1a7a1a;font-size:.64rem;padding:.01rem .2rem;border-radius:3px">spettante — imponibile annuo ≤ €28.000</span>
+                </td>
+                <td class="text-end" style="color:#1a7a1a;font-weight:600">+ € {{ calc_ret.trattamento_integrativo|abs_num|euro_it }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td style="color:#aaa;font-style:italic">Trattamento Integrativo DL 3/2020: non spettante (imponibile > €28.000)</td>
+                <td class="text-end" style="color:#aaa">—</td>
+              </tr>
+              {% endif %}
+              {% if calc_ret.bonus_l207 %}
+              <tr>
+                <td style="color:#1a7a1a">
+                  + Bonus L. 207/2024 art. 1 c. 4
+                  <span style="background:#e8f5e9;color:#1a7a1a;font-size:.64rem;padding:.01rem .2rem;border-radius:3px">spettante — imponibile €8.500–€20.000</span>
+                </td>
+                <td class="text-end" style="color:#1a7a1a;font-weight:600">+ € {{ calc_ret.bonus_l207|abs_num|euro_it }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td style="color:#aaa;font-style:italic">Bonus L. 207/2024: non spettante (imponibile fuori fascia €8.500–€20.000)</td>
+                <td class="text-end" style="color:#aaa">—</td>
+              </tr>
+              {% endif %}
+              <tr style="border-top:2px solid #0a6640;background:#e8f5ee">
+                <td style="font-weight:800;color:#0a6640;padding:.1rem 0">NETTO MENSILE IN BUSTA</td>
+                <td class="text-end" style="font-weight:800;color:#0a6640;font-size:.9rem">€ {{ calc_ret.netto_mensile|euro_it }}</td>
+              </tr>
+              {% if calc_ret.addiz_reg_mensile or calc_ret.addiz_com_mensile %}
+              <tr style="border-top:1px dashed #ccc">
+                <td colspan="2" style="color:#888;font-style:italic;font-size:.65rem;padding-top:.1rem">
+                  Stima addizionali (saldo versato anno successivo, senza incidere sul netto corrente):
+                  add. reg. Sicilia ≈ € {{ calc_ret.addiz_reg_mensile|euro_it }}/mese
+                  · add. com. ≈ € {{ calc_ret.addiz_com_mensile|euro_it }}/mese
+                  · totale annuo ≈ € {{ calc_ret.addiz_totale_annuo|euro_it }}
+                </td>
+              </tr>
+              {% endif %}
+              <tr>
+                <td colspan="2" style="color:#888;font-size:.62rem;padding-top:.08rem">
+                  Normativa applicata: CCNL FIPE 2023 · TUIR art. 11/13 (L. 213/2023) · DL 3/2020 · L. 207/2024 · Circ. INPS 15/2025
+                  — Calcolo su imponibile annualizzato; non include detrazioni per carichi familiari.
+                  I valori effettivi dipendono dalla situazione fiscale individuale.
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Stepper iter: dalla registrazione al rapporto attivo ─── #}
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2" style="background:#f0f4fa;font-size:.9rem;font-weight:700;color:#1b3a5f;
+                                         border-bottom:1px solid #dde4ec">
+      <i class="bi bi-clock-history"></i> Iter di candidatura
+    </div>
+    <div class="card-body" style="padding:.65rem .75rem .5rem">
+
+      {# ── Riga 1: step base (4 colonne) ── #}
+      <div class="hs-grid hs-4">
+
+        {# 1. Registrazione #}
+        <div class="hs-item">
+          <div class="hs-conn">
+            <div class="hs-ln hs-ln-done"></div>
+            <div class="hs-dot tl-done"><i class="bi bi-check-lg"></i></div>
+            <div class="hs-ln hs-ln-done"></div>
+          </div>
+          <div class="hs-lbl tl-c-done">Registrazione</div>
+          <div class="hs-sub">{{ request.user.date_joined|date:"d/m/Y" }}</div>
+        </div>
+
+        {# 2. Verifica e-mail #}
+        <div class="hs-item">
+          <div class="hs-conn">
+            <div class="hs-ln {% if email_verificata %}hs-ln-done{% endif %}"></div>
+            {% if email_verificata %}
+              <div class="hs-dot tl-done"><i class="bi bi-check-lg"></i></div>
+            {% else %}
+              <div class="hs-dot tl-warning"><i class="bi bi-envelope-fill"></i></div>
+            {% endif %}
+            <div class="hs-ln {% if email_verificata and profilo_completato %}hs-ln-done{% endif %}"></div>
+          </div>
+          {% if email_verificata %}
+            <div class="hs-lbl tl-c-done">E-mail verificata</div>
+          {% else %}
+            <div class="hs-lbl tl-c-warning">Verifica e-mail</div>
+            <a href="{% url 'reinvia_verifica' %}" class="hs-act tl-c-warning">Reinvia →</a>
+          {% endif %}
+        </div>
+
+        {# 3. Completamento profilo #}
+        <div class="hs-item">
+          <div class="hs-conn">
+            <div class="hs-ln {% if profilo_completato %}hs-ln-done{% endif %}"></div>
+            {% if profilo_completato %}
+              <div class="hs-dot tl-done"><i class="bi bi-check-lg"></i></div>
+            {% elif email_verificata %}
+              <div class="hs-dot tl-primary"><i class="bi bi-person-vcard-fill"></i></div>
+            {% else %}
+              <div class="hs-dot tl-pending"><i class="bi bi-circle"></i></div>
+            {% endif %}
+            <div class="hs-ln {% if profilo_completato and convalidato %}hs-ln-done{% endif %}"></div>
+          </div>
+          {% if profilo_completato %}
+            <div class="hs-lbl tl-c-done">Profilo completato</div>
+            {% if profilo and profilo.data_completamento %}
+            <div class="hs-sub">{{ profilo.data_completamento|date:"d/m/Y" }}</div>
+            {% endif %}
+          {% elif email_verificata %}
+            <div class="hs-lbl tl-c-primary">Completa profilo</div>
+            <a href="{% url 'candidato_completa_profilo' %}" class="hs-act tl-c-primary">Compila →</a>
+          {% else %}
+            <div class="hs-lbl tl-c-muted">Completa profilo</div>
+          {% endif %}
+        </div>
+
+        {# 4. Valutazione HR #}
+        <div class="hs-item">
+          <div class="hs-conn">
+            <div class="hs-ln {% if convalidato %}hs-ln-done{% endif %}"></div>
+            {% if convalidato %}
+              <div class="hs-dot tl-done"><i class="bi bi-check-lg"></i></div>
+            {% elif profilo_completato %}
+              <div class="hs-dot tl-primary"><i class="bi bi-hourglass-split"></i></div>
+            {% else %}
+              <div class="hs-dot tl-pending"><i class="bi bi-circle"></i></div>
+            {% endif %}
+            <div class="hs-ln {% if convalidato and proposte %}hs-ln-done{% endif %}"></div>
+          </div>
+          {% if convalidato %}
+            <div class="hs-lbl tl-c-done">HR — Approvato</div>
+          {% elif profilo_completato %}
+            <div class="hs-lbl tl-c-primary">Valutazione HR</div>
+            <div class="hs-sub">In revisione…</div>
+          {% else %}
+            <div class="hs-lbl tl-c-muted">Valutazione HR</div>
+          {% endif %}
+        </div>
+
+      </div>{# /hs-4 base #}
+
+      {# ── Righe proposta: 3+3 colonne per ogni proposta ── #}
+      {% if proposte %}
+        {% for p in proposte %}
+        {% with c=p.contratto_generato %}
+
+        {# Separatore numero proposta se più di una #}
+        {% if proposte|length > 1 %}
+        <div style="padding:.2rem .3rem;background:#f4f7fa;border-radius:4px;
+                    font-size:.77rem;color:#888;font-weight:700;margin:.2rem 0 .3rem">
+          <i class="bi bi-file-earmark-text"></i> Proposta {{ p.numero_proposta }}
+          {% if not forloop.first %}<span class="badge bg-secondary ms-1" style="font-size:.67rem">{{ p.get_stato_display }}</span>{% endif %}
+        </div>
+        {% endif %}
+
+        {# Riga 2: Proposta ricevuta | Risposta | Approvazione HR #}
+        <div class="hs-grid hs-3">
+
+          {# 5a. Proposta ricevuta #}
+          <div class="hs-item">
+            <div class="hs-conn">
+              <div class="hs-ln hs-ln-done"></div>
+              <div class="hs-dot tl-done"><i class="bi bi-file-earmark-text-fill"></i></div>
+              <div class="hs-ln {% if p.accettata_dipendente %}hs-ln-done{% elif p.stato == 'rifiutata_dipendente' %}{% endif %}"></div>
+            </div>
+            <div class="hs-lbl tl-c-primary">Proposta ricevuta</div>
+            <div class="hs-sub">{{ p.data_creazione|date:"d/m/Y" }}</div>
+            <a href="{% url 'dettaglio_proposta' p.id %}" class="hs-act tl-c-primary"><i class="bi bi-eye"></i> Leggi</a>
+            <a href="{% url 'proposta_pdf' p.id %}" class="hs-act" style="color:#777"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+          </div>
+
+          {# 5b. Risposta candidato #}
+          <div class="hs-item">
+            <div class="hs-conn">
+              <div class="hs-ln {% if p.accettata_dipendente %}hs-ln-done{% endif %}"></div>
+              {% if p.accettata_dipendente %}
+                <div class="hs-dot tl-done"><i class="bi bi-check-lg"></i></div>
+              {% elif p.stato == 'rifiutata_dipendente' %}
+                <div class="hs-dot tl-danger"><i class="bi bi-x-lg"></i></div>
+              {% elif p.stato == 'inviata_al_dipendente' %}
+                <div class="hs-dot tl-warning"><i class="bi bi-hourglass-split"></i></div>
+              {% else %}
+                <div class="hs-dot tl-pending"><i class="bi bi-circle"></i></div>
+              {% endif %}
+              <div class="hs-ln {% if p.approvata_admin %}hs-ln-done{% endif %}"></div>
+            </div>
+            {% if p.accettata_dipendente %}
+              <div class="hs-lbl tl-c-done">Accettata</div>
+              {% if p.data_accettazione_dipendente %}<div class="hs-sub">{{ p.data_accettazione_dipendente|date:"d/m/Y" }}</div>{% endif %}
+            {% elif p.stato == 'rifiutata_dipendente' %}
+              <div class="hs-lbl tl-c-danger">Rifiutata</div>
+            {% elif p.stato == 'inviata_al_dipendente' %}
+              <div class="hs-lbl tl-c-warning">Da rispondere</div>
+              <a href="{% url 'dettaglio_proposta' p.id %}" class="hs-act tl-c-warning"><i class="bi bi-pen-fill"></i> Rispondi</a>
+            {% else %}
+              <div class="hs-lbl tl-c-muted">Tua risposta</div>
+            {% endif %}
+          </div>
+
+          {# 5c. Approvazione HR #}
+          <div class="hs-item">
+            <div class="hs-conn">
+              <div class="hs-ln {% if p.approvata_admin %}hs-ln-done{% endif %}"></div>
+              {% if p.approvata_admin %}
+                <div class="hs-dot tl-done"><i class="bi bi-check-lg"></i></div>
+              {% elif p.stato == 'rifiutata_admin' %}
+                <div class="hs-dot tl-danger"><i class="bi bi-x-lg"></i></div>
+              {% elif p.accettata_dipendente %}
+                <div class="hs-dot tl-primary"><i class="bi bi-hourglass-split"></i></div>
+              {% else %}
+                <div class="hs-dot tl-pending"><i class="bi bi-circle"></i></div>
+              {% endif %}
+              <div class="hs-ln {% if p.stato_canonico == 'contratto_attivo' %}hs-ln-done{% endif %}"></div>
+            </div>
+            {% if p.approvata_admin %}
+              <div class="hs-lbl tl-c-done">Approvata HR</div>
+              {% if p.data_approvazione_admin %}<div class="hs-sub">{{ p.data_approvazione_admin|date:"d/m/Y" }}</div>{% endif %}
+            {% elif p.stato == 'rifiutata_admin' %}
+              <div class="hs-lbl tl-c-danger">Non approvata HR</div>
+            {% elif p.accettata_dipendente %}
+              <div class="hs-lbl tl-c-primary">In valutazione HR</div>
+            {% else %}
+              <div class="hs-lbl tl-c-muted">Approvazione HR</div>
+            {% endif %}
+          </div>
+
+        </div>{# /hs-3 fase1 #}
+
+        {# Riga 3: Firma candidato | Firma datore | Rapporto attivo #}
+        <div class="hs-grid hs-3">
+
+          {# 5d. Firma digitale candidato #}
+          <div class="hs-item">
+            <div class="hs-conn">
+              <div class="hs-ln {% if p.stato in 'firmata_candidato,contratto_attivo' %}hs-ln-done{% endif %}"></div>
+              {% if p.stato in 'contratto_attivo,firmata_candidato' or p.data_firma_candidato %}
+                <div class="hs-dot tl-done"><i class="bi bi-check-lg"></i></div>
+              {% elif p.stato_canonico == 'inviata_candidato' %}
+                <div class="hs-dot tl-warning"><i class="bi bi-pen"></i></div>
+              {% else %}
+                <div class="hs-dot tl-pending"><i class="bi bi-circle"></i></div>
+              {% endif %}
+              <div class="hs-ln {% if p.stato == 'contratto_attivo' %}hs-ln-done{% endif %}"></div>
+            </div>
+            {% if p.data_firma_candidato %}
+              <div class="hs-lbl tl-c-done">Firmata</div>
+              <div class="hs-sub">{{ p.data_firma_candidato|date:"d/m/Y H:i" }}</div>
+            {% elif p.stato == 'inviata_candidato' %}
+              <div class="hs-lbl tl-c-warning">Da firmare</div>
+              <a href="{% url 'firma_proposta_candidato' p.id %}" class="hs-act tl-c-warning"><i class="bi bi-pen-fill"></i> Firma</a>
+            {% elif contratto_da_firmare %}
+              {# legacy #}
+              <div class="hs-lbl tl-c-warning">Da firmare</div>
+              <a href="{% url 'accetta_contratto_dipendente' contratto_da_firmare.id %}" class="hs-act tl-c-warning"><i class="bi bi-pen-fill"></i> Firma</a>
+            {% elif contratto %}
+              <div class="hs-lbl tl-c-done">Firmata</div>
+              {% if contratto.data_sottoscrizione %}<div class="hs-sub">{{ contratto.data_sottoscrizione|date:"d/m/Y" }}</div>{% endif %}
+            {% else %}
+              <div class="hs-lbl tl-c-muted">Firma candidato</div>
+            {% endif %}
+          </div>
+
+          {# 5e. Firma definitiva datore #}
+          <div class="hs-item">
+            <div class="hs-conn">
+              <div class="hs-ln {% if p.stato == 'contratto_attivo' %}hs-ln-done{% endif %}"></div>
+              {% if p.stato == 'contratto_attivo' %}
+                <div class="hs-dot tl-done"><i class="bi bi-check-lg"></i></div>
+              {% elif p.stato == 'firmata_candidato' %}
+                <div class="hs-dot tl-primary"><i class="bi bi-hourglass-split"></i></div>
+              {% else %}
+                <div class="hs-dot tl-pending"><i class="bi bi-circle"></i></div>
+              {% endif %}
+              <div class="hs-ln {% if p.stato == 'contratto_attivo' %}hs-ln-done{% endif %}"></div>
+            </div>
+            {% if p.stato == 'contratto_attivo' %}
+              <div class="hs-lbl tl-c-done">Contratto attivo</div>
+              {% if p.data_firma_datore %}<div class="hs-sub">{{ p.data_firma_datore|date:"d/m/Y" }}</div>{% endif %}
+            {% elif p.stato == 'firmata_candidato' %}
+              <div class="hs-lbl tl-c-primary">In attesa firma aziendale</div>
+            {% else %}
+              <div class="hs-lbl tl-c-muted">Firma aziendale</div>
+            {% endif %}
+          </div>
+
+          {# 5f. Rapporto attivo #}
+          <div class="hs-item">
+            <div class="hs-conn">
+              <div class="hs-ln {% if contratto %}hs-ln-done{% endif %}"></div>
+              {% if contratto or p.stato == 'contratto_attivo' %}
+                <div class="hs-dot tl-done"><i class="bi bi-person-badge-fill"></i></div>
+              {% else %}
+                <div class="hs-dot tl-pending"><i class="bi bi-circle"></i></div>
+              {% endif %}
+              <div class="hs-ln"></div>
+            </div>
+            {% if contratto %}
+              <div class="hs-lbl tl-c-done">Rapporto attivo</div>
+              <div class="hs-sub">dal {{ contratto.data_inizio_rapporto|date:"d/m/Y" }}{% if contratto.data_fine_rapporto %} · scad. {{ contratto.data_fine_rapporto|date:"d/m/Y" }}{% endif %}</div>
+            {% elif p.stato == 'contratto_attivo' %}
+              <div class="hs-lbl tl-c-done">Rapporto attivo</div>
+              <div class="hs-sub">dal {{ p.data_inizio_rapporto|date:"d/m/Y" }}</div>
+            {% else %}
+              <div class="hs-lbl tl-c-muted">Rapporto attivo</div>
+            {% endif %}
+          </div>
+
+        </div>{# /hs-3 fase2 #}
+
+        {# Riga 4: paghe/CUD unificati + documenti personali #}
+        {% if contratto %}
+        <div class="hs-grid hs-2">
+
+          {# Buste e CUD — stesso hub #}
+          <div class="hs-item">
+            <div class="hs-conn">
+              <div class="hs-ln hs-ln-done"></div>
+              <div class="hs-dot {% if buste_paga_count or cud_count %}tl-done{% else %}tl-primary{% endif %}">
+                <i class="bi bi-folder2-open"></i>
+              </div>
+              <div class="hs-ln {% if buste_paga_count or cud_count %}hs-ln-done{% endif %}"></div>
+            </div>
+            <div class="hs-lbl {% if buste_paga_count or cud_count %}tl-c-done{% else %}tl-c-primary{% endif %}">Paghe e CUD</div>
+            <div class="hs-sub">
+              {% if buste_paga_count %}{{ buste_paga_count }} buste{% endif %}
+              {% if buste_paga_count and cud_count %} · {% endif %}
+              {% if cud_count %}{{ cud_count }} CUD{% endif %}
+              {% if not buste_paga_count and not cud_count %}Nessun file ancora{% endif %}
+            </div>
+            <a href="{% url 'candidato_miei_documenti' %}" class="hs-act tl-c-primary">
+              <i class="bi bi-eye"></i> Apri documenti
+            </a>
+          </div>
+
+          {# Documenti personali (tab altri) #}
+          <div class="hs-item">
+            <div class="hs-conn">
+              <div class="hs-ln {% if documenti_personali_count %}hs-ln-done{% endif %}"></div>
+              <div class="hs-dot {% if documenti_personali_count %}tl-done{% else %}tl-primary{% endif %}">
+                <i class="bi bi-person-badge"></i>
+              </div>
+              <div class="hs-ln"></div>
+            </div>
+            <div class="hs-lbl {% if documenti_personali_count %}tl-c-done{% else %}tl-c-primary{% endif %}">
+              Documenti personali
+            </div>
+            {% if documenti_personali_count %}
+              <div class="hs-sub">{{ documenti_personali_count }} caricati</div>
+            {% else %}
+              <div class="hs-sub">Carica i tuoi file</div>
+            {% endif %}
+            <a href="{% url 'candidato_miei_documenti' %}?tab=altri" class="hs-act tl-c-primary">
+              <i class="bi bi-arrow-right"></i> Vai
+            </a>
+          </div>
+
+        </div>{# /hs-2 documenti #}
+        {% endif %}
+
+        {% endwith %}
+        {% endfor %}
+
+      {% else %}
+        {# Nessuna proposta — placeholder #}
+        {% if convalidato %}
+        <div style="padding:.3rem .3rem .5rem;font-size:.88rem;color:#1b3a5f">
+          <i class="bi bi-hourglass-split"></i>
+          <strong>In attesa di proposta</strong> — Profilo approvato, l'ufficio HR ti invierà una proposta a breve.
+        </div>
+        {% else %}
+        <div style="padding:.3rem .3rem .5rem;font-size:.88rem;color:#aaa">
+          <i class="bi bi-circle"></i> Proposta di assunzione — disponibile dopo l'approvazione HR.
+        </div>
+        {% endif %}
+      {% endif %}
+
+    </div>
+  </div>
+
+
+  {% endif %}{# /candidato vs dipendente #}
+
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Carica documento paghe — Consulente{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:720px;">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb small">
+      <li class="breadcrumb-item"><a href="{% url 'consulente_dashboard' %}">Consulente</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Carica documento</li>
+    </ol>
+  </nav>
+  <h1 class="h4 mb-3">Carica documento paghe</h1>
+  <p class="text-muted small mb-4">Scegli il tipo di caricamento per l’azienda <strong>{{ azienda.ragione_sociale }}</strong>.</p>
+  <div class="list-group shadow-sm">
+    <a href="{% url 'consulente_upload_buste_paga' %}" class="list-group-item list-group-item-action py-3">
+      <div class="d-flex w-100 justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-file-earmark-pdf text-danger me-2"></i>Buste paga</span>
+        <i class="bi bi-chevron-right text-muted"></i>
+      </div>
+      <small class="text-muted">Upload PDF buste per dipendente e periodo.</small>
+    </a>
+    <a href="{% url 'consulente_upload_cud' %}" class="list-group-item list-group-item-action py-3">
+      <div class="d-flex w-100 justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-file-earmark-text text-primary me-2"></i>CUD</span>
+        <i class="bi bi-chevron-right text-muted"></i>
+      </div>
+      <small class="text-muted">Certificazione unica dei redditi.</small>
+    </a>
+  </div>
+  <p class="small text-muted mt-3 mb-0">
+    <a href="{% url 'guida_modulo' 'modulo-consulente' %}">Guida modulo consulente</a>
+  </p>
+</div>
+{% endblock %}

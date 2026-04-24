@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}{{ titolo }} — GESPER{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:520px">
+  <div class="alert alert-{% if ok %}success{% else %}warning{% endif %}">
+    <strong>{{ titolo }}</strong><br>
+    {{ messaggio }}
+  </div>
+</div>
+{% endblock %}

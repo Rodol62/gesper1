@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ titolo }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">{{ titolo }}</h2>
+    <a href="{% url back_url_name %}" class="btn btn-outline-secondary">Torna indietro</a>
+  </div>
+
+  <form method="post" class="card card-body">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="row">
+      {% for field in form %}
+        <div class="col-md-6 mb-3">
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}
+            <small class="text-muted d-block">{{ field.help_text }}</small>
+          {% endif %}
+          {% if field.errors %}
+            <div class="text-danger small">{{ field.errors }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="mt-2">
+      <button type="submit" class="btn btn-primary">Salva</button>
+      <a href="{% url back_url_name %}" class="btn btn-outline-secondary">Annulla</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

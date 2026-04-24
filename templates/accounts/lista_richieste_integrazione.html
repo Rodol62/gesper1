@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load pagination_tags %}
+{% block title %}Richieste integrazione — {{ candidato.get_full_name|default:candidato.username }}{% endblock %}
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:1100px">
+  <h2 class="h5 mb-3">Richieste di integrazione — {{ candidato.get_full_name|default:candidato.username }}</h2>
+  {% if page_obj.paginator.count %}
+  {% gesper_pagination page_obj "Paginazione richieste integrazione" %}
+  <div class="gesper-list-scroll">
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>ID</th>
+          <th>Stato</th>
+          <th>Titolo</th>
+          <th>Messaggio</th>
+          <th>Ruolo richiesto</th>
+          <th>Invio</th>
+          <th>Completamento</th>
+          <th>Approvazione HR</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for richiesta in richieste %}
+        <tr>
+          <td>{{ richiesta.id }}</td>
+          <td><span class="badge bg-secondary">{{ richiesta.get_stato_display }}</span></td>
+          <td>{{ richiesta.titolo }}</td>
+          <td style="max-width:240px"><small class="text-muted">{{ richiesta.messaggio|default:'—'|truncatechars:120 }}</small></td>
+          <td>{{ richiesta.ruolo_richiesto|default:'—' }}</td>
+          <td class="text-nowrap small">{{ richiesta.data_invio|date:'d/m/Y H:i' }}</td>
+          <td class="text-nowrap small">{% if richiesta.data_completamento_candidato %}{{ richiesta.data_completamento_candidato|date:'d/m/Y H:i' }}{% else %}—{% endif %}</td>
+          <td class="text-nowrap small">{% if richiesta.data_approvazione_hr %}{{ richiesta.data_approvazione_hr|date:'d/m/Y H:i' }}{% else %}—{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="text-muted">Nessuna richiesta trovata.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  </div>
+  {% gesper_pagination page_obj "Paginazione richieste integrazione" %}
+  {% else %}
+  <p class="text-muted small">Nessuna richiesta di integrazione registrata.</p>
+  {% endif %}
+  <a href="{% url 'candidato_admin_dettaglio' candidato.id %}" class="btn btn-outline-secondary btn-sm">← Torna al profilo candidato</a>
+</div>
+{% endblock %}

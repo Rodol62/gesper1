@@ -1,0 +1,318 @@
+{% extends 'base.html' %}
+{% load ruoli_tags guida_tags %}
+{% load l10n format_it_tags %}
+{% block title %}{{ dipendente.cognome }} {{ dipendente.nome }} — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  {# ── Header ──────────────────────────────────────────────────── #}
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:8px;
+              padding:.7rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;
+              justify-content:space-between;flex-wrap:wrap;gap:.6rem">
+    <div>
+      <div style="font-size:.7rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em">Scheda dipendente</div>
+      <h5 style="margin:0;font-size:.97rem;font-weight:800">
+        <i class="bi bi-person-badge-fill"></i>
+        {{ dipendente.cognome }} {{ dipendente.nome }}{% guida_link "reg-dipendente" %}
+        {% if dipendente.matricola %}
+        <span style="font-size:.72rem;font-weight:600;opacity:.9;margin-left:.35rem">· mat. {{ dipendente.matricola }}</span>
+        {% endif %}
+      </h5>
+      <div style="font-size:.72rem;opacity:.85">
+        {{ dipendente.ruolo }}{% if dipendente.livello %} · Livello {{ dipendente.livello }}{% endif %}
+        {% if dipendente.mansione %} · {{ dipendente.get_mansione_display }}{% endif %}
+        · {{ dipendente.azienda.nome }}
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      {% if request.user.is_superuser or request.user|has_ruolo:'admin' or request.user|has_ruolo:'hr' or request.user|has_ruolo:'consulente' or dipendente.utente_id == request.user.id %}
+      <a href="{% url 'modifica_dipendente' dipendente.pk %}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;font-size:.78rem">
+        <i class="bi bi-pencil"></i> Modifica
+      </a>
+      {% endif %}
+      {% if puo_inviare_certificazione_firma and dipendente.utente %}
+      <form method="post" action="{% url 'invia_certificazione_firma_dipendente' dipendente.pk %}" class="d-inline">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm" style="background:rgba(255,255,255,.25);color:#fff;font-size:.78rem"
+                title="Invia e-mail con link per la certificazione di firma">
+          <i class="bi bi-patch-check"></i> Certificazione firma
+        </button>
+      </form>
+      {% endif %}
+      <a href="{% url 'lista_dipendenti' %}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;font-size:.78rem">
+        <i class="bi bi-arrow-left"></i> Elenco
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    {% include 'rapporto_di_lavoro/_profilo_posizione_contrattuale.html' %}
+
+    {# ── Dati anagrafici ─────────────────────────────────────── #}
+    <div class="col-12 col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header py-2" style="background:#f4f7fa;font-size:.78rem;font-weight:700;color:#1b3a5f">
+          <i class="bi bi-person-lines-fill"></i> Dati anagrafici
+        </div>
+        <div class="card-body" style="font-size:.83rem">
+          <table class="table table-sm mb-0">
+            <tr><td style="color:#666;width:40%">Cognome e nome</td>
+                <td><strong>{{ dipendente.cognome }} {{ dipendente.nome }}</strong></td></tr>
+            {% if dipendente.matricola %}
+            <tr><td style="color:#666">Matricola</td>
+                <td><strong class="text-primary">{{ dipendente.matricola }}</strong></td></tr>
+            {% endif %}
+            <tr><td style="color:#666">Ruolo</td>
+                <td>{{ dipendente.ruolo }}</td></tr>
+            {% if dipendente.livello %}
+            <tr><td style="color:#666">Livello</td>
+                <td>{{ dipendente.livello }}</td></tr>
+            {% endif %}
+            {% if dipendente.mansione %}
+            <tr><td style="color:#666">Mansione</td>
+                <td>{{ dipendente.get_mansione_display }}</td></tr>
+            {% endif %}
+            <tr><td style="color:#666">Azienda</td>
+                <td>{{ dipendente.azienda.nome }}</td></tr>
+            <tr><td style="color:#666">Stato</td>
+                <td>
+                  <span style="font-size:.72rem;padding:2px 8px;border-radius:10px;font-weight:700;
+                    {% if dipendente.stato == 'attivo' %}background:#d4edda;color:#155724
+                    {% else %}background:#f8d7da;color:#721c24{% endif %}">
+                    {{ dipendente.stato|capfirst }}
+                  </span>
+                </td></tr>
+            <tr><td style="color:#666">Data assunzione</td>
+              <td>{% if dipendente.data_assunzione %}<span style="color:#155724"><i class="bi bi-calendar-check me-1"></i><strong>{{ dipendente.data_assunzione|date:"d/m/Y" }}</strong></span>{% else %}<span style="color:#aaa">— n.d.</span>{% endif %}</td></tr>
+            <tr><td style="color:#666">Data cessazione</td>
+              <td>{% if dipendente.data_cessazione %}<span style="color:#721c24"><i class="bi bi-calendar-x me-1"></i><strong>{{ dipendente.data_cessazione|date:"d/m/Y" }}</strong></span>{% else %}<span style="color:#aaa">—</span>{% endif %}</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    {# ── Azioni rapide ───────────────────────────────────────── #}
+    <div class="col-12 col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header py-2" style="background:#f4f7fa;font-size:.78rem;font-weight:700;color:#1b3a5f">
+          <i class="bi bi-lightning-charge-fill"></i> Azioni rapide
+        </div>
+        <div class="card-body d-flex flex-wrap gap-2 align-items-start" style="font-size:.83rem">
+          <a href="{% url 'calendario_presenze' dipendente.id %}?anno={{ anno_corrente|anno_it }}&mese={{ mese_corrente }}"
+             class="btn btn-sm" style="background:#1b3a5f;color:#fff;font-size:.78rem">
+            <i class="bi bi-calendar3"></i> Calendario presenze
+          </a>
+          <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno_corrente|anno_it }}&mese={{ mese_corrente }}"
+             class="btn btn-sm" style="background:#2d6199;color:#fff;font-size:.78rem">
+            <i class="bi bi-table"></i> Griglia mese (tutti)
+          </a>
+          {% if request.user.is_superuser or request.user|has_ruolo:'admin' or request.user|has_ruolo:'hr' or request.user|has_ruolo:'consulente' or dipendente.utente_id == request.user.id %}
+          <a href="{% url 'modifica_dipendente' dipendente.pk %}"
+             class="btn btn-sm btn-outline-secondary" style="font-size:.78rem">
+            <i class="bi bi-pencil-square"></i> Modifica dati
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ── Presenze mese corrente ──────────────────────────────── #}
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header py-2 d-flex align-items-center justify-content-between"
+             style="background:#f4f7fa;font-size:.78rem;font-weight:700;color:#1b3a5f">
+          <span><i class="bi bi-calendar-check"></i> Presenze mese corrente</span>
+          <a href="{% url 'calendario_presenze' dipendente.id %}?anno={{ anno_corrente|anno_it }}&mese={{ mese_corrente }}"
+             style="font-size:.72rem;font-weight:400;color:#2d6199;text-decoration:none">
+            Vedi tutto <i class="bi bi-arrow-right"></i>
+          </a>
+        </div>
+        <div class="card-body p-2">
+          {% if presenze_mese %}
+          <div style="display:flex;flex-wrap:wrap;gap:4px">
+            {% for p in presenze_mese %}
+            <span title="{{ p.data|date:'d/m/Y' }} — {{ p.get_causale_display }}{% if p.ora_entrata %} {{ p.ora_entrata|time:'H:i' }}-{{ p.ora_uscita|time:'H:i' }}{% endif %}{% if p.note %} — {{ p.note }}{% endif %}"
+                  style="font-size:.68rem;font-weight:700;color:#fff;padding:2px 6px;border-radius:4px;
+                         background:{{ p.colore_causale }};white-space:nowrap;cursor:default">
+              {{ p.data|date:"d" }} {{ p.causale }}
+              {% if p.ore_lavorate %}<span style="font-weight:400;opacity:.9"> {{ p.ore_lavorate }}h</span>{% endif %}
+            </span>
+            {% endfor %}
+          </div>
+          <div class="mt-2" style="font-size:.72rem;color:#888">
+            {{ presenze_mese|length }} registrazioni nel mese corrente.
+            <a href="{% url 'calendario_presenze' dipendente.id %}?anno={{ anno_corrente|anno_it }}&mese={{ mese_corrente }}"
+               style="color:#2d6199">Apri calendario completo</a>
+          </div>
+          {% else %}
+          <div style="font-size:.8rem;color:#aaa;font-style:italic;padding:.5rem 0">
+            <i class="bi bi-calendar-x"></i>
+            Nessuna presenza registrata per il mese corrente.
+            <a href="{% url 'calendario_presenze' dipendente.id %}?anno={{ anno_corrente|anno_it }}&mese={{ mese_corrente }}"
+               style="color:#2d6199">Apri calendario</a> per inserire.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ── Documenti economici: buste paga + CUD ─────────────────── #}
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header py-2 d-flex align-items-center justify-content-between"
+             style="background:#f4f7fa;font-size:.78rem;font-weight:700;color:#1b3a5f">
+          <span><i class="bi bi-folder2-open"></i> Buste paga e CUD</span>
+          {% if request.user.is_superuser or request.user|has_ruolo:'admin' or request.user|has_ruolo:'hr' %}
+          <a href="{% url 'documenti_dipendente_admin' dipendente.id %}"
+             style="font-size:.72rem;font-weight:400;color:#2d6199;text-decoration:none">
+            Gestione documenti <i class="bi bi-arrow-right"></i>
+          </a>
+          {% endif %}
+        </div>
+        <div class="card-body" style="font-size:.82rem">
+          <div class="row g-3">
+            <div class="col-12 col-lg-8">
+              <h6 style="font-size:.8rem;font-weight:700;color:#1b3a5f;margin-bottom:.5rem">
+                <i class="bi bi-receipt"></i> Buste paga per anno (aaaa)
+              </h6>
+              {% if buste_per_anno %}
+                {% for gruppo in buste_per_anno %}
+                <details class="mb-2" {% if forloop.first %}open{% endif %}
+                         style="border:1px solid #e6ebf1;border-radius:6px;padding:.35rem .5rem;background:#fff">
+                  <summary style="cursor:pointer;list-style:none;font-weight:700;color:#2d6199">
+                    Anno {{ gruppo.anno|anno_it }}
+                    <span style="color:#999;font-weight:400">({{ gruppo.mesi|length }} periodi)</span>
+                  </summary>
+                  <div style="margin-top:.45rem">
+                    {% for mese_group in gruppo.mesi %}
+                    <div class="mb-1">
+                      <div style="font-size:.73rem;color:#666;margin-bottom:.15rem">
+                        {{ mese_group.mese_label }}
+                      </div>
+                      <div style="display:flex;flex-wrap:wrap;gap:6px">
+                        <a href="{% url 'visualizza_documento' mese_group.doc.id %}"
+                           class="btn btn-sm btn-outline-secondary"
+                           style="font-size:.72rem;padding:.15rem .45rem">
+                          {{ mese_group.busta_label }}
+                        </a>
+                        {% if mese_group.doc.file and mese_group.doc.file.name|lower|slice:"-4:" == ".pdf" %}
+                        <a href="{% url 'visualizza_cedolino_busta' mese_group.doc.id %}"
+                           class="btn btn-sm btn-outline-info"
+                           style="font-size:.72rem;padding:.15rem .45rem"
+                           title="Dati estratti dal cedolino">Cedolino</a>
+                        {% endif %}
+                      </div>
+                    </div>
+                    {% endfor %}
+                  </div>
+                </details>
+                {% endfor %}
+              {% else %}
+                <div style="color:#999;font-style:italic">Nessuna busta paga disponibile.</div>
+              {% endif %}
+            </div>
+
+            <div class="col-12 col-lg-4">
+              <h6 style="font-size:.8rem;font-weight:700;color:#1b3a5f;margin-bottom:.5rem">
+                <i class="bi bi-file-earmark-text"></i> CUD / Certificazioni (per anno aaaa)
+              </h6>
+              {% if cud_per_anno %}
+                {% for gruppo in cud_per_anno %}
+                <details class="mb-2" {% if forloop.first %}open{% endif %}
+                         style="border:1px solid #e6ebf1;border-radius:6px;padding:.35rem .5rem;background:#fff">
+                  <summary style="cursor:pointer;list-style:none;font-weight:700;color:#2d6199">
+                    Anno {{ gruppo.anno|anno_it }}
+                    <span style="color:#999;font-weight:400">({{ gruppo.documenti|length }} CUD)</span>
+                  </summary>
+                  <ul class="list-group list-group-flush mt-2 mb-0">
+                    {% for doc in gruppo.documenti %}
+                    <li class="list-group-item px-0 py-1 border-0 d-flex justify-content-between align-items-center">
+                      <span style="font-size:.76rem">{{ doc.descrizione }}</span>
+                      <div class="d-flex gap-1 flex-shrink-0">
+                        <a href="{% url 'visualizza_documento' doc.id %}" class="btn btn-sm btn-outline-primary" style="font-size:.7rem">Apri</a>
+                        <a href="{% url 'download_documento' doc.id %}" class="btn btn-sm btn-outline-secondary" style="font-size:.7rem">PDF</a>
+                      </div>
+                    </li>
+                    {% endfor %}
+                  </ul>
+                </details>
+                {% endfor %}
+              {% else %}
+                <div style="color:#999;font-style:italic">Nessun CUD disponibile.</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Account App (admin / HR sulla propria azienda; vedi anche toggle_convalidato) ────────────────── #}
+    {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %}
+    <div class="col-12 col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header py-2" style="background:#f4f7fa;font-size:.78rem;font-weight:700;color:#1b3a5f">
+          <i class="bi bi-phone"></i> Account App (GESPER Mobile)
+        </div>
+        <div class="card-body" style="font-size:.83rem">
+          {% if dipendente.utente %}
+            <table class="table table-sm mb-3">
+              <tr>
+                <td style="color:#666;width:40%">Username</td>
+                <td><strong>{{ dipendente.utente.username }}</strong></td>
+              </tr>
+              <tr>
+                <td style="color:#666">Stato accesso</td>
+                <td>
+                  {% if dipendente.utente.convalidato %}
+                    <span style="background:#d4edda;color:#155724;font-size:.72rem;padding:2px 10px;border-radius:10px;font-weight:700">
+                      <i class="bi bi-check-circle-fill"></i> Abilitato
+                    </span>
+                  {% else %}
+                    <span style="background:#f8d7da;color:#721c24;font-size:.72rem;padding:2px 10px;border-radius:10px;font-weight:700">
+                      <i class="bi bi-x-circle-fill"></i> Non convalidato
+                    </span>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td style="color:#666">2FA attivo</td>
+                <td>
+                  {% if dipendente.utente.totp_enabled %}
+                    <span style="color:#0a6640"><i class="bi bi-shield-lock-fill"></i> Sì</span>
+                  {% else %}
+                    <span style="color:#aaa"><i class="bi bi-shield"></i> No</span>
+                  {% endif %}
+                </td>
+              </tr>
+            </table>
+            <form method="post" action="{% url 'toggle_convalidato' dipendente.pk %}">
+              {% csrf_token %}
+              {% if dipendente.utente.convalidato %}
+                <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size:.78rem">
+                  <i class="bi bi-x-circle"></i> Disabilita accesso app
+                </button>
+              {% else %}
+                <button type="submit" class="btn btn-sm btn-success" style="font-size:.78rem;color:#fff">
+                  <i class="bi bi-check-circle"></i> Abilita accesso app
+                </button>
+              {% endif %}
+            </form>
+          {% else %}
+            <p style="color:#aaa;font-style:italic;font-size:.82rem">
+              <i class="bi bi-person-x"></i> Nessun account app associato a questo dipendente.
+            </p>
+            <a href="{% url 'modifica_dipendente' dipendente.pk %}" class="btn btn-sm btn-outline-secondary" style="font-size:.78rem">
+              <i class="bi bi-person-plus"></i> Associa account
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>{# /row #}
+</div>
+{% endblock %}

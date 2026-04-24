@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% block title %}Gestione Database — Gesper{% endblock %}
+
+{% block extra_head %}
+<style>
+.db-header {
+  background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent) 100%);
+  color: #fff;
+  border-radius: 6px;
+  padding: .7rem 1rem;
+  margin-bottom: .8rem;
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+}
+.db-header h4 { font-size: .9rem; font-weight: 800; margin: 0; }
+.db-header .sub { font-size: var(--sz-xs); opacity: .8; }
+
+.app-block { margin-bottom: .7rem; }
+.app-head {
+  background: var(--c-primary);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: .25rem .65rem;
+  border-radius: 4px 4px 0 0;
+  display: flex; align-items: center; gap: .4rem;
+}
+.db-table { font-size: var(--sz-sm); margin: 0; }
+.db-table th {
+  font-size: var(--sz-xs);
+  background: #edf1f5;
+  color: var(--c-primary);
+  font-weight: 700;
+  padding: .22rem .5rem;
+  border-color: var(--c-border);
+  white-space: nowrap;
+}
+.db-table td { padding: .22rem .5rem; border-color: var(--c-border); vertical-align: middle; }
+.db-table tr:nth-child(even) td { background: #f8fafc; }
+.db-table tr:hover td { background: #edf4ff; }
+
+.tbl-name  { font-weight: 600; color: var(--c-primary); font-size: var(--sz-sm); }
+.tbl-model { font-size: .62rem; color: var(--c-muted); }
+
+.cnt-badge {
+  display: inline-block;
+  background: #dce8f5;
+  color: var(--c-primary);
+  font-weight: 700;
+  font-size: .72rem;
+  padding: .05rem .45rem;
+  border-radius: 10px;
+  min-width: 36px;
+  text-align: center;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="db-header">
+  <div>
+    <h4><i class="bi bi-database-fill"></i> Gestione Database</h4>
+    <div class="sub">Lettura, modifica e cancellazione record (stessi diritti per superuser Django e ruolo «admin»)</div>
+  </div>
+  <div class="d-flex flex-wrap align-items-center gap-2 justify-content-end">
+    {% if django_admin_access %}
+    <a href="{% url 'admin:index' %}" class="btn btn-sm btn-light text-dark" style="font-size:var(--sz-xs);font-weight:600"
+       title="Interfaccia Django Admin: tutti i modelli registrati, azioni bulk, filtri avanzati">
+      <i class="bi bi-shield-lock"></i> Admin Django (completo)
+    </a>
+    {% else %}
+    <span class="badge bg-light text-dark" style="font-size:.65rem;max-width:14rem;text-align:left;font-weight:500"
+          title="L’admin nativo richiede il flag «Staff status» sul profilo utente">
+      Admin Django: serve utente staff
+    </span>
+    {% endif %}
+    <a href="{% url 'dashboard_admin' %}" class="btn btn-sm btn-outline-light" style="font-size:var(--sz-xs)">
+      <i class="bi bi-arrow-left"></i> Dashboard
+    </a>
+  </div>
+</div>
+
+{% if not django_admin_access %}
+<div class="alert alert-secondary border-0 py-2 mb-3" style="font-size:var(--sz-sm)">
+  <i class="bi bi-info-circle me-1"></i>
+  Per aprire la <strong>gestione database Django completa</strong> (<code>/admin/</code>), il tuo account deve avere
+  <strong>«Staff status»</strong> attivo (da un superuser: utenti → il tuo utente → spunta «Staff»).
+  Qui sotto resta disponibile la <strong>gestione integrata Gesper</strong> su tutte le tabelle applicative.
+</div>
+{% endif %}
+
+{% regroup model_rows by app_label as apps_list %}
+<div class="gesper-list-scroll mb-3">
+{% for app_group in apps_list %}
+<div class="app-block">
+  <div class="app-head">
+    <i class="bi bi-folder2-open"></i>
+    App: {{ app_group.grouper }}
+    <span style="opacity:.6;font-weight:400">({{ app_group.list|length }} tabelle)</span>
+  </div>
+  <div class="table-responsive" style="border:1px solid var(--c-border);border-top:none;border-radius:0 0 4px 4px">
+    <table class="table db-table mb-0">
+      <thead>
+        <tr>
+          <th style="width:45%">Tabella</th>
+          <th class="text-center" style="width:12%">Record</th>
+          <th class="text-center" style="width:28%">Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in app_group.list %}
+        <tr>
+          <td>
+            <div class="tbl-name">{{ row.verbose_name_plural }}</div>
+            <div class="tbl-model">{{ row.app_label }}.{{ row.model_name }}</div>
+          </td>
+          <td class="text-center">
+            <span class="cnt-badge">{{ row.totale }}</span>
+          </td>
+          <td class="text-center">
+            <a class="btn btn-sm" href="{% url 'admin_table_detail' row.app_label row.model_name %}"
+               style="font-size:.66rem;background:#e8f0fa;color:var(--c-primary);border:1px solid var(--c-border)">
+              <i class="bi bi-pencil-square"></i> Apri tabella
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="text-center" style="color:var(--c-muted);padding:.5rem">Nessuna tabella</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% empty %}
+<div class="alert alert-info py-2 m-2 mb-0" style="font-size:var(--sz-sm)">
+  <i class="bi bi-info-circle"></i> Nessuna tabella disponibile.
+</div>
+{% endfor %}
+</div>
+
+<p class="mt-2 mb-0" style="font-size:.65rem;color:var(--c-muted)">
+  <i class="bi bi-info-circle"></i>
+  Operazioni integrate in Gesper (stessi permessi per superuser Django e ruolo «admin»). Per filtri, history e permessi per-modello usare <strong>Admin Django</strong> se sei utente staff.
+  Il campo password degli utenti non è incluso nel form generico: usare reset password o strumenti dedicati.
+</p>
+
+{% endblock %}

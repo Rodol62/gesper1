@@ -1,0 +1,44 @@
+{% if show %}
+<nav class="mt-2 mb-1 d-flex flex-wrap align-items-center gap-2" aria-label="{{ aria_label }}">
+  <ul class="pagination pagination-sm flex-wrap mb-0">
+    <li class="page-item{% if not page_obj.has_previous %} disabled{% endif %}">
+      {% if page_obj.has_previous %}
+      <a class="page-link py-1 px-2" href="{{ url_first }}" title="Prima pagina"><span class="bi bi-chevron-bar-left" aria-hidden="true"></span></a>
+      {% else %}
+      <span class="page-link py-1 px-2"><span class="bi bi-chevron-bar-left" aria-hidden="true"></span></span>
+      {% endif %}
+    </li>
+    <li class="page-item{% if not url_prev %} disabled{% endif %}">
+      {% if url_prev %}
+      <a class="page-link py-1 px-2" href="{{ url_prev }}" title="Pagina precedente"><span class="bi bi-chevron-left" aria-hidden="true"></span> Indietro</a>
+      {% else %}
+      <span class="page-link py-1 px-2"><span class="bi bi-chevron-left" aria-hidden="true"></span> Indietro</span>
+      {% endif %}
+    </li>
+    {% for p in pages %}
+      {% if p.ellipsis %}
+    <li class="page-item disabled"><span class="page-link py-1 px-2">&hellip;</span></li>
+      {% elif p.current %}
+    <li class="page-item active" aria-current="page"><span class="page-link py-1 px-2">{{ p.n }}</span></li>
+      {% else %}
+    <li class="page-item"><a class="page-link py-1 px-2" href="{{ p.url }}">{{ p.n }}</a></li>
+      {% endif %}
+    {% endfor %}
+    <li class="page-item{% if not url_next %} disabled{% endif %}">
+      {% if url_next %}
+      <a class="page-link py-1 px-2" href="{{ url_next }}" title="Pagina successiva">Avanti <span class="bi bi-chevron-right" aria-hidden="true"></span></a>
+      {% else %}
+      <span class="page-link py-1 px-2">Avanti <span class="bi bi-chevron-right" aria-hidden="true"></span></span>
+      {% endif %}
+    </li>
+    <li class="page-item{% if not page_obj.has_next %} disabled{% endif %}">
+      {% if page_obj.has_next %}
+      <a class="page-link py-1 px-2" href="{{ url_last }}" title="Ultima pagina"><span class="bi bi-chevron-bar-right" aria-hidden="true"></span></a>
+      {% else %}
+      <span class="page-link py-1 px-2"><span class="bi bi-chevron-bar-right" aria-hidden="true"></span></span>
+      {% endif %}
+    </li>
+  </ul>
+  <span class="text-muted small">Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+</nav>
+{% endif %}

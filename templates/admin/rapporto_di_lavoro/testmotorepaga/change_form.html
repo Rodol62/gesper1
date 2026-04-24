@@ -1,0 +1,122 @@
+{% extends "admin/change_form.html" %}
+{% load i18n format_it_tags %}
+
+{% block submit_buttons_bottom %}
+  {{ block.super }}
+  {% if original and calcola_url %}
+  <div class="submit-row" style="margin-top:.5rem">
+    <a href="{{ calcola_url }}"
+       class="default"
+       style="background:#0a6640;color:#fff;padding:.5rem 1.2rem;border-radius:4px;
+              text-decoration:none;font-weight:700;font-size:.95rem;display:inline-block"
+       >
+      ▶ Esegui Calcolo Motore Paga
+    </a>
+    <span style="margin-left:.8rem;font-size:.8rem;color:#888">
+      Legge i parametri salvati e calcola lordo, INPS, IRPEF, detrazioni, bonus, ratei e costo azienda.
+      Salva prima le modifiche ai parametri prima di eseguire il calcolo.
+    </span>
+  </div>
+  {% endif %}
+{% endblock %}
+
+{% block after_field_sets %}
+  {% if original and original.stato == 'calcolato' and original.r_netto_totale %}
+  <div style="background:#e8f5ee;border:2px solid #0a6640;border-radius:6px;
+              padding:1rem 1.2rem;margin:1rem 0">
+    <h3 style="color:#0a6640;margin:0 0 .8rem;font-size:1rem">
+      ✓ Riepilogo Motore Paga — {{ original.mese_riferimento }}
+      — {{ original.parametro_ccnl }} {{ original.tipo_contratto }}
+    </h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.5rem">
+
+      <div style="background:#fff;border-radius:4px;padding:.5rem .7rem;border:1px solid #b7dfc9">
+        <div style="font-size:.7rem;color:#555;text-transform:uppercase;font-weight:600">Lordo mensile</div>
+        <div style="font-size:1.1rem;font-weight:800;color:#1b3a5f">€ {{ original.r_lordo_mensile|euro_it }}</div>
+        {% if original.r_lordo_pieno != original.r_lordo_mensile %}
+        <div style="font-size:.7rem;color:#888">Pieno: € {{ original.r_lordo_pieno|euro_it }} | {{ original.r_giorni_lavorati }}/{{ original.r_giorni_mese }} gg</div>
+        {% endif %}
+      </div>
+
+      <div style="background:#fff;border-radius:4px;padding:.5rem .7rem;border:1px solid #b7dfc9">
+        <div style="font-size:.7rem;color:#555;text-transform:uppercase;font-weight:600">Voci retributive</div>
+        <div style="font-size:.78rem;line-height:1.7">
+          Paga base: <strong>€ {{ original.r_paga_base|euro_it }}</strong><br>
+          Contingenza: <strong>€ {{ original.r_contingenza|euro_it }}</strong><br>
+          EDR: <strong>€ {{ original.r_edr|euro_it }}</strong><br>
+          {% if original.r_indennita %}Indennità: <strong>€ {{ original.r_indennita|euro_it }}</strong><br>{% endif %}
+          {% if original.r_superminimo %}Superminimo: <strong>€ {{ original.r_superminimo|euro_it }}</strong><br>{% endif %}
+          {% if original.r_indennita_turno %}Ind. turno: <strong>€ {{ original.r_indennita_turno|euro_it }}</strong><br>{% endif %}
+          {% if original.r_altre_voci %}Altre voci: <strong>€ {{ original.r_altre_voci|euro_it }}</strong><br>{% endif %}
+        </div>
+      </div>
+
+      <div style="background:#fff3f3;border-radius:4px;padding:.5rem .7rem;border:1px solid #f0c0c0">
+        <div style="font-size:.7rem;color:#555;text-transform:uppercase;font-weight:600">INPS</div>
+        <div style="font-size:.78rem;line-height:1.7">
+          Aliquota dip.: <strong>{{ original.r_inps_dip_perc }}%</strong><br>
+          c/dipendente: <strong style="color:#c0392b">− € {{ original.r_inps_dipendente|abs_num|euro_it }}</strong><br>
+          Aliquota az.: <strong>{{ original.r_inps_az_perc }}%</strong><br>
+          c/azienda: <strong style="color:#c0392b">€ {{ original.r_inps_azienda|euro_it }}</strong><br>
+          INAIL az.: <strong style="color:#c0392b">€ {{ original.r_inail_azienda|euro_it }}</strong>
+        </div>
+      </div>
+
+      <div style="background:#fff3f3;border-radius:4px;padding:.5rem .7rem;border:1px solid #f0c0c0">
+        <div style="font-size:.7rem;color:#555;text-transform:uppercase;font-weight:600">IRPEF</div>
+        <div style="font-size:.78rem;line-height:1.7">
+          Imponibile/mese: <strong>€ {{ original.r_imponibile_mensile|euro_it }}</strong><br>
+          Imponibile/anno: <strong>€ {{ original.r_imponibile_annuo|euro_it }}</strong><br>
+          IRPEF lorda: <strong style="color:#c0392b">€ {{ original.r_irpef_lorda|euro_it }}</strong><br>
+          Detrazioni: <strong style="color:#1a7a1a">+ € {{ original.r_detrazioni|abs_num|euro_it }}</strong><br>
+          IRPEF netta: <strong style="color:#c0392b">− € {{ original.r_irpef_netta|abs_num|euro_it }}</strong>
+        </div>
+      </div>
+
+      <div style="background:#e8f5ee;border-radius:4px;padding:.5rem .7rem;border:2px solid #0a6640">
+        <div style="font-size:.7rem;color:#0a6640;text-transform:uppercase;font-weight:700">Netto mensile</div>
+        <div style="font-size:.78rem;line-height:1.7">
+          Netto base: <strong>€ {{ original.r_netto_base|euro_it }}</strong><br>
+          {% if original.r_trattamento_integrativo %}+ TI DL 3/2020: <strong style="color:#1a7a1a">€ {{ original.r_trattamento_integrativo|abs_num|euro_it }}</strong><br>{% endif %}
+          {% if original.r_bonus_l207 %}+ Bonus L207/24: <strong style="color:#1a7a1a">€ {{ original.r_bonus_l207|abs_num|euro_it }}</strong><br>{% endif %}
+        </div>
+        <div style="font-size:1.2rem;font-weight:900;color:#0a6640;border-top:2px solid #0a6640;margin-top:.3rem;padding-top:.3rem">
+          € {{ original.r_netto_totale|euro_it }}
+        </div>
+      </div>
+
+      <div style="background:#fff;border-radius:4px;padding:.5rem .7rem;border:1px solid #b7dfc9">
+        <div style="font-size:.7rem;color:#555;text-transform:uppercase;font-weight:600">Ratei accantonati</div>
+        <div style="font-size:.78rem;line-height:1.7">
+          TFR: <strong>€ {{ original.r_tfr_mensile|euro_it }}</strong><br>
+          13ª: <strong>€ {{ original.r_rateo_13_mensile|euro_it }}</strong><br>
+          14ª: <strong>€ {{ original.r_rateo_14_mensile|euro_it }}</strong><br>
+          Ferie: <strong>€ {{ original.r_rateo_ferie_mensile|euro_it }}</strong>
+        </div>
+      </div>
+
+      <div style="background:#fff;border-radius:4px;padding:.5rem .7rem;border:1px solid #b7dfc9">
+        <div style="font-size:.7rem;color:#555;text-transform:uppercase;font-weight:600">Addizionali (stima)</div>
+        <div style="font-size:.78rem;line-height:1.7">
+          Reg. Sicilia /mese: <strong>€ {{ original.r_addiz_reg_mensile|euro_it }}</strong><br>
+          Comunale /mese: <strong>€ {{ original.r_addiz_com_mensile|euro_it }}</strong><br>
+          Totale annuo: <strong>€ {{ original.r_addiz_totale_annuo|euro_it }}</strong>
+        </div>
+      </div>
+
+      <div style="background:#f0f4fa;border-radius:4px;padding:.5rem .7rem;border:2px solid #1b3a5f">
+        <div style="font-size:.7rem;color:#1b3a5f;text-transform:uppercase;font-weight:700">Costo azienda</div>
+        <div style="font-size:.78rem;line-height:1.7">
+          F24 INPS: <strong>€ {{ original.r_f24_inps|euro_it }}</strong><br>
+          F24 Erario: <strong>€ {{ original.r_f24_erario|euro_it }}</strong>
+        </div>
+        <div style="font-size:1.1rem;font-weight:900;color:#1b3a5f;border-top:2px solid #1b3a5f;margin-top:.3rem;padding-top:.3rem">
+          /mese € {{ original.r_costo_totale_azienda|euro_it }}<br>
+          <span style="font-size:.85rem">/anno ≈ € {{ original.r_costo_annuo_stimato|euro_it }}</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  {% endif %}
+{% endblock %}

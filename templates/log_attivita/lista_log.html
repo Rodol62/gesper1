@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% load guida_tags pagination_tags %}
+{% block title %}Log attività — {{ config.nome_sito }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:6px;
+              padding:.6rem 1rem;margin-bottom:.8rem;display:flex;align-items:center;justify-content:space-between">
+    <h5 style="margin:0;font-size:.92rem;font-weight:800">
+      <i class="bi bi-journal-text"></i> Log attività utenti{% guida_link "modulo-admin" %}
+    </h5>
+    <div class="d-flex gap-2">
+      <a href="{% url 'lista_log_errori' %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">
+        <i class="bi bi-bug"></i> Log errori
+      </a>
+      <a href="{% url 'dashboard_admin' %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">← Dashboard</a>
+    </div>
+  </div>
+
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <div class="mb-1"><strong>Tracciamento.</strong> Operazioni significative e accessi; filtro geofence per contestazioni su presenze ove attivo.</div>
+    <div class="mb-0 text-muted" style="font-size:.9em">
+      <a href="{% url 'guida_modulo' 'modulo-admin' %}">Guida: modulo admin</a>
+    </div>
+  </div>
+
+  <!-- Filtri -->
+  <form method="get" class="d-flex gap-2 flex-wrap mb-3 align-items-end">
+    {% if filtro_utente %}<input type="hidden" name="utente" value="{{ filtro_utente }}">{% endif %}
+    <div>
+      <label class="form-label">Operazione</label>
+      <select name="op" class="form-select form-select-sm" style="width:auto">
+        <option value="">Tutte</option>
+        {% for val, label in operazioni %}
+        <option value="{{ val }}" {% if filtro_op == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label">Ultimi giorni</label>
+      <select name="giorni" class="form-select form-select-sm" style="width:auto">
+        <option value="1"   {% if filtro_giorni == '1' %}selected{% endif %}>Oggi</option>
+        <option value="7"   {% if filtro_giorni == '7' %}selected{% endif %}>7 giorni</option>
+        <option value="30"  {% if filtro_giorni == '30' %}selected{% endif %}>30 giorni</option>
+        <option value="90"  {% if filtro_giorni == '90' %}selected{% endif %}>90 giorni</option>
+        <option value="0"   {% if filtro_giorni == '0' %}selected{% endif %}>Tutti</option>
+      </select>
+    </div>
+    <div class="form-check mb-1 ms-2">
+      <input class="form-check-input" type="checkbox" value="1" id="filtroGeofence" name="geofence" {% if filtro_geofence %}checked{% endif %}>
+      <label class="form-check-label" for="filtroGeofence" style="font-size:.78rem">
+        Solo contestazioni geofence
+      </label>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm mb-0" style="font-size:.75rem">
+      <i class="bi bi-funnel"></i> Filtra
+    </button>
+    <a href="{% url 'lista_log_attivita' %}?geofence=1&giorni=30" class="btn btn-outline-danger btn-sm mb-0" style="font-size:.75rem">
+      <i class="bi bi-geo-alt"></i> Contestazioni geofence (30gg)
+    </a>
+    <a href="{% url 'lista_log_attivita' %}" class="btn btn-outline-secondary btn-sm mb-0" style="font-size:.75rem">
+      <i class="bi bi-x"></i> Reset
+    </a>
+  </form>
+
+  {% gesper_pagination page_obj "Paginazione log attività" %}
+  <div class="gesper-list-scroll">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle" style="font-size:.78rem">
+      <thead style="background:#e8eef5;color:#1b3a5f">
+        <tr>
+          <th style="width:135px">Data e ora</th>
+          <th>Operazione</th>
+          <th>Utente</th>
+          <th>Descrizione</th>
+          <th>Azienda</th>
+          <th>IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in page_obj %}
+        <tr>
+          <td style="white-space:nowrap;color:#666">{{ log.data_ora|date:"d/m/Y H:i:s" }}</td>
+          <td>
+            {% if log.operazione == 'login' %}
+              <span class="badge bg-success">{{ log.get_operazione_display }}</span>
+            {% elif log.operazione == 'logout' %}
+              <span class="badge bg-secondary">{{ log.get_operazione_display }}</span>
+            {% elif log.operazione == 'login_fallito' %}
+              <span class="badge bg-danger">{{ log.get_operazione_display }}</span>
+            {% elif log.operazione == 'registrazione' or log.operazione == 'verifica_email' %}
+              <span class="badge bg-info text-dark">{{ log.get_operazione_display }}</span>
+            {% elif log.operazione == 'impostazioni' %}
+              <span class="badge bg-warning text-dark">{{ log.get_operazione_display }}</span>
+            {% else %}
+              <span class="badge bg-light text-dark border">{{ log.get_operazione_display }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if log.utente %}
+              <strong>{{ log.utente.username }}</strong>
+              {% with r=log.utente.ruoli.first %}
+              {% if r %}<span class="text-muted" style="font-size:.7rem">{{ r.nome }}</span>{% endif %}
+              {% endwith %}
+            {% else %}
+              <span class="text-muted">Anonimo</span>
+            {% endif %}
+          </td>
+          <td>{{ log.descrizione|default:"—" }}</td>
+          <td>{% if log.azienda %}{{ log.azienda.nome }}{% else %}—{% endif %}</td>
+          <td style="font-size:.7rem;color:#888">{{ log.ip_address|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-3">Nessun evento trovato con i filtri selezionati.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  </div>
+  {% gesper_pagination page_obj "Paginazione log attività" %}
+  {% if page_obj.paginator.count %}
+  <p class="text-muted mt-1" style="font-size:.72rem">
+    {{ page_obj.paginator.count }} evento/i{% if page_obj.paginator.num_pages > 1 %} — pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}{% endif %}.
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

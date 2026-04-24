@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Storico Dipendente{% endblock %}
+{% block content %}
+<h2 class="mb-4">Storico Dipendente: {{ dipendente }}</h2>
+<table class="table table-striped table-responsive">
+    <thead>
+        <tr>
+            <th>Tipo Evento</th>
+            <th>Data</th>
+            <th>Descrizione</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for evento in eventi %}
+        <tr>
+            <td>{{ evento.tipo }}</td>
+            <td>{{ evento.data_evento|date:'d/m/Y H:i' }}</td>
+            <td>{{ evento.descrizione }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

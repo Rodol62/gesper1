@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block title %}Seleziona dipendente{% endblock %}
+
+{% block content %}
+<div class="container mt-4" style="max-width: 720px;">
+  <h2 class="mb-3">Seleziona dipendente</h2>
+
+  {% if dipendenti %}
+    <form method="post" class="card">
+      {% csrf_token %}
+      <div class="card-body">
+        <label for="dipendente_id" class="form-label">Dipendente</label>
+        <select id="dipendente_id" name="dipendente_id" class="form-select" required>
+          <option value="">-- Seleziona --</option>
+          {% for d in dipendenti %}
+            <option value="{{ d.id }}">{{ d.cognome }} {{ d.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="card-footer d-flex justify-content-between">
+        <a href="{% url 'lista_presenze' %}" class="btn btn-outline-secondary">Annulla</a>
+        <button type="submit" class="btn btn-primary">Continua</button>
+      </div>
+    </form>
+  {% else %}
+    <div class="alert alert-warning">Nessun dipendente attivo disponibile.</div>
+    <a href="{% url 'lista_presenze' %}" class="btn btn-outline-secondary">Torna alla lista</a>
+  {% endif %}
+</div>
+{% endblock %}

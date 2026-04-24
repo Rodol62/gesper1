@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Gesper{% endblock %}</title>
+  {% if gesper_pwa_embed %}
+  {% load static %}
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/pwa-embed.css' %}">
+  {% if config %}
+  <style>
+  :root { --c-primary: {{ config.colore_primario|default:"#2563eb" }}; --c-accent: {{ config.colore_accent|default:"#1d4ed8" }}; }
+  body.gesper-pwa-embed { background: {{ config.colore_sfondo|default:"#f0f4f8" }} !important; }
+  </style>
+  {% endif %}
+  {% else %}
+  <!-- Bootstrap 5.3 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+  <style>
+  /* ═══════════════════════════════════════════════════════
+     GESPER — Design System globale
+  ═══════════════════════════════════════════════════════ */
+  /* Importi €: allineamento a destra, cifre tabulari (usare classi th/td .euro o .text-euro) */
+  th.euro, td.euro, .text-euro {
+    text-align: right !important;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  :root {
+    --c-primary:   #1b3a5f;
+    --c-primary-h: #14304f;
+    --c-accent:    #2d6199;
+    --c-accent-h:  #245080;
+    --c-green:     #0a6640;
+    --c-amber:     #8a5700;
+    --c-red:       #8b1c1c;
+    --c-muted:     #5c6b7d;
+    --c-border:    #c5d0dc;
+    --c-alt:       #f4f7fa;
+    --c-white:     #ffffff;
+    --sz-xs:       0.73rem;
+    --sz-sm:       0.81rem;
+    --sz-base:     0.87rem;
+    --sz-md:       0.95rem;
+    --nav-h:       48px;
+  }
+
+  /* Base */
+  *, *::before, *::after { box-sizing: border-box; }
+  html { font-size: 15px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: var(--sz-base);
+    color: #212529;
+    background: #f1f4f8;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Liste tabellari: cornice ad altezza limitata, scroll interno, intestazione sticky */
+  .gesper-list-scroll {
+    max-height: min(70vh, 720px);
+    overflow: auto;
+    border: 1px solid var(--c-border);
+    border-radius: 6px;
+    background: #fff;
+  }
+  .gesper-list-scroll .table { margin-bottom: 0; }
+  .gesper-list-scroll table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bs-table-bg, #f8f9fa);
+    box-shadow: inset 0 -1px 0 var(--c-border);
+  }
+
+  /* ── Navbar ───────────────────────────────────────────── */
+  .g-navbar {
+    background: var(--c-primary);
+    height: var(--nav-h);
+    min-height: var(--nav-h);
+    display: flex;
+    align-items: center;
+    padding: 0 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    gap: .5rem;
+  }
+  .g-brand {
+    font-size: .88rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    color: #fff !important;
+    text-decoration: none;
+    white-space: nowrap;
+    padding-right: .75rem;
+    border-right: 1px solid rgba(255,255,255,.2);
+    margin-right: .25rem;
+  }
+  .g-brand span { color: #7ec8f0; }
+
+  .g-nav {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    gap: .05rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex-wrap: wrap;
+  }
+  .g-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .82rem;
+    font-weight: 500;
+    color: rgba(255,255,255,.82) !important;
+    text-decoration: none;
+    padding: .3rem .55rem;
+    border-radius: 4px;
+    transition: background .15s, color .15s;
+    white-space: nowrap;
+  }
+  .g-nav a:hover { background: rgba(255,255,255,.12); color: #fff !important; }
+  .g-nav a.active { background: rgba(255,255,255,.18); color: #fff !important; }
+
+  .g-nav .nav-sep {
+    width: 1px; height: 16px;
+    background: rgba(255,255,255,.15);
+    margin: 0 .2rem;
+  }
+
+  /* Admin links con colori distinti */
+  .g-nav a.nav-admin    { color: #ffd06b !important; }
+  .g-nav a.nav-django   { color: #ff8a8a !important; }
+  .g-nav a.nav-admin:hover,
+  .g-nav a.nav-django:hover { background: rgba(255,255,255,.12); }
+
+  /* Su desktop il collapse è una riga flex che occupa tutto lo spazio disponibile */
+  .g-nav-collapse {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .g-nav-right {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .g-user-pill {
+    font-size: .82rem;
+    background: rgba(255,255,255,.12);
+    color: rgba(255,255,255,.85);
+    border-radius: 20px;
+    padding: .15rem .6rem;
+    border: 1px solid rgba(255,255,255,.18);
+  }
+  .g-logout-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 4px;
+    color: rgba(255,255,255,.8);
+    font-size: .82rem;
+    padding: .15rem .5rem;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .g-logout-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
+
+  /* ── Dropdown nav ────────────────────────────────────── */
+  .g-nav .nav-group { position: relative; }
+  .g-nav .nav-group-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    font-size: .82rem;
+    font-weight: 500;
+    color: rgba(255,255,255,.82) !important;
+    background: none;
+    border: none;
+    padding: .3rem .55rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background .15s;
+    white-space: nowrap;
+  }
+  .g-nav .nav-group-btn:hover,
+  .g-nav .nav-group.open .nav-group-btn { background: rgba(255,255,255,.12); color: #fff !important; }
+  .g-nav .nav-group-btn .caret { font-size: .65rem; opacity: .7; transition: transform .2s; }
+  .g-nav .nav-group.open .nav-group-btn .caret { transform: rotate(180deg); }
+
+  .nav-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 210px;
+    background: #fff;
+    border: 1px solid var(--c-border);
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.15);
+    padding: .3rem 0;
+    z-index: 2000;
+  }
+  .g-nav .nav-group.open .nav-dropdown { display: block; }
+  .nav-dropdown a {
+    display: flex !important;
+    align-items: center;
+    gap: .4rem;
+    padding: .38rem .85rem !important;
+    font-size: .83rem !important;
+    color: var(--c-primary) !important;
+    background: none !important;
+    border-radius: 0 !important;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .nav-dropdown a:hover { background: var(--c-alt) !important; }
+  .nav-dropdown a.nav-admin  { color: var(--c-amber) !important; }
+  .nav-dropdown a.nav-django { color: var(--c-red) !important; }
+  .nav-dropdown .dd-sep {
+    height: 1px; background: var(--c-border); margin: .25rem 0;
+  }
+  .nav-dropdown .dd-label {
+    display: block;
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--c-muted) !important;
+    padding: .4rem .85rem .1rem;
+    pointer-events: none;
+    line-height: 1.2;
+  }
+
+  /* Toggler mobile */
+  .g-toggler {
+    display: none;
+    background: none;
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 4px;
+    color: #fff;
+    padding: .2rem .45rem;
+    font-size: .8rem;
+    cursor: pointer;
+    margin-left: auto;
+  }
+  @media (max-width: 900px) {
+    .g-toggler { display: inline-flex; }
+    .g-nav-collapse { display: none; flex-direction: column; width: 100%; }
+    .g-nav-collapse.open {
+      display: flex;
+      position: absolute;
+      top: var(--nav-h);
+      left: 0; right: 0;
+      background: var(--c-primary);
+      padding: .5rem 1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,.3);
+      z-index: 999;
+    }
+    .g-nav { flex-direction: column; align-items: flex-start; width: 100%; }
+    .g-nav-right { margin-left: 0; padding-top: .5rem; border-top: 1px solid rgba(255,255,255,.15); width: 100%; }
+    /* Dropdown mobile: inline accordion */
+    .g-nav .nav-group { width: 100%; }
+    .g-nav .nav-group-btn { width: 100%; justify-content: space-between; }
+    .nav-dropdown {
+      position: static;
+      box-shadow: none;
+      border: none;
+      border-left: 2px solid rgba(255,255,255,.2);
+      background: rgba(0,0,0,.15);
+      border-radius: 0;
+      padding: 0;
+      margin-left: .8rem;
+    }
+    .nav-dropdown a {
+      color: rgba(255,255,255,.85) !important;
+      font-size: .8rem !important;
+      padding: .3rem .7rem !important;
+    }
+    .nav-dropdown a:hover { background: rgba(255,255,255,.1) !important; }
+    .nav-dropdown .dd-sep { background: rgba(255,255,255,.12); }
+    .nav-dropdown .dd-label { color: rgba(255,255,255,.45) !important; }
+  }
+
+  /* ── Contenuto principale ─────────────────────────────── */
+  .g-main {
+    flex: 1;
+    padding: 1rem;
+  }
+
+  /* ── Componenti globali ───────────────────────────────── */
+  .card {
+    border: 1px solid var(--c-border);
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  }
+  .card-header {
+    background: var(--c-alt);
+    border-bottom: 1px solid var(--c-border);
+    font-size: var(--sz-sm);
+    font-weight: 600;
+    padding: .35rem .75rem;
+  }
+  .card-body { padding: .75rem; }
+
+  .btn-sm { font-size: var(--sz-xs); padding: .22rem .55rem; }
+  .btn-xs { font-size: .66rem; padding: .12rem .38rem; }
+
+  .table { font-size: var(--sz-sm); }
+  .table th { font-size: var(--sz-xs); font-weight: 700; }
+  .table-sm th, .table-sm td { padding: .25rem .4rem; }
+
+  .alert { font-size: var(--sz-sm); }
+  .badge { font-size: .62rem; }
+
+  /* ── Toast globali messaggi Django ───────────────────── */
+  .g-toast-wrap {
+    position: fixed;
+    top: calc(var(--nav-h) + 10px);
+    right: 14px;
+    z-index: 2100;
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    max-width: min(92vw, 420px);
+  }
+  .g-toast {
+    border-radius: 6px;
+    border: 1px solid var(--c-border);
+    box-shadow: 0 4px 14px rgba(0,0,0,.14);
+    padding: .55rem .72rem;
+    font-size: var(--sz-sm);
+    line-height: 1.35;
+    background: #fff;
+    color: #1f2b38;
+    transform: translateY(-6px);
+    opacity: 0;
+    transition: transform .18s ease, opacity .18s ease;
+  }
+  .g-toast.show { transform: translateY(0); opacity: 1; }
+  .g-toast.success { background: #e8f7ee; border-color: #bfe6cd; color: #0a6640; }
+  .g-toast.error,
+  .g-toast.danger { background: #fdecec; border-color: #f4caca; color: #8b1c1c; }
+  .g-toast.warning { background: #fff6e5; border-color: #f2dfb2; color: #8a5700; }
+  .g-toast.info { background: #eaf3ff; border-color: #c9dcf6; color: #1b3a5f; }
+
+  .form-label { font-size: var(--sz-xs); font-weight: 600; margin-bottom: 2px; }
+  .form-control, .form-select { font-size: var(--sz-sm); padding: .28rem .5rem; }
+  .form-control-sm, .form-select-sm { font-size: var(--sz-xs); padding: .18rem .35rem; }
+
+  h1 { font-size: 1.35rem; font-weight: 700; }
+  h2 { font-size: 1.15rem; font-weight: 700; }
+  h3 { font-size: 1.0rem;  font-weight: 700; }
+  h4 { font-size: .92rem;  font-weight: 700; }
+  h5 { font-size: .85rem;  font-weight: 700; }
+  h6 { font-size: .80rem;  font-weight: 700; }
+
+  /* ── Footer ───────────────────────────────────────────── */
+  .g-footer {
+    background: var(--c-primary);
+    color: rgba(255,255,255,.5);
+    font-size: .62rem;
+    text-align: center;
+    padding: .55rem 1rem;
+    letter-spacing: .03em;
+    line-height: 1.7;
+  }
+  .g-footer a { color: rgba(255,255,255,.6); text-decoration: none; }
+  .g-footer a:hover { color: #fff; text-decoration: underline; }
+  .g-footer .footer-disclaimer {
+    font-size: .58rem;
+    color: rgba(255,255,255,.38);
+    margin-top: .2rem;
+    max-width: 860px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* ── Utility ──────────────────────────────────────────── */
+  .text-primary { color: var(--c-primary) !important; }
+  .bg-primary   { background: var(--c-primary) !important; }
+  </style>
+
+  {% if config %}
+  {# Font Google se non system #}
+  {% if config.font_famiglia == 'inter' %}
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  {% elif config.font_famiglia == 'roboto' %}
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  {% elif config.font_famiglia == 'open-sans' %}
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  {% elif config.font_famiglia == 'lato' %}
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
+  {% elif config.font_famiglia == 'source-sans' %}
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  {% endif %}
+  <style>
+  :root {
+    --c-primary:   {{ config.colore_primario }};
+    --c-primary-h: {{ config.colore_primario }};
+    --c-accent:    {{ config.colore_accent }};
+    --c-accent-h:  {{ config.colore_accent }};
+  }
+  html { font-size: {{ config.font_dimensione_base }}px; }
+  body { background: {{ config.colore_sfondo }}; }
+  {% if config.font_famiglia == 'inter' %}
+  body { font-family: 'Inter', sans-serif; }
+  {% elif config.font_famiglia == 'roboto' %}
+  body { font-family: 'Roboto', sans-serif; }
+  {% elif config.font_famiglia == 'open-sans' %}
+  body { font-family: 'Open Sans', sans-serif; }
+  {% elif config.font_famiglia == 'lato' %}
+  body { font-family: 'Lato', sans-serif; }
+  {% elif config.font_famiglia == 'source-sans' %}
+  body { font-family: 'Source Sans 3', sans-serif; }
+  {% endif %}
+  </style>
+  {% endif %}
+  {% endif %}
+  {% block extra_head %}{% endblock %}
+</head>
+<body{% if gesper_pwa_embed %} class="gesper-pwa-embed"{% endif %}>
+<script>
+window.__GESPER_SCRIPT_NAME = "{{ request.META.SCRIPT_NAME|default:''|escapejs }}";
+window.__GESPER_API_BASE = "{{ gesper_api_base|default:'/api/'|escapejs }}";
+window.__GESPER_PORTAL_BASE = "{{ gesper_portal_web_base|default:'/'|escapejs }}";
+(function () {
+  function trimSlash(s) { return (s || '').replace(/\/+$/, ''); }
+  window.gesperUrlPath = function (pathFromRoot) {
+    var sn = (typeof window !== 'undefined' && window.__GESPER_SCRIPT_NAME) ? String(window.__GESPER_SCRIPT_NAME).trim() : '';
+    sn = trimSlash(sn);
+    var p = (pathFromRoot || '').trim();
+    if (!p.startsWith('/')) p = '/' + p;
+    return sn + p;
+  };
+  window.gesperApiUrl = function (relPath) {
+    var base = trimSlash((typeof window !== 'undefined' && window.__GESPER_API_BASE) ? String(window.__GESPER_API_BASE).trim() : '/api/');
+    var r = (relPath || '').trim().replace(/^\/+/, '');
+    return base + '/' + r;
+  };
+  /** Path sotto il portale web (stesso prefisso di ``gesperUrlPath`` ma senza slash iniziale obbligatorio su ``relPath``). */
+  window.gesperPortalUrl = function (relPath) {
+    var pfx = (typeof window !== 'undefined' && window.__GESPER_PORTAL_BASE)
+      ? String(window.__GESPER_PORTAL_BASE).trim() : '/';
+    if (!pfx) pfx = '/';
+    if (pfx !== '/' && !/\/$/.test(pfx)) pfx += '/';
+    var r = (relPath || '').trim().replace(/^\/+/, '');
+    if (pfx === '/') return '/' + r;
+    return pfx + r;
+  };
+})();
+</script>
+
+{% load ruoli_tags %}
+
+{% block header %}
+{% if not gesper_pwa_embed %}
+<nav class="g-navbar" role="navigation">
+  <!-- Brand - dinamico per ruolo -->
+  {# Portale: dipendente → profilo; candidato → dashboard portale; poi admin/consulente. #}
+  <a class="g-brand" href="{% block brand_href %}{% if user.is_authenticated %}{% if user|has_ruolo:'dipendente' %}{% url 'profile' %}{% elif user|has_ruolo:'candidato' %}{% url 'candidato_dashboard' %}{% elif user.is_superuser or user|has_ruolo:'admin' %}{% url 'dashboard_admin' %}{% elif user|has_ruolo:'consulente' %}{% url 'consulente_dashboard' %}{% else %}{% url 'profile' %}{% endif %}{% else %}/{% endif %}{% endblock %}"><span>Ges</span>per</a>
+
+  <!-- Mobile toggler -->
+  <button class="g-toggler" onclick="toggleNav()" aria-label="Menu">
+    <i class="bi bi-list"></i>
+  </button>
+
+  <!-- Nav links -->
+  <div class="g-nav-collapse" id="gNavCollapse">
+    <ul class="g-nav">
+      {% if user.is_authenticated %}
+        {% if user|has_ruolo:'candidato' or user|has_ruolo:'dipendente' %}
+        {# Stesso flusso portale: candidato e dipendente condividono le voci base; solo dipendente ha documenti/presenze. #}
+        <li><a href="{% url 'candidato_dashboard' %}"><i class="bi bi-person-circle"></i> {% if user|has_ruolo:'dipendente' %}La mia area{% else %}La mia candidatura{% endif %}</a></li>
+        <li><a href="{% url 'candidato_completa_profilo' %}"><i class="bi bi-pencil-square"></i> Il mio profilo</a></li>
+        <li><a href="{% url 'candidato_mie_richieste' %}"><i class="bi bi-chat-left-dots"></i> Richieste informazioni</a></li>
+        {% if user|has_ruolo:'dipendente' %}
+        <li><a href="{% url 'candidato_miei_documenti' %}"><i class="bi bi-folder2-open"></i> Documenti e buste</a></li>
+        <li><a href="{% url 'candidato_mie_presenze' %}"><i class="bi bi-calendar-check"></i> Presenze</a></li>
+        {% endif %}
+        <li><a href="{% url 'guida_modulo' 'portale-dipendente' %}"><i class="bi bi-book"></i> Guida portale</a></li>
+        {% elif user|has_ruolo:'consulente' %}
+        <!-- Consulente: raggruppamenti allineati a HR (Documenti / Gestione presenze) per ridurre ridondanza visiva -->
+        <li><a href="{% url 'consulente_dashboard' %}"><i class="bi bi-briefcase"></i> Dashboard</a></li>
+        <li><a href="{% url 'consulente_candidati' %}"><i class="bi bi-person-lines-fill"></i> Anagrafiche</a></li>
+        <li class="nav-group">
+          <button type="button" class="nav-group-btn" onclick="toggleDropdown(this)">
+            <i class="bi bi-folder2-open"></i> Documenti <span class="caret">▼</span>
+          </button>
+          <div class="nav-dropdown">
+            <span class="dd-label">Buste paga — motore cedolino v4</span>
+            <a href="{% url 'lista_buste_paga_documenti' %}"><i class="bi bi-1-circle"></i> Archivio buste PDF</a>
+            <a href="{% url 'consulente_carica_documento' %}"><i class="bi bi-2-circle"></i> Carica buste / documenti paghe</a>
+            <a href="{% url 'buste_paga_estrazione_motore_v4' %}"><i class="bi bi-3-circle"></i> Memorizza estrazione v4 (DB)</a>
+            <a href="{% url 'buste_paga_conciliazione_cedolino' %}"><i class="bi bi-4-circle"></i> Conciliazione — esito OK / differenze</a>
+            <a href="{% url 'buste_paga_lettura_cedolino' %}"><i class="bi bi-5-circle"></i> Dettaglio lettura cedolino</a>
+            <div class="dd-sep"></div>
+            <span class="dd-label">Altri documenti</span>
+            <a href="{% url 'consulente_documenti' %}"><i class="bi bi-file-earmark-person"></i> Elenco documenti dipendenti</a>
+            <a href="{% url 'lista_cud_documenti' %}"><i class="bi bi-file-earmark-ruled"></i> CUD / Certificati</a>
+            <a href="{% url 'lista_f24_documenti' %}"><i class="bi bi-bank"></i> F24</a>
+            <a href="{% url 'libro_paga_lista' %}"><i class="bi bi-journal-richtext"></i> Libro paga</a>
+          </div>
+        </li>
+        <li class="nav-group">
+          <button type="button" class="nav-group-btn" onclick="toggleDropdown(this)">
+            <i class="bi bi-calendar-check"></i> Gestione presenze <span class="caret">▼</span>
+          </button>
+          <div class="nav-dropdown">
+            <span class="dd-label">Flusso mensile</span>
+            <a href="{% url 'riepilogo_presenze_mese' %}"><i class="bi bi-calendar3-week"></i> Griglia presenze mese</a>
+            <a href="{% url 'riepilogo_mensile_motore' %}"><i class="bi bi-calculator"></i> Cedolino da riepilogo</a>
+            <a href="{% url 'monti_saldi' %}"><i class="bi bi-journal-bookmark"></i> Monti (ferie / ROL)</a>
+            <div class="dd-sep"></div>
+            <span class="dd-label">Export</span>
+            <a href="{% url 'consulente_presenze' %}"><i class="bi bi-download"></i> Export presenze (schermata)</a>
+            <a href="{% url 'export_presenze_excel' %}"><i class="bi bi-file-earmark-excel-fill"></i> Export Excel mese corrente</a>
+          </div>
+        </li>
+        <li><span class="nav-sep"></span></li>
+        <li><a href="{% url 'profile' %}"><i class="bi bi-person-circle"></i> Profilo</a></li>
+        {% else %}
+        <!-- Menu HR / Admin (raggruppato) -->
+
+        {# ── Personale ── #}
+        {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %}
+        <li class="nav-group">
+          <button type="button" class="nav-group-btn" onclick="toggleDropdown(this)">
+            <i class="bi bi-people"></i> Personale <span class="caret">▼</span>
+          </button>
+          <div class="nav-dropdown">
+            {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %}
+            <a href="{% url 'lista_dipendenti' %}?stato=attivo"><i class="bi bi-person-badge"></i> Dipendenti</a>
+            {% endif %}
+            <a href="{% url 'lista_candidati' %}"><i class="bi bi-person-lines-fill"></i> Candidati</a>
+          </div>
+        </li>
+        {% endif %}
+
+        {# ── Documenti ── #}
+        <li class="nav-group">
+          <button type="button" class="nav-group-btn" onclick="toggleDropdown(this)">
+            <i class="bi bi-folder2-open"></i> Documenti <span class="caret">▼</span>
+          </button>
+          <div class="nav-dropdown">
+            <span class="dd-label">Buste paga — motore cedolino v4</span>
+            <a href="{% url 'lista_buste_paga_documenti' %}"><i class="bi bi-1-circle"></i> Archivio buste PDF</a>
+            {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %}
+            <a href="{% url 'upload_buste_paga_massivo' %}"><i class="bi bi-2-circle"></i> Importa buste PDF (massivo)</a>
+            {% endif %}
+            <a href="{% url 'buste_paga_estrazione_motore_v4' %}"><i class="bi bi-3-circle"></i> Memorizza estrazione v4 (DB)</a>
+            <a href="{% url 'buste_paga_conciliazione_cedolino' %}"><i class="bi bi-4-circle"></i> Conciliazione — esito OK / differenze</a>
+            <a href="{% url 'buste_paga_lettura_cedolino' %}"><i class="bi bi-5-circle"></i> Dettaglio lettura cedolino</a>
+            <div class="dd-sep"></div>
+            <span class="dd-label">Altri documenti</span>
+            <a href="{% url 'lista_documenti' %}"><i class="bi bi-file-earmark-text"></i> Tutti i documenti</a>
+            <a href="{% url 'lista_cud_documenti' %}"><i class="bi bi-file-earmark-ruled"></i> CUD / Certificati</a>
+            <a href="{% url 'lista_f24_documenti' %}"><i class="bi bi-bank"></i> F24</a>
+            <a href="{% url 'libro_paga_lista' %}"><i class="bi bi-journal-richtext"></i> Libro paga</a>
+          </div>
+        </li>
+
+        {# ── Gestione presenze (griglia → motore → monti → export) ── #}
+        <li class="nav-group">
+          <button type="button" class="nav-group-btn" onclick="toggleDropdown(this)">
+            <i class="bi bi-calendar-check"></i> Gestione presenze <span class="caret">▼</span>
+          </button>
+          <div class="nav-dropdown">
+            <span class="dd-label">Flusso mensile</span>
+            <a href="{% url 'riepilogo_presenze_mese' %}"><i class="bi bi-calendar3-week"></i> Griglia presenze mese</a>
+            {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
+            <a href="{% url 'riepilogo_mensile_motore' %}"><i class="bi bi-calculator"></i> Cedolino da riepilogo</a>
+            <a href="{% url 'monti_saldi' %}"><i class="bi bi-journal-bookmark"></i> Monti (ferie / ROL)</a>
+            {% endif %}
+            <div class="dd-sep"></div>
+            <span class="dd-label">Export</span>
+            <a href="{% url 'export_presenze_excel' %}"><i class="bi bi-file-earmark-excel-fill"></i> Export Excel (mese corrente)</a>
+            {% if user.is_superuser or user|has_ruolo:'admin' %}
+            <div class="dd-sep"></div>
+            <span class="dd-label">Pianificazione</span>
+            <a href="{% url 'pianificazione_orari_annuale' %}"><i class="bi bi-clock"></i> Pianificazione orari</a>
+            <a href="{% url 'calendario_aziendale' %}"><i class="bi bi-calendar3"></i> Calendario aziendale</a>
+            {% endif %}
+          </div>
+        </li>
+
+        {# ── Contratti & richieste (hub modulo-admin) ── #}
+        <li class="nav-group">
+          <button type="button" class="nav-group-btn" onclick="toggleDropdown(this)">
+            <i class="bi bi-briefcase"></i> Contratti e richieste <span class="caret">▼</span>
+          </button>
+          <div class="nav-dropdown">
+            <a href="{% url 'lista_proposte_assunzione' %}"><i class="bi bi-file-earmark-text"></i> Proposte / contratti</a>
+            <a href="{% url 'lista_richieste' %}"><i class="bi bi-chat-dots"></i> Richieste</a>
+          </div>
+        </li>
+
+        {% if user|has_ruolo:'hr' and not user|has_ruolo:'admin' and not user.is_superuser %}
+        <li><a href="{% url 'storico_home' %}"><i class="bi bi-clock-history"></i> Storico</a></li>
+        {% endif %}
+
+        {# ── Admin ── #}
+        {% if user.is_superuser or user|has_ruolo:'admin' %}
+        <li><span class="nav-sep"></span></li>
+        <li class="nav-group">
+          <button type="button" class="nav-group-btn nav-admin" onclick="toggleDropdown(this)" style="color:#ffd06b !important">
+            <i class="bi bi-speedometer2"></i> Admin <span class="caret">▼</span>
+          </button>
+          <div class="nav-dropdown">
+            <a href="{% url 'dashboard_admin' %}" class="nav-admin"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <div class="dd-sep"></div>
+            <span class="dd-label">Simulazioni</span>
+            <a href="{% url 'simulatore_paga' %}" class="nav-admin"><i class="bi bi-calculator"></i> Simulatore paga (singolo)</a>
+            <a href="{% url 'simulazione_2026_config' %}" class="nav-admin"><i class="bi bi-graph-up"></i> Simulazione annua</a>
+            <a href="{% url 'estrazione_dati_buste_paga' %}" class="nav-admin"><i class="bi bi-file-earmark-pdf"></i> Estrazione dati buste paghe</a>
+            <div class="dd-sep"></div>
+            <a href="{% url 'gestione_riferimenti_economici' %}" class="nav-admin"><i class="bi bi-currency-euro"></i> Rif. economici</a>
+            <div class="dd-sep"></div>
+            <a href="{% url 'impostazioni_sistema' %}" class="nav-admin"><i class="bi bi-sliders"></i> Impostazioni</a>
+            <a href="{% url 'lista_log_attivita' %}" class="nav-admin"><i class="bi bi-journal-text"></i> Log attività</a>
+            <a href="{% url 'storico_home' %}" class="nav-admin"><i class="bi bi-clock-history"></i> Storico</a>
+            <div class="dd-sep"></div>
+            <a href="{% url 'admin_data_overview' %}" class="nav-admin"><i class="bi bi-database-fill"></i> Gestione database</a>
+            <a href="{% url 'admin_archivio_documenti_storage' %}" class="nav-admin"><i class="bi bi-hdd-network"></i> Cartelle archivio documenti</a>
+          </div>
+        </li>
+        {% endif %}
+        {% endif %}
+      {% endif %}
+    </ul>
+
+    <div class="g-nav-right">
+      {% if user.is_authenticated %}
+        <a href="{% url 'guida_indice' %}" class="g-logout-btn" style="text-decoration:none;margin-right:.35rem" title="Guida ai moduli e ai campi"><i class="bi bi-book"></i> Guida</a>
+        <span class="g-user-pill"><i class="bi bi-person-fill"></i> {{ user.username }}</span>
+        <form method="post" action="{% url 'logout' %}" style="margin:0">
+          {% csrf_token %}
+          <button type="submit" class="g-logout-btn"><i class="bi bi-box-arrow-right"></i> Esci</button>
+        </form>
+      {% else %}
+        <a href="{% url 'login' %}" class="g-logout-btn" style="text-decoration:none"><i class="bi bi-box-arrow-in-right"></i> Accedi</a>
+        <a href="{% url 'register_candidato' %}" class="g-logout-btn" style="text-decoration:none;margin-left:.3rem;background:rgba(255,255,255,.12)"><i class="bi bi-person-plus"></i> Candidati</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+{% endif %}
+{% endblock %}
+
+<main class="g-main">
+  {% if messages %}
+  <div class="g-toast-wrap" id="gToastWrap" aria-live="polite" aria-atomic="true">
+    {% for message in messages %}
+      <div class="g-toast {{ message.tags|default:'info' }}" data-toast>{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+
+{% block footer %}
+{% if not gesper_pwa_embed %}
+<footer class="g-footer">
+
+  {# ── Riga principale ── #}
+  <div>
+    <span style="color:rgba(255,255,255,.9);font-weight:700">GESPER</span>
+    &nbsp;&mdash;&nbsp;
+    Versione&nbsp;1.0
+    &nbsp;&bull;&nbsp;
+    &copy;&nbsp;Marzo&nbsp;2026
+    &nbsp;&bull;&nbsp;
+    Realizzazione:&nbsp;<span style="color:rgba(255,255,255,.85);font-weight:600">Rosario Dolcemascolo</span>
+    &nbsp;&bull;&nbsp;
+    <a href="#" data-bs-toggle="modal" data-bs-target="#modalContattaSviluppatore">Contatta lo sviluppatore</a>
+  </div>
+
+  {# ── Disclaimer ── #}
+  <div class="footer-disclaimer">
+    <strong style="color:rgba(255,255,255,.55)">Disclaimer:</strong>
+    Il presente software è fornito a scopo gestionale interno. I calcoli relativi a retribuzioni, contributi e imposte
+    hanno carattere puramente indicativo e non sostituiscono la consulenza di un professionista abilitato (consulente del lavoro, commercialista).
+    L'autore declina ogni responsabilità per eventuali inesattezze derivanti da variazioni normative o da dati inseriti in modo errato.
+    Tutti i diritti riservati. È vietata la riproduzione o ridistribuzione del software senza autorizzazione scritta dell'autore.
+  </div>
+
+</footer>
+{% endif %}
+
+{# ── Modal contatto sviluppatore ─────────────────────────────────── #}
+<div class="modal fade" id="modalContattaSviluppatore" tabindex="-1" aria-labelledby="modalContattaTitolo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2" style="background:#1b3a5f">
+        <h6 class="modal-title mb-0" id="modalContattaTitolo" style="color:#fff;font-size:.9rem">
+          <i class="bi bi-envelope-fill"></i> Contatta lo sviluppatore
+        </h6>
+        <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pb-2">
+        <div id="contatta-alert" class="alert py-2 small d-none"></div>
+        <form id="form-contatta" autocomplete="off">
+          {% csrf_token %}
+          <div class="mb-2">
+            <label class="form-label form-label-sm fw-semibold">Nome e cognome <span class="text-danger">*</span></label>
+            <input type="text" name="nome" class="form-control form-control-sm" maxlength="100" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm fw-semibold">La tua e-mail <span class="text-danger">*</span></label>
+            <input type="email" name="email" class="form-control form-control-sm" maxlength="150" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm fw-semibold">Oggetto</label>
+            <input type="text" name="oggetto" class="form-control form-control-sm" maxlength="150" placeholder="Es. Segnalazione, Richiesta funzionalità...">
+          </div>
+          <div class="mb-2">
+            <label class="form-label form-label-sm fw-semibold">Messaggio <span class="text-danger">*</span></label>
+            <textarea name="testo" class="form-control form-control-sm" rows="4" maxlength="2000" required></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Annulla</button>
+        <button type="button" class="btn btn-sm" style="background:#1b3a5f;color:#fff" id="btn-invia-contatto">
+          <i class="bi bi-send-fill"></i> Invia messaggio
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var btn = document.getElementById('btn-invia-contatto');
+  if(!btn) return;
+  btn.addEventListener('click', function(){
+    var form  = document.getElementById('form-contatta');
+    var alert = document.getElementById('contatta-alert');
+    var data  = new FormData(form);
+    alert.className = 'alert py-2 small d-none';
+    alert.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Invio in corso...';
+    fetch("{% url 'contatta_sviluppatore' %}", {method:'POST', body:data})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j.ok){
+          alert.className = 'alert alert-success py-2 small';
+          alert.textContent = 'Messaggio inviato con successo. Grazie!';
+          form.reset();
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-send-fill"></i> Invia messaggio';
+        } else {
+          alert.className = 'alert alert-danger py-2 small';
+          alert.textContent = j.errore || 'Errore durante l\'invio.';
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-send-fill"></i> Invia messaggio';
+        }
+      })
+      .catch(function(){
+        alert.className = 'alert alert-danger py-2 small';
+        alert.textContent = 'Errore di rete. Riprova.';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-send-fill"></i> Invia messaggio';
+      });
+  });
+})();
+</script>
+{% endblock %}
+
+<div class="modal fade" id="globalConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="globalConfirmModalTitleWrap">
+          <i class="bi bi-exclamation-triangle-fill text-danger" id="globalConfirmModalIcon" aria-hidden="true"></i>
+          <span id="globalConfirmModalTitle">Conferma operazione</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+      </div>
+      <div class="modal-body">
+        <p id="globalConfirmModalMessage" class="mb-0 small text-muted"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Annulla</button>
+        <button type="button" class="btn btn-danger btn-sm" id="globalConfirmModalOk">Conferma</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function toggleNav() {
+  document.getElementById('gNavCollapse').classList.toggle('open');
+}
+
+function toggleDropdown(btn) {
+  const group = btn.closest('.nav-group');
+  const wasOpen = group.classList.contains('open');
+  // chiudi tutti gli altri
+  document.querySelectorAll('.nav-group.open').forEach(g => g.classList.remove('open'));
+  if (!wasOpen) group.classList.add('open');
+}
+
+// Chiudi dropdown cliccando fuori
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.nav-group')) {
+    document.querySelectorAll('.nav-group.open').forEach(g => g.classList.remove('open'));
+  }
+});
+
+// Toast globali: popup senza pulsante "X", auto-dismiss.
+(function () {
+  const toasts = document.querySelectorAll('[data-toast]');
+  if (!toasts.length) return;
+  const toastTexts = Array.from(toasts).map(t => (t.textContent || '').trim()).filter(Boolean);
+  if (toastTexts.length) {
+    document.querySelectorAll('.alert').forEach((a) => {
+      if (a.closest('.g-toast-wrap') || a.id === 'contatta-alert' || a.closest('.modal')) return;
+      const txt = (a.textContent || '').trim();
+      if (toastTexts.includes(txt)) a.style.display = 'none';
+    });
+  }
+  toasts.forEach((t, idx) => {
+    setTimeout(() => t.classList.add('show'), 40 + (idx * 60));
+    setTimeout(() => {
+      t.classList.remove('show');
+      setTimeout(() => t.remove(), 220);
+    }, 4200 + (idx * 260));
+  });
+})();
+
+// Conferma globale non bloccante per azioni distruttive:
+// usare data-confirm-message (+ opzionale data-confirm-title) su form o link.
+(function () {
+  const modalEl = document.getElementById('globalConfirmModal');
+  if (!modalEl || typeof bootstrap === 'undefined') return;
+  const titleEl = document.getElementById('globalConfirmModalTitle');
+  const iconEl = document.getElementById('globalConfirmModalIcon');
+  const msgEl = document.getElementById('globalConfirmModalMessage');
+  const okBtn = document.getElementById('globalConfirmModalOk');
+  const modal = new bootstrap.Modal(modalEl);
+  let pendingForm = null;
+  let pendingHref = null;
+  const setVariant = function (variant, label) {
+    okBtn.classList.remove('btn-danger', 'btn-warning', 'btn-primary');
+    if (iconEl) {
+      iconEl.classList.remove(
+        'bi-exclamation-triangle-fill', 'bi-trash-fill', 'bi-question-circle-fill',
+        'text-danger', 'text-warning', 'text-primary'
+      );
+    }
+    if (variant === 'warning') {
+      okBtn.classList.add('btn-warning');
+      okBtn.classList.add('text-dark');
+      if (iconEl) {
+        iconEl.classList.add('bi-exclamation-triangle-fill', 'text-warning');
+      }
+    } else if (variant === 'primary') {
+      okBtn.classList.add('btn-primary');
+      okBtn.classList.remove('text-dark');
+      if (iconEl) {
+        iconEl.classList.add('bi-question-circle-fill', 'text-primary');
+      }
+    } else {
+      okBtn.classList.add('btn-danger');
+      okBtn.classList.remove('text-dark');
+      if (iconEl) {
+        iconEl.classList.add('bi-trash-fill', 'text-danger');
+      }
+    }
+    okBtn.textContent = label || 'Conferma';
+  };
+
+  document.addEventListener('submit', function (ev) {
+    const form = ev.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    const message = form.getAttribute('data-confirm-message');
+    if (!message) return;
+    if (ev.defaultPrevented) return;
+    if (form.dataset.confirmProceed === '1') {
+      delete form.dataset.confirmProceed;
+      return;
+    }
+    ev.preventDefault();
+    pendingForm = form;
+    titleEl.textContent = form.getAttribute('data-confirm-title') || 'Conferma operazione';
+    msgEl.textContent = message;
+    setVariant(form.getAttribute('data-confirm-variant'), form.getAttribute('data-confirm-ok-label'));
+    modal.show();
+  });
+
+  document.addEventListener('click', function (ev) {
+    const link = ev.target.closest('a[data-confirm-message]');
+    if (!link) return;
+    const href = link.getAttribute('href');
+    if (!href || href === '#') return;
+    if (link.dataset.confirmProceed === '1') {
+      delete link.dataset.confirmProceed;
+      return;
+    }
+    ev.preventDefault();
+    pendingForm = null;
+    pendingHref = href;
+    titleEl.textContent = link.getAttribute('data-confirm-title') || 'Conferma operazione';
+    msgEl.textContent = link.getAttribute('data-confirm-message');
+    setVariant(link.getAttribute('data-confirm-variant'), link.getAttribute('data-confirm-ok-label'));
+    modal.show();
+  });
+
+  okBtn.addEventListener('click', function () {
+    if (pendingForm) {
+      pendingForm.dataset.confirmProceed = '1';
+      modal.hide();
+      pendingForm.requestSubmit();
+      return;
+    }
+    if (pendingHref) {
+      const to = pendingHref;
+      modal.hide();
+      window.location.assign(to);
+      return;
+    }
+    modal.hide();
+  });
+
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    pendingForm = null;
+    pendingHref = null;
+  });
+})();
+
+// PDF / documenti: stessa finestra + pagina cornice con "Torna" (parametri ui/next lato server).
+(function () {
+  function normalizeGesperPath(pathname) {
+    var sn = (typeof window !== 'undefined' && window.__GESPER_SCRIPT_NAME) ? String(window.__GESPER_SCRIPT_NAME).trim() : '';
+    sn = sn.replace(/\/$/, '');
+    if (sn && pathname.startsWith(sn + '/')) return pathname.slice(sn.length);
+    if (sn && pathname === sn) return '/';
+    return pathname;
+  }
+  function shouldAugmentViewer(u) {
+    const p = normalizeGesperPath(u.pathname);
+    if (p.includes('/documenti/visualizza/')) return true;
+    if (p.includes('/documenti/admin/archivio-documenti-storage/pdf')) return true;
+    if (/\/rapporti\/proposte\/\d+\/pdf\/?$/.test(p)) return true;
+    if (/\/rapporti\/contratti\/\d+\/pdf\/?$/.test(p)) return true;
+    if (/\/accounts\/consulente\/candidati\/\d+\/pdf\/?$/.test(p)) return true;
+    if (/\/rapporti\/simulazione\/pdf\/?$/.test(p)) return true;
+    if (/\/rapporti\/proposte\/\d+\/mansionario\/?$/.test(p)) return true;
+    if (/\/rapporti\/addenda\/\d+\/allegato\/?$/.test(p)) return true;
+    return false;
+  }
+  document.addEventListener('click', function (e) {
+    const a = e.target.closest('a[href]');
+    if (!a) return;
+    if (a.getAttribute('target') === '_blank') return;
+    if (a.getAttribute('data-no-inline-viewer') === '1') return;
+    const href = a.getAttribute('href');
+    if (!href || href.startsWith('#')) return;
+    let u;
+    try {
+      u = new URL(href, window.location.href);
+    } catch (err) {
+      return;
+    }
+    if (u.origin !== window.location.origin) return;
+    if (!shouldAugmentViewer(u)) return;
+    if (u.searchParams.get('embed') === '1') return;
+    if (u.searchParams.get('ui') === '1') return;
+    e.preventDefault();
+    u.searchParams.set('ui', '1');
+    u.searchParams.set('next', window.location.pathname + window.location.search + window.location.hash);
+    const qs = u.searchParams.toString();
+    window.location.assign(u.pathname + (qs ? '?' + qs : '') + u.hash);
+  }, true);
+})();
+</script>
+{% if gesper_pwa_embed %}
+<script>
+/** Propaga ?pwa=1 ai link interni del portale aperto in iframe (stessa origine). */
+(function () {
+  function withPwa(href) {
+    if (!href || href.indexOf('#') === 0 || href.indexOf('mailto:') === 0 || href.indexOf('javascript:') === 0) {
+      return href;
+    }
+    var u;
+    try {
+      u = new URL(href, window.location.href);
+    } catch (e) {
+      return href;
+    }
+    if (u.origin !== window.location.origin) return href;
+    if (u.searchParams.get('pwa') == null) u.searchParams.set('pwa', '1');
+    return u.pathname + u.search + u.hash;
+  }
+  function patchAnchors() {
+    document.querySelectorAll('a[href]').forEach(function (a) {
+      if (a.getAttribute('target') === '_blank') return;
+      if (a.getAttribute('data-no-pwa') === '1') return;
+      var next = withPwa(a.getAttribute('href'));
+      if (next !== a.getAttribute('href')) a.setAttribute('href', next);
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', patchAnchors);
+  } else {
+    patchAnchors();
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[href]');
+    if (!a || a.getAttribute('target') === '_blank' || a.getAttribute('data-no-pwa') === '1') return;
+    var next = withPwa(a.getAttribute('href'));
+    if (next !== a.getAttribute('href')) a.setAttribute('href', next);
+  }, true);
+})();
+</script>
+{% endif %}
+{% block extra_js %}{% endblock %}
+</body>
+</html>

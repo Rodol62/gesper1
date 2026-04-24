@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% load guida_tags pagination_tags %}
+{% block title %}Richieste — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <div class="mb-1"><strong>Richieste dipendenti.</strong> Ferie, permessi, malattia e messaggi verso HR; di default sono elencate le richieste in stato <em>inviata</em>.{% if is_admin_hr %} Usa i filtri per tipo e stato.{% else %} Lo storico completo è nella sezione dedicata dal menu portale.{% endif %}</div>
+    <div class="mb-0 text-muted" style="font-size:.9em">
+      {% if is_admin_hr %}
+      <a href="{% url 'guida_modulo' 'modulo-admin' %}">Guida: operazioni HR / admin</a>
+      {% else %}
+      <a href="{% url 'guida_modulo' 'portale-dipendente' %}">Guida: portale dipendente</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h6 class="mb-0" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-send-fill"></i> Richieste{% if is_admin_hr %}{% guida_link "modulo-admin" %}{% else %}{% guida_link "portale-dipendente" %}{% endif %}
+    </h6>
+    {% if is_admin_hr %}
+    <div class="d-flex gap-2 flex-wrap">
+      <form method="get" class="d-flex gap-2 flex-wrap">
+        <input type="hidden" name="page" value="1">
+        <select name="tipo" class="form-select form-select-sm" style="font-size:.78rem;min-width:160px" onchange="this.form.submit()">
+          <option value="">— Tutti i tipi —</option>
+          <option value="ferie" {% if tipo_filter == 'ferie' %}selected{% endif %}>Ferie</option>
+          <option value="permesso" {% if tipo_filter == 'permesso' %}selected{% endif %}>Permesso</option>
+          <option value="malattia" {% if tipo_filter == 'malattia' %}selected{% endif %}>Malattia</option>
+          <option value="generica" {% if tipo_filter == 'generica' %}selected{% endif %}>Generica / Chiarimento</option>
+          <option value="altro" {% if tipo_filter == 'altro' %}selected{% endif %}>Altro</option>
+        </select>
+        <select name="stato" class="form-select form-select-sm" style="font-size:.78rem;min-width:140px" onchange="this.form.submit()">
+          <option value="">— Tutti gli stati —</option>
+          <option value="inviata" {% if stato_filter == 'inviata' %}selected{% endif %}>Inviata</option>
+          <option value="approvata" {% if stato_filter == 'approvata' %}selected{% endif %}>Approvata</option>
+          <option value="rifiutata" {% if stato_filter == 'rifiutata' %}selected{% endif %}>Rifiutata</option>
+          <option value="chiusa" {% if stato_filter == 'chiusa' %}selected{% endif %}>Chiusa</option>
+        </select>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      {% if page_obj.paginator.count %}
+      {% gesper_pagination page_obj "Paginazione richieste" %}
+      <div class="gesper-list-scroll">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:.83rem">
+          <thead style="background:#f4f7fa">
+            <tr>
+              {% if is_admin_hr %}
+              <th style="font-size:.72rem;color:#666;font-weight:600;padding:.5rem .75rem">Dipendente</th>
+              {% endif %}
+              <th style="font-size:.72rem;color:#666;font-weight:600;padding:.5rem .75rem">Tipo</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Periodo / Oggetto</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Stato</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Data invio</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in page_obj %}
+            <tr>
+              {% if is_admin_hr %}
+              <td style="padding:.5rem .75rem;font-weight:600;color:#1b3a5f">
+                {{ r.dipendente.cognome }} {{ r.dipendente.nome }}
+              </td>
+              {% endif %}
+              <td style="padding:.5rem .75rem">
+                {% if r.tipo == 'ferie' %}
+                  <i class="bi bi-sun-fill" style="color:#0a6640"></i> Ferie
+                {% elif r.tipo == 'permesso' %}
+                  <i class="bi bi-hourglass-split" style="color:#b85a00"></i> Permesso
+                {% elif r.tipo == 'malattia' %}
+                  <i class="bi bi-thermometer-half" style="color:#c0392b"></i> Malattia
+                {% elif r.tipo == 'generica' %}
+                  <i class="bi bi-chat-text-fill" style="color:#2d6199"></i> Generica
+                {% else %}
+                  <i class="bi bi-file-text" style="color:#555"></i> {{ r.get_tipo_display }}
+                {% endif %}
+              </td>
+              <td>
+                {% if r.tipo == 'generica' or r.tipo == 'altro' %}
+                  <span style="color:#555;font-size:.78rem">{{ r.motivo|default:r.testo_richiesta|truncatechars:40 }}</span>
+                {% else %}
+                  <span style="font-size:.78rem">{{ r.data_inizio|date:"d/m/Y"|default:"—" }} → {{ r.data_fine|date:"d/m/Y"|default:"—" }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if r.stato == 'approvata' %}
+                  <span class="badge bg-success" style="font-size:.62rem">Approvata</span>
+                {% elif r.stato == 'rifiutata' %}
+                  <span class="badge bg-danger" style="font-size:.62rem">Rifiutata</span>
+                {% elif r.stato == 'chiusa' %}
+                  <span class="badge bg-dark" style="font-size:.62rem">Chiusa</span>
+                {% else %}
+                  <span class="badge" style="background:#f0c040;color:#333;font-size:.62rem">In attesa</span>
+                {% endif %}
+                {% if r.workflow_pending and is_admin_hr %}
+                  <span class="badge bg-info text-dark ms-1" style="font-size:.62rem">Workflow</span>
+                {% endif %}
+              </td>
+              <td style="color:#888;font-size:.78rem">{{ r.data_richiesta|date:"d/m/Y" }}</td>
+              <td>
+                <a href="{% url 'dettaglio_richiesta' r.id %}"
+                   class="btn btn-sm btn-outline-primary" style="font-size:.72rem;padding:.2rem .5rem">
+                  <i class="bi bi-eye"></i> Mostra
+                </a>
+                {% if is_admin_hr and r.stato == 'inviata' %}
+                {% if r.workflow_pending %}
+                <a href="{% url 'workflow:lista_da_approvare' %}"
+                   class="btn btn-sm btn-outline-info" style="font-size:.72rem;padding:.2rem .5rem">
+                  <i class="bi bi-diagram-3"></i> Approvazioni
+                </a>
+                {% else %}
+                <a href="{% url 'rispondi_richiesta' r.id %}"
+                   class="btn btn-sm" style="background:#1b3a5f;color:#fff;font-size:.72rem;padding:.2rem .5rem">
+                  <i class="bi bi-reply-fill"></i> Rispondi
+                </a>
+                {% endif %}
+                {% endif %}
+                {% if is_admin_hr and r.stato != 'chiusa' and not r.workflow_pending %}
+                <a href="{% url 'chiudi_richiesta' r.id %}"
+                   class="btn btn-sm btn-outline-warning" style="font-size:.72rem;padding:.2rem .5rem">
+                  <i class="bi bi-check-circle"></i> Chiudi
+                </a>
+                <form method="post" action="{% url 'elimina_richiesta' r.id %}" style="display:inline;" 
+                      >
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size:.72rem;padding:.2rem .5rem">
+                    <i class="bi bi-trash"></i> Elimina
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      </div>
+      {% gesper_pagination page_obj "Paginazione richieste" %}
+      <div class="text-muted small px-3 py-2 border-top">
+        {{ page_obj.paginator.count }} richiesta/e
+        {% if page_obj.paginator.num_pages > 1 %} — pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}{% endif %}.
+      </div>
+      {% else %}
+      <div class="text-muted p-3" style="font-size:.83rem">
+        <i class="bi bi-info-circle"></i> Nessuna richiesta trovata.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+# Secondo Gunicorn: GESPER sotto /gesper/ su www.plazapretoria.it (solo con split Nginx sulla VPS).
+# Copiare in /etc/systemd/system/gesper-www.service e: systemctl daemon-reload && systemctl enable --now gesper-www
+#
+# Nginx: deploy/nginx-gesper-production-split.conf — proxy_pass http://127.0.0.1:8003/ su location ^~ /gesper/
+#
+# Solo sottodominio gesper.* (deploy/nginx-gesper-vps-standalone.conf): non installare / disabilitare:
+#   sudo systemctl disable --now gesper-www
+
+[Unit]
+# Necessario solo con nginx-gesper-production-split.conf (path /gesper/ su www verso questa VPS).
+# Solo gesper.* senza split: sudo systemctl disable --now gesper-www
+Description=GESPER Django (prefisso /gesper/ per www.plazapretoria.it)
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/gesper
+Environment="DJANGO_SETTINGS_MODULE=settings_production_www"
+EnvironmentFile=-/etc/gesper.env
+ExecStart=/var/www/gesper/.venv/bin/gunicorn wsgi:application --bind 127.0.0.1:8003 --workers 2 --timeout 900 --graceful-timeout 120
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

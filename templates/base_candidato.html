@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load ruoli_tags %}
+{#
+  Template base per l'area candidato / dipendente.
+  Aumenta le dimensioni del testo rispetto al tema HR (corpo ≥ 12pt / 16px).
+#}
+{# Logo: dipendente → /accounts/profile/; candidato → dashboard portale. #}
+{% block brand_href %}{% if user.is_authenticated %}{% if user|has_ruolo:'dipendente' %}{% url 'profile' %}{% else %}{% url 'candidato_dashboard' %}{% endif %}{% else %}/{% endif %}{% endblock %}
+{% block extra_head %}
+<style>
+  /* ── Font size area candidato/dipendente ─────────────────────────
+     Corpo minimo 12pt (≈16px). Sovrascrive le variabili del design system.
+  ─────────────────────────────────────────────────────────────────── */
+  html { font-size: 16px; }
+
+  :root {
+    --sz-xs:   0.82rem;   /* ~13px — etichette, badge  (era 0.73) */
+    --sz-sm:   0.92rem;   /* ~15px — testo secondario  (era 0.81) */
+    --sz-base: 1.00rem;   /* ~16px — corpo principale  (era 0.87) */
+    --sz-md:   1.07rem;   /* ~17px                     (era 0.95) */
+  }
+
+  /* Form */
+  .form-label        { font-size: var(--sz-xs); }
+  .form-control,
+  .form-select       { font-size: var(--sz-sm); padding: .35rem .55rem; }
+  .form-control-sm,
+  .form-select-sm    { font-size: var(--sz-xs); padding: .28rem .45rem; }
+  .form-check-label  { font-size: var(--sz-sm); }
+
+  /* Pulsanti */
+  .btn               { font-size: var(--sz-sm); }
+  .btn-sm            { font-size: var(--sz-xs); padding: .3rem .65rem; }
+
+  /* Tabelle */
+  .table             { font-size: var(--sz-sm); }
+  .table th          { font-size: var(--sz-xs); }
+  .table-sm th,
+  .table-sm td       { padding: .32rem .5rem; }
+
+  /* Alert, badge */
+  .alert             { font-size: var(--sz-sm); }
+  .badge             { font-size: .72rem; }
+
+  /* Card header */
+  .card-header       { font-size: var(--sz-sm); }
+
+  /* Headings */
+  h1 { font-size: 1.55rem; }
+  h2 { font-size: 1.30rem; }
+  h3 { font-size: 1.15rem; }
+  h4 { font-size: 1.05rem; }
+  h5 { font-size: 0.97rem; }
+  h6 { font-size: 0.90rem; }
+</style>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Test Stato Utente{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="card shadow mb-4">
+      <div class="card-header bg-info text-white">
+        <h4 class="mb-0">Stato Utente Autenticato</h4>
+      </div>
+      <div class="card-body">
+        <ul class="list-group list-group-flush mb-3">
+          <li class="list-group-item"><strong>Username:</strong> {{ username }}</li>
+          <li class="list-group-item"><strong>Ruolo:</strong> {{ ruolo }}</li>
+          <li class="list-group-item"><strong>Azienda:</strong> {{ azienda }}</li>
+          <li class="list-group-item"><strong>Convalidato:</strong> {% if convalidato %}Sì{% else %}No{% endif %}</li>
+          <li class="list-group-item"><strong>Privacy accettata:</strong> {% if privacy_accettata %}Sì ({{ privacy_data|date:'d/m/Y H:i' }}){% else %}No{% endif %}</li>
+        </ul>
+        <a href="{% url 'profile' %}" class="btn btn-outline-secondary">Torna al profilo</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

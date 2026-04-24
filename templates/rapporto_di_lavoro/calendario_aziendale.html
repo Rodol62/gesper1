@@ -1,0 +1,444 @@
+{% extends 'base.html' %}
+{% load format_it_tags %}
+
+{% block title %}Calendario Lavorativo {{ anno|anno_it }} — {{ azienda.nome }}{% endblock %}
+
+{% block extra_head %}
+<style>
+:root {
+  --c-primary: #1b3a5f;
+  --c-accent:  #2d6199;
+  --c-border:  #c5d0dc;
+  --c-muted:   #5c6b7d;
+  --c-alt:     #f4f7fa;
+  --c-lav:     #ffffff;
+  --c-fest:    #fff0f0;
+  --c-sett:    #f0f4f8;
+  --c-extra:   #fff8e8;
+  --c-ok:      #0a6640;
+}
+body { font-size: .8rem; }
+
+/* ── Topbar ── */
+.cal-topbar {
+  background: var(--c-primary); color:#fff;
+  padding:.4rem 1rem; border-radius:6px; margin-bottom:.7rem;
+  display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+}
+.cal-topbar h5 { margin:0; font-size:.9rem; font-weight:700; }
+.cal-topbar .meta { font-size:.68rem; opacity:.8; }
+
+/* ── Anno nav ── */
+.anno-nav { display:flex; align-items:center; gap:.5rem; }
+.anno-nav a { color:#fff; text-decoration:none; opacity:.7; font-size:.8rem; }
+.anno-nav a:hover { opacity:1; }
+.anno-nav strong { font-size:1rem; font-weight:700; }
+
+/* ── Grid 12 mesi ── */
+.mesi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: .75rem;
+}
+
+/* ── Mese card ── */
+.mese-card {
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+.mese-head {
+  background: var(--c-primary); color:#fff;
+  padding:.3rem .65rem;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.mese-head .mese-nome { font-size:.78rem; font-weight:700; }
+.mese-head .mese-badge { font-size:.62rem; background:rgba(255,255,255,.15); border-radius:3px; padding:.1rem .4rem; }
+
+/* ── Chiusura settimanale checkboxes ── */
+.cs-row {
+  display:flex; gap:.3rem; align-items:center; flex-wrap:wrap;
+  padding:.3rem .6rem; border-bottom:1px solid var(--c-border);
+  background: var(--c-alt);
+}
+.cs-label { font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--c-muted); margin-right:.3rem; }
+.cs-btn {
+  font-size:.65rem; padding:.1rem .35rem; border-radius:3px; cursor:pointer;
+  border:1px solid var(--c-border); background:#fff; color:var(--c-primary);
+  user-select:none; transition:background .12s,color .12s;
+}
+.cs-btn.active { background:var(--c-primary); color:#fff; border-color:var(--c-primary); }
+
+/* ── Calendario griglia ── */
+.cal-grid { padding:.3rem .5rem .4rem; }
+.cal-week-header {
+  display:grid; grid-template-columns:repeat(7,1fr);
+  gap:2px; margin-bottom:2px;
+}
+.cal-week-header span {
+  text-align:center; font-size:.58rem; font-weight:700;
+  text-transform:uppercase; color:var(--c-muted); padding:.1rem 0;
+}
+.cal-week {
+  display:grid; grid-template-columns:repeat(7,1fr);
+  gap:2px; margin-bottom:2px;
+}
+.cal-day {
+  text-align:center; border-radius:3px; padding:.15rem .1rem;
+  font-size:.68rem; min-height:26px; position:relative;
+  border:1px solid transparent;
+}
+.cal-day.lavorativo  { background:var(--c-lav);   color:#222;   border-color:#e0e6ed; }
+.cal-day.chiusura-s  { background:var(--c-sett);  color:var(--c-muted); }
+.cal-day.festivo     { background:var(--c-fest);  color:#b52020; font-weight:700; }
+.cal-day.chiusura-ex { background:var(--c-extra); color:#7a5000; }
+.cal-day.vuoto       { background:transparent; border:none; }
+.cal-day .day-num    { font-weight:600; display:block; }
+.cal-day .day-tag    { font-size:.52rem; display:block; line-height:1.1; }
+.cal-day[title]      { cursor:help; }
+
+/* ── Info row ── */
+.mese-info {
+  display:flex; gap:.5rem; flex-wrap:wrap;
+  padding:.25rem .6rem; border-top:1px solid var(--c-border);
+  background: var(--c-alt); font-size:.62rem; color:var(--c-muted);
+  align-items:center;
+}
+.mese-info .info-val { font-weight:700; color:var(--c-primary); }
+.mese-info .info-lav { color:var(--c-ok); font-weight:700; }
+
+/* ── Action row ── */
+.mese-actions {
+  display:flex; gap:.4rem; padding:.3rem .6rem;
+  border-top:1px solid var(--c-border);
+  align-items:center; flex-wrap:wrap;
+}
+.btn-save-mese { font-size:.68rem; padding:.18rem .55rem; }
+
+/* ── Pannello festività ── */
+.fest-panel {
+  background:var(--c-alt); border:1px solid var(--c-border);
+  border-radius:5px; padding:.5rem .7rem; margin-bottom:.75rem;
+}
+.fest-panel h6 { font-size:.72rem; font-weight:700; color:var(--c-primary); margin:0 0 .35rem; text-transform:uppercase; letter-spacing:.04em; }
+.fest-list { display:flex; flex-wrap:wrap; gap:.3rem; }
+.fest-chip {
+  font-size:.62rem; background:#fce8e8; color:#8b1c1c;
+  border-radius:3px; padding:.1rem .4rem; border:1px solid #f5c0c0;
+}
+
+/* ── Form festività aziendale ── */
+.fest-az-form { display:flex; gap:.4rem; align-items:center; margin-top:.5rem; flex-wrap:wrap; }
+.fest-az-form input { font-size:.7rem !important; padding:.18rem .35rem !important; }
+
+/* ── Toast ── */
+#toastMsg {
+  position:fixed; bottom:1.5rem; right:1.5rem; z-index:9999;
+  background:var(--c-ok); color:#fff;
+  padding:.45rem .9rem; border-radius:5px;
+  font-size:.75rem; font-weight:600; display:none;
+  box-shadow:0 2px 8px rgba(0,0,0,.2);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-2">
+
+  <!-- Topbar -->
+  <div class="cal-topbar">
+    <div>
+      <h5>Calendario Lavorativo</h5>
+      <span class="meta">{{ azienda.nome }} &nbsp;|&nbsp; Configura chiusure settimanali e festività</span>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      <div class="anno-nav">
+        <a href="{% url 'calendario_aziendale_anno' anno_prec %}">&#8592; {{ anno_prec|anno_it }}</a>
+        <strong>{{ anno|anno_it }}</strong>
+        <a href="{% url 'calendario_aziendale_anno' anno_succ %}">{{ anno_succ|anno_it }} &#8594;</a>
+      </div>
+      <a href="{% url 'simulazione_2026_config' %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem;padding:.2rem .55rem" title="Simulazione annua">← Simulazione annua</a>
+    </div>
+  </div>
+
+  <div class="alert alert-light border py-2 small mb-2" role="status" style="font-size:.74rem">
+    <div class="mb-1"><strong>Calendario lavorativo.</strong> Definisce festività e chiusure che il modulo presenze usa per giorni lavorativi e causali. Allinealo alla simulazione annua e agli orari di sede.</div>
+    <div class="mb-0 text-muted" style="font-size:.9em">
+      <a href="{% url 'guida_modulo' 'presenze-turni' %}">Guida: presenze e calendario</a>
+      · <a href="{% url 'guida_modulo' 'modulo-admin' %}">Guida: modulo admin</a>
+    </div>
+  </div>
+
+  <!-- Pannello festività nazionali -->
+  <div class="fest-panel">
+    <h6>Festività nazionali {{ anno|anno_it }}</h6>
+    <div class="fest-list">
+      {% for d, nome in festivita_anno %}
+      <span class="fest-chip" title="{{ d|date:'l' }}">{{ d|date:"d/m" }} {{ nome }}</span>
+      {% endfor %}
+    </div>
+    <!-- Aggiungi festività aziendale (patrono ecc.) -->
+    <div class="fest-az-form mt-2">
+      <span style="font-size:.65rem;font-weight:700;color:var(--c-muted);text-transform:uppercase">+ Aggiungi festività aziendale:</span>
+      <input type="date" id="newFestData" class="form-control" style="width:140px">
+      <input type="text" id="newFestNome" class="form-control" placeholder="Nome (es: Patrono S.Rosalia)" style="width:220px">
+      <button class="btn btn-sm btn-outline-danger btn-xs" onclick="aggiungiFestivita()">Aggiungi</button>
+    </div>
+  </div>
+
+  <!-- Legenda -->
+  <div class="d-flex gap-3 mb-2" style="font-size:.62rem;">
+    <span><span style="display:inline-block;width:12px;height:12px;background:#fff;border:1px solid #c5d0dc;border-radius:2px"></span> Lavorativo</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#f0f4f8;border-radius:2px"></span> Chiusura settimanale</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#fff0f0;border-radius:2px"></span> Festivo</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#fff8e8;border-radius:2px"></span> Chiusura extra</span>
+  </div>
+
+  <!-- 12 mesi -->
+  <div class="mesi-grid">
+    {% for m in mesi_data %}
+    <div class="mese-card" id="card_m{{ m.mese_num }}">
+
+      <!-- Header mese -->
+      <div class="mese-head">
+        <span class="mese-nome">{{ m.mese_nome }} {{ anno|anno_it }}</span>
+        <span class="mese-badge lav-badge-{{ m.mese_num }}">{{ m.giorni_lavorativi }} gg lav.</span>
+      </div>
+
+      <!-- Chiusura settimanale -->
+      <div class="cs-row">
+        <span class="cs-label">Riposo:</span>
+        {% for gg in giorni_sett %}
+        <span class="cs-btn {% if forloop.counter0 in m.chiusura_sett %}active{% endif %}"
+              data-mese="{{ m.mese_num }}"
+              data-wd="{{ forloop.counter0 }}"
+              onclick="toggleChiusura(this)">{{ gg }}</span>
+        {% endfor %}
+        <span style="margin-left:auto;font-size:.6rem;color:var(--c-muted)" id="note_m{{ m.mese_num }}">{{ m.note }}</span>
+      </div>
+
+      <!-- Griglia giorni -->
+      <div class="cal-grid">
+        <div class="cal-week-header">
+          {% for gg in giorni_sett %}<span>{{ gg }}</span>{% endfor %}
+        </div>
+        {% for settimana in m.griglia %}
+        <div class="cal-week">
+          {% for giorno in settimana %}
+          {% if giorno is None %}
+            <div class="cal-day vuoto"></div>
+          {% elif giorno.is_chiusura_sett %}
+            <div class="cal-day chiusura-s"
+                 data-wd="{{ giorno.weekday }}"
+                 data-festivo=""
+                 data-extra=""
+                 title="Chiusura settimanale">
+              <span class="day-num">{{ giorno.giorno }}</span>
+            </div>
+          {% elif giorno.is_festivo %}
+            <div class="cal-day festivo"
+                 data-wd="{{ giorno.weekday }}"
+                 data-festivo="{{ giorno.festivo_nome }}"
+                 data-extra=""
+                 title="{{ giorno.festivo_nome }}">
+              <span class="day-num">{{ giorno.giorno }}</span>
+              <span class="day-tag">{{ giorno.festivo_nome|truncatechars:8 }}</span>
+            </div>
+          {% elif giorno.is_chiusura_extra %}
+            <div class="cal-day chiusura-ex"
+                 data-wd="{{ giorno.weekday }}"
+                 data-festivo=""
+                 data-extra="1"
+                 title="Chiusura aziendale">
+              <span class="day-num">{{ giorno.giorno }}</span>
+              <span class="day-tag">chiuso</span>
+            </div>
+          {% else %}
+            <div class="cal-day lavorativo"
+                 data-wd="{{ giorno.weekday }}"
+                 data-festivo=""
+                 data-extra="">
+              <span class="day-num">{{ giorno.giorno }}</span>
+            </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Info riepilogo -->
+      <div class="mese-info">
+        <span>Lav: <span class="info-lav lav-val-{{ m.mese_num }}">{{ m.giorni_lavorativi }}</span></span>
+        <span>Conv.26: <span class="info-val conv-val-{{ m.mese_num }}">{{ m.giorni_conv_26 }}</span></span>
+        <span>Festivi: <span class="info-val">{{ m.festivi }}</span></span>
+        {% if m.chiusure_extra_n %}<span style="color:#7a5000">Extra: {{ m.chiusure_extra_n }}</span>{% endif %}
+      </div>
+
+      <!-- Azioni -->
+      <div class="mese-actions">
+        <button class="btn btn-sm btn-primary btn-save-mese"
+                onclick="salvaMese({{ m.mese_num }}, true)">Salva</button>
+        <button class="btn btn-sm btn-outline-secondary btn-save-mese"
+                onclick="copiaSuTutti({{ m.mese_num }})">Copia su tutti ›</button>
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+
+<!-- Toast notifica -->
+<div id="toastMsg">✓ Salvato</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ANNO   = {{ anno|anno_it }};
+const CSRF   = '{{ csrf_token }}';
+const URL_SALVA = '{% url "calendario_salva_mese" %}';
+const URL_COPIA = '{% url "calendario_copia_mese" %}';
+const URL_FEST_ADD = '{% url "festivita_aziendale_aggiungi" %}';
+
+/* Stato chiusure settimanali per mese: {mese_num: Set<wd>} */
+const statoCS = {};
+{% for m in mesi_data %}
+statoCS[{{ m.mese_num }}] = new Set({{ m.chiusura_sett|safe }});
+{% endfor %}
+
+/* Timer auto-save per mese */
+const saveTimers = {};
+
+function _aggiornaCalCelle(mese, wd, aggiunge) {
+  const card = document.getElementById('card_m' + mese);
+  card.querySelectorAll('.cal-day[data-wd="' + wd + '"]').forEach(cell => {
+    if (cell.dataset.festivo || cell.dataset.extra) return;
+    if (aggiunge) {
+      cell.className = 'cal-day chiusura-s';
+      cell.title = 'Chiusura settimanale';
+      const tag = cell.querySelector('.day-tag');
+      if (tag) tag.remove();
+    } else {
+      cell.className = 'cal-day lavorativo';
+      cell.title = '';
+    }
+  });
+}
+
+function _marcaUnsaved(mese) {
+  const btn = document.querySelector(`[onclick="salvaMese(${mese}, true)"]`);
+  if (btn) { btn.classList.remove('btn-primary'); btn.classList.add('btn-warning'); btn.textContent = '⏳ Salva*'; }
+}
+
+function _marcaSaved(mese) {
+  const btn = document.querySelector(`[onclick="salvaMese(${mese}, true)"]`);
+  if (btn) { btn.classList.remove('btn-warning'); btn.classList.add('btn-primary'); btn.textContent = 'Salva'; }
+}
+
+function toggleChiusura(btn) {
+  const mese = parseInt(btn.dataset.mese);
+  const wd   = parseInt(btn.dataset.wd);
+  const aggiunge = !statoCS[mese].has(wd);
+
+  if (aggiunge) { statoCS[mese].add(wd); btn.classList.add('active'); }
+  else          { statoCS[mese].delete(wd); btn.classList.remove('active'); }
+
+  _aggiornaCalCelle(mese, wd, aggiunge);
+  _marcaUnsaved(mese);
+
+  /* Auto-save con debounce 800ms */
+  clearTimeout(saveTimers[mese]);
+  saveTimers[mese] = setTimeout(() => salvaMese(mese, false), 800);
+}
+
+async function salvaMese(mese, ricarica = false) {
+  const cs = Array.from(statoCS[mese]).sort();
+  let data;
+  try {
+    const res = await fetch(URL_SALVA, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({anno: ANNO, mese, chiusura_settimanale: cs}),
+    });
+    data = await res.json();
+  } catch(e) {
+    showToast('⚠ Errore di rete — riprova', true);
+    return null;
+  }
+  if (data.ok) {
+    const lavBadge = document.querySelector(`.lav-badge-${mese}`);
+    const lavVal   = document.querySelector(`.lav-val-${mese}`);
+    const convVal  = document.querySelector(`.conv-val-${mese}`);
+    if (lavBadge) lavBadge.textContent = data.giorni_lavorativi + ' gg lav.';
+    if (lavVal)   lavVal.textContent   = data.giorni_lavorativi;
+    if (convVal)  convVal.textContent  = data.giorni_conv_26;
+    _marcaSaved(mese);
+    showToast('✓ ' + nomeMese(mese) + ' salvato');
+    if (ricarica) setTimeout(() => location.reload(), 700);
+  } else {
+    showToast('⚠ Errore: ' + (data.error || 'sconosciuto'), true);
+  }
+  return data;
+}
+
+async function copiaSuTutti(meseDa) {
+  const mesiA = [];
+  for (let m = 1; m <= 12; m++) { if (m !== meseDa) mesiA.push(m); }
+
+  showToast('⏳ Salvataggio in corso…');
+
+  // Prima salva il mese sorgente — senza ricaricare la pagina (ricarica=false)
+  const saveData = await salvaMese(meseDa, false);
+  if (!saveData || !saveData.ok) return;  // errore già mostrato in salvaMese
+
+  // Poi copia la configurazione appena salvata agli altri mesi
+  const res = await fetch(URL_COPIA, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({anno: ANNO, mese_da: meseDa, mesi_a: mesiA}),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    showToast('✓ Configurazione di ' + nomeMese(meseDa) + ' copiata su tutti i mesi');
+    setTimeout(() => location.reload(), 900);
+  } else {
+    alert('Errore copia: ' + (data.error || 'sconosciuto'));
+  }
+}
+
+async function aggiungiFestivita() {
+  const d    = document.getElementById('newFestData').value;
+  const nome = document.getElementById('newFestNome').value.trim();
+  if (!d || !nome) { alert('Inserisci data e nome della festività.'); return; }
+
+  const res = await fetch(URL_FEST_ADD, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({data: d, nome}),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    showToast('✓ Festività aggiunta: ' + data.nome);
+    setTimeout(() => location.reload(), 600);
+  } else {
+    alert('Errore: ' + data.error);
+  }
+}
+
+function nomeMese(n) {
+  return ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
+          'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'][n];
+}
+
+let toastTimer;
+function showToast(msg, errore = false) {
+  const t = document.getElementById('toastMsg');
+  t.textContent = msg;
+  t.style.background = errore ? '#8b1c1c' : 'var(--c-ok)';
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.style.display = 'none', 3000);
+}
+</script>
+{% endblock %}

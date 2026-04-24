@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% load pagination_tags %}
+{% block title %}Allineamento Assunzioni Legacy{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h2 class="mb-0">Assunzioni legacy da allineare</h2>
+      <small class="text-muted">Backlog operativo per regolarizzazione storica senza pratiche attive.</small>
+    </div>
+    <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-outline-secondary btn-sm">Torna proposte</a>
+  </div>
+
+  {% if azienda_operativa %}
+  <div class="alert alert-info py-2">Azienda operativa: <strong>{{ azienda_operativa.nome }}</strong></div>
+  {% endif %}
+
+  <div class="alert alert-light border-start border-warning mb-2">
+    Elenco dipendenti attivi senza proposta/contratto attivo. Usa <strong>Avvia istruttoria</strong>
+    per generare la pratica con precompilazione assistita.
+  </div>
+
+  <form method="get" class="card border-0 shadow-sm mb-2">
+    <div class="card-body py-2">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label mb-1">Ricerca</label>
+          <input type="text" name="q" value="{{ filtri.q }}" class="form-control form-control-sm" placeholder="Nome, cognome, CF, email">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-1">Data assunzione da</label>
+          <input type="date" name="data_da" value="{{ filtri.data_da }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-1">Data assunzione a</label>
+          <input type="date" name="data_a" value="{{ filtri.data_a }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+          <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+            <i class="bi bi-funnel"></i> Applica filtri
+          </button>
+          <a href="{% url 'lista_legacy_allineamento' %}" class="btn btn-sm btn-outline-secondary w-100">
+            Reset
+          </a>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  {% if page_obj.paginator.count %}
+  <div class="d-flex justify-content-end mb-2">
+    <span class="badge bg-warning text-dark">Da allineare: {{ page_obj.paginator.count }}</span>
+  </div>
+  {% gesper_pagination page_obj "Paginazione elenco legacy" %}
+  <div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-2">
+      <strong>Elenco dipendenti legacy</strong>
+      <small class="text-muted ms-2">Ordine per cognome e nome</small>
+    </div>
+    <div class="gesper-list-scroll">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Dipendente</th>
+            <th>Codice fiscale</th>
+            <th>Email</th>
+            <th>Data assunzione</th>
+            <th class="text-end">Azione</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in dipendenti_legacy %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ d.cognome }} {{ d.nome }}</div>
+              <small class="text-muted">ID {{ d.id }}</small>
+            </td>
+            <td><span class="font-monospace">{{ d.codice_fiscale|default:'—' }}</span></td>
+            <td>{{ d.email|default:'—' }}</td>
+            <td>{{ d.data_assunzione|date:"d/m/Y"|default:'—' }}</td>
+            <td class="text-end">
+              <a href="{% url 'istruttoria_assunzione' %}?dipendente_id={{ d.id }}" class="btn btn-sm btn-primary">
+                <i class="bi bi-magic"></i> Avvia istruttoria
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-3">Nessun dipendente legacy da allineare.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    </div>
+  </div>
+  {% gesper_pagination page_obj "Paginazione elenco legacy" %}
+  {% else %}
+  <div class="alert alert-info">Nessun dipendente legacy da allineare con i filtri correnti.</div>
+  {% endif %}
+</div>
+{% endblock %}

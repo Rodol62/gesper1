@@ -1,0 +1,156 @@
+{
+  "pdf": "/private/var/folders/nw/sr7j6wzn5vddsg2xt35mfvgh0000gn/T/tmpsf0loevo.pdf",
+  "source_name": "07 LUGLIO 2025.PDF",
+  "natura_busta_file": "ORDINARIA",
+  "azienda": {
+    "id": 1,
+    "nome": "Punto Zero SRLS"
+  },
+  "f24_pages": [
+    {
+      "page": 17,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 18,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 19,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    }
+  ],
+  "summary": {
+    "pages_total": 20,
+    "buste_pages": 16,
+    "f24_pages": 3,
+    "f24_importo_stimato": null,
+    "buste_uniche": 8,
+    "buste_duplicate_pages": [
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "matched": 8,
+    "to_create": 0,
+    "ambiguous": 0,
+    "already_present": 0
+  },
+  "rows": [
+    {
+      "page": 1,
+      "periodo": "07/2025",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massimo",
+      "birth_date": "10/03/74",
+      "lordo_busta": "4.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 18,
+      "dipendente_nome": "Cardella Massimo"
+    },
+    {
+      "page": 2,
+      "periodo": "07/2025",
+      "cf": "GMSJSC92A42Z307O",
+      "full_name": "Gomes Ferreira Jessica Ailine",
+      "birth_date": "02/01/92",
+      "lordo_busta": "6.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 19,
+      "dipendente_nome": "Gomes Ferreira Jessica Aline"
+    },
+    {
+      "page": 3,
+      "periodo": "07/2025",
+      "cf": "HSSBDA99T31Z236U",
+      "full_name": "Hassan Abid",
+      "birth_date": "31/12/99",
+      "lordo_busta": "6.66",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 28,
+      "dipendente_nome": "Hassan Abid"
+    },
+    {
+      "page": 4,
+      "periodo": "07/2025",
+      "cf": "RZGSRN94T58Z352K",
+      "full_name": "Rezgui Sabrina",
+      "birth_date": "18/12/94",
+      "lordo_busta": "6.66",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 26,
+      "dipendente_nome": "Rezgui Sabrina"
+    },
+    {
+      "page": 5,
+      "periodo": "07/2025",
+      "cf": "LCSFNC69P05G273G",
+      "full_name": "Lo Cascio Francesco Paolo",
+      "birth_date": "05/09/69",
+      "lordo_busta": "6.66",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 29,
+      "dipendente_nome": "Lo Cascio Francesco Paolo"
+    },
+    {
+      "page": 6,
+      "periodo": "07/2025",
+      "cf": "KRSLMA79B20Z249O",
+      "full_name": "Kurshad Alom",
+      "birth_date": "20/02/79",
+      "lordo_busta": "6.66",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 30,
+      "dipendente_nome": "Kurshad Alom"
+    },
+    {
+      "page": 7,
+      "periodo": "07/2025",
+      "cf": "GLLPTR76E12G273J",
+      "full_name": "Gallo Pietro",
+      "birth_date": "12/05/76",
+      "lordo_busta": "40.76",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 31,
+      "dipendente_nome": "Gallo Pietro"
+    },
+    {
+      "page": 8,
+      "periodo": "07/2025",
+      "cf": "RNDGLC78D18G273N",
+      "full_name": "Renda Gianluca",
+      "birth_date": "18/04/78",
+      "lordo_busta": "6.66",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 32,
+      "dipendente_nome": "Renda Gianluca"
+    }
+  ]
+}

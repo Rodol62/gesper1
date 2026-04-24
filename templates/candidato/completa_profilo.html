@@ -1,0 +1,521 @@
+{% extends 'base_candidato.html' %}
+{% load currency_filters format_it_tags %}
+{% block title %}Completa il tuo profilo — GESPER{% endblock %}
+
+{% block content %}
+<div class="container mt-3">
+<div class="row justify-content-center">
+<div class="col-lg-9 col-xl-8">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:6px;
+              padding:.6rem 1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <h5 style="margin:0;font-size:.92rem;font-weight:800">
+        <i class="bi bi-person-vcard-fill"></i> Completa il tuo profilo
+      </h5>
+      <div style="font-size:.72rem;opacity:.85;margin-top:2px">
+        Inserisci tutti i dati richiesti per completare la candidatura
+      </div>
+    </div>
+    <a href="{% url 'candidato_dashboard' %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">
+      ← Dashboard
+    </a>
+  </div>
+
+  <div class="alert alert-info py-2 small mb-3" style="font-size:.78rem">
+    <i class="bi bi-lock-fill"></i>
+    I tuoi dati sono trattati in conformità al <strong>GDPR (Reg. UE 2016/679)</strong> e al
+    <strong>D.Lgs. 101/2018</strong> esclusivamente per finalità di selezione del personale.
+    Potrai revocare il consenso in qualsiasi momento scrivendo a <em>privacy@gesper.it</em>.
+  </div>
+
+  {# ── Stato completezza profilo ── #}
+  {% if completezza and profilo and profilo.profilo_completato %}
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2 px-3">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span style="font-size:.72rem;color:#555;white-space:nowrap;font-weight:600">
+          <i class="bi bi-clipboard-check"></i> Completezza profilo:
+        </span>
+        <div class="flex-grow-1" style="height:10px;background:#e9ecef;border-radius:5px;overflow:hidden">
+          <div style="height:100%;width:{{ completezza.percentuale }}%;background:{% if completezza.percentuale >= 100 %}#198754{% elif completezza.percentuale >= 70 %}#ffc107{% else %}#dc3545{% endif %};transition:width .4s"></div>
+        </div>
+        <span style="font-size:.78rem;font-weight:800;color:{% if completezza.percentuale >= 100 %}#198754{% elif completezza.percentuale >= 70 %}#856404{% else %}#dc3545{% endif %}">
+          {{ completezza.percentuale }}%
+        </span>
+      </div>
+
+      {% if completezza.mancanti %}
+      <div style="font-size:.72rem;color:#dc3545;margin-top:.3rem">
+        <strong><i class="bi bi-x-circle"></i> Dati ancora mancanti per la proposta:</strong>
+        {% for campo, label in completezza.mancanti %}
+          <span class="badge" style="background:#f8d7da;color:#842029;font-weight:600;margin:1px">{{ label }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if completezza.consigliati %}
+      <div style="font-size:.72rem;color:#856404;margin-top:.3rem">
+        <strong><i class="bi bi-exclamation-triangle"></i> Consigliati:</strong>
+        {% for campo, label in completezza.consigliati %}
+          <span class="badge" style="background:#fff3cd;color:#856404;font-weight:600;margin:1px">{{ label }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if completezza.doc_scaduto %}
+      <div style="font-size:.72rem;color:#dc3545;margin-top:.3rem">
+        <i class="bi bi-shield-exclamation"></i>
+        <strong>Il documento di identità risulta scaduto.</strong> Aggiorna la data di scadenza.
+      </div>
+      {% endif %}
+
+      {% if completezza.completo and not completezza.doc_scaduto %}
+      <div style="font-size:.72rem;color:#198754;margin-top:.3rem;font-weight:600">
+        <i class="bi bi-check-circle"></i> Profilo completo — tutti i dati necessari per la proposta sono presenti.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+
+
+
+  <!-- RIMOSSO: sezione richieste recenti e blocco endfor residuo -->
+  </div>
+
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+
+    {% if form.errors %}
+    <div class="alert alert-danger py-2 small mb-3">
+      <strong><i class="bi bi-exclamation-triangle"></i> Correggi gli errori:</strong>
+      <ul class="mb-0 mt-1">
+        {% for field in form %}{% for e in field.errors %}
+          <li>{{ field.label }}: {{ e }}</li>
+        {% endfor %}{% endfor %}
+        {% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <!-- ── DATI ANAGRAFICI ────────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-person"></i> Dati anagrafici
+      </div>
+      <div class="card-body py-3">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">{{ form.codice_fiscale.label }}</label>
+            {{ form.codice_fiscale }}
+            {% if form.codice_fiscale.errors %}<div class="text-danger small">{{ form.codice_fiscale.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">{{ form.data_nascita.label }}</label>
+            {{ form.data_nascita }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">{{ form.luogo_nascita.label }}</label>
+            {{ form.luogo_nascita }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">{{ form.sesso.label }}</label>
+            {{ form.sesso }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">{{ form.nazionalita.label }}</label>
+            {{ form.nazionalita }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label form-label-sm">{{ form.telefono.label }}</label>
+            {{ form.telefono }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RESIDENZA ───────────────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-geo-alt"></i> Residenza
+      </div>
+      <div class="card-body py-3">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label form-label-sm">{{ form.indirizzo.label }}</label>
+            {{ form.indirizzo }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">{{ form.cap.label }}</label>
+            {{ form.cap }}
+            {% if form.cap.errors %}<div class="text-danger small">{{ form.cap.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">{{ form.citta.label }}</label>
+            {{ form.citta }}
+          </div>
+          <div class="col-md-1">
+            <label class="form-label form-label-sm">{{ form.provincia.label }}</label>
+            {{ form.provincia }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">{{ form.regione_residenza.label }}</label>
+            {{ form.regione_residenza }}
+            <div class="form-text" style="font-size:.65rem">Usata per calcolare l'addizionale IRPEF regionale</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DOCUMENTO DI IDENTITÀ ──────────────────────── -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-card-text"></i> Documento di identità
+      </div>
+      <div class="card-body py-3">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">{{ form.tipo_documento.label }}</label>
+            {{ form.tipo_documento }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">{{ form.numero_documento.label }}</label>
+            {{ form.numero_documento }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">{{ form.data_emissione_documento.label }}</label>
+            {{ form.data_emissione_documento }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">{{ form.scadenza_documento.label }}</label>
+            {{ form.scadenza_documento }}
+          </div>
+
+          <!-- Allegati documento -->
+          <div class="col-md-6 mt-1">
+            <label class="form-label form-label-sm">{{ form.file_documento.label }} <span class="text-muted fw-normal">(PDF/JPG, max 5 MB)</span></label>
+            {{ form.file_documento }}
+            {% if profilo.file_documento %}
+            <div class="mt-1" style="font-size:.72rem;color:#1b3a5f">
+              <i class="bi bi-paperclip"></i>
+              <a href="{{ profilo.file_documento.url }}" target="_blank">File attuale</a>
+            </div>
+            {% endif %}
+          </div>
+          <div class="col-md-6 mt-1">
+            <label class="form-label form-label-sm">{{ form.file_codice_fiscale.label }} <span class="text-muted fw-normal">(PDF/JPG, max 5 MB)</span></label>
+            {{ form.file_codice_fiscale }}
+            {% if profilo.file_codice_fiscale %}
+            <div class="mt-1" style="font-size:.72rem;color:#1b3a5f">
+              <i class="bi bi-paperclip"></i>
+              <a href="{{ profilo.file_codice_fiscale.url }}" target="_blank">File attuale</a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DATI BANCARI ────────────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-bank"></i> Dati bancari
+      </div>
+      <div class="card-body py-3">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label form-label-sm">{{ form.iban.label }}</label>
+            {{ form.iban }}
+            {% if form.iban.errors %}<div class="text-danger small">{{ form.iban.errors.0 }}</div>{% endif %}
+            <div style="font-size:.68rem;color:#888" class="mt-1">
+              <i class="bi bi-info-circle"></i> Necessario per l'accredito dello stipendio. Verrà usato in modo riservato.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CARICHI DI FAMIGLIA ─────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-people"></i> Carichi di famiglia
+      </div>
+      <div class="card-body py-3">
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">{{ form.num_familiari_a_carico.label }}</label>
+            {{ form.num_familiari_a_carico }}
+          </div>
+          <div class="col-md-9">
+            <label class="form-label form-label-sm">{{ form.dettaglio_familiari.label }} <span class="text-muted fw-normal">(facoltativo)</span></label>
+            {{ form.dettaglio_familiari }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── COMPETENZE E MANSIONE ───────────────────────── -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-award"></i> Competenze e mansione aspirata
+      </div>
+      <div class="card-body py-3">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">{{ form.mansione_aspirata.label }}</label>
+            {{ form.mansione_aspirata }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">{{ form.livello_aspirato.label }}</label>
+            {{ form.livello_aspirato }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">{{ form.tipo_rapporto_preferito.label }}</label>
+            {{ form.tipo_rapporto_preferito }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">{{ form.ore_settimanali_preferite.label }}</label>
+            {{ form.ore_settimanali_preferite }}
+          </div>
+          <div class="col-12">
+            <label class="form-label form-label-sm">{{ form.competenze.label }}</label>
+            {{ form.competenze }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">{{ form.data_disponibilita.label }}</label>
+            {{ form.data_disponibilita }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">{{ form.paga_giornaliera_attesa.label }}</label>
+            {{ form.paga_giornaliera_attesa }}
+            <div style="font-size:.68rem;color:#888;margin-top:2px">
+              <i class="bi bi-info-circle"></i>
+              Usato per confrontare il contratto con le tue aspettative.
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label form-label-sm">{{ form.note_candidatura.label }}</label>
+            {{ form.note_candidatura }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DOCUMENTI PROFESSIONALI ─────────────────────── -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f0f4fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-folder2-open"></i> Documenti professionali (opzionali)
+      </div>
+      <div class="card-body py-3">
+        <div style="font-size:.72rem;color:#666;margin-bottom:.8rem">
+          <i class="bi bi-info-circle"></i>
+          I file caricati verranno salvati nella sezione <strong>I miei documenti</strong>.
+          Puoi lasciare i campi vuoti e caricarli in seguito dalla dashboard.
+          Sono accettati PDF, immagini e documenti Office.
+        </div>
+        <div class="row g-3">
+
+          <div class="col-md-6">
+            <label class="form-label form-label-sm fw-semibold">
+              <i class="bi bi-file-person-fill" style="color:#1b3a5f"></i> Curriculum vitae
+            </label>
+            <input type="file" name="doc_curriculum" class="form-control form-control-sm"
+                   accept=".pdf,.doc,.docx,.odt,.jpg,.jpeg,.png">
+            <input type="text" name="doc_curriculum_desc" class="form-control form-control-sm mt-1"
+                   placeholder="Descrizione (es. CV aggiornato 2026)" maxlength="200">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label form-label-sm fw-semibold">
+              <i class="bi bi-award-fill" style="color:#b85a00"></i> Attestati professionali
+            </label>
+            <input type="file" name="doc_attestato" class="form-control form-control-sm"
+                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+            <input type="text" name="doc_attestato_desc" class="form-control form-control-sm mt-1"
+                   placeholder="Descrizione (es. Attestato HACCP)" maxlength="200">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label form-label-sm fw-semibold">
+              <i class="bi bi-tools" style="color:#0a6640"></i> Abilitazioni tecniche
+            </label>
+            <input type="file" name="doc_abilitazione" class="form-control form-control-sm"
+                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+            <input type="text" name="doc_abilitazione_desc" class="form-control form-control-sm mt-1"
+                   placeholder="Descrizione (es. Patentino gas, PES/PAV)" maxlength="200">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label form-label-sm fw-semibold">
+              <i class="bi bi-mortarboard-fill" style="color:#5a3f99"></i> Titoli di studio
+            </label>
+            <input type="file" name="doc_titolo" class="form-control form-control-sm"
+                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+            <input type="text" name="doc_titolo_desc" class="form-control form-control-sm mt-1"
+                   placeholder="Descrizione (es. Diploma IPSSAR, Laurea)" maxlength="200">
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+
+
+    <!-- ── DICHIARAZIONE PENALE ────────────────────────── -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#fff8e7;font-size:.8rem;font-weight:700;color:#8a5700">
+        <i class="bi bi-shield-check"></i> Dichiarazione sostitutiva
+      </div>
+      <div class="card-body py-3">
+        <div class="form-check">
+          {{ form.dichiarazione_no_condanne }}
+          <label class="form-check-label" for="{{ form.dichiarazione_no_condanne.id_for_label }}" style="font-size:.82rem">
+            {{ form.dichiarazione_no_condanne.label }}
+          </label>
+        </div>
+        <div style="font-size:.7rem;color:#888;margin-top:4px">
+          <i class="bi bi-info-circle"></i>
+          Ai sensi degli artt. 46 e 47 del D.P.R. 28 dicembre 2000, n. 445, consapevole delle sanzioni penali
+          previste dall'art. 76 dello stesso D.P.R. per le ipotesi di falsità in atti e dichiarazioni mendaci.
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SUBMIT ─────────────────────────────────────── -->
+    <div class="d-flex gap-2 mt-3 mb-4">
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="bi bi-check2-circle"></i> Salva e invia candidatura
+      </button>
+      <a href="{% url 'candidato_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+        Annulla
+      </a>
+    </div>
+
+  </form>
+
+  {% if proposta or contratto %}
+  <!-- ── RIEPILOGO PROPOSTA / CONTRATTO ──────────────── -->
+  <hr class="my-3">
+  <h6 style="font-size:.82rem;font-weight:700;color:#1b3a5f;margin-bottom:.6rem">
+    <i class="bi bi-file-earmark-check"></i> Stato della tua assunzione
+  </h6>
+
+  {% if contratto %}
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2" style="background:#e8f5e9;font-size:.78rem;font-weight:700;color:#1b5e20">
+      <i class="bi bi-file-earmark-check-fill"></i> Contratto di assunzione — {{ contratto.numero_contratto }}
+    </div>
+    <div class="card-body py-2">
+      <div class="row g-2" style="font-size:.78rem">
+        <div class="col-sm-4"><span class="text-muted">Azienda:</span> <strong>{{ contratto.azienda.nome }}</strong></div>
+        <div class="col-sm-4"><span class="text-muted">Data assunzione:</span> <strong>{{ contratto.data_inizio_rapporto|date:"d/m/Y" }}</strong></div>
+        {% if contratto.data_fine_rapporto %}
+        <div class="col-sm-4"><span class="text-muted">Scadenza contratto:</span> <strong>{{ contratto.data_fine_rapporto|date:"d/m/Y" }}</strong></div>
+        {% endif %}
+        <div class="col-sm-4"><span class="text-muted">Tipo:</span> {{ contratto.tipo_contratto }}</div>
+        <div class="col-sm-4"><span class="text-muted">Posizione:</span> {{ contratto.posizione }}</div>
+        <div class="col-sm-4"><span class="text-muted">Livello:</span> {{ contratto.livello_ccnl }}</div>
+        <div class="col-sm-4"><span class="text-muted">Ore/settimana:</span> {{ contratto.ore_settimanali|ore_hm }}</div>
+        <div class="col-sm-4 text-euro"><span class="text-muted">Lordo mensile:</span> <strong>€ {{ contratto.stipendio_lordo_mensile|euro_it }}</strong></div>
+        <div class="col-sm-4">
+          <span class="text-muted">Stato:</span>
+          {% if contratto.stato == 'sottoscritto' %}
+            <span class="badge bg-success">Sottoscritto</span>
+          {% elif contratto.stato == 'proposta' %}
+            <span class="badge bg-warning text-dark">In attesa di firma</span>
+          {% else %}
+            <span class="badge bg-secondary">{{ contratto.get_stato_display }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if contratto.stato == 'proposta' %}
+      <div class="alert alert-warning py-2 mt-2 mb-0" style="font-size:.78rem">
+        <i class="bi bi-pen"></i>
+        <strong>Firma richiesta.</strong> Il contratto è pronto per la tua accettazione.
+        <a href="{% url 'accetta_contratto_dipendente' contratto.id %}" class="btn btn-success btn-sm ms-2">
+          <i class="bi bi-check2-square"></i> Firma e accetta il contratto
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if proposta and not contratto %}
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2" style="background:#e3f2fd;font-size:.78rem;font-weight:700;color:#0d47a1">
+      <i class="bi bi-file-earmark-text"></i> Proposta di assunzione — {{ proposta.numero_proposta }}
+    </div>
+    <div class="card-body py-2">
+      <div class="row g-2" style="font-size:.78rem">
+        <div class="col-sm-4"><span class="text-muted">Azienda:</span> <strong>{{ proposta.azienda.nome }}</strong></div>
+        <div class="col-sm-4"><span class="text-muted">Data inizio:</span> <strong>{{ proposta.data_inizio_rapporto|date:"d/m/Y" }}</strong></div>
+        {% if proposta.data_fine_rapporto %}
+        <div class="col-sm-4"><span class="text-muted">Scadenza:</span> <strong>{{ proposta.data_fine_rapporto|date:"d/m/Y" }}</strong></div>
+        {% endif %}
+        <div class="col-sm-4"><span class="text-muted">Posizione:</span> {{ proposta.posizione }}</div>
+        <div class="col-sm-4"><span class="text-muted">Livello:</span> {{ proposta.livello_ccnl }}</div>
+        <div class="col-sm-4 text-euro"><span class="text-muted">Lordo mensile:</span> <strong>€ {{ proposta.stipendio_lordo_mensile|euro_it }}</strong></div>
+        <div class="col-sm-12">
+          <span class="text-muted">Stato:</span>
+          {% if proposta.stato_canonico == 'inviata_candidato' %}
+            <span class="badge bg-primary">Ricevuta — in attesa della tua risposta</span>
+            <a href="{% url 'dettaglio_proposta' proposta.id %}" class="btn btn-primary btn-sm ms-2">
+              <i class="bi bi-eye"></i> Visualizza e accetta
+            </a>
+          {% elif proposta.stato_canonico == 'firmata_candidato' %}
+            <span class="badge bg-info text-dark">Accettata — in attesa di approvazione amministrativa</span>
+          {% elif proposta.stato == 'rifiutata_dipendente' %}
+            <span class="badge bg-danger">Rifiutata</span>
+          {% else %}
+            <span class="badge bg-secondary">{{ proposta.get_stato_display }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}
+
+</div>{# col #}
+</div>{# row #}
+</div>{# container #}
+
+<script>
+function aggiornaCampiRichiestaProfilo() {
+  const tipo = document.getElementById('selectTipoProfilo')?.value;
+  const sezDate = document.getElementById('sezDateProfilo');
+  const dataInizio = document.getElementById('dataInizioProfilo');
+  const dataFine = document.getElementById('dataFineProfilo');
+  const testo = document.getElementById('testoRichiestaProfilo');
+  const conDate = ['ferie', 'permesso', 'malattia'];
+
+  if (!sezDate || !dataInizio || !dataFine || !testo) return;
+
+  if (conDate.includes(tipo)) {
+    sezDate.style.display = '';
+    dataInizio.required = true;
+    dataFine.required = true;
+    testo.required = false;
+  } else {
+    sezDate.style.display = 'none';
+    dataInizio.required = false;
+    dataFine.required = false;
+    testo.required = true;
+  }
+}
+
+aggiornaCampiRichiestaProfilo();
+</script>
+{% endblock %}

@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+{% block title %}Modifica profilo — {{ candidato.first_name }} {{ candidato.last_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:860px">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:6px;
+              padding:.6rem 1rem;margin-bottom:.8rem;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <h5 style="margin:0;font-size:.92rem;font-weight:800">
+        <i class="bi bi-pencil-square"></i>
+        Modifica profilo — {{ candidato.first_name }} {{ candidato.last_name }}
+        <span style="font-size:.72rem;opacity:.8;font-weight:400;margin-left:8px">{{ candidato.email }}</span>
+      </h5>
+      <div style="font-size:.7rem;opacity:.85;margin-top:2px">
+        Correzione dati effettuata da operatore HR/Admin
+      </div>
+    </div>
+    <a href="{% url 'candidato_admin_dettaglio' candidato.id %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">
+      ← Torna al candidato
+    </a>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" autocomplete="off">
+    {% csrf_token %}
+
+    <!-- DATI ANAGRAFICI -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-person-vcard"></i> Dati anagrafici
+      </div>
+      <div class="card-body pb-2">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">Codice Fiscale</label>
+            {{ form.codice_fiscale }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Data di nascita</label>
+            {{ form.data_nascita }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Luogo di nascita</label>
+            {{ form.luogo_nascita }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">Sesso</label>
+            {{ form.sesso }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">Nazionalità</label>
+            {{ form.nazionalita }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">Telefono</label>
+            {{ form.telefono }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">Regione residenza</label>
+            {{ form.regione_residenza }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label form-label-sm">Indirizzo</label>
+            {{ form.indirizzo }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">CAP</label>
+            {{ form.cap }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">Città</label>
+            {{ form.citta }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">Prov.</label>
+            {{ form.provincia }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOCUMENTO DI IDENTITÀ -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-credit-card-2-front"></i> Documento di identità
+      </div>
+      <div class="card-body pb-2">
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Tipo</label>
+            {{ form.tipo_documento }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Numero</label>
+            {{ form.numero_documento }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Data emissione</label>
+            {{ form.data_emissione_documento }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Scadenza</label>
+            {{ form.scadenza_documento }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label form-label-sm">Copia documento identità</label>
+            {% if profilo.file_documento %}
+              <div style="font-size:.75rem;margin-bottom:4px">
+                <i class="bi bi-file-earmark-check text-success"></i>
+                File presente: <a href="{{ profilo.file_documento.url }}" target="_blank">visualizza</a>
+              </div>
+            {% endif %}
+            {{ form.file_documento }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label form-label-sm">Copia tessera sanitaria / CF</label>
+            {% if profilo.file_codice_fiscale %}
+              <div style="font-size:.75rem;margin-bottom:4px">
+                <i class="bi bi-file-earmark-check text-success"></i>
+                File presente: <a href="{{ profilo.file_codice_fiscale.url }}" target="_blank">visualizza</a>
+              </div>
+            {% endif %}
+            {{ form.file_codice_fiscale }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DATI BANCARI E FAMILIARI -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-bank"></i> Dati bancari e familiari
+      </div>
+      <div class="card-body pb-2">
+        <div class="row g-2">
+          <div class="col-md-5">
+            <label class="form-label form-label-sm">IBAN</label>
+            {{ form.iban }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">N. familiari a carico</label>
+            {{ form.num_familiari_a_carico }}
+          </div>
+          <div class="col-md-5">
+            <label class="form-label form-label-sm">Dettaglio familiari</label>
+            {{ form.dettaglio_familiari }}
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              {{ form.dichiarazione_no_condanne }}
+              <label class="form-check-label" style="font-size:.8rem">
+                Dichiarazione assenza condanne penali
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CANDIDATURA -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-briefcase"></i> Candidatura e disponibilità
+      </div>
+      <div class="card-body pb-2">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">Mansione aspirata</label>
+            {{ form.mansione_aspirata }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">Livello CCNL</label>
+            {{ form.livello_aspirato }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Disponibile dal</label>
+            {{ form.data_disponibilita }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Tipo rapporto preferito</label>
+            {{ form.tipo_rapporto_preferito }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Ore settimanali preferite</label>
+            {{ form.ore_settimanali_preferite }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Paga giornaliera attesa (€ netti)</label>
+            {{ form.paga_giornaliera_attesa }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label form-label-sm">Competenze</label>
+            {{ form.competenze }}
+          </div>
+          <div class="col-12">
+            <label class="form-label form-label-sm">Note / lettera di presentazione</label>
+            {{ form.note_candidatura }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Errori form -->
+    {% if form.errors %}
+    <div class="alert alert-danger py-2 small mb-3">
+      <strong>Correggere i seguenti errori:</strong>
+      <ul class="mb-0 mt-1">
+        {% for field in form %}{% for err in field.errors %}
+        <li>{{ field.label }}: {{ err }}</li>
+        {% endfor %}{% endfor %}
+        {% for err in form.non_field_errors %}
+        <li>{{ err }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="d-flex gap-2 mb-4">
+      <button type="submit" class="btn btn-success btn-sm">
+        <i class="bi bi-check2-circle"></i> Salva modifiche
+      </button>
+      <a href="{% url 'candidato_admin_dettaglio' candidato.id %}" class="btn btn-outline-secondary btn-sm">
+        Annulla
+      </a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

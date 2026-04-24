@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% load ruoli_tags %}
+{% block title %}Modifica Dipendente{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <h2>Modifica Dipendente: {{ dipendente.nome }} {{ dipendente.cognome }}</h2>
+            {% if azienda_operativa %}
+            <div class="alert alert-info">
+                <strong>Azienda operativa:</strong> {{ azienda_operativa.nome }}
+            </div>
+            {% endif %}
+            <div class="alert alert-light border py-2 small mb-3" role="note">
+              <div class="mb-1"><strong>Modifiche anagrafiche.</strong> Per regole su matricola, utenza e collegamento al portale vedi la guida al modulo registrazione.</div>
+              <div class="mb-0 text-muted" style="font-size:.9em">
+                <a href="{% url 'guida_modulo' 'reg-dipendente' %}">Guida: registrazione dipendente</a>
+              </div>
+            </div>
+
+            <div class="row g-2 mb-3">
+              {% include 'rapporto_di_lavoro/_profilo_posizione_contrattuale.html' %}
+            </div>
+
+            <form method="post" class="mt-4" id="form-modifica-dipendente">
+                {% csrf_token %}
+                {{ turno_formset.management_form }}
+                
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {{ form.non_field_errors }}
+                </div>
+                {% endif %}
+                
+                {% for field in form %}
+                    {% if field.name != 'azienda' or not azienda_operativa %}
+                    <div class="mb-3">
+                        <label for="{{ field.id_for_label }}" class="form-label">
+                            {{ field.label }}
+                            {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+                        </label>
+                        {{ field }}
+                        {% if field.help_text %}
+                        <small class="form-text text-muted">{{ field.help_text }}</small>
+                        {% endif %}
+                        {% if field.errors %}
+                        <div class="text-danger">
+                            {{ field.errors }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                        {{ field }}
+                    {% endif %}
+                {% endfor %}
+
+                {% if not is_dipendente %}
+                {# ── Agganci turni lavorativi ─────────────────────────────────── #}
+                <div class="card border-secondary mt-4 mb-3" id="gesper-turni-dipendente">
+                    <div class="card-header bg-secondary-subtle d-flex justify-content-between align-items-center">
+                        <strong><i class="bi bi-clock-history me-1"></i>Agganci turni lavorativi (max 4)</strong>
+                        {% if not turni_disponibili %}
+                        <span class="badge bg-warning text-dark">Nessun turno configurato per questa azienda</span>
+                        {% endif %}
+                    </div>
+                    <div class="card-body p-2">
+                        {% if turni_disponibili %}
+                        <p class="text-muted small mb-2">
+                            Assegna fino a 4 turni con il relativo periodo di validità. Alla scelta del turno,
+                            <strong>Dal</strong> e <strong>Al</strong> si compilano con l’anno della pianificazione oraria
+                            (1 gen – 31 dic), con <strong>Dal</strong> non prima della data di assunzione se utile.
+                            Svuota <strong>Al</strong> se vuoi validità illimitata. Gli orari del turno (inizio/fine)
+                            restano quelli definiti in Pianificazione orari. Lasciare il turno su «nessuno» per non assegnare.
+                        </p>
+                        <table class="table table-sm table-bordered align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:30%">Turno</th>
+                                    <th style="width:22%">Dal</th>
+                                    <th style="width:22%">Al <small class="text-muted">(vuoto=illimitato)</small></th>
+                                    <th style="width:10%" class="text-center">Attivo</th>
+                                    <th style="width:10%" class="text-center">Elimina</th>
+                                    <th style="width:6%"></th>{# hidden management #}
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for tf in turno_formset %}
+                                <tr class="js-turno-ass-row{% if tf.errors %} table-danger{% endif %}">
+                                    <td>{{ tf.id }}{{ tf.dipendente }}{{ tf.turno }}</td>
+                                    <td>{{ tf.data_inizio }}</td>
+                                    <td>{{ tf.data_fine }}</td>
+                                    <td class="text-center">{{ tf.attivo }}</td>
+                                    <td class="text-center">
+                                        {% if tf.instance.pk %}
+                                        <input type="checkbox" name="{{ tf.DELETE.html_name }}" class="form-check-input" title="Elimina questo aggancio">
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% if tf.errors %}
+                                <tr>
+                                    <td colspan="5">
+                                        <div class="text-danger small">
+                                        {% for field, errs in tf.errors.items %}
+                                            {% if field != '__all__' %}
+                                            {% for e in errs %}<div>{{ field }}: {{ e }}</div>{% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% for e in tf.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                        <script type="application/json" id="gesper-turni-date-defaults">{{ turni_date_defaults_json }}</script>
+                        <script>
+                        (function () {
+                          var el = document.getElementById('gesper-turni-date-defaults');
+                          if (!el) return;
+                          var defs = {};
+                          try { defs = JSON.parse(el.textContent); } catch (e) { return; }
+                          document.querySelectorAll('tr.js-turno-ass-row').forEach(function (tr) {
+                            var sel = tr.querySelector('select[name$="-turno"]');
+                            var di = tr.querySelector('input[name$="-data_inizio"]');
+                            var df = tr.querySelector('input[name$="-data_fine"]');
+                            if (!sel || !di) return;
+                            sel.addEventListener('change', function () {
+                              var id = sel.value;
+                              if (!id || !defs[id]) return;
+                              if (!di.value) di.value = defs[id].dal;
+                              if (df && !df.value && defs[id].al) df.value = defs[id].al;
+                            });
+                          });
+                        })();
+                        </script>
+                        {% else %}
+                        <p class="text-muted small mb-0">
+                            Per configurare i turni vai in
+                            <a href="{% url 'pianificazione_orari_annuale' %}" target="_blank">Pianificazione Orari</a>.
+                        </p>
+                        {% endif %}
+                    </div>
+                    {% if turni_disponibili %}
+                    <div class="card-footer text-muted small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Dopo aver salvato, ri-genera le presenze teoriche del mese per applicare gli orari del turno.
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">Salva Modifiche</button>
+                    <a href="{% url 'dettaglio_dipendente' dipendente.pk %}" class="btn btn-secondary">Annulla</a>
+                </div>
+            </form>
+
+            {% if is_dipendente and contratto_attivo %}
+            <div class="card border-warning mt-4">
+                <div class="card-header bg-warning-subtle">
+                    <strong>Integrazione contrattuale (dati bloccati)</strong>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        I dati presenti nel contratto definitivo <strong>{{ contratto_attivo.numero_contratto }}</strong>
+                        non sono modificabili direttamente.
+                    </p>
+                    <p class="mb-3">
+                        Se ci sono variazioni anagrafiche rispetto al contratto originario, invia una richiesta di integrazione:
+                        sarà registrata nei documenti e dovrà essere approvata dal datore di lavoro.
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="richiedi_integrazione" value="1">
+                        <div class="mb-3">
+                            <label class="form-label">Descrizione variazioni richieste</label>
+                            <textarea name="note_integrazione" class="form-control" rows="4" required
+                                      placeholder="Esempio: aggiornamento indirizzo di residenza, variazione recapito e-mail, ecc."></textarea>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="firmaDigitaleDipendente" name="firma_digitale_dipendente" required>
+                            <label class="form-check-label" for="firmaDigitaleDipendente">
+                                Confermo e sottoscrivo digitalmente la richiesta di integrazione.
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-outline-warning">Invia richiesta integrazione</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

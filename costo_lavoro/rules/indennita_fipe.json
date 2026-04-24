@@ -1,0 +1,69 @@
+{
+  "indennita_fipe": {
+    "cassa": {
+      "applicabile_a": ["cassiere", "addetto_cassa"],
+      "importo_mensile": 30.00,
+      "descrizione": "Indennità per attività di cassa e responsabilità nella gestione del denaro"
+    },
+
+    "maneggio_denaro": {
+      "applicabile_a": ["cassiere", "responsabile_cassa", "barista"],
+      "percentuale": 0.05,
+      "descrizione": "Maggiorazione percentuale per maneggio continuativo di denaro"
+    },
+
+    "vitto": {
+      "fornito": true,
+      "valore_convenzionale_giornaliero": 2.00,
+      "descrizione": "Valore convenzionale del pasto fornito al dipendente"
+    },
+
+    "alloggio": {
+      "fornito": false,
+      "valore_convenzionale_mensile": 0.00,
+      "descrizione": "Valore convenzionale dell'alloggio, se previsto"
+    },
+
+    "turno": {
+      "turno_notturno": {
+        "percentuale": 0.10,
+        "descrizione": "Indennità aggiuntiva per turno notturno continuativo"
+      },
+      "turno_festivo": {
+        "percentuale": 0.10,
+        "descrizione": "Indennità aggiuntiva per turno svolto nei giorni festivi"
+      }
+    },
+
+    "reperibilita": {
+      "prevista": true,
+      "importo_orario": 1.50,
+      "descrizione": "Indennità per reperibilità fuori orario di lavoro"
+    },
+
+    "trasferta": {
+      "indennita_giornaliera": 15.00,
+      "rimborso_spese": {
+        "vitto": true,
+        "alloggio": true,
+        "trasporto": true
+      },
+      "descrizione": "Indennità e rimborsi per trasferte fuori sede"
+    },
+
+    "indennita_specifiche_mansione": {
+      "cuoco": {
+        "importo_mensile": 20.00,
+        "descrizione": "Indennità per mansioni di cucina"
+      },
+      "pizzaiolo": {
+        "importo_mensile": 25.00,
+        "descrizione": "Indennità per mansioni di pizzeria"
+      },
+      "barista": {
+        "importo_mensile": 15.00,
+        "descrizione": "Indennità per mansioni di bar"
+      }
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "pdf": "/private/var/folders/nw/sr7j6wzn5vddsg2xt35mfvgh0000gn/T/tmp5z5oxa8r.pdf",
+  "source_name": "03  MARZO 2026.PDF",
+  "natura_busta_file": "ORDINARIA",
+  "azienda": {
+    "id": 1,
+    "nome": "Punto Zero SRLS"
+  },
+  "f24_pages": [
+    {
+      "page": 5,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 6,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 7,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    }
+  ],
+  "summary": {
+    "pages_total": 8,
+    "buste_pages": 4,
+    "f24_pages": 3,
+    "f24_importo_stimato": null,
+    "buste_uniche": 2,
+    "buste_duplicate_pages": [
+      3,
+      4
+    ],
+    "matched": 2,
+    "to_create": 0,
+    "ambiguous": 0,
+    "already_present": 0
+  },
+  "rows": [
+    {
+      "page": 1,
+      "periodo": "03/2026",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massimo",
+      "birth_date": "10/03/74",
+      "lordo_busta": "4.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 18,
+      "dipendente_nome": "CARDELLA MASSIMO"
+    },
+    {
+      "page": 2,
+      "periodo": "03/2026",
+      "cf": "GMSJSC92A42Z307O",
+      "full_name": "Gomes Ferreira Jessica Ailine",
+      "birth_date": "02/01/92",
+      "lordo_busta": "6.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 19,
+      "dipendente_nome": "Gomes Ferreira Jessica Aline"
+    }
+  ]
+}

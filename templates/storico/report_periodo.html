@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Report storico presenze</h2>
+<p>Periodo: {{ data_inizio }} - {{ data_fine }}</p>
+<table>
+    <tr>
+        <th>Data</th>
+        <th>Dipendente</th>
+        <th>Tipo evento</th>
+        <th>Note</th>
+    </tr>
+    {% for evento in eventi %}
+    <tr>
+        <td>{{ evento.data_evento }}</td>
+        <td>{{ evento.dipendente }}</td>
+        <td>{{ evento.tipo }}</td>
+        <td>{{ evento.note }}</td>
+    </tr>
+    {% endfor %}
+</table>
+<a href="{% url 'centro_moduli' %}">Torna al menu</a>
+{% endblock %}

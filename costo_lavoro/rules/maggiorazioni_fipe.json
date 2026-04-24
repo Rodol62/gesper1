@@ -1,0 +1,56 @@
+{
+  "maggiorazioni_fipe": {
+    "straordinario": {
+      "feriale": {
+        "percentuale": 0.15,
+        "descrizione": "Straordinario effettuato oltre l'orario normale nei giorni feriali"
+      },
+      "festivo": {
+        "percentuale": 0.30,
+        "descrizione": "Straordinario effettuato nei giorni festivi"
+      },
+      "notturno": {
+        "percentuale": 0.30,
+        "descrizione": "Straordinario effettuato nella fascia 22:00-06:00"
+      },
+      "notturno_festivo": {
+        "percentuale": 0.50,
+        "descrizione": "Straordinario notturno effettuato nei giorni festivi"
+      }
+    },
+
+    "lavoro_festivo": {
+      "percentuale": 0.20,
+      "descrizione": "Lavoro svolto nei giorni festivi"
+    },
+
+    "lavoro_domenicale": {
+      "percentuale": 0.30,
+      "descrizione": "Lavoro svolto la domenica"
+    },
+
+    "lavoro_notturno": {
+      "percentuale": 0.20,
+      "descrizione": "Lavoro svolto nella fascia 22:00-06:00"
+    },
+
+    "turni": {
+      "turno_notturno": {
+        "percentuale": 0.10,
+        "descrizione": "Maggiorazione per turno notturno continuativo"
+      },
+      "turno_festivo": {
+        "percentuale": 0.10,
+        "descrizione": "Maggiorazione per turno festivo"
+      }
+    },
+
+    "part_time": {
+      "lavoro_aggiuntivo": {
+        "percentuale": 0.15,
+        "descrizione": "Maggiorazione applicata al lavoro aggiuntivo del part-time (richiamo al modulo part_time_fipe)"
+      },
+      "note": "La logica completa del lavoro supplementare è definita nel modulo part_time_fipe"
+    }
+  }
+}

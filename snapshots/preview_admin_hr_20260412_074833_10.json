@@ -1,0 +1,128 @@
+{
+  "pdf": "/private/var/folders/nw/sr7j6wzn5vddsg2xt35mfvgh0000gn/T/tmpdm32csx6.pdf",
+  "source_name": "05 MAGGIO 2025.PDF",
+  "natura_busta_file": "ORDINARIA",
+  "azienda": {
+    "id": 1,
+    "nome": "Punto Zero SRLS"
+  },
+  "f24_pages": [
+    {
+      "page": 13,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 14,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 15,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    }
+  ],
+  "summary": {
+    "pages_total": 16,
+    "buste_pages": 12,
+    "f24_pages": 3,
+    "f24_importo_stimato": null,
+    "buste_uniche": 6,
+    "buste_duplicate_pages": [
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "matched": 6,
+    "to_create": 0,
+    "ambiguous": 0,
+    "already_present": 6
+  },
+  "rows": [
+    {
+      "page": 1,
+      "periodo": "05/2025",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massimo",
+      "birth_date": "10/03/74",
+      "lordo_busta": "4.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 18,
+      "dipendente_nome": "Cardella Massimo"
+    },
+    {
+      "page": 2,
+      "periodo": "05/2025",
+      "cf": "GMSJSC92A42Z307O",
+      "full_name": "Gomes Ferreira Jessica Ailine",
+      "birth_date": "02/01/92",
+      "lordo_busta": "7.20",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 19,
+      "dipendente_nome": "Gomes Ferreira Jessica Aline"
+    },
+    {
+      "page": 3,
+      "periodo": "05/2025",
+      "cf": "CCIPLA73L19G273M",
+      "full_name": "Puntozero Srls",
+      "birth_date": "19/07/73",
+      "lordo_busta": "6.40",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 27,
+      "dipendente_nome": "Puntozero Srls"
+    },
+    {
+      "page": 4,
+      "periodo": "05/2025",
+      "cf": "HSSBDA99T31Z236U",
+      "full_name": "Hassan Abid",
+      "birth_date": "31/12/99",
+      "lordo_busta": "6.40",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 28,
+      "dipendente_nome": "Hassan Abid"
+    },
+    {
+      "page": 5,
+      "periodo": "05/2025",
+      "cf": "RZGSRN94T58Z352K",
+      "full_name": "Rezgui Sabrina",
+      "birth_date": "18/12/94",
+      "lordo_busta": "6.40",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 26,
+      "dipendente_nome": "Rezgui Sabrina"
+    },
+    {
+      "page": 6,
+      "periodo": "05/2025",
+      "cf": "LCSFNC69P05G273G",
+      "full_name": "Lo Cascio Francesco Paolo",
+      "birth_date": "05/09/69",
+      "lordo_busta": "6.40",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "already_present",
+      "dipendente_id": 29,
+      "dipendente_nome": "Lo Cascio Francesco Paolo"
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "pdf": "/private/var/folders/nw/sr7j6wzn5vddsg2xt35mfvgh0000gn/T/tmpys1_p__z.pdf",
+  "source_name": "11 NOVEMBRE 2025.PDF",
+  "natura_busta_file": "ORDINARIA",
+  "azienda": {
+    "id": 1,
+    "nome": "Punto Zero SRLS"
+  },
+  "f24_pages": [
+    {
+      "page": 11,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 12,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 13,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    }
+  ],
+  "summary": {
+    "pages_total": 14,
+    "buste_pages": 10,
+    "f24_pages": 3,
+    "f24_importo_stimato": null,
+    "buste_uniche": 5,
+    "buste_duplicate_pages": [
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "matched": 5,
+    "to_create": 0,
+    "ambiguous": 0,
+    "already_present": 0
+  },
+  "rows": [
+    {
+      "page": 1,
+      "periodo": "11/2025",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massimo",
+      "birth_date": "10/03/74",
+      "lordo_busta": "4.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 18,
+      "dipendente_nome": "CARDELLA MASSIMO"
+    },
+    {
+      "page": 2,
+      "periodo": "11/2025",
+      "cf": "GMSJSC92A42Z307O",
+      "full_name": "Gomes Ferreira Jessica Ailine",
+      "birth_date": "02/01/92",
+      "lordo_busta": "6.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 19,
+      "dipendente_nome": "Gomes Ferreira Jessica Aline"
+    },
+    {
+      "page": 3,
+      "periodo": "11/2025",
+      "cf": "RZGSRN94T58Z352K",
+      "full_name": "Rezgui Sabrina",
+      "birth_date": "18/12/94",
+      "lordo_busta": "6.66",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 26,
+      "dipendente_nome": "REZGUI SABRINA"
+    },
+    {
+      "page": 4,
+      "periodo": "11/2025",
+      "cf": "HSSBDA99T31Z236U",
+      "full_name": "Hassan Abid",
+      "birth_date": "31/12/99",
+      "lordo_busta": "22.80",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 28,
+      "dipendente_nome": "HASSAN ABID"
+    },
+    {
+      "page": 5,
+      "periodo": "11/2025",
+      "cf": "RNDGLC78D18G273N",
+      "full_name": "Renda Gianluca",
+      "birth_date": "18/04/78",
+      "lordo_busta": "25.63",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 32,
+      "dipendente_nome": "RENDA GIANLUCA"
+    }
+  ]
+}

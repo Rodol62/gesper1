@@ -1,0 +1,10 @@
+[
+    {
+        "name": "Tempo determinato",
+        "tipo_contratto": "determinato",
+        "priority": 10,
+        "values": {
+            "contributo_td": 0.014
+        }
+    }
+]

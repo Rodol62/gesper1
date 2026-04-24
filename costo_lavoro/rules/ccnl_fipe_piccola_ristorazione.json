@@ -1,0 +1,965 @@
+[
+  {
+    "name": "FIPE Piccola Ristorazione 2024 - Qa",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "Qa",
+    "anno": 2024,
+    "decorrenza": "giu-24",
+    "priority": 20,
+    "values": {
+      "contingenza": 542.70,
+      "paga_base_ridotta": 1783.03,
+      "totale_mensile": 2325.73,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2024 - Qb",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "Qb",
+    "anno": 2024,
+    "decorrenza": "giu-24",
+    "priority": 20,
+    "values": {
+      "contingenza": 537.59,
+      "paga_base_ridotta": 1610.07,
+      "totale_mensile": 2147.66,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2024 - 1",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "1",
+    "anno": 2024,
+    "decorrenza": "giu-24",
+    "priority": 20,
+    "values": {
+      "contingenza": 536.71,
+      "paga_base_ridotta": 1458.18,
+      "totale_mensile": 1994.89,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2024 - 2",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "2",
+    "anno": 2024,
+    "decorrenza": "giu-24",
+    "priority": 20,
+    "values": {
+      "contingenza": 531.59,
+      "paga_base_ridotta": 1285.50,
+      "totale_mensile": 1817.09,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2024 - 3",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "3",
+    "anno": 2024,
+    "decorrenza": "giu-24",
+    "priority": 20,
+    "values": {
+      "contingenza": 528.26,
+      "paga_base_ridotta": 1181.42,
+      "totale_mensile": 1709.68,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2024 - 4",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "4",
+    "anno": 2024,
+    "decorrenza": "giu-24",
+    "priority": 20,
+    "values": {
+      "contingenza": 524.94,
+      "paga_base_ridotta": 1084.39,
+      "totale_mensile": 1609.33,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2024 - 5",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "5",
+    "anno": 2024,
+    "decorrenza": "giu-24",
+    "priority": 20,
+    "values": {
+      "contingenza": 522.37,
+      "paga_base_ridotta": 982.16,
+      "totale_mensile": 1504.53,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2024 - 6s",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "6s",
+    "anno": 2024,
+    "decorrenza": "giu-24",
+    "priority": 20,
+    "values": {
+      "contingenza": 520.64,
+      "paga_base_ridotta": 923.24,
+      "totale_mensile": 1443.88,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2024 - 6",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "6",
+    "anno": 2024,
+    "decorrenza": "giu-24",
+    "priority": 20,
+    "values": {
+      "contingenza": 520.51,
+      "paga_base_ridotta": 901.70,
+      "totale_mensile": 1422.21,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2024 - 7",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "7",
+    "anno": 2024,
+    "decorrenza": "giu-24",
+    "priority": 20,
+    "values": {
+      "contingenza": 518.45,
+      "paga_base_ridotta": 809.45,
+      "totale_mensile": 1327.90,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  }
+,
+  {
+    "name": "FIPE Piccola Ristorazione 2025 - Qa",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "Qa",
+    "anno": 2025,
+    "decorrenza": "giu-25",
+    "priority": 20,
+    "values": {
+      "contingenza": 542.70,
+      "paga_base_ridotta": 1848.81,
+      "totale_mensile": 2391.51,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2025 - Qb",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "Qb",
+    "anno": 2025,
+    "decorrenza": "giu-25",
+    "priority": 20,
+    "values": {
+      "contingenza": 537.59,
+      "paga_base_ridotta": 1669.47,
+      "totale_mensile": 2207.06,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2025 - 1",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "1",
+    "anno": 2025,
+    "decorrenza": "giu-25",
+    "priority": 20,
+    "values": {
+      "contingenza": 536.71,
+      "paga_base_ridotta": 1512.00,
+      "totale_mensile": 2048.71,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2025 - 2",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "2",
+    "anno": 2025,
+    "decorrenza": "giu-25",
+    "priority": 20,
+    "values": {
+      "contingenza": 531.59,
+      "paga_base_ridotta": 1332.94,
+      "totale_mensile": 1864.53,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2025 - 3",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "3",
+    "anno": 2025,
+    "decorrenza": "giu-25",
+    "priority": 20,
+    "values": {
+      "contingenza": 528.26,
+      "paga_base_ridotta": 1225.01,
+      "totale_mensile": 1753.27,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2025 - 4",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "4",
+    "anno": 2025,
+    "decorrenza": "giu-25",
+    "priority": 20,
+    "values": {
+      "contingenza": 524.94,
+      "paga_base_ridotta": 1124.39,
+      "totale_mensile": 1649.33,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2025 - 5",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "5",
+    "anno": 2025,
+    "decorrenza": "giu-25",
+    "priority": 20,
+    "values": {
+      "contingenza": 522.37,
+      "paga_base_ridotta": 1018.39,
+      "totale_mensile": 1540.76,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2025 - 6s",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "6s",
+    "anno": 2025,
+    "decorrenza": "giu-25",
+    "priority": 20,
+    "values": {
+      "contingenza": 520.64,
+      "paga_base_ridotta": 957.29,
+      "totale_mensile": 1477.93,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2025 - 6",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "6",
+    "anno": 2025,
+    "decorrenza": "giu-25",
+    "priority": 20,
+    "values": {
+      "contingenza": 520.51,
+      "paga_base_ridotta": 934.96,
+      "totale_mensile": 1455.47,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2025 - 7",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "7",
+    "anno": 2025,
+    "decorrenza": "giu-25",
+    "priority": 20,
+    "values": {
+      "contingenza": 518.45,
+      "paga_base_ridotta": 839.31,
+      "totale_mensile": 1357.76,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  }
+,
+  {
+    "name": "FIPE Piccola Ristorazione 2026 - Qa",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "Qa",
+    "anno": 2026,
+    "decorrenza": "giu-26",
+    "priority": 20,
+    "values": {
+      "contingenza": 542.70,
+      "paga_base_ridotta": 1914.58,
+      "totale_mensile": 2457.28,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2026 - Qb",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "Qb",
+    "anno": 2026,
+    "decorrenza": "giu-26",
+    "priority": 20,
+    "values": {
+      "contingenza": 537.59,
+      "paga_base_ridotta": 1728.86,
+      "totale_mensile": 2266.45,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2026 - 1",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "1",
+    "anno": 2026,
+    "decorrenza": "giu-26",
+    "priority": 20,
+    "values": {
+      "contingenza": 536.71,
+      "paga_base_ridotta": 1565.81,
+      "totale_mensile": 2102.52,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2026 - 2",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "2",
+    "anno": 2026,
+    "decorrenza": "giu-26",
+    "priority": 20,
+    "values": {
+      "contingenza": 531.59,
+      "paga_base_ridotta": 1380.37,
+      "totale_mensile": 1911.96,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2026 - 3",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "3",
+    "anno": 2026,
+    "decorrenza": "giu-26",
+    "priority": 20,
+    "values": {
+      "contingenza": 528.26,
+      "paga_base_ridotta": 1268.60,
+      "totale_mensile": 1796.86,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2026 - 4",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "4",
+    "anno": 2026,
+    "decorrenza": "giu-26",
+    "priority": 20,
+    "values": {
+      "contingenza": 524.94,
+      "paga_base_ridotta": 1164.39,
+      "totale_mensile": 1689.33,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2026 - 5",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "5",
+    "anno": 2026,
+    "decorrenza": "giu-26",
+    "priority": 20,
+    "values": {
+      "contingenza": 522.37,
+      "paga_base_ridotta": 1054.62,
+      "totale_mensile": 1576.99,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2026 - 6s",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "6s",
+    "anno": 2026,
+    "decorrenza": "giu-26",
+    "priority": 20,
+    "values": {
+      "contingenza": 520.64,
+      "paga_base_ridotta": 991.35,
+      "totale_mensile": 1511.99,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2026 - 6",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "6",
+    "anno": 2026,
+    "decorrenza": "giu-26",
+    "priority": 20,
+    "values": {
+      "contingenza": 520.51,
+      "paga_base_ridotta": 968.22,
+      "totale_mensile": 1488.73,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2026 - 7",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "7",
+    "anno": 2026,
+    "decorrenza": "giu-26",
+    "priority": 20,
+    "values": {
+      "contingenza": 518.45,
+      "paga_base_ridotta": 869.17,
+      "totale_mensile": 1387.62,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  }
+,
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - Qa (giu-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "Qa",
+    "anno": 2027,
+    "decorrenza": "giu-27",
+    "priority": 20,
+    "values": {
+      "contingenza": 542.70,
+      "paga_base_ridotta": 1963.92,
+      "totale_mensile": 2506.62,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - Qa (dic-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "Qa",
+    "anno": 2027,
+    "decorrenza": "dic-27",
+    "priority": 21,
+    "values": {
+      "contingenza": 542.70,
+      "paga_base_ridotta": 2029.69,
+      "totale_mensile": 2572.39,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - Qb (giu-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "Qb",
+    "anno": 2027,
+    "decorrenza": "giu-27",
+    "priority": 20,
+    "values": {
+      "contingenza": 537.59,
+      "paga_base_ridotta": 1773.41,
+      "totale_mensile": 2311.00,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - Qb (dic-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "Qb",
+    "anno": 2027,
+    "decorrenza": "dic-27",
+    "priority": 21,
+    "values": {
+      "contingenza": 537.59,
+      "paga_base_ridotta": 1832.81,
+      "totale_mensile": 2370.40,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 1 (giu-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "1",
+    "anno": 2027,
+    "decorrenza": "giu-27",
+    "priority": 20,
+    "values": {
+      "contingenza": 536.71,
+      "paga_base_ridotta": 1606.17,
+      "totale_mensile": 2142.88,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 1 (dic-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "1",
+    "anno": 2027,
+    "decorrenza": "dic-27",
+    "priority": 21,
+    "values": {
+      "contingenza": 536.71,
+      "paga_base_ridotta": 1659.98,
+      "totale_mensile": 2196.69,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 2 (giu-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "2",
+    "anno": 2027,
+    "decorrenza": "giu-27",
+    "priority": 20,
+    "values": {
+      "contingenza": 531.59,
+      "paga_base_ridotta": 1415.94,
+      "totale_mensile": 1947.53,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 2 (dic-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "2",
+    "anno": 2027,
+    "decorrenza": "dic-27",
+    "priority": 21,
+    "values": {
+      "contingenza": 531.59,
+      "paga_base_ridotta": 1463.38,
+      "totale_mensile": 1994.97,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 3 (giu-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "3",
+    "anno": 2027,
+    "decorrenza": "giu-27",
+    "priority": 20,
+    "values": {
+      "contingenza": 528.26,
+      "paga_base_ridotta": 1301.29,
+      "totale_mensile": 1829.55,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 3 (dic-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "3",
+    "anno": 2027,
+    "decorrenza": "dic-27",
+    "priority": 21,
+    "values": {
+      "contingenza": 528.26,
+      "paga_base_ridotta": 1344.87,
+      "totale_mensile": 1873.13,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 4 (giu-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "4",
+    "anno": 2027,
+    "decorrenza": "giu-27",
+    "priority": 20,
+    "values": {
+      "contingenza": 524.94,
+      "paga_base_ridotta": 1194.39,
+      "totale_mensile": 1719.33,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 4 (dic-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "4",
+    "anno": 2027,
+    "decorrenza": "dic-27",
+    "priority": 21,
+    "values": {
+      "contingenza": 524.94,
+      "paga_base_ridotta": 1234.39,
+      "totale_mensile": 1759.33,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 5 (giu-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "5",
+    "anno": 2027,
+    "decorrenza": "giu-27",
+    "priority": 20,
+    "values": {
+      "contingenza": 522.37,
+      "paga_base_ridotta": 1081.79,
+      "totale_mensile": 1604.16,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 5 (dic-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "5",
+    "anno": 2027,
+    "decorrenza": "dic-27",
+    "priority": 21,
+    "values": {
+      "contingenza": 522.37,
+      "paga_base_ridotta": 1118.03,
+      "totale_mensile": 1640.40,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 6s (giu-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "6s",
+    "anno": 2027,
+    "decorrenza": "giu-27",
+    "priority": 20,
+    "values": {
+      "contingenza": 520.64,
+      "paga_base_ridotta": 1016.89,
+      "totale_mensile": 1537.53,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 6s (dic-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "6s",
+    "anno": 2027,
+    "decorrenza": "dic-27",
+    "priority": 21,
+    "values": {
+      "contingenza": 520.64,
+      "paga_base_ridotta": 1050.94,
+      "totale_mensile": 1571.58,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 6 (giu-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "6",
+    "anno": 2027,
+    "decorrenza": "giu-27",
+    "priority": 20,
+    "values": {
+      "contingenza": 520.51,
+      "paga_base_ridotta": 993.17,
+      "totale_mensile": 1513.68,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 6 (dic-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "6",
+    "anno": 2027,
+    "decorrenza": "dic-27",
+    "priority": 21,
+    "values": {
+      "contingenza": 520.51,
+      "paga_base_ridotta": 1026.43,
+      "totale_mensile": 1546.94,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 7 (giu-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "7",
+    "anno": 2027,
+    "decorrenza": "giu-27",
+    "priority": 20,
+    "values": {
+      "contingenza": 518.45,
+      "paga_base_ridotta": 891.56,
+      "totale_mensile": 1410.01,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  },
+  {
+    "name": "FIPE Piccola Ristorazione 2027 - 7 (dic-27)",
+    "ccnl": "turismo",
+    "azienda_minore": true,
+    "livello": "7",
+    "anno": 2027,
+    "decorrenza": "dic-27",
+    "priority": 21,
+    "values": {
+      "contingenza": 518.45,
+      "paga_base_ridotta": 921.42,
+      "totale_mensile": 1439.87,
+      "mensilita": 14,
+      "rateo_ferie": 0.0833,
+      "rateo_permessi": 0.0555,
+      "rateo_tredicesima": 0.0833,
+      "rateo_quattordicesima": 0.0833
+    }
+  }
+
+]

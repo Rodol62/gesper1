@@ -1,0 +1,1567 @@
+{% extends 'base.html' %}
+{% load presenze_extras format_it_tags %}
+{% block title %}Presenze {{ dipendente.cognome }} {{ dipendente.nome }} — {{ mese_nome }} {{ anno|anno_it }}{% endblock %}
+
+{% block content %}
+<style>
+/* ═══ TABELLA TURNI SETTIMANALE ════════════════════════════════════════ */
+.turni-table { border-collapse: collapse; width: 100%; font-size: .70rem; }
+.turni-table th, .turni-table td {
+  border: 1px solid #dde4ec; padding: .15rem .2rem;
+  text-align: center; vertical-align: middle;
+}
+
+/* Colonna etichetta (prima colonna) */
+.t-label-col {
+  text-align: left !important; white-space: nowrap; min-width: 82px;
+  background: #f4f7fa; font-size: .63rem; font-weight: 700; color: #444;
+  padding: .2rem .4rem !important;
+}
+.t-label-col.t1 { border-left: 3px solid #1b3a5f; }
+.t-label-col.t2 { border-left: 3px solid #856404; }
+.t-label-col.t3 { border-left: 3px solid #2d6a20; }
+.t-label-col.summ { border-left: 3px solid #dde4ec; color: #888; font-weight: 600; }
+
+/* Intestazione giorno */
+.day-th {
+  min-width: 80px; background: #f4f7fa;
+  cursor: pointer; user-select: none;
+  transition: background .1s;
+}
+.day-th:hover { background: #e8edf5; }
+.day-th.we-day { background: #f0f4f9; }
+.day-th.festivo-day { background: #fff8e7; }
+.day-th.chiuso-day { background: #eeeeee; }
+.day-th.selected { background: #d0e4ff !important; box-shadow: inset 0 0 0 2px #1a3a8f; }
+
+.day-num      { font-size: .80rem; font-weight: 800; color: #1b3a5f; line-height: 1.1; }
+.day-num.we   { color: #5a6d82; }
+.day-num.fest { color: #b85a00; }
+.day-gg     { font-size: .55rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+.day-badge  { font-size: .55rem; font-weight: 700; color: #fff; padding: 1px 3px;
+              border-radius: 4px; display: inline-block; margin-top: 1px; }
+
+/* Bottoni nel day-th */
+.day-th-btns { display: flex; justify-content: center; gap: 4px; margin-top: 2px; }
+.riposo-btn, .copy-wd-btn {
+  background: none; border: none; cursor: pointer; padding: 0; line-height: 1;
+  font-size: .68rem; color: #7a90a8; transition: color .15s;
+}
+.riposo-btn:hover { color: #c0392b; }
+.riposo-btn.is-riposo { color: #c0392b; }
+.copy-wd-btn:hover { color: #1b3a5f; }
+
+/* Righe turno */
+.t1-row td { background: #f8fbff; }
+.t2-row td { background: #fffdf5; }
+.t3-row td { background: #f8fff5; }
+.t-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 50%; font-size: .56rem;
+  font-weight: 800; color: #fff; margin-right: 2px; flex-shrink: 0;
+}
+.t1-badge { background: #1b3a5f; }
+.t2-badge { background: #856404; }
+.t3-badge { background: #2d6a20; }
+
+/* Inputs orari */
+.time-pair { display: flex; flex-direction: column; gap: 1px; align-items: center; }
+.time-group { display: flex; align-items: center; gap: 2px; }
+.time-lbl   { font-size: .55rem; color: #6b88a4; width: 13px; text-align: right; flex-shrink: 0; }
+.o-inp {
+  font-size: .64rem !important; padding: 1px 0 !important;
+  height: 18px !important; width: 50px !important; min-width: 0 !important;
+  border-radius: 3px !important; text-align: center; border: 1px solid #8fb0d0;
+}
+.t2-row .o-inp { border-color: #c8a040; }
+.t3-row .o-inp { border-color: #5aaa48; }
+.o-inp:focus   { outline: none; border-color: #2d6199; box-shadow: 0 0 0 1px #2d619940; }
+.o-sav { font-size: .5rem; color: #0a6640; display: block; text-align: center; height: 7px; }
+
+/* Celle chiuse */
+.closed-td  { background: #f0f0f0 !important; }
+.closed-r   { font-size: .63rem; font-weight: 700; background: #7a8fa0; color: #fff;
+              padding: 1px 4px; border-radius: 4px; }
+
+/* Righe riepilogo */
+.summ-row td { background: #fafafd; }
+.summ-val { font-weight: 700; font-size: .68rem; }
+.summ-val.ok  { color: #0a6640; }
+.summ-val.st  { color: #c0392b; }
+.summ-val.nd  { color: #b0bec8; font-weight: 400; }
+
+/* Action bar */
+.act-bar { background: #f8fafd; border: 1px solid #dde4ec; border-radius: 8px; padding: .6rem .9rem; }
+
+/* Panoramica mese (una riga, stile allineato al riepilogo multi-dipendente) */
+.pan-mese-wrap { overflow-x: auto; margin-bottom: .6rem; border: 1px solid #dde4ec; border-radius: 8px; background: #fff; }
+.pan-mese { border-collapse: collapse; font-size: .65rem; min-width: max-content; }
+.pan-mese th, .pan-mese td {
+  border: 1px solid #dde4ec; text-align: center; vertical-align: top; padding: .2rem .15rem; white-space: nowrap;
+}
+.pan-mese th { background: #f4f7fa; font-weight: 700; color: #1b3a5f; }
+.pan-mese th.we { background: #e9ecef; color: #888; }
+.pan-mese th.dom { background: #e8edf3; color: #5b6776; }
+.pan-mese th.fest { background: #fff8e7; color: #b85a00; }
+.pan-mese td.we { background: #f5f5f5; }
+.pan-mese td.dom { background: #eef2f7; }
+.pan-mese td.fest { background: #fff8e7; }
+.pan-mese td.ch { background: #ececec; }
+.pan-mese td.nr { background: #fffde7; }
+.pan-mese .cal-cella-pan {
+  font-size: .58rem; font-weight: 700; border-radius: 3px; padding: 1px 4px;
+  display: inline-block; color: #fff;
+}
+.pan-mese .t-ore-pan { font-size: .54rem; font-weight: 700; line-height: 1.35; }
+.pan-mese .t-ore-pan .t1c { color: #1b3a5f; }
+.pan-mese .t-ore-pan .t2c { color: #856404; }
+.pan-mese .t-ore-pan .t3c { color: #2d6a20; }
+.pan-mese .t-ore-tot-pan { font-size: .58rem; font-weight: 800; color: #1b3a5f; border-top: 1px solid #dde4ec; margin-top: 2px; padding-top: 1px; }
+
+/* Layout calendario: griglia compatta + pannello destro HR */
+.cal-layout-row { align-items: flex-start; }
+.cal-sidebar-col .card { font-size: .78rem; }
+.cal-sidebar-col .sticky-lg-top {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 1020;
+  max-height: calc(100vh - 1rem);
+  overflow-y: auto;
+}
+@media (max-width: 991.98px) {
+  .cal-sidebar-col .sticky-lg-top { position: relative; max-height: none; }
+}
+.cal-totals-strip .card { padding: .35rem .4rem !important; }
+.cal-totals-strip .card-body { padding: 0 !important; }
+.turni-table.compact-grid { font-size: .62rem; }
+.turni-table.compact-grid th, .turni-table.compact-grid td {
+  padding: .08rem .12rem;
+}
+.turni-table.compact-grid .day-th { min-width: 64px; }
+.turni-table.compact-grid .t-label-col { min-width: 68px; font-size: .58rem; padding: .12rem .28rem !important; }
+.turni-table.compact-grid .o-inp {
+  font-size: .58rem !important; height: 16px !important; width: 46px !important;
+}
+.turni-table.compact-grid .day-num { font-size: .72rem; }
+.turni-table.compact-grid .day-gg { font-size: .5rem; }
+.pan-mese.compact-pan { font-size: .58rem; }
+.pan-mese.compact-pan th, .pan-mese.compact-pan td { padding: .12rem .1rem; }
+</style>
+
+<div class="container-fluid px-3 mt-3">
+
+  {% if mese_bloccato_riepilogo and is_admin_hr %}
+  <div class="alert alert-warning border py-2 small mb-2" role="status">
+    <strong>Mese chiuso.</strong> Esiste un <a href="{% url 'riepilogo_mensile_motore' %}?anno={{ anno|anno_it }}&mese={{ mese }}">riepilogo motore</a> per questo mese in stato <em>approvato</em> o <em>elaborato</em>: le presenze non possono essere modificate finché quel riepilogo resta in tale stato (coerenza con cedolino / monti).
+  </div>
+  {% endif %}
+
+  {# ══ HEADER ══════════════════════════════════════════════════════════ #}
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:8px;
+              padding:.55rem 1rem;margin-bottom:.6rem;display:flex;align-items:center;
+              justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+    <div>
+      {% if sola_lettura %}
+      <a href="{% url 'candidato_dashboard' %}"
+         style="color:rgba(255,255,255,.75);text-decoration:none;font-size:.8rem">
+        <i class="bi bi-arrow-left"></i> Dashboard
+      </a>
+      {% else %}
+      <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:"d" }}"
+         style="color:rgba(255,255,255,.75);text-decoration:none;font-size:.8rem">
+        <i class="bi bi-arrow-left"></i> Griglia mese
+      </a>
+      {% endif %}
+      <h5 style="margin:3px 0 0;font-size:1rem;font-weight:800">
+        <i class="bi bi-person-badge-fill"></i>
+        {{ dipendente.cognome }} {{ dipendente.nome }}
+      </h5>
+      <div style="font-size:.73rem;opacity:.85;margin-top:1px">
+        {{ dipendente.ruolo }}{% if dipendente.livello %} · Livello {{ dipendente.livello }}{% endif %}
+        · {{ dipendente.azienda.nome }}
+      </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2" style="flex-shrink:0">
+      <a href="?anno={{ anno_prev|anno_it }}&mese={{ mese_prev|stringformat:"d" }}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.25);color:#fff;font-size:.85rem;padding:4px 10px">
+        <i class="bi bi-chevron-left"></i>
+      </a>
+      <div style="text-align:center">
+        <span style="font-size:1.25rem;font-weight:900;white-space:nowrap;letter-spacing:-.5px">
+          {{ mese_nome|upper }} {{ anno|anno_it }}
+        </span>
+      </div>
+      <a href="?anno={{ anno_next|anno_it }}&mese={{ mese_next|stringformat:"d" }}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.25);color:#fff;font-size:.85rem;padding:4px 10px">
+        <i class="bi bi-chevron-right"></i>
+      </a>
+    </div>
+
+    <div class="d-flex gap-2">
+      <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:"d" }}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.3);font-size:.78rem">
+        <i class="bi bi-table"></i> Riepilogo
+      </a>
+      <a href="{% url 'export_presenze_excel' %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:"d" }}"
+         class="btn btn-sm" style="background:#1a7a42;color:#fff;font-size:.78rem">
+        <i class="bi bi-file-earmark-excel-fill"></i> Excel
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-2 align-items-start cal-layout-row">
+  <div class="col-12 col-xl-8 col-lg-7 cal-grid-col">
+
+  {# ══ TOTALI ══════════════════════════════════════════════════════════ #}
+  <div class="row g-1 mb-2 cal-totals-strip">
+    <div class="col-6 col-md-2">
+      <div class="card border-0 shadow-sm text-center py-1">
+        <div style="font-size:1rem;color:#0a6640;font-weight:800" id="totale-ore-display"
+             data-decimal="{{ totale_ore|stringformat:'.4f' }}">{{ totale_ore|ore_hhmm_h }}</div>
+        <div style="font-size:.7rem;color:#666">Ore lavorate</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2" id="card-straord" {% if not totale_straord %}style="display:none"{% endif %}>
+      <div class="card border-0 shadow-sm text-center py-1">
+        <div style="font-size:1rem;color:#1a4a20;font-weight:800"
+             id="totale-straord-display" data-value="{{ totale_straord|stringformat:'.4f' }}">{{ totale_straord|ore_hhmm_h }}</div>
+        <div style="font-size:.7rem;color:#666">Straordinario</div>
+      </div>
+    </div>
+    {% for cau, cnt in conteggi_causale.items %}
+    <div class="col-auto">
+      <div class="card border-0 shadow-sm text-center py-1 px-3">
+        <div style="font-size:.88rem;font-weight:800;color:
+          {% if cau == 'P' %}#0a6640{% elif cau == 'F' %}#1b3a8f
+          {% elif cau == 'PE' %}#b85a00{% elif cau == 'M' %}#c0392b
+          {% elif cau == 'R' %}#888{% else %}#1b3a5f{% endif %}">{{ cnt }}</div>
+        <div style="font-size:.68rem;color:#666">
+          {% for c, l in causale_choices %}{% if c == cau %}{{ l }}{% endif %}{% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ══ PANORAMICA MESE (griglia giorni — lettura rapida) ═════════════════ #}
+  <div class="card border-0 shadow-sm mb-2">
+    <div class="card-body py-2 px-2">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-1 mb-1">
+        <span style="font-size:.72rem;font-weight:700;color:#555"><i class="bi bi-calendar3"></i> Panoramica mese</span>
+        <span class="text-muted" style="font-size:.62rem">Causali e ore per giorno (dettaglio turni sotto)</span>
+      </div>
+      <div class="pan-mese-wrap">
+        <table class="pan-mese w-100 compact-pan">
+          <thead>
+            <tr>
+              {% for g in panorama_giorni %}
+              <th class="{% if g.fuori_rapporto %}fuori-pan{% endif %} {% if g.is_weekend %}we{% endif %}{% if g.is_domenica %} dom{% endif %}{% if g.is_festivo %} fest{% endif %}{% if g.is_chiusura_sett and not g.presenza %} ch{% endif %}">
+                {{ g.num }}<br>
+                <span style="font-size:.52rem;font-weight:600;color:#888">{{ g.data|giorno_ita }}</span>
+              </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {% for g in panorama_giorni %}
+              <td class="{% if g.fuori_rapporto %}fuori-pan{% endif %} {% if g.is_weekend %}we{% endif %}{% if g.is_domenica %} dom{% endif %}{% if g.is_festivo %} fest{% endif %}
+                         {% if g.is_chiusura_sett and not g.presenza %}ch{% elif not g.presenza and not g.is_weekend %}nr{% endif %}"
+                  title="{% if g.fuori_rapporto and g.presenza %}Fuori periodo contrattuale nel mese{% elif g.presenza %}{{ g.presenza.get_causale_display }}{% if g.presenza.ora_entrata %} · T1 {{ g.presenza.ora_entrata|time:'H:i' }}-{{ g.presenza.ora_uscita|time:'H:i' }}{% endif %}{% endif %}">
+                {% if g.fuori_rapporto and g.presenza %}
+                  <span class="cal-cella-pan" style="background:#f8d7da;color:#842029;border:1px solid #f5c2c7;font-weight:800">!</span>
+                  <div style="font-size:.58rem;color:#b91c1c;font-weight:700;line-height:1.1">Fuori<br>contr.</div>
+                {% elif g.fuori_rapporto %}
+                  <span style="font-size:.58rem;color:#b91c1c;font-weight:700">Fuori contr.</span>
+                {% elif g.presenza %}
+                  {% with p=g.presenza %}
+                  <span class="cal-cella-pan" style="background:{{ p.colore_causale }}">{{ p.causale }}</span>
+                  {% if p.causale == 'P' or p.causale == 'ST' or p.causale == 'SMART' or p.causale == 'FE' %}
+                  <div class="t-ore-pan">
+                    {% if g.ore_t1 > 0 %}<div class="t1c">T1 {{ g.ore_t1|ore_hhmm }}</div>{% endif %}
+                    {% if g.ore_t2 > 0 %}<div class="t2c">T2 {{ g.ore_t2|ore_hhmm }}</div>{% endif %}
+                    {% if g.ore_t3 > 0 %}<div class="t3c">T3 {{ g.ore_t3|ore_hhmm }}</div>{% endif %}
+                  </div>
+                  {% if g.ore_giorno > 0 %}
+                  <div class="t-ore-tot-pan">{{ g.ore_giorno|ore_hhmm_h }}</div>
+                  {% endif %}
+                  {% endif %}
+                  {% endwith %}
+                {% elif g.is_chiusura_sett and not g.is_weekend %}
+                  <span style="color:#aaa;font-size:.6rem">—</span>
+                {% elif not g.is_weekend %}
+                  <span style="color:#e0c040;font-size:.65rem">·</span>
+                {% endif %}
+              </td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# ══ BARRA TURNI ═════════════════════════════════════════════════════ #}
+  <div class="d-flex align-items-center gap-2 mb-1 flex-wrap"
+       style="font-size:.70rem;background:#f4f7fa;border:1px solid #dde4ec;border-radius:6px;padding:.3rem .7rem">
+    <span style="font-weight:700;color:#555"><i class="bi bi-clock"></i> Turni con orari nel mese:</span>
+    {% if turno1_attivo %}<span class="badge bg-primary" style="font-size:.68rem">1°</span>{% endif %}
+    {% if turno2_attivo %}<span class="badge bg-warning text-dark" style="font-size:.68rem">2°</span>{% endif %}
+    {% if turno3_attivo %}<span class="badge bg-success" style="font-size:.68rem">3°</span>{% endif %}
+    {% if not turno1_attivo and not turno2_attivo and not turno3_attivo %}
+    <span class="text-muted" style="font-size:.62rem">nessuno in questo mese</span>
+    {% endif %}
+    {% if calendario_modificabile %}
+    {% if not turno1_attivo %}
+    <button id="btn-add-t1" type="button" class="btn btn-sm btn-outline-primary" style="font-size:.7rem;padding:2px 8px"
+            onclick="showTurno(1)">
+      <i class="bi bi-plus-circle"></i> Aggiungi 1° turno
+    </button>
+    {% endif %}
+    {% if not turno2_attivo %}
+    <button id="btn-add-t2" type="button" class="btn btn-sm btn-outline-secondary" style="font-size:.7rem;padding:2px 8px"
+            onclick="showTurno(2)">
+      <i class="bi bi-plus-circle"></i> Aggiungi 2° turno
+    </button>
+    {% endif %}
+    {% if not turno3_attivo %}
+    <button id="btn-add-t3" type="button" class="btn btn-sm btn-outline-secondary" style="font-size:.7rem;padding:2px 8px{% if not turno2_attivo %};display:none{% endif %}"
+            onclick="showTurno(3)">
+      <i class="bi bi-plus-circle"></i> Aggiungi 3° turno
+    </button>
+    {% endif %}
+    <span style="color:#aaa;font-size:.68rem;margin-left:.3rem">
+      <i class="bi bi-hand-index"></i> Clicca intestazione giorno per selezionarlo ·
+      <i class="bi bi-moon-stars"></i> per segnare riposo
+    </span>
+    {% else %}
+    <span style="color:#aaa;font-size:.68rem;margin-left:.3rem">
+      <i class="bi bi-eye"></i> Visualizzazione sola lettura
+    </span>
+    {% endif %}
+  </div>
+
+  {# ══ GRIGLIA SETTIMANALE ═════════════════════════════════════════════ #}
+  {% for settimana in griglia %}
+  <div class="card border-0 shadow-sm mb-1">
+    <div class="card-body p-0" style="overflow-x:auto">
+      <table class="turni-table compact-grid">
+        <thead>
+          <tr>
+            <th class="t-label-col" style="background:#eef0f4"></th>
+            {% for g in settimana %}
+            {% if not g %}
+              <th style="min-width:72px;background:#fafafa;border:1px solid #eee"></th>
+            {% else %}
+              <th class="day-th
+                         {% if g.fuori_rapporto %}fuori-contr-day
+                         {% elif g.presenza and g.presenza.causale == 'R' %}chiuso-day
+                         {% elif g.is_chiusura_sett and not g.presenza %}chiuso-day
+                         {% elif g.is_festivo %}festivo-day
+                         {% elif g.is_weekend %}we-day{% endif %}"
+                  id="cell-{{ g.dstr }}"
+                  data-dstr="{{ g.dstr }}"
+                  data-wd="{{ g.data.weekday }}"
+                  data-causale="{{ g.presenza.causale|default:'' }}"
+                  {% if g.fuori_rapporto %}data-fuori="1"{% endif %}
+                  {% if calendario_modificabile and not g.fuori_rapporto %}onclick="toggleDay('{{ g.dstr }}')"{% endif %}
+                  title="{{ g.giorno_settimana }} {{ g.num }}{% if g.is_festivo %} — Festivo{% endif %}{% if g.fuori_rapporto %} — Fuori periodo contrattuale{% elif calendario_modificabile %} — clicca per selezionare{% endif %}">
+                <div class="day-num {% if g.is_festivo %}fest{% elif g.is_weekend %}we{% endif %}">{{ g.num }}</div>
+                <div class="day-gg">{{ g.giorno_settimana }}{% if g.is_festivo %} <i class="bi bi-star-fill" style="font-size:.45rem;color:#b85a00"></i>{% endif %}</div>
+                {# Icona lavorativo: per tutti i giorni non chiusi (inclusi sab/dom in ristorazione) #}
+                {% if g.is_lavorativo %}{% if not g.presenza or g.presenza.causale != 'R' %}
+                {% if not g.fuori_rapporto %}
+                <div style="font-size:.52rem;color:#2d6199;opacity:.75;line-height:1.2"><i class="bi bi-briefcase-fill"></i></div>
+                {% endif %}
+                {% endif %}{% endif %}
+                {% if g.fuori_rapporto and g.presenza %}
+                  <span class="day-badge" style="background:#f8d7da;color:#842029;border:1px solid #f5c2c7">!</span>
+                {% elif g.presenza and g.presenza.causale != 'R' %}
+                  <span class="day-badge" style="background:{{ g.presenza.colore_causale }}">{{ g.presenza.causale }}</span>
+                {% endif %}
+                {% if calendario_modificabile and not g.fuori_rapporto %}
+                <div class="day-th-btns">
+                  <button class="riposo-btn {% if g.presenza and g.presenza.causale == 'R' %}is-riposo{% endif %}"
+                          onclick="toggleRiposo('{{ g.dstr }}', event)"
+                          title="Segna come Riposo / rimuovi riposo">
+                    <i class="bi bi-moon-stars{% if g.presenza and g.presenza.causale == 'R' %}-fill{% endif %}"></i>
+                  </button>
+                  <button class="copy-wd-btn"
+                          onclick="copiaGiornoSett('{{ g.dstr }}', {{ g.data.weekday }}, event)"
+                          title="Copia orari a tutti i {{ g.giorno_settimana }} del mese">
+                    <i class="bi bi-arrow-repeat"></i>
+                  </button>
+                </div>
+                {% endif %}
+              </th>
+            {% endif %}
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+
+          {# ── PRIMO TURNO ────────────────────────────────────────── #}
+          <tr class="t1-row{% if not turno1_attivo %} d-none{% endif %}">
+            <td class="t-label-col t1">
+              <span class="t-badge t1-badge">1°</span>Primo Turno
+            </td>
+            {% for g in settimana %}
+            {% if not g %}
+              <td style="background:#fafafa;border:1px solid #eee"></td>
+            {% elif g.fuori_rapporto %}
+              <td class="fuori-periodo-td" style="vertical-align:middle;text-align:center;background:#fff8f8;border:1px solid #f5c6cb">
+                <span style="font-size:.62rem;color:#b91c1c;font-weight:700">Fuori contratto</span>
+              </td>
+            {% elif g.presenza and g.presenza.causale == 'R' %}
+              <td class="closed-td">
+                <span class="closed-r">R</span>
+              </td>
+            {% else %}
+              <td>
+                <div class="time-pair">
+                  <div class="time-group">
+                    <span class="time-lbl">In.</span>
+                    <input type="time" class="o-inp" id="t1e-{{ g.dstr }}" data-dstr="{{ g.dstr }}"
+                           value="{{ g.presenza.ora_entrata|time:'H:i'|default:'' }}"
+                           onblur="onBlurOrario(this,1)">
+                  </div>
+                  <div class="time-group">
+                    <span class="time-lbl">Fi.</span>
+                    <input type="time" class="o-inp" id="t1u-{{ g.dstr }}" data-dstr="{{ g.dstr }}"
+                           value="{{ g.presenza.ora_uscita|time:'H:i'|default:'' }}"
+                           onblur="onBlurOrario(this,1)">
+                  </div>
+                </div>
+                <div id="t1-h-{{ g.dstr }}" style="font-size:.58rem;color:#1b3a5f;font-weight:700;text-align:center;min-height:10px">
+                  {% if g.ore_t1 > 0 %}{{ g.ore_t1|ore_hhmm_h }}{% endif %}
+                </div>
+                <span class="o-sav" id="osav-{{ g.dstr }}"></span>
+              </td>
+            {% endif %}
+            {% endfor %}
+          </tr>
+
+          {# ── SECONDO TURNO ──────────────────────────────────────── #}
+          <tr class="t2-row{% if not turno2_attivo %} d-none{% endif %}">
+            <td class="t-label-col t2">
+              <span class="t-badge t2-badge">2°</span>Secondo Turno
+            </td>
+            {% for g in settimana %}
+            {% if not g %}
+              <td style="background:#fafafa;border:1px solid #eee"></td>
+            {% elif g.fuori_rapporto %}
+              <td class="fuori-periodo-td" style="background:#fff8f8;border:1px solid #f5c6cb"></td>
+            {% elif g.presenza and g.presenza.causale == 'R' %}
+              <td class="closed-td"></td>
+            {% else %}
+              <td>
+                <div class="time-pair">
+                  <div class="time-group">
+                    <span class="time-lbl">In.</span>
+                    <input type="time" class="o-inp" id="t2e-{{ g.dstr }}" data-dstr="{{ g.dstr }}"
+                           value="{{ g.presenza.ora_entrata2|time:'H:i'|default:'' }}"
+                           onblur="onBlurOrario(this,2)">
+                  </div>
+                  <div class="time-group">
+                    <span class="time-lbl">Fi.</span>
+                    <input type="time" class="o-inp" id="t2u-{{ g.dstr }}" data-dstr="{{ g.dstr }}"
+                           value="{{ g.presenza.ora_uscita2|time:'H:i'|default:'' }}"
+                           onblur="onBlurOrario(this,2)">
+                  </div>
+                </div>
+                <div id="t2-h-{{ g.dstr }}" style="font-size:.58rem;color:#856404;font-weight:700;text-align:center;min-height:10px">
+                  {% if g.ore_t2 > 0 %}{{ g.ore_t2|ore_hhmm_h }}{% endif %}
+                </div>
+              </td>
+            {% endif %}
+            {% endfor %}
+          </tr>
+
+          {# ── TERZO TURNO ────────────────────────────────────────── #}
+          <tr class="t3-row{% if not turno3_attivo %} d-none{% endif %}">
+            <td class="t-label-col t3">
+              <span class="t-badge t3-badge">3°</span>Terzo Turno
+            </td>
+            {% for g in settimana %}
+            {% if not g %}
+              <td style="background:#fafafa;border:1px solid #eee"></td>
+            {% elif g.fuori_rapporto %}
+              <td class="fuori-periodo-td" style="background:#fff8f8;border:1px solid #f5c6cb"></td>
+            {% elif g.presenza and g.presenza.causale == 'R' %}
+              <td class="closed-td"></td>
+            {% else %}
+              <td>
+                <div class="time-pair">
+                  <div class="time-group">
+                    <span class="time-lbl">In.</span>
+                    <input type="time" class="o-inp" id="t3e-{{ g.dstr }}" data-dstr="{{ g.dstr }}"
+                           value="{{ g.presenza.ora_entrata3|time:'H:i'|default:'' }}"
+                           onblur="onBlurOrario(this,3)">
+                  </div>
+                  <div class="time-group">
+                    <span class="time-lbl">Fi.</span>
+                    <input type="time" class="o-inp" id="t3u-{{ g.dstr }}" data-dstr="{{ g.dstr }}"
+                           value="{{ g.presenza.ora_uscita3|time:'H:i'|default:'' }}"
+                           onblur="onBlurOrario(this,3)">
+                  </div>
+                </div>
+                <div id="t3-h-{{ g.dstr }}" style="font-size:.58rem;color:#2d6a20;font-weight:700;text-align:center;min-height:10px">
+                  {% if g.ore_t3 > 0 %}{{ g.ore_t3|ore_hhmm_h }}{% endif %}
+                </div>
+              </td>
+            {% endif %}
+            {% endfor %}
+          </tr>
+
+          {# ── Totale ore giornaliero (T1+T2+T3) ─────────────────── #}
+          <tr class="summ-row">
+            <td class="t-label-col summ">Totale ore giorn.</td>
+            {% for g in settimana %}
+            {% if not g %}
+              <td style="background:#fafafa;border:1px solid #eee"></td>
+            {% elif g.fuori_rapporto %}
+              <td class="summ-val nd fuori-periodo-td" style="background:#fff8f8">—</td>
+            {% elif g.presenza and g.presenza.causale == 'R' %}
+              <td class="summ-val nd">—</td>
+            {% else %}
+              {% with tot=g.ore_t1|add:g.ore_t2|add:g.ore_t3 %}
+              <td class="summ-val {% if tot > 0 %}ok{% else %}nd{% endif %}"
+                  id="ore-pian-{{ g.dstr }}"
+                  data-h="{% if g.presenza and g.presenza.ore_lavorate %}{{ g.presenza.ore_lavorate|stringformat:'.4f' }}{% else %}0{% endif %}">
+                {% if tot > 0 %}{{ tot|ore_hhmm_h }}{% else %}—{% endif %}
+              </td>
+              {% endwith %}
+            {% endif %}
+            {% endfor %}
+          </tr>
+
+          {# ── Ore contrattuali giornaliere ───────────────────────── #}
+          <tr class="summ-row">
+            <td class="t-label-col summ" title="Ore contratto / giorni lavorativi settimana">Contratto</td>
+            {% for g in settimana %}
+            {% if not g %}
+              <td style="background:#fafafa;border:1px solid #eee"></td>
+            {% elif g.fuori_rapporto %}
+              <td class="summ-val nd fuori-periodo-td" style="background:#fff8f8">—</td>
+            {% elif g.presenza and g.presenza.causale == 'R' %}
+              <td class="summ-val nd">—</td>
+            {% else %}
+              <td class="summ-val" style="color:#999" title="Ore contrattuali giornaliere (decimale: {{ ore_giornaliere_standard|stringformat:'.2f' }})">
+                {{ ore_giornaliere_standard|ore_hhmm_h }}
+              </td>
+            {% endif %}
+            {% endfor %}
+          </tr>
+
+          {# ── Straordinario ──────────────────────────────────────── #}
+          <tr class="summ-row">
+            <td class="t-label-col summ">Straordinario</td>
+            {% for g in settimana %}
+            {% if not g %}
+              <td style="background:#fafafa;border:1px solid #eee"></td>
+            {% elif g.fuori_rapporto %}
+              <td class="summ-val nd fuori-periodo-td" style="background:#fff8f8" id="straord-disp-{{ g.dstr }}" data-straord="0">—</td>
+            {% elif g.presenza and g.presenza.causale == 'R' %}
+              <td class="summ-val nd">—</td>
+            {% else %}
+              <td class="summ-val {% if g.presenza and g.presenza.ore_straordinario > 0 %}st{% else %}nd{% endif %}"
+                  id="straord-disp-{{ g.dstr }}"
+                  data-straord="{{ g.presenza.ore_straordinario|default:0|stringformat:'.4f' }}">
+                {% if g.presenza and g.presenza.ore_straordinario > 0 %}
+                  +{{ g.presenza.ore_straordinario|ore_hhmm_h }}
+                {% else %}—{% endif %}
+              </td>
+            {% endif %}
+            {% endfor %}
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  {# ══ LEGENDA ═════════════════════════════════════════════════════════ #}
+  <div class="d-flex gap-2 flex-wrap align-items-center mb-3" style="font-size:.7rem">
+    <span style="color:#666;font-weight:700">Legenda:</span>
+    {% for cau, label in causale_choices %}
+    <span>
+      <span style="display:inline-block;background:
+        {% if cau == 'P' %}#0a6640{% elif cau == 'ST' %}#1a4a20{% elif cau == 'F' %}#1b3a8f
+        {% elif cau == 'PE' %}#b85a00{% elif cau == 'M' %}#c0392b{% elif cau == 'INF' %}#7b1c1c
+        {% elif cau == 'R' %}#888{% elif cau == 'MAT' %}#8e44ad{% elif cau == 'CIG' %}#6d4c41
+        {% elif cau == 'A' %}#922b21{% elif cau == 'FE' %}#2d6199{% elif cau == 'SMART' %}#0e7d91
+        {% else %}#555{% endif %};
+        color:#fff;padding:1px 5px;border-radius:6px;font-weight:700">{{ cau }}</span>
+      {{ label }}
+    </span>
+    {% endfor %}
+  </div>
+
+  </div>{# /.cal-grid-col #}
+
+  <aside class="col-12 col-xl-4 col-lg-5 cal-sidebar-col">
+    <div class="sticky-lg-top">
+
+      <div class="card border-0 shadow-sm mb-2">
+        <div class="card-header py-2 px-3" style="background:#e8f4fc;font-size:.74rem;font-weight:700;color:#0b4f6c">
+          <i class="bi bi-wallet2"></i> Ferie &amp; ROL (anno {{ anno|anno_it }})
+        </div>
+        <div class="card-body py-2 px-3">
+          <p class="text-muted mb-2" style="font-size:.65rem;line-height:1.35">
+            <strong>Libro monti</strong>: saldi ufficiali (iniziale + movimenti). <strong>Maturazione teorica</strong>: rateo mensile da CCNL già prorato al part-time del rapporto (nessuna doppia ponderazione); periodo utile assunzione–fine contratto; riporto iniziale anno da saldo monte; assenze non maturative da tabella admin.
+          </p>
+          <table class="table table-sm table-borderless mb-2" style="font-size:.74rem">
+            <tbody>
+              <tr>
+                <td class="py-1">Ferie — <span class="text-muted">residuo</span></td>
+                <td id="sidebar-ferie-res" class="py-1 text-end fw-bold" style="color:#1b3a8f">{{ saldi_sidebar.residuo_ferie_gg|floatformat:2 }} gg</td>
+              </tr>
+              <tr>
+                <td class="py-1">Ferie — <span class="text-muted">godute {{ anno|anno_it }} (cal.)</span></td>
+                <td id="sidebar-ferie-god" class="py-1 text-end">{{ saldi_sidebar.giorni_ferie_goduti_anno }} gg</td>
+              </tr>
+              <tr>
+                <td class="py-1">ROL — <span class="text-muted">residuo ore</span></td>
+                <td id="sidebar-rol-res" class="py-1 text-end fw-bold" style="color:#b85a00">{{ saldi_sidebar.residuo_rol_ore|floatformat:2 }} h</td>
+              </tr>
+              <tr>
+                <td class="py-1">Permessi — <span class="text-muted">giorni {{ anno|anno_it }} (PE)</span></td>
+                <td id="sidebar-pe-gg" class="py-1 text-end">{{ saldi_sidebar.giorni_permesso_anno }} gg</td>
+              </tr>
+              <tr>
+                <td class="py-1">Riposi comp. — <span class="text-muted">residuo</span></td>
+                <td id="sidebar-rip-res" class="py-1 text-end">{{ saldi_sidebar.residuo_riposi_gg|floatformat:2 }} gg</td>
+              </tr>
+              {% if saldi_sidebar.mat_disponibile|default:False %}
+              <tr class="table-light">
+                <td colspan="2" class="py-1 fw-bold" style="font-size:.68rem;color:#0b5345">Maturazione teorica — {{ mese_nome }} {{ anno|anno_it }}</td>
+              </tr>
+              <tr>
+                <td colspan="2" class="py-0 text-muted" style="font-size:.58rem" id="sidebar-mat-motore">Calcolatore ferie e ROL · saldo mese → mese</td>
+              </tr>
+              {% if saldi_sidebar.mat_quota_mese_in_rapporto|default:1.0 < 1.0 %}
+              <tr>
+                <td colspan="2" class="py-0 text-muted" style="font-size:.54rem" id="sidebar-mat-quota">
+                  Rateo proporzionato al periodo di rapporto nel mese (quota {{ saldi_sidebar.mat_quota_mese_in_rapporto|floatformat:4 }} sui giorni del mese; da assunzione a scadenza contratto).
+                </td>
+              </tr>
+              {% endif %}
+              {% if saldi_sidebar.mat_ferie_riporto_monte_iniziale or saldi_sidebar.mat_rol_riporto_monte_iniziale %}
+              <tr>
+                <td colspan="2" class="py-0 text-muted" style="font-size:.54rem">
+                  Riporto da <strong>saldo iniziale monte</strong> {{ anno|anno_it }}:
+                  ferie {{ saldi_sidebar.mat_ferie_riporto_monte_iniziale|floatformat:2 }} gg
+                  · ROL {{ saldi_sidebar.mat_rol_riporto_monte_iniziale|floatformat:2 }} h (sommati al progressivo teorico).
+                </td>
+              </tr>
+              {% endif %}
+              <tr>
+                <td class="py-1">Ferie — <span class="text-muted">apertura mese</span><br><span style="font-size:.55rem">(gg CCNL)</span></td>
+                <td id="sidebar-mat-ferie-ap" class="py-1 text-end">{{ saldi_sidebar.mat_ferie_saldo_apertura|floatformat:4 }} gg<br><span class="text-muted" style="font-size:.58rem">{{ saldi_sidebar.mat_ferie_saldo_apertura_hhmm_equiv }} <span style="font-size:.5rem">(×{{ saldi_sidebar.mat_ore_giornaliere_riferimento|default:8|floatformat:2 }} h/g)</span></span></td>
+              </tr>
+              <tr>
+                <td class="py-1">ROL — <span class="text-muted">apertura mese</span><br><span style="font-size:.55rem">(ore annue/12 cumul.)</span></td>
+                <td id="sidebar-mat-rol-ap" class="py-1 text-end">{{ saldi_sidebar.mat_rol_saldo_apertura|floatformat:4 }} h<br><span class="text-muted" style="font-size:.58rem">{{ saldi_sidebar.mat_rol_saldo_apertura_hhmm }}</span></td>
+              </tr>
+              <tr>
+                <td class="py-1">Ferie — <span class="text-muted">maturate nel mese</span><br><span style="font-size:.55rem">(gg CCNL)</span></td>
+                <td id="sidebar-mat-ferie-mese" class="py-1 text-end">{{ saldi_sidebar.mat_ferie_mese|floatformat:4 }} gg<br><span class="text-muted" style="font-size:.58rem">{{ saldi_sidebar.mat_ferie_mese_hhmm_equiv }} <span style="font-size:.5rem">(×{{ saldi_sidebar.mat_ore_giornaliere_riferimento|default:8|floatformat:2 }} h/g)</span></span></td>
+              </tr>
+              <tr>
+                <td class="py-1">ROL — <span class="text-muted">maturate nel mese</span><br><span style="font-size:.55rem">(ore permessi retrib.)</span></td>
+                <td id="sidebar-mat-rol-mese" class="py-1 text-end">{{ saldi_sidebar.mat_rol_mese|floatformat:4 }} h<br><span class="text-muted" style="font-size:.58rem">{{ saldi_sidebar.mat_rol_mese_hhmm }}</span></td>
+              </tr>
+              <tr>
+                <td class="py-1">Giorni <span class="text-muted">non maturativi (mese)</span></td>
+                <td id="sidebar-mat-gm" class="py-1 text-end">{{ saldi_sidebar.mat_giorni_non_maturativi|floatformat:0 }}</td>
+              </tr>
+              <tr>
+                <td class="py-1">Ferie — <span class="text-muted">residuo teorico</span><br><span style="font-size:.55rem">(gg CCNL)</span></td>
+                <td id="sidebar-mat-ferie-teo" class="py-1 text-end fw-bold" style="color:#163a6b">{{ saldi_sidebar.mat_ferie_residue_teoria|floatformat:4 }} gg<br><span class="text-muted fw-normal" style="font-size:.58rem">{{ saldi_sidebar.mat_ferie_residue_hhmm_equiv }} <span style="font-size:.5rem">equiv. ore (×{{ saldi_sidebar.mat_ore_giornaliere_riferimento|default:8|floatformat:2 }} h/g)</span></span></td>
+              </tr>
+              <tr>
+                <td class="py-1">ROL — <span class="text-muted">residuo teorico</span><br><span style="font-size:.55rem">(ore annue contr.)</span></td>
+                <td id="sidebar-mat-rol-teo" class="py-1 text-end fw-bold" style="color:#8a5a00">{{ saldi_sidebar.mat_rol_residue_teoria|floatformat:4 }} h<br><span class="text-muted fw-normal" style="font-size:.58rem">{{ saldi_sidebar.mat_rol_residue_hhmm }} HH:MM</span></td>
+              </tr>
+              {% elif saldi_sidebar.mat_motivo|default:'' %}
+              <tr>
+                <td colspan="2" class="py-1 text-muted" style="font-size:.62rem">Maturazione teorica non disponibile: {{ saldi_sidebar.mat_motivo }}</td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+          {% if is_admin_hr %}
+          <a href="{% url 'monti_saldi' %}?anno={{ anno|anno_it }}&mese_busta={{ mese }}" class="btn btn-sm btn-outline-primary py-0" style="font-size:.68rem">
+            <i class="bi bi-journal-text"></i> Monti / saldi
+          </a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mb-2">
+        <div class="card-header py-2 px-3" style="background:#e8eefc;font-size:.74rem;font-weight:700;color:#1b3a5f">
+          <i class="bi bi-clock-history"></i> Riepilogo ore — {{ mese_nome }} {{ anno|anno_it }}
+        </div>
+        <div class="card-body py-2 px-3" style="font-size:.72rem">
+          <p class="text-muted mb-2" style="font-size:.65rem;line-height:1.35">
+            Classificazione allineata al <strong>motore paga</strong> (soglia giornaliera, festivi e domeniche).
+            I parametri da <strong>Regole normative CCNL</strong> (se presenti per livello) o da tabella CCNL sono applicati al <strong>tipo di contratto</strong> del dipendente (coefficiente ore, come in simulazione).
+            Con la generazione teorica attiva, le <strong>ore teoriche</strong> usano le ore mensili già così prorate, divise per <strong>26</strong> e moltiplicate per i giorni lavorativi del mese previsti dalla pianificazione. Senza generazione teorica si usano le righe <strong>P</strong> con nota <code>TEORICA_AUTO</code>.
+            Ogni valore è mostrato come <strong>ore:minuti</strong> e come <strong>ore decimali</strong> (stile busta).
+          </p>
+          <div id="sidebar-ro-norm-row" class="text-muted mb-2" style="font-size:.58rem;line-height:1.4">
+            Tipo contratto: coeff. <strong>{{ riepilogo_ore_mese.coefficiente_ore_contratto|num_it:2 }}</strong>
+            · Ore sett. {{ riepilogo_ore_mese.ore_settimanali_contratto|num_it:2 }} h
+            {% if riepilogo_ore_mese.ha_regola_normativa_ccnl %}<span class="badge bg-light text-dark border ms-1" style="font-size:.5rem">Regola CCNL</span>{% endif %}
+            <br>
+            Maturazioni indicative mese (÷12): ferie {{ riepilogo_ore_mese.ferie_maturate_mese_gg|num_it:2 }} gg · permessi {{ riepilogo_ore_mese.permessi_maturati_mese_ore|num_it:2 }} h
+          </div>
+          <table class="table table-sm table-borderless mb-2" style="font-size:.72rem">
+            <tbody>
+              <tr>
+                <td class="py-1">Ore teoriche (pianificazione)</td>
+                <td id="sidebar-ro-teo" class="py-1 text-end" style="color:#2d4a7f">
+                  <div class="fw-bold">{{ riepilogo_ore_mese.ore_teoriche|ore_hhmm }}</div>
+                  <div class="text-muted" style="font-size:.58rem">{{ riepilogo_ore_mese.ore_teoriche|num_it:2 }} h</div>
+                  {% if riepilogo_ore_mese.teoriche_da_pianificazione %}
+                  <div id="sidebar-ro-teo-sub" class="text-muted" style="font-size:.52rem;line-height:1.3;margin-top:.2rem">
+                    {{ riepilogo_ore_mese.ore_mensili_contratto|num_it:2 }} h ÷ 26 × {{ riepilogo_ore_mese.giorni_lavorativi_teorici }} gg lav.
+                  </div>
+                  {% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td class="py-1">Ore effettive lavorate (totale mese)</td>
+                <td id="sidebar-ro-tot" class="py-1 text-end" style="color:#0a4d2e">
+                  <div class="fw-bold">{{ riepilogo_ore_mese.ore_effettive_totali|ore_hhmm }}</div>
+                  <div class="text-muted" style="font-size:.58rem">{{ riepilogo_ore_mese.ore_effettive_totali|num_it:2 }} h</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="text-muted mb-1" style="font-size:.62rem;font-weight:700">Dettaglio per tipo di giorno</div>
+          <table class="table table-sm mb-0" style="font-size:.68rem">
+            <thead>
+              <tr class="text-muted" style="font-size:.62rem">
+                <th class="py-1 border-0"></th>
+                <th class="py-1 text-end border-0">Feriali</th>
+                <th class="py-1 text-end border-0">Domeniche</th>
+                <th class="py-1 text-end border-0">Festivi</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="py-1">Ore effettive entro soglia</td>
+                <td id="sidebar-ro-bf" class="py-1 text-end">
+                  <div class="fw-bold">{{ riepilogo_ore_mese.ore_entro_contratto_feriali|ore_hhmm }}</div>
+                  <div class="text-muted" style="font-size:.58rem">{{ riepilogo_ore_mese.ore_entro_contratto_feriali|num_it:2 }} h</div>
+                </td>
+                <td id="sidebar-ro-bd" class="py-1 text-end">
+                  <div class="fw-bold">{{ riepilogo_ore_mese.ore_entro_contratto_domeniche|ore_hhmm }}</div>
+                  <div class="text-muted" style="font-size:.58rem">{{ riepilogo_ore_mese.ore_entro_contratto_domeniche|num_it:2 }} h</div>
+                </td>
+                <td id="sidebar-ro-bfest" class="py-1 text-end">
+                  <div class="fw-bold">{{ riepilogo_ore_mese.ore_entro_contratto_festivi|ore_hhmm }}</div>
+                  <div class="text-muted" style="font-size:.58rem">{{ riepilogo_ore_mese.ore_entro_contratto_festivi|num_it:2 }} h</div>
+                </td>
+              </tr>
+              <tr>
+                <td class="py-1">Straordinario effettivo</td>
+                <td id="sidebar-ro-sf-wrap" class="py-1 text-end">
+                  <div class="fw-bold">{{ riepilogo_ore_mese.straord_feriali|ore_hhmm }}</div>
+                  <div class="text-muted" style="font-size:.58rem">{{ riepilogo_ore_mese.straord_feriali|num_it:2 }} h</div>
+                  <div class="text-muted" style="font-size:.52rem;line-height:1.25;margin-top:.1rem">
+                    d. {{ riepilogo_ore_mese.straord_diurno|ore_hhmm }} ({{ riepilogo_ore_mese.straord_diurno|num_it:2 }} h)
+                    · n. {{ riepilogo_ore_mese.straord_notturno|ore_hhmm }} ({{ riepilogo_ore_mese.straord_notturno|num_it:2 }} h)
+                  </div>
+                </td>
+                <td id="sidebar-ro-sdom" class="py-1 text-end">
+                  <div class="fw-bold">{{ riepilogo_ore_mese.straord_domeniche|ore_hhmm }}</div>
+                  <div class="text-muted" style="font-size:.58rem">{{ riepilogo_ore_mese.straord_domeniche|num_it:2 }} h</div>
+                </td>
+                <td id="sidebar-ro-sfest-wrap" class="py-1 text-end">
+                  <div class="fw-bold">{{ riepilogo_ore_mese.straord_festivi|ore_hhmm }}</div>
+                  <div class="text-muted" style="font-size:.58rem">{{ riepilogo_ore_mese.straord_festivi|num_it:2 }} h</div>
+                  <div class="text-muted" style="font-size:.52rem;line-height:1.25;margin-top:.1rem">
+                    nott. fest. {{ riepilogo_ore_mese.straord_nott_fest|ore_hhmm }} ({{ riepilogo_ore_mese.straord_nott_fest|num_it:2 }} h)
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p id="sidebar-ro-nota-teo" class="text-muted mb-0 mt-2" style="font-size:.58rem;line-height:1.35;{% if not riepilogo_ore_mese.mostra_avviso_teoriche %}display:none{% endif %}">
+            La generazione automatica delle presenze teoriche dall’orario aziendale non è attiva per questo mese: le ore teoriche si basano solo su eventuali righe con nota <code>TEORICA_AUTO</code>.
+          </p>
+        </div>
+      </div>
+
+      <div id="sidebar-card-a" class="card border-0 shadow-sm mb-2 {% if streak_assenza_a.supera_soglia_15 %}border border-danger border-2{% endif %}">
+        <div id="sidebar-a-head" class="card-header py-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-1"
+             style="background:{% if streak_assenza_a.supera_soglia_15 %}#fdeaea{% else %}#f8f9fa{% endif %};font-size:.74rem;font-weight:700">
+          <span><i class="bi bi-exclamation-octagon"></i> Assenze ingiustificate (A)</span>
+          <span id="sidebar-a-badge" class="badge bg-danger" {% if not streak_assenza_a.supera_soglia_15 %}style="display:none"{% endif %}>Soglia &gt; 15 gg</span>
+        </div>
+        <div class="card-body py-2 px-3" style="font-size:.74rem">
+          <p class="text-muted mb-2" style="font-size:.65rem">
+            <strong>Nell'anno {{ anno|anno_it }}:</strong> max sequenza consecutiva e giorni A registrati. Sotto: riferimento sullo storico completo.
+          </p>
+          <ul class="list-unstyled mb-0 small">
+            <li><strong>Max consecutivi ({{ anno|anno_it }}):</strong>
+              <span id="sidebar-a-max">{{ streak_assenza_a.max_giorni_consecutivi }}</span> giorni
+              <span id="sidebar-a-period" class="text-muted">{% if streak_assenza_a.periodo_max_da and streak_assenza_a.periodo_max_a %}({{ streak_assenza_a.periodo_max_da|date:"d/m/Y" }} → {{ streak_assenza_a.periodo_max_a|date:"d/m/Y" }}){% endif %}</span>
+            </li>
+            <li><strong>Giorni A totali ({{ anno|anno_it }}):</strong> <span id="sidebar-a-tot-anno">{{ streak_assenza_a.totale_giorni_a }}</span></li>
+            {% if streak_assenza_a.max_giorni_consecutivi_storico is not None %}
+            <li class="text-muted" style="font-size:.65rem;margin-top:.35rem">
+              <strong>Storico completo:</strong> max <span id="sidebar-a-max-stor">{{ streak_assenza_a.max_giorni_consecutivi_storico }}</span> gg consecutivi
+              · <span id="sidebar-a-tot-stor">{{ streak_assenza_a.totale_giorni_a_storico }}</span> giorni A totali
+              {% if streak_assenza_a.supera_soglia_15_storico and not streak_assenza_a.supera_soglia_15 %}
+              <span class="badge bg-warning text-dark ms-1" style="font-size:.55rem">Storico &gt;15</span>
+              {% endif %}
+            </li>
+            {% endif %}
+          </ul>
+          <div id="sidebar-a-alert-danger" class="alert alert-danger py-2 px-2 mt-2 mb-0" style="font-size:.68rem;line-height:1.35;{% if not streak_assenza_a.supera_soglia_15 %}display:none{% endif %}">
+            <strong>Attenzione.</strong> Superati i 15 giorni consecutivi di assenza ingiustificata <strong>nell'anno {{ anno|anno_it }}</strong>: situazione rilevante ai fini disciplinari (es. licenziamento per giusta causa, verifiche sindacali). Verificare atti e procedure interne.
+          </div>
+          <div id="sidebar-a-alert-warn" class="alert alert-warning py-1 px-2 mt-2 mb-0" style="font-size:.65rem;{% if streak_assenza_a.supera_soglia_15 or streak_assenza_a.max_giorni_consecutivi <= 10 %}display:none{% endif %}">
+            Avvicinamento alla soglia operativa dei 15 giorni consecutivi (nell'anno {{ anno|anno_it }}).
+          </div>
+        </div>
+      </div>
+
+      {% if calendario_modificabile %}
+      <div class="card border-0 shadow-sm mb-2">
+        <div class="card-header py-2 px-3" style="background:#f0fff4;font-size:.74rem;font-weight:700;color:#0a4d2e">
+          <i class="bi bi-sliders"></i> Rettifica causali (massivo)
+        </div>
+        <div class="card-body py-2 px-3">
+          <div class="act-bar">
+            <div class="d-flex align-items-center gap-1 flex-wrap mb-2">
+              <span style="font-size:.72rem;font-weight:700;color:#1b3a5f">
+                <i class="bi bi-check2-square"></i> Selezione
+              </span>
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0" style="font-size:.68rem" onclick="selectAllLavorativi()">
+                <i class="bi bi-grid-3x3-gap-fill"></i> Tutti lav.
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0" style="font-size:.68rem" onclick="selectNonRegistrati()">
+                Non reg.
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0" style="font-size:.68rem" onclick="deselectAll()">
+                <i class="bi bi-x-square"></i>
+              </button>
+              <span class="ms-auto" style="font-size:.72rem;color:#2d6199;font-weight:700">
+                <span id="sel-count">0</span> gg
+              </span>
+            </div>
+            <form id="form-azione" onsubmit="return false">
+              {% csrf_token %}
+              <div class="d-flex flex-wrap gap-1 align-items-center mb-2">
+                <span style="font-size:.7rem;font-weight:700;color:#555"><i class="bi bi-layers"></i></span>
+                <div class="btn-group btn-group-sm" role="group">
+                  <input type="radio" class="btn-check" name="turno-rad" id="trad-1" value="1" checked>
+                  <label class="btn btn-outline-primary py-0" for="trad-1" style="font-size:.65rem">1°</label>
+                  <input type="radio" class="btn-check" name="turno-rad" id="trad-2" value="2">
+                  <label class="btn btn-outline-warning py-0" for="trad-2" id="trad-2-label" style="font-size:.65rem">2°</label>
+                  <input type="radio" class="btn-check" name="turno-rad" id="trad-3" value="3">
+                  <label class="btn btn-outline-success py-0" for="trad-3" id="trad-3-label" style="font-size:.65rem">3°</label>
+                </div>
+                <span id="turno-nota" style="font-size:.62rem;color:#856404;display:none">T2/T3 preserva T1</span>
+              </div>
+              <p class="text-muted mb-0" style="font-size:.58rem;line-height:1.3">
+                <strong>Applica</strong> sostituisce entrata/uscita (e per il 1° turno causale/note) sui giorni selezionati; gli altri turni dello stesso giorno restano quelli già salvati nel DB.
+                Gli orari della barra sono ricordati in questo browser tra i mesi. I giorni fuori contratto restano esclusi.
+              </p>
+
+              <div class="mb-2" id="wrap-causale">
+                <label class="form-label mb-0" style="font-size:.65rem;font-weight:700;color:#555">Causale</label>
+                <select name="causale" id="sel-causale" class="form-select form-select-sm">
+                  {% for cau, label in causale_choices %}
+                  <option value="{{ cau }}">{{ cau }} — {{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="row g-1">
+                <div class="col-6" id="wrap-entrata">
+                  <label class="form-label mb-0" style="font-size:.65rem">Entrata</label>
+                  <input type="time" name="ora_entrata" class="form-control form-control-sm" value="09:00">
+                </div>
+                <div class="col-6" id="wrap-uscita">
+                  <label class="form-label mb-0" style="font-size:.65rem">Uscita</label>
+                  <input type="time" name="ora_uscita" class="form-control form-control-sm" value="18:00">
+                </div>
+                <div class="col-6" id="wrap-straord">
+                  <label class="form-label mb-0" style="font-size:.65rem">Straord.</label>
+                  <input type="number" name="ore_straordinario" class="form-control form-control-sm"
+                         value="0" step="0.5" min="0">
+                </div>
+                <div class="col-12" id="wrap-note">
+                  <label class="form-label mb-0" style="font-size:.65rem">Note</label>
+                  <input type="text" name="note" class="form-control form-control-sm" placeholder="Facoltativo…">
+                </div>
+                <div class="col-12 mt-1">
+                  <button type="button" id="btn-applica" class="btn btn-sm w-100" disabled
+                          style="background:#0a6640;color:#fff;font-size:.76rem"
+                          onclick="applicaSelezionati()">
+                    <i class="bi bi-check-lg"></i> Applica <span id="btn-count"></span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {% elif is_admin_hr %}
+      <div class="card border-0 shadow-sm mb-2 bg-light">
+        <div class="card-body py-2 px-3" style="font-size:.72rem;color:#666">
+          <i class="bi bi-lock"></i> Mese chiuso: le rettifiche massive non sono disponibili.
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </aside>
+
+  </div>{# /.cal-layout-row #}
+
+</div>
+
+<script>
+const CSRF        = '{{ csrf_token }}';
+const DIP_ID      = {{ dipendente.id }};
+const ANNO        = {{ anno|anno_it }};
+const MESE        = {{ mese|stringformat:"d" }};
+const URL_SALVA   = "{% url 'salva_giorno_presenza' dipendente.id %}";
+const URL_MULTI   = "{% url 'salva_multiplo_presenze' dipendente.id %}";
+const URL_ORARIO  = "{% url 'aggiorna_orario_giorno' dipendente.id %}";
+const ORE_CONTRATTUALI = {{ ore_giornaliere_standard|default:8|stringformat:".4f" }};
+
+const FESTIVI = new Set([
+  {% for fd in festivi %}'{{ fd|date:"Y-m-d" }}',{% endfor %}
+]);
+const CON_PRESENZA = new Set([
+  {% for g in giorni %}{% if g.presenza %}'{{ g.data|date:"Y-m-d" }}',{% endif %}{% endfor %}
+]);
+/* Giorni di chiusura settimanale configurati (0=Lun…6=Dom).
+   Sono gli UNICI giorni esclusi dalla selezione automatica.
+   Sabati, domeniche e festivi sono selezionabili se non in questo set. */
+const CHIUSURA_WD = new Set([{% for wd in chiusura_sett %}{{ wd }},{% endfor %}]);
+const CAUSALI_ORARIO = new Set(['P', 'ST', 'SMART', 'FE']);
+const selectedDays = new Set();
+
+/* Rettifica massiva: entrata/uscita (e campi T1) per turno in localStorage — stesso dipendente, tutti i mesi */
+function rettificaLsKey(k) {
+  return `gesper_rettifica_${DIP_ID}_${k}`;
+}
+function _rettificaEntUsc() {
+  const f = document.getElementById('form-azione');
+  if (!f) return { ent: null, usc: null };
+  return { ent: f.querySelector('input[name="ora_entrata"]'), usc: f.querySelector('input[name="ora_uscita"]') };
+}
+function salvaTurnoInStorage(turno) {
+  const { ent, usc } = _rettificaEntUsc();
+  if (!ent || !usc) return;
+  try {
+    localStorage.setItem(rettificaLsKey(`t${turno}_ent`), ent.value || '');
+    localStorage.setItem(rettificaLsKey(`t${turno}_usc`), usc.value || '');
+    if (turno === 1) {
+      const stra = document.querySelector('#form-azione input[name="ore_straordinario"]');
+      const note = document.querySelector('#form-azione input[name="note"]');
+      const sel = document.getElementById('sel-causale');
+      if (stra) localStorage.setItem(rettificaLsKey('t1_straord'), stra.value ?? '0');
+      if (note) localStorage.setItem(rettificaLsKey('t1_note'), note.value ?? '');
+      if (sel) localStorage.setItem(rettificaLsKey('t1_causale'), sel.value ?? '');
+    }
+  } catch (e) { /* quota / private mode */ }
+}
+function caricaTurnoDaStorage(turno) {
+  const { ent, usc } = _rettificaEntUsc();
+  if (!ent || !usc) return;
+  try {
+    const e = localStorage.getItem(rettificaLsKey(`t${turno}_ent`));
+    const u = localStorage.getItem(rettificaLsKey(`t${turno}_usc`));
+    if (e !== null) ent.value = e;
+    else ent.value = '09:00';
+    if (u !== null) usc.value = u;
+    else usc.value = '18:00';
+    if (turno === 1) {
+      const stra = document.querySelector('#form-azione input[name="ore_straordinario"]');
+      const note = document.querySelector('#form-azione input[name="note"]');
+      const sel = document.getElementById('sel-causale');
+      const sc = localStorage.getItem(rettificaLsKey('t1_causale'));
+      const ss = localStorage.getItem(rettificaLsKey('t1_straord'));
+      const sn = localStorage.getItem(rettificaLsKey('t1_note'));
+      if (sel && sc !== null) sel.value = sc;
+      if (stra && ss !== null) stra.value = ss;
+      if (note && sn !== null) note.value = sn;
+    }
+  } catch (e) { /* ignore */ }
+}
+let turnoRettificaSidebar = 1;
+
+function initRettificaOrariStorage() {
+  const f = document.getElementById('form-azione');
+  if (!f) return;
+  caricaTurnoDaStorage(1);
+  turnoRettificaSidebar = 1;
+  document.querySelectorAll('input[name="turno-rad"]').forEach(r => {
+    r.addEventListener('change', () => {
+      if (!r.checked) return;
+      salvaTurnoInStorage(turnoRettificaSidebar);
+      const nuovo = parseInt(r.value, 10);
+      turnoRettificaSidebar = nuovo;
+      if (nuovo >= 2) showTurno(nuovo);
+      caricaTurnoDaStorage(nuovo);
+      aggiornaCampiOrario();
+    });
+  });
+  ['ora_entrata', 'ora_uscita'].forEach(nm => {
+    f.querySelector(`input[name="${nm}"]`)?.addEventListener('change', () => {
+      const t = parseInt(document.querySelector('input[name="turno-rad"]:checked')?.value || '1', 10);
+      salvaTurnoInStorage(t);
+    });
+  });
+  document.getElementById('sel-causale')?.addEventListener('change', () => {
+    salvaTurnoInStorage(1);
+    aggiornaCampiOrario();
+  });
+  f.querySelector('input[name="ore_straordinario"]')?.addEventListener('change', () => { salvaTurnoInStorage(1); });
+  f.querySelector('input[name="note"]')?.addEventListener('change', () => { salvaTurnoInStorage(1); });
+  aggiornaCampiOrario();
+}
+
+/* ══ MOSTRA TURNO 2°/3° (riga nascosta) ══════════════════════ */
+function showTurno(n) {
+  if (n >= 3) {
+    showTurno(2);
+  }
+  document.querySelectorAll('.t' + n + '-row').forEach(r => r.classList.remove('d-none'));
+  const btnThis = document.getElementById('btn-add-t' + n);
+  if (btnThis) btnThis.style.display = 'none';
+  const lbl = document.getElementById('trad-' + n + '-label');
+  if (lbl) lbl.style.opacity = '';
+  if (n === 2) {
+    const btn3 = document.getElementById('btn-add-t3');
+    if (btn3) btn3.style.display = '';
+  }
+}
+
+/* ══ CALCOLO ORE ════════════════════════════════════════════════ */
+function calcMin(ent, usc) {
+  if (!ent || !usc) return 0;
+  const [eh, em] = ent.split(':').map(Number);
+  const [uh, um] = usc.split(':').map(Number);
+  const d = (uh * 60 + um) - (eh * 60 + em);
+  return d > 0 ? d : 0;
+}
+
+/*
+ * REGOLA ORE – GESPER
+ * ──────────────────────────────────────────────────────────
+ *  • Calcoli interni  : ore DECIMALI  (es. 8.5 = 8h30m)
+ *  • Visualizzazione  : HH:MM  tramite decToHHMM() / fmtH()
+ *  • data-h / data-straord / data-decimal : sempre DECIMALI
+ *  • Non mescolare mai i due formati in un calcolo!
+ * ──────────────────────────────────────────────────────────
+ */
+
+/** Converte ore decimali → stringa HH:MM  (speculare di ore_dec_to_hhmm Python).
+ *  8.5 → '8:30' | 8.75 → '8:45' | 0.25 → '0:15' | 0 → '0:00'  */
+function decToHHMM(decimal) {
+  if (!decimal || decimal <= 0) return '0:00';
+  const totalMins = Math.round(decimal * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return h + ':' + String(m).padStart(2, '0');
+}
+
+/** Converte minuti interi → stringa HH:MMh  (wrapper su decToHHMM). */
+function fmtH(mins) {
+  if (mins <= 0) return '—';
+  return decToHHMM(mins / 60) + 'h';
+}
+
+function aggiornaTotaleOre(dstr) {
+  const mins = [0, 0, 0];   // indice 0 = T1, 1 = T2, 2 = T3
+  for (let t = 1; t <= 3; t++) {
+    const ent = document.getElementById('t' + t + 'e-' + dstr)?.value || '';
+    const usc = document.getElementById('t' + t + 'u-' + dstr)?.value || '';
+    mins[t - 1] = calcMin(ent, usc);
+  }
+  const total = mins[0] + mins[1] + mins[2];
+
+  // Aggiorna label ore per ciascun turno (HH:MM — mai decimale in display)
+  for (let t = 1; t <= 3; t++) {
+    const el = document.getElementById('t' + t + '-h-' + dstr);
+    if (el) el.textContent = mins[t - 1] > 0 ? fmtH(mins[t - 1]) : '';
+  }
+
+  // Aggiorna "totale ore" nel riepilogo
+  const oreEl = document.getElementById('ore-pian-' + dstr);
+  if (oreEl) {
+    oreEl.dataset.h = (total / 60).toFixed(4);
+    if (total > 0) {
+      oreEl.textContent = fmtH(total);
+      oreEl.className = 'summ-val ok';
+    } else {
+      oreEl.textContent = '0';
+      oreEl.className = 'summ-val nd';
+    }
+  }
+
+  // Calcola e mostra straordinario
+  const excessMin = Math.max(0, total - ORE_CONTRATTUALI * 60);
+  const stEl = document.getElementById('straord-disp-' + dstr);
+  if (stEl) {
+    stEl.dataset.straord = (excessMin / 60).toFixed(4);
+    if (excessMin > 0) {
+      stEl.textContent = '+' + fmtH(excessMin);
+      stEl.className = 'summ-val st';
+    } else {
+      stEl.textContent = '—';
+      stEl.className = 'summ-val nd';
+    }
+  }
+
+  aggiornaTotaleMensile();
+  aggiornaTotaleStraordMensile();
+  return excessMin;
+}
+
+/* ══ TOTALE ORE MENSILE ═════════════════════════════════════════
+   data-h = ore DECIMALI; display = HH:MMh; data-decimal per paghe */
+function aggiornaTotaleMensile() {
+  let totalH = 0;   // ore decimali
+  document.querySelectorAll('[id^="ore-pian-"]').forEach(el => {
+    totalH += parseFloat(el.dataset.h || '0');
+  });
+  const totEl = document.getElementById('totale-ore-display');
+  if (!totEl) return;
+  totEl.dataset.decimal = totalH.toFixed(4);   // valore decimale per calcoli paghe
+  totEl.textContent = totalH > 0 ? decToHHMM(totalH) + 'h' : '0:00h';
+}
+
+/* ══ TOTALE STRAORDINARIO MENSILE ═══════════════════════════════
+   data-straord / data-value = ore DECIMALI; display = HH:MMh      */
+function aggiornaTotaleStraordMensile() {
+  let tot = 0;   // ore decimali
+  document.querySelectorAll('[id^="straord-disp-"]').forEach(el => {
+    tot += parseFloat(el.dataset.straord || '0');
+  });
+  const totEl  = document.getElementById('totale-straord-display');
+  const cardEl = document.getElementById('card-straord');
+  if (totEl) {
+    totEl.dataset.value = tot.toFixed(4);    // decimale per calcoli paghe
+    totEl.textContent   = tot > 0 ? decToHHMM(tot) + 'h' : '0:00h';
+    if (cardEl) cardEl.style.display = tot > 0 ? '' : 'none';
+  }
+}
+
+/* ══ BLUR ORARIO ════════════════════════════════════════════════ */
+function onBlurOrario(inp, turno) {
+  const dstr = inp.dataset.dstr;
+  const ent = document.getElementById('t' + turno + 'e-' + dstr)?.value || '';
+  const usc = document.getElementById('t' + turno + 'u-' + dstr)?.value || '';
+  const excessMin = aggiornaTotaleOre(dstr);
+  const savEl = document.getElementById('osav-' + dstr);
+  salvaOrario(dstr, turno, ent, usc, savEl, (excessMin / 60).toFixed(2));
+}
+
+function fmtItD(iso) {
+  if (!iso) return '';
+  const p = String(iso).split('T')[0];
+  const [y, m, d] = p.split('-');
+  if (!y || !m || !d) return '';
+  return `${d}/${m}/${y}`;
+}
+
+/** Ore decimali → HH:MM (come presenze_extras.ore_dec_to_hhmm). */
+function fmtHmFromDec(n) {
+  const v = typeof n === 'number' ? n : parseFloat(n || 0);
+  const totalMin = Math.max(0, Math.round(v * 60));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+/** Formato decimale italiano a 2 cifre (stile busta). */
+function fmtDecIt(n) {
+  const v = typeof n === 'number' ? n : parseFloat(n || 0);
+  return v.toFixed(2).replace('.', ',');
+}
+function setCellOreDuale(id, hours, extraHtml) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let html = `<div class="fw-bold">${fmtHmFromDec(hours)}</div><div class="text-muted" style="font-size:.58rem">${fmtDecIt(hours)} h</div>`;
+  if (extraHtml) html += extraHtml;
+  el.innerHTML = html;
+}
+function setStraordFeriali(ro) {
+  const w = document.getElementById('sidebar-ro-sf-wrap');
+  if (!w) return;
+  const sf = ro.straord_feriali, sd = ro.straord_diurno, sn = ro.straord_notturno;
+  w.innerHTML = `
+    <div class="fw-bold">${fmtHmFromDec(sf)}</div>
+    <div class="text-muted" style="font-size:.58rem">${fmtDecIt(sf)} h</div>
+    <div class="text-muted" style="font-size:.52rem;line-height:1.25;margin-top:.1rem">
+      d. ${fmtHmFromDec(sd)} (${fmtDecIt(sd)} h) · n. ${fmtHmFromDec(sn)} (${fmtDecIt(sn)} h)
+    </div>`;
+}
+function setStraordFestivi(ro) {
+  const w = document.getElementById('sidebar-ro-sfest-wrap');
+  if (!w) return;
+  const x = ro.straord_festivi, nf = ro.straord_nott_fest;
+  w.innerHTML = `
+    <div class="fw-bold">${fmtHmFromDec(x)}</div>
+    <div class="text-muted" style="font-size:.58rem">${fmtDecIt(x)} h</div>
+    <div class="text-muted" style="font-size:.52rem;line-height:1.25;margin-top:.1rem">
+      nott. fest. ${fmtHmFromDec(nf)} (${fmtDecIt(nf)} h)
+    </div>`;
+}
+
+/** Aggiorna pannello destro (saldi + streak A) senza ricaricare la pagina. */
+function applyCalendarioSidebar(payload) {
+  if (!payload || !payload.saldi) return;
+  const s = payload.saldi;
+  const st = payload.streak || {};
+  const ro = payload.riepilogo_ore;
+  const q = (id) => document.getElementById(id);
+  const fx = (n) => (typeof n === 'number' ? n : parseFloat(n || 0)).toFixed(2);
+  if (q('sidebar-ferie-res')) q('sidebar-ferie-res').textContent = fx(s.residuo_ferie_gg) + ' gg';
+  if (q('sidebar-ferie-god')) q('sidebar-ferie-god').textContent = String(s.giorni_ferie_goduti_anno) + ' gg';
+  if (q('sidebar-rol-res')) q('sidebar-rol-res').textContent = fx(s.residuo_rol_ore) + ' h';
+  if (q('sidebar-pe-gg')) q('sidebar-pe-gg').textContent = String(s.giorni_permesso_anno) + ' gg';
+  if (q('sidebar-rip-res')) q('sidebar-rip-res').textContent = fx(s.residuo_riposi_gg) + ' gg';
+
+  if (s.mat_disponibile) {
+    const f4 = (n) => (typeof n === 'number' ? n : parseFloat(n || 0)).toFixed(4);
+    const hm = (el, main, sub) => {
+      if (!el) return;
+      el.innerHTML = main + (sub ? '<br><span class="text-muted" style="font-size:.58rem">' + sub + '</span>' : '');
+    };
+    if (q('sidebar-mat-motore') && s.mat_motore_nome) {
+      q('sidebar-mat-motore').textContent = s.mat_motore_nome + ' · saldo mese → mese';
+    }
+    hm(q('sidebar-mat-ferie-ap'), f4(s.mat_ferie_saldo_apertura) + ' gg', s.mat_ferie_saldo_apertura_hhmm_equiv || '');
+    hm(q('sidebar-mat-rol-ap'), f4(s.mat_rol_saldo_apertura) + ' h', s.mat_rol_saldo_apertura_hhmm || '');
+    hm(q('sidebar-mat-ferie-mese'), f4(s.mat_ferie_mese) + ' gg', s.mat_ferie_mese_hhmm_equiv || '');
+    hm(q('sidebar-mat-rol-mese'), f4(s.mat_rol_mese) + ' h', s.mat_rol_mese_hhmm || '');
+    if (q('sidebar-mat-gm')) q('sidebar-mat-gm').textContent = String(Math.round(parseFloat(s.mat_giorni_non_maturativi || 0)));
+    hm(q('sidebar-mat-ferie-teo'), f4(s.mat_ferie_residue_teoria) + ' gg', s.mat_ferie_residue_hhmm_equiv || '');
+    hm(q('sidebar-mat-rol-teo'), f4(s.mat_rol_residue_teoria) + ' h', s.mat_rol_residue_hhmm || '');
+  }
+
+  if (q('sidebar-a-max')) q('sidebar-a-max').textContent = String(st.max_giorni_consecutivi ?? 0);
+  if (q('sidebar-a-tot-anno')) q('sidebar-a-tot-anno').textContent = String(st.totale_giorni_a ?? 0);
+  if (q('sidebar-a-period')) {
+    const da = st.periodo_max_da;
+    const a = st.periodo_max_a;
+    q('sidebar-a-period').textContent = da && a ? `(${fmtItD(da)} → ${fmtItD(a)})` : '';
+  }
+  if (q('sidebar-a-max-stor')) q('sidebar-a-max-stor').textContent = String(st.max_giorni_consecutivi_storico ?? '—');
+  if (q('sidebar-a-tot-stor')) q('sidebar-a-tot-stor').textContent = String(st.totale_giorni_a_storico ?? '—');
+
+  const sup = !!st.supera_soglia_15;
+  const card = q('sidebar-card-a');
+  if (card) {
+    card.classList.toggle('border', sup);
+    card.classList.toggle('border-danger', sup);
+    card.classList.toggle('border-2', sup);
+  }
+  const head = q('sidebar-a-head');
+  if (head) head.style.background = sup ? '#fdeaea' : '#f8f9fa';
+  const badge = q('sidebar-a-badge');
+  if (badge) badge.style.display = sup ? '' : 'none';
+  const ad = q('sidebar-a-alert-danger');
+  if (ad) ad.style.display = sup ? '' : 'none';
+  const aw = q('sidebar-a-alert-warn');
+  const mx = parseInt(st.max_giorni_consecutivi, 10) || 0;
+  if (aw) aw.style.display = (!sup && mx > 10) ? '' : 'none';
+
+  if (ro) {
+    let teoExtra = '';
+    if (ro.teoriche_da_pianificazione && ro.ore_mensili_contratto != null && ro.giorni_lavorativi_teorici != null) {
+      teoExtra = `<div class="text-muted" style="font-size:.52rem;line-height:1.3;margin-top:.2rem">${fmtDecIt(ro.ore_mensili_contratto)} h ÷ 26 × ${ro.giorni_lavorativi_teorici} gg lav.</div>`;
+    }
+    setCellOreDuale('sidebar-ro-teo', ro.ore_teoriche, teoExtra);
+    setCellOreDuale('sidebar-ro-tot', ro.ore_effettive_totali);
+    setCellOreDuale('sidebar-ro-bf', ro.ore_entro_contratto_feriali);
+    setCellOreDuale('sidebar-ro-bd', ro.ore_entro_contratto_domeniche);
+    setCellOreDuale('sidebar-ro-bfest', ro.ore_entro_contratto_festivi);
+    setStraordFeriali(ro);
+    setCellOreDuale('sidebar-ro-sdom', ro.straord_domeniche);
+    setStraordFestivi(ro);
+    const nr = q('sidebar-ro-norm-row');
+    if (nr && ro.coefficiente_ore_contratto != null) {
+      const badge = ro.ha_regola_normativa_ccnl
+        ? '<span class="badge bg-light text-dark border ms-1" style="font-size:.5rem">Regola CCNL</span>'
+        : '';
+      nr.innerHTML =
+        `Tipo contratto: coeff. <strong>${fmtDecIt(ro.coefficiente_ore_contratto)}</strong> · Ore sett. ${fmtDecIt(ro.ore_settimanali_contratto)} h ${badge}<br>` +
+        `Maturazioni indicative mese (÷12): ferie ${fmtDecIt(ro.ferie_maturate_mese_gg)} gg · permessi ${fmtDecIt(ro.permessi_maturati_mese_ore)} h`;
+    }
+    const nte = q('sidebar-ro-nota-teo');
+    if (nte) nte.style.display = ro.mostra_avviso_teoriche ? '' : 'none';
+  }
+}
+
+async function salvaOrario(dstr, turno, ent, usc, savEl, oreStraord) {
+  if (savEl) savEl.textContent = '…';
+  const fd = new FormData();
+  fd.append('csrfmiddlewaretoken', CSRF);
+  fd.append('data', dstr);
+  fd.append('turno', String(turno));
+  fd.append('ora_entrata', ent || '');
+  fd.append('ora_uscita',  usc || '');
+  fd.append('ore_straordinario', oreStraord || '0');
+  try {
+    const r    = await fetch(URL_ORARIO, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd});
+    const json = await r.json();
+    if (json.ok && !json.nothing) {
+      aggiornaHeader(dstr, json);
+      if (json.calendario_sidebar) applyCalendarioSidebar(json.calendario_sidebar);
+      if (savEl) { savEl.textContent = '✓'; savEl.title = ''; setTimeout(() => savEl.textContent = '', 1500); }
+    } else if (json.ok && json.nothing) {
+      if (savEl) { savEl.textContent = ''; savEl.title = ''; }
+    } else if (savEl) {
+      savEl.textContent = '✗';
+      savEl.title = (json && json.error) ? json.error : (r.status ? `HTTP ${r.status}` : 'Errore salvataggio');
+    }
+  } catch(e) {
+    if (savEl) savEl.textContent = '!';
+  }
+}
+
+function aggiornaHeader(dstr, json) {
+  const hdr = document.getElementById('cell-' + dstr);
+  if (!hdr) return;
+
+  // Aggiorna badge causale
+  let badge = hdr.querySelector('.day-badge');
+  if (json.causale && json.causale !== 'R') {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'day-badge';
+      hdr.insertBefore(badge, hdr.querySelector('.day-th-btns'));
+    }
+    badge.style.background = json.colore;
+    badge.textContent = json.causale;
+  }
+  hdr.dataset.causale = json.causale || '';
+  CON_PRESENZA.add(dstr);
+
+  // Aggiorna straordinario del giorno dal server, poi ricalcola totale mensile
+  if (json.ore_straord !== undefined) {
+    const stEl = document.getElementById('straord-disp-' + dstr);
+    if (stEl) {
+      const newSt = parseFloat(json.ore_straord);
+      stEl.dataset.straord = newSt.toFixed(4);
+      if (newSt > 0) {
+        stEl.textContent = '+' + fmtH(Math.round(newSt * 60));
+        stEl.className   = 'summ-val st';
+      } else {
+        stEl.textContent = '—';
+        stEl.className   = 'summ-val nd';
+      }
+    }
+    aggiornaTotaleStraordMensile();
+  }
+}
+
+/* ══ COPIA GIORNO-SETTIMANA A TUTTO IL MESE ══════════════════ */
+function copiaGiornoSett(srcDstr, wd, event) {
+  event.stopPropagation();
+  // Leggi tutti gli orari del giorno sorgente
+  const orari = {};
+  for (let t = 1; t <= 3; t++) {
+    orari[t] = {
+      ent: document.getElementById('t' + t + 'e-' + srcDstr)?.value || '',
+      usc: document.getElementById('t' + t + 'u-' + srcDstr)?.value || '',
+    };
+  }
+  // Applica a tutti i giorni con stesso giorno-settimana
+  document.querySelectorAll('.day-th[data-wd="' + wd + '"]').forEach(cell => {
+    const dstr = cell.dataset.dstr;
+    if (!dstr || dstr === srcDstr) return;
+    if (cell.dataset.fuori === '1') return;
+    if (cell.classList.contains('chiuso-day')) return;
+    const t1e = document.getElementById('t1e-' + dstr);
+    if (!t1e) return; // giorno chiuso, nessun input
+    for (let t = 1; t <= 3; t++) {
+      const eEl = document.getElementById('t' + t + 'e-' + dstr);
+      const uEl = document.getElementById('t' + t + 'u-' + dstr);
+      if (eEl) eEl.value = orari[t].ent;
+      if (uEl) uEl.value = orari[t].usc;
+    }
+    const exMin = aggiornaTotaleOre(dstr);
+    const savEl = document.getElementById('osav-' + dstr);
+    for (let t = 1; t <= 3; t++) {
+      if (orari[t].ent || orari[t].usc) {
+        salvaOrario(dstr, t, orari[t].ent, orari[t].usc, t === 1 ? savEl : null, (exMin / 60).toFixed(2));
+      }
+    }
+  });
+  // Salva anche il giorno sorgente
+  const exSrc = aggiornaTotaleOre(srcDstr);
+  const savSrc = document.getElementById('osav-' + srcDstr);
+  for (let t = 1; t <= 3; t++) {
+    if (orari[t].ent || orari[t].usc) {
+      salvaOrario(srcDstr, t, orari[t].ent, orari[t].usc, t === 1 ? savSrc : null, (exSrc / 60).toFixed(2));
+    }
+  }
+}
+
+/* ══ SELEZIONE GIORNI ═══════════════════════════════════════════ */
+function toggleDay(dstr) {
+  const cell = document.getElementById('cell-' + dstr);
+  if (!cell) return;
+  selectedDays.has(dstr) ? selectedDays.delete(dstr) : selectedDays.add(dstr);
+  cell.classList.toggle('selected', selectedDays.has(dstr));
+  aggiornaConto();
+}
+
+/* Selezionabile = qualsiasi giorno NON marcato esplicitamente come Riposo (R).
+   Sabati, domeniche e festivi sono inclusi (in ristorazione si lavora nel weekend).
+   Il giorno di chiusura configurato viene escluso solo se registrato come R. */
+function _isSelezionabile(cell) {
+  if (!cell || !cell.dataset.dstr) return false;
+  if (cell.dataset.causale === 'R') return false;
+  if (cell.dataset.fuori === '1') return false;
+  return true;
+}
+
+function selectAllLavorativi() {
+  document.querySelectorAll('.day-th[data-dstr]').forEach(cell => {
+    if (!_isSelezionabile(cell)) return;
+    const dstr = cell.dataset.dstr;
+    selectedDays.add(dstr);
+    cell.classList.add('selected');
+  });
+  aggiornaConto();
+}
+function selectNonRegistrati() {
+  document.querySelectorAll('.day-th[data-dstr]').forEach(cell => {
+    if (!_isSelezionabile(cell)) return;
+    const dstr = cell.dataset.dstr;
+    if (CON_PRESENZA.has(dstr)) return;
+    selectedDays.add(dstr);
+    cell.classList.add('selected');
+  });
+  aggiornaConto();
+}
+function deselectAll() {
+  selectedDays.forEach(d => document.getElementById('cell-'+d)?.classList.remove('selected'));
+  selectedDays.clear(); aggiornaConto();
+}
+function aggiornaConto() {
+  const n = selectedDays.size;
+  document.getElementById('sel-count').textContent = n;
+  document.getElementById('btn-count').textContent = n > 0 ? ` (${n})` : '';
+  document.getElementById('btn-applica').disabled = n === 0;
+}
+function aggiornaCampiOrario() {
+  const turno  = parseInt(document.querySelector('input[name="turno-rad"]:checked')?.value || '1');
+  const causale = document.getElementById('sel-causale').value;
+
+  // Entrata/uscita: visibili se turno > 1 oppure causale con orario
+  const showOrario = turno > 1 || CAUSALI_ORARIO.has(causale);
+  ['wrap-entrata','wrap-uscita'].forEach(id => {
+    document.getElementById(id).style.display = showOrario ? '' : 'none';
+  });
+
+  // Causale / straord / note: solo per turno 1
+  ['wrap-causale','wrap-straord','wrap-note'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = turno === 1 ? '' : 'none';
+  });
+
+  // Nota informativa T2/T3
+  const nota = document.getElementById('turno-nota');
+  if (nota) nota.style.display = turno > 1 ? '' : 'none';
+}
+function _restoreBtnApplica() {
+  const btn = document.getElementById('btn-applica');
+  if (btn) {
+    btn.innerHTML = '<i class="bi bi-check-lg"></i> Applica <span id="btn-count"></span>';
+  }
+  aggiornaConto();
+}
+async function applicaSelezionati() {
+  if (!selectedDays.size) return;
+  const turno = document.querySelector('input[name="turno-rad"]:checked')?.value || '1';
+  salvaTurnoInStorage(parseInt(turno, 10));
+  const btn = document.getElementById('btn-applica');
+  btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+  const fd = new FormData(document.getElementById('form-azione'));
+  fd.append('turno', turno);
+  fd.append('anno_calendario', String(ANNO));
+  fd.append('mese_calendario', String(MESE));
+  selectedDays.forEach(d => fd.append('dates', d));
+  try {
+    const r = await fetch(URL_MULTI, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd});
+    const ct = (r.headers.get('content-type') || '').toLowerCase();
+    let json = null;
+    if (ct.includes('application/json')) {
+      json = await r.json();
+    } else {
+      await r.text();
+    }
+    if (!json) {
+      alert(r.ok ? 'Risposta non valida dal server.' : `Errore HTTP ${r.status}`);
+      _restoreBtnApplica();
+      return;
+    }
+    if (!json.ok) {
+      alert(json.error || 'Operazione non riuscita.');
+      _restoreBtnApplica();
+      return;
+    }
+    const tot = Number(json.created ?? 0) + Number(json.updated ?? 0);
+    if (tot === 0 && selectedDays.size > 0) {
+      alert('Nessuna presenza aggiornata: verifica orari, turno e giorni nel contratto.');
+      _restoreBtnApplica();
+      return;
+    }
+    location.reload();
+  } catch (e) {
+    alert('Errore di rete o risposta non valida.');
+    _restoreBtnApplica();
+  }
+}
+
+/* ══ TOGGLE RIPOSO ══════════════════════════════════════════════ */
+async function toggleRiposo(dstr, event) {
+  event.stopPropagation();
+  const hdr = document.getElementById('cell-' + dstr);
+  const isRiposo = hdr?.dataset.causale === 'R';
+  const fd = new FormData();
+  fd.append('csrfmiddlewaretoken', CSRF);
+  fd.append('anno_calendario', String(ANNO));
+  if (isRiposo) {
+    fd.append('data', dstr);
+    fd.append('elimina', '1');
+    await fetch(URL_SALVA, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd});
+  } else {
+    fd.append('dates', dstr);
+    fd.append('causale', 'R');
+    await fetch(URL_MULTI, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd});
+  }
+  location.reload();
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+  initRettificaOrariStorage();
+
+  // Ricalcola straordinario per tutti i giorni già caricati dal server
+  // (garantisce display corretto anche se i valori nel DB fossero stati salvati
+  //  prima dell'introduzione della formula, oppure con percorsi che non la applicavano)
+  document.querySelectorAll('[id^="ore-pian-"]').forEach(el => {
+    const dstr = el.id.slice('ore-pian-'.length);
+    aggiornaTotaleOre(dstr);
+  });
+});
+</script>
+{% endblock %}

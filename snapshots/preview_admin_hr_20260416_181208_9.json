@@ -1,0 +1,184 @@
+{
+  "pdf": "/private/var/folders/nw/sr7j6wzn5vddsg2xt35mfvgh0000gn/T/tmpz0bt6jk0.pdf",
+  "source_name": "06 GIUGNO 2025.PDF",
+  "natura_busta_file": "ORDINARIA",
+  "azienda": {
+    "id": 1,
+    "nome": "Punto Zero SRLS"
+  },
+  "f24_pages": [
+    {
+      "page": 21,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 22,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 23,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    }
+  ],
+  "summary": {
+    "pages_total": 24,
+    "buste_pages": 20,
+    "f24_pages": 3,
+    "f24_importo_stimato": null,
+    "buste_uniche": 10,
+    "buste_duplicate_pages": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ],
+    "matched": 10,
+    "to_create": 0,
+    "ambiguous": 0,
+    "already_present": 0
+  },
+  "rows": [
+    {
+      "page": 1,
+      "periodo": "06/2025",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massimo",
+      "birth_date": "10/03/74",
+      "lordo_busta": "4.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 18,
+      "dipendente_nome": "CARDELLA MASSIMO"
+    },
+    {
+      "page": 2,
+      "periodo": "06/2025",
+      "cf": "GMSJSC92A42Z307O",
+      "full_name": "Gomes Ferreira Jessica Ailine",
+      "birth_date": "02/01/92",
+      "lordo_busta": "7.20",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 19,
+      "dipendente_nome": "Gomes Ferreira Jessica Aline"
+    },
+    {
+      "page": 3,
+      "periodo": "06/2025",
+      "cf": "CCIPLA73L19G273M",
+      "full_name": "Puntozero Srls",
+      "birth_date": "19/07/73",
+      "lordo_busta": "55.51",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 27,
+      "dipendente_nome": "PUNTOZERO SRLS"
+    },
+    {
+      "page": 4,
+      "periodo": "06/2025",
+      "cf": "HSSBDA99T31Z236U",
+      "full_name": "Hassan Abid",
+      "birth_date": "31/12/99",
+      "lordo_busta": "6.67",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 28,
+      "dipendente_nome": "HASSAN ABID"
+    },
+    {
+      "page": 5,
+      "periodo": "06/2025",
+      "cf": "RZGSRN94T58Z352K",
+      "full_name": "Rezgui Sabrina",
+      "birth_date": "18/12/94",
+      "lordo_busta": "6.67",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 26,
+      "dipendente_nome": "REZGUI SABRINA"
+    },
+    {
+      "page": 6,
+      "periodo": "06/2025",
+      "cf": "LCSFNC69P05G273G",
+      "full_name": "Lo Cascio Francesco Paolo",
+      "birth_date": "05/09/69",
+      "lordo_busta": "6.67",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 29,
+      "dipendente_nome": "LO CASCIO FRANCESCO PAOLO"
+    },
+    {
+      "page": 7,
+      "periodo": "06/2025",
+      "cf": "KRSLMA79B20Z249O",
+      "full_name": "Kurshad Alom",
+      "birth_date": "20/02/79",
+      "lordo_busta": "6.67",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 30,
+      "dipendente_nome": "KURSHAD ALOM"
+    },
+    {
+      "page": 8,
+      "periodo": "06/2025",
+      "cf": "GLLPTR76E12G273J",
+      "full_name": "Gallo Pietro",
+      "birth_date": "12/05/76",
+      "lordo_busta": "6.67",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 31,
+      "dipendente_nome": "GALLO PIETRO"
+    },
+    {
+      "page": 9,
+      "periodo": "06/2025",
+      "cf": "RNDGLC78D18G273N",
+      "full_name": "Renda Gianluca",
+      "birth_date": "18/04/78",
+      "lordo_busta": "6.67",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 32,
+      "dipendente_nome": "RENDA GIANLUCA"
+    },
+    {
+      "page": 10,
+      "periodo": "06/2025",
+      "cf": "MLNMCL00P43G273N",
+      "full_name": "Molinaro Marcella Pia Fortuna",
+      "birth_date": "03/09/00",
+      "lordo_busta": "6.67",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 33,
+      "dipendente_nome": "MOLINARO MARCELLA PIA FORTUNA"
+    }
+  ]
+}

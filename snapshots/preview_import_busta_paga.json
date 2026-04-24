@@ -1,0 +1,37 @@
+{
+  "pdf": "/Applications/XAMPP/xamppfiles/htdocs/gesper/ BUSTA_PAGA.pdf",
+  "source_name": " BUSTA_PAGA.pdf",
+  "natura_busta_file": "ORDINARIA",
+  "azienda": {
+    "id": 1,
+    "nome": "Punto Zero SRLS"
+  },
+  "f24_pages": [],
+  "summary": {
+    "pages_total": 1,
+    "buste_pages": 1,
+    "f24_pages": 0,
+    "f24_importo_stimato": null,
+    "buste_uniche": 1,
+    "buste_duplicate_pages": [],
+    "matched": 1,
+    "to_create": 0,
+    "ambiguous": 0,
+    "already_present": 0
+  },
+  "rows": [
+    {
+      "page": 1,
+      "periodo": "-",
+      "cf": "RZGSRN94T58Z352K",
+      "full_name": "Rezgu Sabrna",
+      "birth_date": "18/12/94",
+      "lordo_busta": null,
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 26,
+      "dipendente_nome": "Rezgui Sabrina"
+    }
+  ]
+}

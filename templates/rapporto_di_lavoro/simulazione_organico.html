@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load currency_filters format_it_tags %}
+
+{% block title %}Risultato simulazione organico{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4" style="font-size:0.78rem;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">📊 Risultato simulazione organico</h2>
+    <div class="d-flex gap-2">
+      <a href="{% url 'simulazione_organico_pdf' %}?{{ querystring }}" class="btn btn-outline-danger btn-sm">PDF A4 orizzontale</a>
+      <a href="{% url 'simulazione_organico_excel' %}?{{ querystring }}" class="btn btn-outline-success btn-sm">Export Excel</a>
+      <a href="{% url 'simulazione_organico_calendario' %}?{{ querystring }}" class="btn btn-outline-warning btn-sm">Calendario presenze</a>
+      <a href="{% url 'simulazione_organico' %}" class="btn btn-outline-primary btn-sm">Modifica configurazione</a>
+      <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-outline-secondary btn-sm">← Torna a Proposte/Contratti</a>
+    </div>
+  </div>
+
+  {% if simulazione_salvata_id %}
+    <div class="alert alert-success py-2 small">
+      Simulazione salvata correttamente (ID: {{ simulazione_salvata_id }}).
+    </div>
+  {% endif %}
+
+  <div class="card mb-3 border-0 shadow-sm">
+    <div class="card-body py-2">
+      <div class="row g-2">
+        <div class="col-md-3"><strong>Mese:</strong> {{ mese_riferimento }}</div>
+        <div class="col-md-3"><strong>Periodo:</strong> {{ mese_inizio|date:"d/m/Y" }} - {{ mese_fine|date:"d/m/Y" }}</div>
+        <div class="col-md-2"><strong>Giorni:</strong> {{ giorni_lavorativi_mese|num_it:0 }}</div>
+        <div class="col-md-2"><strong>Base ore:</strong> {{ base_oraria_mensile|num_it:2 }}</div>
+        <div class="col-md-2"><strong>INAIL:</strong> {{ aliquota_inail_perc|num_it:2 }}%</div>
+      </div>
+      <div class="small text-muted mt-2">
+        Vista ridisegnata: calcolo dipendente secondo flusso logico <strong>Paga oraria lorda → Imponibile INPS → Imponibile IRPEF → Netto mensile</strong>.
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    {% for r in righe %}
+      {% if r.missing %}
+        <div class="col-12">
+          <div class="alert alert-danger mb-0 py-2">{{ r.ruolo }} · parametro CCNL non disponibile.</div>
+        </div>
+      {% else %}
+        <div class="col-12">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-dark text-white py-2 d-flex justify-content-between align-items-center">
+              <div>
+                <strong>{{ r.ruolo }}</strong> · {{ r.nome }} · L{{ r.livello }}
+                {% if r.quantita > 1 %}<span class="badge bg-secondary ms-1">{{ r.quantita }}x</span>{% endif %}
+              </div>
+              <div class="small">
+                {% if r.tipo_contratto %}{{ r.tipo_contratto.nome }}{% else %}Full-time{% endif %}
+              </div>
+            </div>
+            <div class="card-body p-2">
+              <div class="row g-2">
+                <div class="col-lg-4">
+                  <div class="rounded border p-2 h-100" style="background:#eef6ff; border-color:#0d6efd !important;">
+                    <div class="fw-bold text-primary mb-1">1) Paga oraria lorda</div>
+                    <table class="table table-sm table-borderless mb-0" style="font-size:0.71rem;">
+                      <tbody>
+                        <tr><th class="ps-0 text-muted fw-normal">Ore contrattuali FT</th><td class="text-end pe-0">{{ r.busta_ore.ore_contrattuali_ft|ore_hm }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">Ore giornaliere</th><td class="text-end pe-0">{{ r.busta_ore.ore_giornaliere|ore_hm }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">Minimo orario</th><td class="text-end pe-0">€ {{ r.busta_ore.paga_base_oraria|num_it:4 }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">Contingenza oraria</th><td class="text-end pe-0">€ {{ r.busta_ore.contingenza_oraria|num_it:4 }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">Scatti orari</th><td class="text-end pe-0">€ {{ r.busta_ore.scatti_orari|num_it:4 }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">Superminimo orario</th><td class="text-end pe-0">€ {{ r.busta_ore.superminimo_orario|num_it:4 }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">EL.DIS.SAN orario</th><td class="text-end pe-0">€ {{ r.busta_ore.el_dis_san_orario|num_it:4 }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">EL.DIS.BIL orario</th><td class="text-end pe-0">€ {{ r.busta_ore.el_dis_bil_orario|num_it:4 }}</td></tr>
+                        <tr class="table-primary"><th class="ps-0 fw-semibold">Paga oraria lorda</th><td class="text-end pe-0 fw-bold">€ {{ r.busta_ore.paga_oraria_totale|num_it:4 }}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="col-lg-4">
+                  <div class="rounded border p-2 h-100" style="background:#fff9e9; border-color:#f59f00 !important;">
+                    <div class="fw-bold mb-1" style="color:#b26a00;">2) Imponibile INPS mensile</div>
+                    <table class="table table-sm table-borderless mb-0" style="font-size:0.71rem;">
+                      <tbody>
+                        <tr><th class="ps-0 text-muted fw-normal">Giorni lavorati</th><td class="text-end pe-0 euro">{{ r.busta_ore.giorni_lavorati|num_it:0 }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">Domeniche</th><td class="text-end pe-0 euro">{{ r.busta_ore.n_domeniche|num_it:0 }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">Paga ordinaria</th><td class="text-end pe-0">{{ r.busta_ore.paga_ordinaria|euro_full }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">Paga domenicale</th><td class="text-end pe-0">{{ r.busta_ore.paga_domenicale|euro_full }}</td></tr>
+                        <tr class="table-warning"><th class="ps-0 fw-semibold">Imponibile INPS (unità)</th><td class="text-end pe-0 fw-bold">{{ r.imponibile_inps_ore_unit|euro_full }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">Quantità</th><td class="text-end pe-0">{{ r.quantita }}</td></tr>
+                        <tr class="table-warning"><th class="ps-0 fw-semibold">Imponibile INPS (tot.)</th><td class="text-end pe-0 fw-bold">{{ r.imponibile_inps_ore_tot|euro_full }}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="col-lg-4">
+                  <div class="rounded border p-2 h-100" style="background:#effcf4; border-color:#2b8a3e !important;">
+                    <div class="fw-bold text-success mb-1">3) Netto mensile dipendente</div>
+                    <table class="table table-sm table-borderless mb-0" style="font-size:0.71rem;">
+                      <tbody>
+                        <tr><th class="ps-0 text-muted fw-normal">Aliquota INPS dip.</th><td class="text-end pe-0 euro">{{ r.aliquota_inps_dipendente|num_it:4 }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">INPS dip. (tot.)</th><td class="text-end pe-0">{{ r.inps_dipendente_ore_tot|euro_full }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">Imponibile IRPEF (tot.)</th><td class="text-end pe-0">{{ r.imponibile_irpef_ore_tot|euro_full }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">IRPEF lorda (tot.)</th><td class="text-end pe-0">{{ r.irpef_lorda_ore_tot|euro_full }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">Detrazioni (tot.)</th><td class="text-end pe-0">{{ r.detrazioni_ore_tot|euro_full }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">IRPEF netta (tot.)</th><td class="text-end pe-0">{{ r.irpef_netta_ore_tot|euro_full }}</td></tr>
+                        <tr><th class="ps-0 text-muted fw-normal">TI + Bonus (tot.)</th><td class="text-end pe-0">{{ r.trattamento_integrativo_ore_tot|add:r.bonus_l207_ore_tot|euro_full }}</td></tr>
+                        <tr class="table-success"><th class="ps-0 fw-semibold">NETTO mensile (totale)</th><td class="text-end pe-0 fw-bold">{{ r.netto_ore_tot|euro_full }}</td></tr>
+                        {% if r.rateo_13_tot %}
+                        <tr><th class="ps-0 text-muted fw-normal">Rateo 13ª mens. accantonato</th><td class="text-end pe-0">{{ r.rateo_13_tot|euro_full }}</td></tr>
+                        {% endif %}
+                        {% if r.rateo_14_tot %}
+                        <tr><th class="ps-0 text-muted fw-normal">Rateo 14ª mens. accantonato</th><td class="text-end pe-0">{{ r.rateo_14_tot|euro_full }}</td></tr>
+                        {% endif %}
+                        <tr><th class="ps-0 text-muted fw-normal">Costo azienda mensile</th><td class="text-end pe-0 fw-bold">{{ r.costo_azienda_tot|euro_full }}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-2 small text-muted">
+                Formula logica: <strong>Imponibile IRPEF = Imponibile INPS − INPS dipendente</strong> ·
+                <strong>Netto = Imponibile INPS − INPS dipendente − IRPEF netta + bonus fiscali</strong>.
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

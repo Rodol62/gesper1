@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+{% block title %}Stampa Contratto {{ contratto.numero_contratto }}{% endblock %}
+
+{% block extra_head %}
+<style>
+#print-area {
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 16mm 18mm 18mm;
+  background: #fff;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 11pt;
+  color: #111;
+  line-height: 1.55;
+  box-shadow: 0 0 12px rgba(0,0,0,.12);
+}
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 16mm 18mm 18mm 18mm;
+  }
+  body, html {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+  .container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  #print-area {
+    box-shadow: none;
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    font-size: 10.5pt;
+  }
+  .d-print-none { display: none !important; }
+  h5 { break-after: avoid; page-break-after: avoid; }
+  ol, p { orphans: 3; widows: 3; }
+  .row { break-inside: avoid; page-break-inside: avoid; }
+}
+@media screen {
+  body { background: #e8eef5; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4" id="print-area">
+  <div class="d-print-none mb-3 d-flex gap-2">
+    <button class="btn btn-primary" onclick="window.print()">Stampa</button>
+    <a class="btn btn-outline-secondary" href="{% url 'contratto_pdf' contratto.id %}">Apri/Scarica PDF</a>
+  </div>
+
+  <div class="text-center mb-4">
+    <h2 class="mb-1">CONTRATTO INDIVIDUALE DI LAVORO</h2>
+    <div><strong>N. {{ contratto.numero_contratto }}</strong></div>
+    <small class="text-muted">Redatto secondo prassi professionale in ambito consulenza del lavoro</small>
+  </div>
+
+  <p><strong>Azienda:</strong> {{ contratto.azienda.nome }}</p>
+  <p><strong>Dipendente:</strong> {{ contratto.dipendente.nome }} {{ contratto.dipendente.cognome }}</p>
+  <p><strong>Tipo contratto:</strong> {{ contratto.tipo_contratto.nome }}</p>
+  <p><strong>Data sottoscrizione:</strong>
+    {% if contratto.data_sottoscrizione_effettiva %}
+      {{ contratto.data_sottoscrizione_effettiva|date:"d/m/Y H:i" }}
+    {% else %}
+      -
+    {% endif %}
+  </p>
+  <p><strong>Luogo sottoscrizione:</strong> {{ contratto.luogo_firma_datore_effettivo }}</p>
+  {% if contratto.proposta_origine %}
+  <p><strong>Proposta di origine:</strong> {{ contratto.proposta_origine.numero_proposta }}</p>
+  {% endif %}
+  <p><strong>Decorrenza rapporto:</strong> {{ contratto.data_inizio_rapporto }} → {{ contratto.data_fine_rapporto|default:"-" }}</p>
+
+  <h5 class="mt-4">Art. 1 — Inquadramento e mansioni</h5>
+  <p><strong>Mansione:</strong> {{ contratto.posizione }}</p>
+  <p><strong>Qualifica/Livello:</strong> {{ contratto.qualifica }} / {{ contratto.livello_ccnl }}</p>
+
+  <h5 class="mt-4">Art. 2 — Trattamento economico</h5>
+  <p><strong>Lordo mensile:</strong> {{ contratto.stipendio_lordo_mensile|euro_full }}</p>
+  <p><strong>Paga base:</strong> {{ contratto.paga_base_mensile|euro_full }}</p>
+  <p><strong>Contingenza:</strong> {{ contratto.contingenza_mensile|euro_full }}</p>
+  <p><strong>EDR:</strong> {{ contratto.edr_mensile|euro_full }}</p>
+  {% if rat13_mensile %}
+  <p><strong>Rateo mensile 13ª mensilità</strong> (art. 133 CCNL FIPE, erogato a dicembre): <strong>{{ rat13_mensile|euro_full }}</strong> — accantonato mensilmente e incluso nella base di calcolo del costo del lavoro.</p>
+  {% endif %}
+  {% if rat14_mensile %}
+  <p><strong>Rateo mensile 14ª mensilità</strong> (art. 134 CCNL FIPE, erogato a luglio): <strong>{{ rat14_mensile|euro_full }}</strong> — accantonato mensilmente e incluso nella base di calcolo del costo del lavoro.</p>
+  {% endif %}
+  {% if lordo_mensile_totale %}
+  <p><strong>Costo lordo mensile totale</strong> (retrib. + ratei mensilità aggiuntive): <strong>{{ lordo_mensile_totale|euro_full }}</strong></p>
+  {% endif %}
+
+  <h5 class="mt-4">Art. 3 — Orario, straordinari e scatti</h5>
+  <p><strong>Ore settimanali:</strong> {{ contratto.ore_settimanali|ore_hm }}</p>
+  <p><strong>Straordinario:</strong> diurno {{ contratto.ore_straordinario_diurno_maggiorazione }}% / notturno {{ contratto.ore_straordinario_notturno_maggiorazione }}% / festivo {{ contratto.ore_straordinario_festivo_maggiorazione }}%</p>
+  <p><strong>Scatti:</strong> ogni {{ contratto.scatto_periodicita_mesi }} mesi, importo {{ contratto.scatto_importo|euro_full }}, massimo {{ contratto.numero_scatti_massimi }}</p>
+  <p><strong>Riposi compensativi:</strong> {{ contratto.riposi_compensativi_regola|default:"-" }}</p>
+
+  <h5 class="mt-4">Art. 4 — Clausole contrattuali</h5>
+  <ol>
+    <li><strong>Oggetto del contratto:</strong> assunzione del lavoratore con mansioni indicate, nel rispetto dell'art. 2103 c.c.</li>
+    <li><strong>Inquadramento:</strong> applicazione del CCNL Turismo Confcommercio per livello, qualifica e trattamento normativo.</li>
+    <li><strong>Trattamento economico:</strong> retribuzione mensile lorda, elementi fissi (paga base, contingenza, EDR) e indennità.</li>
+    <li><strong>Orario di lavoro:</strong> disciplina secondo D.Lgs. 66/2003, inclusi straordinari e relative maggiorazioni.</li>
+    <li><strong>Riposi e ferie:</strong> riconoscimento dei riposi giornalieri/settimanali, ferie e permessi secondo legge e CCNL.</li>
+    <li><strong>Scatti di anzianità:</strong> maturazione periodica secondo importo e periodicità indicati.</li>
+    <li><strong>Sicurezza e prevenzione:</strong> obblighi azienda/lavoratore ai sensi del D.Lgs. 81/2008.</li>
+    <li><strong>Recesso e preavviso:</strong> secondo norme legali e contrattuali vigenti.</li>
+  </ol>
+
+  <div class="mt-5 pt-4">
+    <div class="row">
+      <div class="col-6">
+        <p>Luogo e data:
+          {% if contratto.data_firma_datore_effettiva %}
+            {{ contratto.luogo_firma_datore_effettivo }}, {{ contratto.data_firma_datore_effettiva|date:"d/m/Y H:i" }}
+          {% else %}
+            In attesa firma digitale del datore
+          {% endif %}
+        </p>
+        <p>Per l'Azienda</p>
+      </div>
+      <div class="col-6 text-end">
+        <p>
+          {% if contratto.data_firma_lavoratore_effettiva %}
+            {{ contratto.luogo_firma_lavoratore_effettivo }}, {{ contratto.data_firma_lavoratore_effettiva|date:"d/m/Y H:i" }}
+          {% else %}
+            In attesa firma digitale del lavoratore
+          {% endif %}
+        </p>
+        <p>Il/La Lavoratore/Lavoratrice</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

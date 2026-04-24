@@ -1,0 +1,384 @@
+{% extends 'base.html' %}
+{% load format_it_tags %}
+{% block title %}Profilo — {{ user.get_full_name|default:user.username }}{% endblock %}
+
+{% block content %}
+<style>
+  .prof-header { background:linear-gradient(135deg,var(--c-primary),var(--c-accent));color:#fff;border-radius:6px;padding:.7rem 1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem }
+  .prof-header h5 { margin:0;font-size:.95rem;font-weight:800 }
+  .prof-header .sub { font-size:.72rem;opacity:.8;margin-top:2px }
+  .prof-kv td:first-child { color:#666;width:42%;padding:3px 0;font-size:.78rem }
+  .prof-kv td:last-child  { font-size:.8rem;font-weight:500 }
+  .section-card .card-header { background:#f4f7fa;font-size:.78rem;font-weight:700;color:var(--c-primary);padding:.3rem .75rem }
+  .empty-row { color:#999;font-style:italic;font-size:.78rem }
+  .badge-stato-proposta { font-size:.62rem }
+</style>
+
+<div class="container-fluid px-3 mt-2" style="max-width:1100px">
+
+  {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} py-2 mb-2" style="font-size:.82rem">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- ── Header profilo ─────────────────────────────────────── -->
+  <div class="prof-header">
+    <div>
+      <h5><i class="bi bi-person-circle"></i> {{ user.get_full_name|default:user.username }}</h5>
+      <div class="sub">
+        {{ user.get_ruolo_display }}
+        {% if user.azienda %}&nbsp;·&nbsp;{{ user.azienda.nome }}{% endif %}
+        &nbsp;·&nbsp;{{ user.email }}
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'edit_profile' %}" class="btn btn-sm btn-outline-light" style="font-size:.75rem">
+        <i class="bi bi-pencil"></i> Modifica profilo
+      </a>
+      <a href="{% url 'password_reset' %}" class="btn btn-sm btn-outline-light" style="font-size:.75rem">
+        <i class="bi bi-key"></i> Cambia password
+      </a>
+    </div>
+  </div>
+
+  <!-- ── Alert blocchi ──────────────────────────────────────── -->
+  {% if privacy_blocked %}
+  <div class="alert alert-warning py-2 mb-2" style="font-size:.82rem">
+    <i class="bi bi-shield-exclamation"></i>
+    <strong>Privacy non accettata.</strong> Vai su <a href="{% url 'edit_profile' %}" class="alert-link">Modifica profilo</a> per dare il consenso.
+  </div>
+  {% endif %}
+  {% if convalida_blocked %}
+  <div class="alert alert-danger py-2 mb-2" style="font-size:.82rem">
+    <i class="bi bi-hourglass-split"></i>
+    <strong>Account in attesa di convalida</strong> da parte del supervisore.
+  </div>
+  {% endif %}
+
+  <!-- ══════════════════════════════════════════════════════
+       ADMIN / SUPERUSER
+  ══════════════════════════════════════════════════════ -->
+  {% if is_admin %} 
+  <div class="row g-3">
+    <div class="col-md-5">
+      <div class="card section-card border-0 shadow-sm">
+        <div class="card-header"><i class="bi bi-person"></i> Dati account</div>
+        <div class="card-body p-2">
+          <table class="prof-kv w-100">
+            <tr><td>Username</td><td>{{ user.username }}</td></tr>
+            <tr><td>E-mail</td><td>{{ user.email }}</td></tr>
+            <tr><td>Ruolo</td><td>{{ user.get_ruolo_display }}{% if user.is_superuser %} <span class="badge bg-warning text-dark">Superuser</span>{% endif %}</td></tr>
+            <tr><td>Privacy</td><td>{% if user.privacy_accettata %}✓ Accettata ({{ user.privacy_data|date:"d/m/Y" }}){% else %}<span class="text-danger">Non accettata</span>{% endif %}</td></tr>
+            <tr><td>Registrato il</td><td>{{ user.date_joined|date:"d/m/Y" }}</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-7">
+      <div class="card section-card border-0 shadow-sm">
+        <div class="card-header"><i class="bi bi-grid"></i> Gestione anagrafica e azienda</div>
+        <div class="card-body p-2 d-flex flex-wrap gap-2">
+          <a href="{% url 'index_anagrafiche' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-people"></i> Dipendenti</a>
+          <a href="{% url 'crea_dipendente' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-person-plus"></i> Nuovo dipendente</a>
+          <a href="{% url 'lista_aziende' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-buildings"></i> Aziende</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-12">
+      <div class="card section-card border-0 shadow-sm">
+        <div class="card-header"><i class="bi bi-buildings"></i> Azienda operativa</div>
+        <div class="card-body p-2">
+          <form method="post" class="d-flex gap-2 align-items-end flex-wrap">
+            {% csrf_token %}
+            <div class="flex-grow-1">
+              <label class="form-label" style="font-size:.75rem">Seleziona azienda di lavoro</label>
+              <select name="azienda_id" class="form-select form-select-sm">
+                {% for az in aziende %}
+                  <option value="{{ az.id }}" {% if azienda_operativa and azienda_operativa.id == az.id %}selected{% endif %}>{{ az.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">Imposta</button>
+          </form>
+          {% if azienda_operativa %}
+          <div class="mt-2" style="font-size:.78rem;color:#5c6b7d">
+            <i class="bi bi-check-circle text-success"></i> Operativo su: <strong>{{ azienda_operativa.nome }}</strong>
+          </div>
+          {% endif %}
+          <div class="mt-2 pt-2 border-top" style="font-size:.75rem">
+            <a href="{% url 'guida_modulo' 'multi-azienda' %}" class="text-muted">Guida: contesto multi-aziendale</a>
+            · <a href="{% url 'lista_aziende' %}" class="text-muted">Elenco aziende</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       DIPENDENTE
+  ══════════════════════════════════════════════════════ -->
+  {% elif is_dipendente %}
+  <div class="row g-3">
+
+    {% if calcolatore_ferie_rol and dipendente %}
+    <div class="col-12">
+      <div class="card section-card border-0 shadow-sm" style="border-left:4px solid #0b5345!important">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span><i class="bi bi-calculator"></i> {{ calcolatore_ferie_rol.motore_nome }}</span>
+          <span class="badge bg-light text-dark border" style="font-size:.62rem">{{ calcolatore_ferie_rol.motore_id }}</span>
+        </div>
+        <div class="card-body p-2">
+          <p class="mb-2 text-muted" style="font-size:.74rem">
+            Parametri annuali usati per maturazione ferie e ROL (normativa CCNL e rapporto vigente alla data {{ calcolatore_ferie_rol.data_rif_it }}).
+            Il saldo mese su mese e le ore in HH:MM sono nella <strong>griglia presenze</strong>.
+          </p>
+          <table class="prof-kv w-100 mb-2">
+            <tr><td>Ferie annue (riferimento motore)</td><td>{{ calcolatore_ferie_rol.ferie_annue_giorni|floatformat:2 }} gg</td></tr>
+            <tr><td>ROL / permessi annui (ore)</td><td>{{ calcolatore_ferie_rol.rol_annui_ore|floatformat:2 }} h</td></tr>
+            <tr><td>Modalità contrattuale per il calcolo</td><td>{{ calcolatore_ferie_rol.tipo_contratto_calc_label }}{% if calcolatore_ferie_rol.ore_settimanali_pt %} — ore sett. {{ calcolatore_ferie_rol.ore_settimanali_pt|floatformat:2 }}{% endif %}</td></tr>
+          </table>
+          <a href="{% url 'calendario_presenze' dipendente.pk %}" class="btn btn-sm btn-outline-success" style="font-size:.75rem">
+            <i class="bi bi-calendar3"></i> Apri calendario presenze (maturazione mensile)
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if riepilogo_busta and contratto_attivo %}
+    <div class="col-12">
+      <div class="card section-card border-0 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-receipt"></i> Riepilogo busta paga (da contratto definitivo)</span>
+          <span class="text-muted" style="font-size:.72rem">{{ contratto_attivo.numero_contratto }}</span>
+        </div>
+        <div class="card-body p-2">
+          <div class="row g-2" style="font-size:.78rem">
+            <div class="col-md-3 text-euro"><strong>Lordo mensile incl. 13ª/14ª:</strong><br>€ {{ riepilogo_busta.lordo_con_ratei|euro_it }}</div>
+            <div class="col-md-3 text-euro"><strong>Netto mensile base:</strong><br>€ {{ riepilogo_busta.netto_mensile|euro_it }}</div>
+            <div class="col-md-3 text-euro"><strong>Paga oraria netta incl. ratei:</strong><br>€ {{ riepilogo_busta.paga_oraria_netta_con_ratei|num_it:4 }}</div>
+            <div class="col-md-3 text-euro"><strong>Ore settimanali / mensili:</strong><br><span class="text-euro">{{ riepilogo_busta.ore_settimanali|num_it:2 }} / {{ riepilogo_busta.ore_mensili|num_it:2 }}</span></div>
+            <div class="col-md-3 text-euro"><strong>Paga oraria lorda base:</strong><br>€ {{ riepilogo_busta.paga_oraria_lorda_base|num_it:4 }}</div>
+            <div class="col-md-3 text-euro"><strong>Paga oraria netta base:</strong><br>€ {{ riepilogo_busta.paga_oraria_netta_base|num_it:4 }}</div>
+            <div class="col-md-3 text-euro"><strong>Ratei 13ª + 14ª inclusi:</strong><br>€ {{ riepilogo_busta.totale_ratei_lordi|euro_it }}</div>
+            <div class="col-md-3 text-euro"><strong>Altri ratei esclusi dal lordo:</strong><br>TFR € {{ riepilogo_busta.rateo_tfr_lordo_m|euro_it }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Colonna sinistra: dati personali + contratto -->
+    <div class="col-md-4">
+      <div class="card section-card border-0 shadow-sm mb-3">
+        <div class="card-header"><i class="bi bi-person"></i> I miei dati</div>
+        <div class="card-body p-2">
+          <table class="prof-kv w-100">
+            <tr><td>Nome</td><td>{{ user.get_full_name|default:"—" }}</td></tr>
+            <tr><td>E-mail</td><td>{{ user.email }}</td></tr>
+            <tr><td>Azienda</td><td>{{ user.azienda.nome|default:"—" }}</td></tr>
+            {% if dipendente %}
+            <tr><td>Livello CCNL</td><td>{{ dipendente.livello|default:"—" }}</td></tr>
+            <tr><td>Qualifica</td><td>{{ dipendente.ruolo|default:"—" }}</td></tr>
+            <tr><td>Telefono</td><td>{{ dipendente.telefono|default:"—" }}</td></tr>
+            {% endif %}
+            <tr><td>Privacy</td><td>{% if user.privacy_accettata %}<span class="text-success">✓ Accettata</span>{% else %}<span class="text-danger">Non accettata</span>{% endif %}</td></tr>
+          </table>
+          {% if dipendente %}
+          <div class="mt-3 d-flex gap-2 flex-wrap">
+            <a href="{% url 'dettaglio_dipendente' dipendente.pk %}" class="btn btn-sm btn-outline-primary">Dettaglio anagrafica</a>
+            <a href="{% url 'modifica_dipendente' dipendente.pk %}" class="btn btn-sm btn-outline-warning">Modifica anagrafica</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Contratti -->
+      <div class="card section-card border-0 shadow-sm">
+        <div class="card-header"><i class="bi bi-file-earmark-text"></i> Contratti</div>
+        <div class="card-body p-2">
+          {% if contratti %}
+            {% for c in contratti %}
+            <div style="border:1px solid #c5d0dc;border-radius:4px;padding:7px 9px;margin-bottom:6px;font-size:.78rem">
+              <div class="fw-semibold" style="color:var(--c-primary)">{{ c.numero_contratto }}</div>
+              <div class="text-muted">{{ c.tipo_contratto.nome }} — Lv. {{ c.livello_ccnl }}</div>
+              <div>Dal {{ c.data_inizio_rapporto|date:"d/m/Y" }}{% if c.data_fine_rapporto %} al {{ c.data_fine_rapporto|date:"d/m/Y" }}{% endif %}</div>
+              <span class="badge {% if c.stato == 'sottoscritto' %}bg-success{% elif c.stato == 'proposta' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">{{ c.get_stato_display }}</span>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p class="empty-row mb-0">Nessun contratto presente.</p>
+          {% endif %}
+          <!-- Proposte in attesa -->
+          {% if proposte %}
+            {% for p in proposte %}
+            {% if p.approvata_admin and not p.accettata_dipendente %}
+            <div style="background:#fff8e1;border:1px solid #f0c040;border-radius:4px;padding:7px 9px;margin-bottom:6px;font-size:.78rem">
+              <div class="fw-bold" style="color:#8a5700"><i class="bi bi-pen-fill"></i> Proposta da firmare</div>
+              <div>{{ p.numero_proposta }} — Lv. {{ p.livello_ccnl }}</div>
+              <a href="{% url 'dettaglio_proposta' p.id %}" class="btn btn-xs btn-warning text-dark mt-1">Visualizza e firma</a>
+            </div>
+            {% endif %}
+            {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Colonna centrale: presenze recenti -->
+    <div class="col-md-4">
+      <div class="card section-card border-0 shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-calendar-check"></i> Presenze recenti</span>
+          <a href="{% url 'lista_presenze' %}" style="font-size:.7rem;color:var(--c-accent)">Tutte →</a>
+        </div>
+        <div class="card-body p-0">
+          {% if presenze %}
+          <table class="table table-sm mb-0" style="font-size:.76rem">
+            <thead class="table-light"><tr><th>Data</th><th>Entrata</th><th>Uscita</th></tr></thead>
+            <tbody>
+              {% for p in presenze %}
+              <tr>
+                <td>{{ p.data|date:"d/m/Y" }}</td>
+                <td>{{ p.ora_entrata|default:"—" }}</td>
+                <td>{{ p.ora_uscita|default:"—" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="empty-row p-2 mb-0">Nessuna presenza registrata.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Documenti -->
+      <div class="card section-card border-0 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-file-earmark"></i> Documenti</span>
+          <a href="{% url 'lista_documenti' %}" style="font-size:.7rem;color:var(--c-accent)">Tutti →</a>
+        </div>
+        <div class="card-body p-0">
+          {% if documenti %}
+          <table class="table table-sm mb-0" style="font-size:.76rem">
+            <thead class="table-light"><tr><th>Tipo</th><th>Data</th></tr></thead>
+            <tbody>
+              {% for d in documenti %}
+              <tr>
+                <td>{{ d.get_tipo_display }}</td>
+                <td>{{ d.data_caricamento|date:"d/m/Y" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="empty-row p-2 mb-0">Nessun documento disponibile.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Colonna destra: richieste -->
+    <div class="col-md-4">
+      <div class="card section-card border-0 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-chat-dots"></i> Le mie richieste</span>
+          <a href="{% url 'lista_richieste' %}" style="font-size:.7rem;color:var(--c-accent)">Tutte →</a>
+        </div>
+        <div class="card-body p-2">
+          {% if richieste %}
+            {% for r in richieste %}
+            <div style="border:1px solid #c5d0dc;border-radius:4px;padding:6px 9px;margin-bottom:6px;font-size:.78rem">
+              <div class="fw-semibold">{{ r.get_tipo_display }}</div>
+              <div class="text-muted">{{ r.data_richiesta|date:"d/m/Y" }} — {{ r.data_inizio|date:"d/m" }} / {{ r.data_fine|date:"d/m" }}</div>
+              <span class="badge {% if r.stato == 'approvata' %}bg-success{% elif r.stato == 'rifiutata' %}bg-danger{% else %}bg-secondary{% endif %} badge-stato-proposta">{{ r.stato }}</span>
+            </div>
+            {% endfor %}
+          {% else %}
+          <p class="empty-row mb-0">Nessuna richiesta presente.</p>
+          {% endif %}
+          <a href="{% url 'candidato_mie_richieste' %}" class="btn btn-sm btn-outline-primary mt-2 w-100" style="font-size:.75rem">
+            <i class="bi bi-chat-left-dots"></i> Vai a Richieste informazioni
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       CONSULENTE
+  ══════════════════════════════════════════════════════ -->
+  {% elif is_consulente %}
+  <div class="row g-3">
+    <div class="col-md-5">
+      <div class="card section-card border-0 shadow-sm">
+        <div class="card-header"><i class="bi bi-person"></i> Dati account</div>
+        <div class="card-body p-2">
+          <table class="prof-kv w-100">
+            <tr><td>Username</td><td>{{ user.username }}</td></tr>
+            <tr><td>E-mail</td><td>{{ user.email }}</td></tr>
+            <tr><td>Ruolo</td><td>{{ user.get_ruolo_display }}</td></tr>
+            <tr><td>Azienda</td><td>{{ user.azienda.nome|default:"—" }}</td></tr>
+            <tr><td>Convalidato</td><td>{% if user.convalidato %}<span class="text-success">✓ Sì</span>{% else %}<span class="text-danger">No</span>{% endif %}</td></tr>
+            <tr><td>Privacy</td><td>{% if user.privacy_accettata %}<span class="text-success">✓ {{ user.privacy_data|date:"d/m/Y" }}</span>{% else %}<span class="text-danger">Non accettata</span>{% endif %}</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-7">
+      <div class="card section-card border-0 shadow-sm">
+        <div class="card-header"><i class="bi bi-grid"></i> Accesso rapido</div>
+        <div class="card-body p-2 d-flex flex-wrap gap-2">
+          <a href="{% url 'consulente_dashboard' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-speedometer2"></i> Dashboard</a>
+          <a href="{% url 'consulente_candidati' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-person-lines-fill"></i> Anagrafiche</a>
+          <a href="{% url 'consulente_documenti' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> Documenti</a>
+          <a href="{% url 'consulente_presenze' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-check"></i> Presenze</a>
+          <a href="{% url 'consulente_upload_buste_paga' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-arrow-up"></i> Buste paga</a>
+          <a href="{% url 'consulente_upload_cud' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-ruled"></i> CUD</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       HR / SUPERVISORE
+  ══════════════════════════════════════════════════════ -->
+  {% else %}
+  <div class="row g-3">
+    <div class="col-md-5">
+      <div class="card section-card border-0 shadow-sm">
+        <div class="card-header"><i class="bi bi-person"></i> Dati account</div>
+        <div class="card-body p-2">
+          <table class="prof-kv w-100">
+            <tr><td>Username</td><td>{{ user.username }}</td></tr>
+            <tr><td>E-mail</td><td>{{ user.email }}</td></tr>
+            <tr><td>Ruolo</td><td>{{ user.get_ruolo_display }}</td></tr>
+            <tr><td>Azienda</td><td>{{ user.azienda.nome|default:"—" }}</td></tr>
+            <tr><td>Convalidato</td><td>{% if user.convalidato %}<span class="text-success">✓ Sì</span>{% else %}<span class="text-danger">No</span>{% endif %}</td></tr>
+            <tr><td>Privacy</td><td>{% if user.privacy_accettata %}<span class="text-success">✓ {{ user.privacy_data|date:"d/m/Y" }}</span>{% else %}<span class="text-danger">Non accettata</span>{% endif %}</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-7">
+      <div class="card section-card border-0 shadow-sm">
+        <div class="card-header"><i class="bi bi-grid"></i> Accesso rapido</div>
+        <div class="card-body p-2 d-flex flex-wrap gap-2">
+          <a href="{% url 'index_anagrafiche' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-people"></i> Dipendenti</a>
+          <a href="{% url 'lista_documenti' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> Documenti</a>
+          <a href="{% url 'lista_presenze' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-calendar-check"></i> Presenze</a>
+          <a href="{% url 'lista_richieste' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-chat-dots"></i> Richieste</a>
+          <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-briefcase"></i> Proposte/Contratti</a>
+          {% if is_admin %}
+          <a href="{% url 'lista_candidati' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-person-lines-fill"></i> Candidati</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

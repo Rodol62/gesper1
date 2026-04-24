@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}Guida moduli — Gesper{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width: 960px">
+  <h1 class="h4 mb-1"><i class="bi bi-book text-primary"></i> Guida ai moduli</h1>
+  <p class="text-muted small mb-2">
+    Codici ufficiali in <code>guida/registry.py</code> e tracciamento in
+    <code>docs/MODULI_E_TRACCIAMENTO.md</code>. Schede testuali: <strong>Django Admin → Voci guida</strong>.
+  </p>
+  <p class="small mb-4">
+    <span class="badge bg-secondary me-1">nuovo</span> target da costruire &nbsp;
+    <span class="badge bg-warning text-dark me-1">ibrido</span> in uso, da accorpare col legacy &nbsp;
+    <span class="badge bg-success me-1">consolidato</span> riferimento stabile
+  </p>
+
+  <h2 class="h6 text-uppercase text-muted mb-2">Moduli (target evolutivo)</h2>
+  <div class="list-group shadow-sm mb-5">
+    {% for m in moduli %}
+    <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-start"
+       href="{% url 'guida_modulo' m.codice %}">
+      <div class="pe-2">
+        <div class="d-flex align-items-center flex-wrap gap-1 mb-1">
+          {% if m.evoluzione == 'nuovo' %}
+          <span class="badge bg-secondary">nuovo</span>
+          {% elif m.evoluzione == 'ibrido' %}
+          <span class="badge bg-warning text-dark">ibrido</span>
+          {% else %}
+          <span class="badge bg-success">consolidato</span>
+          {% endif %}
+          <span class="fw-semibold">{{ m.titolo }}</span>
+        </div>
+        <div class="small text-muted">{{ m.descrizione }}</div>
+        <div class="small mt-1"><span class="badge bg-light text-dark border font-monospace">{{ m.codice }}</span>
+          <span class="text-muted">· {{ m.app_django }}</span>
+        </div>
+      </div>
+      <i class="bi bi-chevron-right text-muted flex-shrink-0 mt-1"></i>
+    </a>
+    {% endfor %}
+  </div>
+
+  <h2 class="h6 text-uppercase text-muted mb-2">Aree legacy → modulo sostitutivo</h2>
+  <p class="small text-muted mb-3">
+    Elenco da aggiornare in <code>guida/registry.py</code> (<code>LEGACY_AREE</code>).
+    Stato <strong>rimosso</strong> quando il vecchio flusso non è più in codice o menu.
+  </p>
+  <div class="table-responsive shadow-sm rounded border bg-white small">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Stato</th>
+          <th>Area legacy</th>
+          <th>Dove si trova</th>
+          <th>Sostituita da (codice)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for L in legacy_aree %}
+        <tr>
+          <td>
+            {% if L.stato == 'rimosso' %}
+            <span class="badge bg-success">rimosso</span>
+            {% elif L.stato == 'da_smantellare' %}
+            <span class="badge bg-danger">da smantellare</span>
+            {% else %}
+            <span class="badge bg-secondary">convivenza</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="fw-semibold">{{ L.titolo }}</div>
+            <div class="text-muted font-monospace" style="font-size:.72rem">{{ L.id }}</div>
+          </td>
+          <td>{{ L.ubicazione }}</td>
+          <td>
+            <a href="{% url 'guida_modulo' L.modulo_sostitutivo %}"><code>{{ L.modulo_sostitutivo }}</code></a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="small text-muted mt-3 mb-0">
+    Per ogni riga, il <strong>criterio di rimozione</strong> è definito nel registry (campo <code>criterio_rimozione</code>)
+    e riassunto nel documento Markdown sotto la tabella di mapping.
+  </p>
+</div>
+{% endblock %}

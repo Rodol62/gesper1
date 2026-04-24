@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% load l10n format_it_tags %}
+{% block title %}Import CUD massivo{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:980px;margin:0 auto;padding:1.5rem 1rem;">
+  <h2 class="mb-1" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+    <i class="bi bi-file-earmark-ruled me-2"></i>Import CUD PDF unico
+  </h2>
+  <p class="text-muted mb-3" style="font-size:.85rem">
+    Motore unico per admin/HR/consulente. Accetta PDF protetti con password <strong>DOLCEMASCOLO</strong>,
+    divide le pagine e scarta le copie duplicate nello stesso file.
+  </p>
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <div class="mb-0 text-muted" style="font-size:.9em">
+      <a href="{% url 'guida_modulo' 'documenti-compliance' %}">Guida: documenti e compliance</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert" style="font-size:.88rem">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="alert alert-info" style="font-size:.82rem;">
+    <i class="bi bi-info-circle me-1"></i>
+    Suggerimento: includi l'anno nel nome file (es. <strong>CUD 2024.pdf</strong>) per una descrizione coerente.
+  </div>
+
+  <form id="cudImportForm" method="post" enctype="multipart/form-data" class="card border-0 shadow-sm mb-4">
+    {% csrf_token %}
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label" style="font-size:.82rem;font-weight:600">Anno CUD</label>
+          <select name="anno" class="form-select form-select-sm">
+            {% for a in anni %}
+              <option value="{{ a|anno_it }}" {% if anno|stringformat:'s' == a|stringformat:'s' %}selected{% endif %}>{{ a|anno_it }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-9">
+          <label class="form-label" style="font-size:.82rem;font-weight:600">PDF unico CUD (anche multipli)</label>
+          <input type="file" name="pdf_files" class="form-control form-control-sm" multiple accept="application/pdf,.pdf,.PDF" required>
+        </div>
+      </div>
+      <div class="mt-2 form-check">
+        <input class="form-check-input" type="checkbox" value="1" id="sovrascriviCud" name="sovrascrivi">
+        <label class="form-check-label" for="sovrascriviCud" style="font-size:.82rem;">
+          Sovrascrivi CUD già presenti (usa solo per ripristino file danneggiati/illeggibili)
+        </label>
+      </div>
+      <div class="mt-3 d-flex gap-2 flex-wrap">
+        <button id="btnImportCud" type="submit" class="btn btn-primary"><i class="bi bi-cloud-upload me-1"></i>Importa CUD</button>
+        <a href="{% url 'lista_documenti' %}?tipo=certificato&anno=&dipendente=" class="btn btn-outline-secondary">Vai a CUD</a>
+      </div>
+
+      <div id="importProgressWrap" class="mt-3" style="display:none;">
+        <div class="d-flex justify-content-between align-items-center mb-1" style="font-size:.82rem;">
+          <span class="text-muted">Avanzamento importazione</span>
+          <strong id="importProgressLabel">0%</strong>
+        </div>
+        <div class="progress" role="progressbar" aria-label="Avanzamento import CUD" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="importProgressBarAria">
+          <div id="importProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%">0%</div>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  {% if risultati %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-header" style="background:#f8f9fa;border-bottom:1px solid #e5e8ec;font-size:.88rem;font-weight:600;color:#1b3a5f">
+      Esito import CUD
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" style="font-size:.84rem">
+        <thead style="background:#e9ecef">
+          <tr>
+            <th class="py-2 px-3">File</th>
+            <th class="py-2">Pag.</th>
+            <th class="py-2">CF</th>
+            <th class="py-2">Dipendente</th>
+            <th class="py-2">Esito</th>
+            <th class="py-2">Dettaglio</th>
+            <th class="py-2 text-center">Documento</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in risultati %}
+          <tr>
+            <td class="py-2 px-3">{{ r.filename }}</td>
+            <td class="py-2">{{ r.pagina|default:'-' }}</td>
+            <td class="py-2">{{ r.cf|default:'-' }}</td>
+            <td class="py-2">{% if r.dipendente %}{{ r.dipendente.cognome }} {{ r.dipendente.nome }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td class="py-2">
+              {% if r.esito == 'ok' %}<span class="badge bg-success">OK</span>
+              {% elif r.esito == 'scartato' %}<span class="badge bg-warning text-dark">Scartato</span>
+              {% elif r.esito == 'attenzione' %}<span class="badge bg-warning text-dark">Attenzione</span>
+              {% else %}<span class="badge bg-danger">Errore</span>{% endif %}
+            </td>
+            <td class="py-2"><span class="text-muted">{{ r.messaggio }}</span></td>
+            <td class="py-2 text-center">
+              {% if r.documento_id %}
+                <a href="{% url 'visualizza_documento' r.documento_id %}" class="btn btn-sm btn-outline-secondary">Visualizza</a>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+(function() {
+  const form = document.getElementById('cudImportForm');
+  const btn = document.getElementById('btnImportCud');
+  const wrap = document.getElementById('importProgressWrap');
+  const bar = document.getElementById('importProgressBar');
+  const barAria = document.getElementById('importProgressBarAria');
+  const label = document.getElementById('importProgressLabel');
+
+  if (!form || !btn || !wrap || !bar || !label || !barAria) return;
+
+  function setProgress(v) {
+    const n = Math.max(0, Math.min(100, v));
+    bar.style.width = n + '%';
+    bar.textContent = n + '%';
+    label.textContent = n + '%';
+    barAria.setAttribute('aria-valuenow', String(n));
+  }
+
+  let timer = null;
+  form.addEventListener('submit', function() {
+    wrap.style.display = 'block';
+    btn.disabled = true;
+    setProgress(1);
+
+    let current = 1;
+    timer = window.setInterval(function() {
+      if (current < 85) current += 3;
+      else if (current < 95) current += 1;
+      setProgress(current);
+    }, 350);
+  });
+
+  window.addEventListener('pagehide', function() {
+    if (timer) window.clearInterval(timer);
+  });
+})();
+</script>
+{% endblock %}

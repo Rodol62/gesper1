@@ -1,0 +1,121 @@
+[
+  {
+    "livello": "Qa",
+    "area": "Quadri",
+    "priority": 30,
+    "mansioni": [
+      "Direttore di struttura",
+      "Responsabile di area",
+      "Coordinatore di più reparti",
+      "Responsabile amministrativo di alto livello",
+      "Responsabile operations"
+    ]
+  },
+  {
+    "livello": "Qb",
+    "area": "Quadri",
+    "priority": 29,
+    "mansioni": [
+      "Vice direttore",
+      "Responsabile di reparto complesso",
+      "Coordinatore di team",
+      "Responsabile turni e servizi",
+      "Responsabile qualità"
+    ]
+  },
+  {
+    "livello": "1",
+    "area": "Impiegati / Operai specializzati",
+    "priority": 28,
+    "mansioni": [
+      "Maître",
+      "Chef di cucina",
+      "Capo bar",
+      "Capo ricevimento",
+      "Responsabile sala",
+      "Sommelier"
+    ]
+  },
+  {
+    "livello": "2",
+    "area": "Impiegati / Operai qualificati",
+    "priority": 27,
+    "mansioni": [
+      "Cuoco qualificato",
+      "Cameriere qualificato",
+      "Barman qualificato",
+      "Addetto amministrativo esperto",
+      "Pasticcere qualificato"
+    ]
+  },
+  {
+    "livello": "3",
+    "area": "Operai qualificati",
+    "priority": 26,
+    "mansioni": [
+      "Cuoco",
+      "Cameriere",
+      "Addetto banco",
+      "Addetto cucina",
+      "Addetto amministrativo",
+      "Addetto mensa qualificato"
+    ]
+  },
+  {
+    "livello": "4",
+    "area": "Operai",
+    "priority": 25,
+    "mansioni": [
+      "Aiuto cuoco",
+      "Aiuto cameriere",
+      "Addetto mensa",
+      "Addetto preparazioni semplici",
+      "Addetto banco base"
+    ]
+  },
+  {
+    "livello": "5",
+    "area": "Operai",
+    "priority": 24,
+    "mansioni": [
+      "Addetto pulizie",
+      "Addetto lavaggio",
+      "Addetto servizi ausiliari",
+      "Runner sala",
+      "Supporto cucina"
+    ]
+  },
+  {
+    "livello": "6s",
+    "area": "Operai",
+    "priority": 23,
+    "mansioni": [
+      "Addetto servizi semplici con esperienza",
+      "Supporto sala",
+      "Supporto cucina",
+      "Addetto preparazioni fredde"
+    ]
+  },
+  {
+    "livello": "6",
+    "area": "Operai",
+    "priority": 22,
+    "mansioni": [
+      "Addetto servizi semplici",
+      "Addetto supporto operativo",
+      "Addetto pulizie base",
+      "Lavapiatti con supporto"
+    ]
+  },
+  {
+    "livello": "7",
+    "area": "Operai",
+    "priority": 21,
+    "mansioni": [
+      "Lavapiatti",
+      "Addetto pulizie elementari",
+      "Addetto servizi elementari",
+      "Supporto generico"
+    ]
+  }
+]

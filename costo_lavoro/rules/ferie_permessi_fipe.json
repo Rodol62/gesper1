@@ -1,0 +1,57 @@
+{
+  "ferie_permessi_fipe": {
+    "ferie": {
+      "giorni_annui": 26,
+      "settimane_annue": 4.33,
+      "maturazione_mensile_giorni": 2.166,
+      "maturazione_mensile_ore": 14.44,
+      "regole_fruizione": {
+        "preavviso_richiesta_giorni": 5,
+        "periodo_preferenziale": ["06-01", "09-30"],
+        "blocco_ferie_in_periodi_di_picco": true
+      },
+      "monetizzazione": {
+        "consentita_solo_a_cessazione": true,
+        "vietata_in_costanza_di_rapporto": true
+      }
+    },
+
+    "rol": {
+      "ore_annue": 72,
+      "maturazione_mensile_ore": 6,
+      "regole_fruizione": {
+        "preavviso_richiesta_giorni": 3,
+        "accumulo_massimo_ore": 72
+      }
+    },
+
+    "ex_festivita": {
+      "giorni_annui": 4,
+      "ore_annue": 32,
+      "maturazione_mensile_ore": 2.66,
+      "regole_fruizione": {
+        "fruizione_preferenziale": "entro l'anno",
+        "monetizzazione_se_non_fruite": true
+      }
+    },
+
+    "assenze_non_retribuite": {
+      "aspettativa": {
+        "consentita": true,
+        "durata_massima_mesi": 12
+      },
+      "permessi_personali": {
+        "consentiti": true,
+        "limite_annuo_ore": 16
+      }
+    },
+
+    "part_time": {
+      "riproporzionamento": {
+        "ferie": true,
+        "rol": true,
+        "ex_festivita": true
+      }
+    }
+  }
+}

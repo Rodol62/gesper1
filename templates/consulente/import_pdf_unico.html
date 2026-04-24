@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Import PDF unico — Consulente{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1000px;margin:0 auto;padding:1.5rem 1rem">
+
+  <nav aria-label="breadcrumb" style="font-size:.82rem;margin-bottom:1rem">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'consulente_dashboard' %}">Consulente</a></li>
+      <li class="breadcrumb-item active">Import PDF unico</li>
+    </ol>
+  </nav>
+
+  <h2 class="mb-1" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+    <i class="bi bi-file-earmark-zip me-2"></i>Import PDF unico (buste + F24)
+  </h2>
+  <p class="text-muted mb-4" style="font-size:.85rem">
+    Carica uno o più PDF mensili del consulente. Il sistema esegue anteprima + import:
+    crea eventuali dipendenti mancanti e allega buste/F24 in automatico.
+  </p>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert" style="font-size:.88rem">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body py-3">
+      <form method="post" enctype="multipart/form-data" class="d-flex align-items-end gap-3 flex-wrap">
+        {% csrf_token %}
+        <div style="min-width:340px;flex:1">
+          <label class="form-label mb-1" style="font-size:.82rem;font-weight:600">Seleziona PDF (uno o più file)</label>
+          <input type="file" name="pdf_files" class="form-control form-control-sm" accept=".pdf,.PDF" multiple required>
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-cloud-upload me-1"></i>Importa file selezionati
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {% if risultati %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-header" style="font-size:.88rem;font-weight:600;color:#1b3a5f;background:#f8f9fa;border-bottom:1px solid #e5e8ec">
+      <i class="bi bi-list-check me-1"></i>Esito import
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" style="font-size:.84rem">
+        <thead style="background:#e9ecef">
+          <tr>
+            <th class="py-2 px-3">File</th>
+            <th class="py-2 text-center">Esito</th>
+            <th class="py-2 text-center">Buste uniche</th>
+            <th class="py-2 text-center">Match</th>
+            <th class="py-2 text-center">Da creare</th>
+            <th class="py-2 text-center">Già presenti</th>
+            <th class="py-2 text-center">Pagine F24</th>
+            <th class="py-2">Dettaglio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in risultati %}
+          <tr>
+            <td class="py-2 px-3">{{ r.file }}</td>
+            <td class="py-2 text-center">
+              {% if r.ok %}
+                <span class="badge bg-success">OK</span>
+              {% else %}
+                <span class="badge bg-danger">Errore</span>
+              {% endif %}
+            </td>
+            <td class="py-2 text-center">{{ r.buste_uniche|default:'-' }}</td>
+            <td class="py-2 text-center">{{ r.matched|default:'-' }}</td>
+            <td class="py-2 text-center">{{ r.to_create|default:'-' }}</td>
+            <td class="py-2 text-center">{{ r.already_present|default:'-' }}</td>
+            <td class="py-2 text-center">{{ r.f24_pages|default:'-' }}</td>
+            <td class="py-2">
+              {% if r.ok %}
+                <span class="text-muted" style="font-size:.78rem">Report: {{ r.report }}</span>
+              {% else %}
+                <span class="text-danger" style="font-size:.78rem">{{ r.errore }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

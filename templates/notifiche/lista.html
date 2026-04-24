@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Notifiche e alert</h2>
+<table>
+    <tr>
+        <th>Messaggio</th>
+        <th>Data invio</th>
+        <th>Stato</th>
+        <th>Azioni</th>
+    </tr>
+    {% for notifica in notifiche %}
+    <tr>
+        <td>{{ notifica.messaggio }}</td>
+        <td>{{ notifica.data_invio }}</td>
+        <td>{% if notifica.letta %}Letta{% else %}Non letta{% endif %}</td>
+        <td><a href="{% url 'dettaglio_notifica' notifica.id %}">Dettaglio</a></td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

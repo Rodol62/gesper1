@@ -1,0 +1,377 @@
+{% extends 'base.html' %}
+{% load currency_filters format_it_tags %}
+{% block title %}Modifica bozza contratto — {{ contratto.numero_contratto }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  {# ── Header ──────────────────────────────────────────────────── #}
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:7px;
+              padding:.6rem 1rem;margin-bottom:1rem;display:flex;align-items:center;
+              justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+    <div>
+      <div style="font-size:.72rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em">Bozza contratto</div>
+      <h5 style="margin:0;font-size:.95rem;font-weight:800">
+        <i class="bi bi-file-earmark-text-fill"></i>
+        {{ contratto.numero_contratto }}
+      </h5>
+      <div style="font-size:.78rem;opacity:.85">
+        {{ dip.nome }} {{ dip.cognome }} &nbsp;·&nbsp; {{ contratto.azienda.nome }}
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      {% if proposta %}
+      <a href="{% url 'dettaglio_proposta' proposta.id %}"
+         style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.35);
+                font-size:.8rem;padding:.2rem .6rem;border-radius:4px;text-decoration:none">
+        <i class="bi bi-file-text"></i> Proposta origine
+      </a>
+      {% endif %}
+      {% if proposta and proposta.parametro_ccnl_risolto %}
+      <a href="{% url 'simulazione_economica_proposta' proposta.id %}"
+         style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.35);
+                font-size:.8rem;padding:.2rem .6rem;border-radius:4px;text-decoration:none">
+        <i class="bi bi-graph-up-arrow"></i> Simulazione economica
+      </a>
+      {% endif %}
+      <a href="{% url 'contratto_pdf' contratto.id %}"
+         style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.35);
+                font-size:.8rem;padding:.2rem .6rem;border-radius:4px;text-decoration:none">
+        <i class="bi bi-file-earmark-pdf"></i> PDF
+      </a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="alert alert-info py-2 mb-3" style="font-size:.82rem">
+    <i class="bi bi-info-circle-fill"></i>
+    <strong>Bozza in attesa di firma.</strong>
+    Modifica i termini contrattuali prima che il candidato la riceva per la firma digitale.
+    Quando pronta, il candidato può accedervi dalla propria area personale.
+  </div>
+
+  <div class="row g-3">
+
+    {# ── Colonna SX: Form modifica ──────────────────────────── #}
+    <div class="col-12 col-xl-7">
+      <form method="post" id="form-contratto">
+        {% csrf_token %}
+
+        {# Dati base #}
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-header py-2 px-3"
+               style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+            <i class="bi bi-person-lines-fill"></i> Dati fondamentali
+          </div>
+          <div class="card-body py-2 px-3">
+            <div class="row g-2" style="font-size:.83rem">
+              <div class="col-12 col-sm-6">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Tipo contratto *</label>
+                {{ form.tipo_contratto }}
+                {% if form.tipo_contratto.errors %}<div class="text-danger small">{{ form.tipo_contratto.errors }}</div>{% endif %}
+              </div>
+              <div class="col-12 col-sm-3">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Data inizio *</label>
+                {{ form.data_inizio_rapporto }}
+                {% if form.data_inizio_rapporto.errors %}<div class="text-danger small">{{ form.data_inizio_rapporto.errors }}</div>{% endif %}
+              </div>
+              <div class="col-12 col-sm-3">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Data fine (se TD)</label>
+                {{ form.data_fine_rapporto }}
+                {% if form.data_fine_rapporto.errors %}<div class="text-danger small">{{ form.data_fine_rapporto.errors }}</div>{% endif %}
+              </div>
+              <div class="col-12 col-sm-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Posizione</label>
+                {{ form.posizione }}
+              </div>
+              <div class="col-12 col-sm-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Qualifica</label>
+                {{ form.qualifica }}
+              </div>
+              <div class="col-12 col-sm-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Livello CCNL</label>
+                {{ form.livello_ccnl }}
+              </div>
+              <div class="col-12 col-sm-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Turno</label>
+                {{ form.turno_tipo }}
+              </div>
+              <div class="col-12 col-sm-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Ore settimanali</label>
+                {{ form.ore_settimanali }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# Retribuzione #}
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-header py-2 px-3"
+               style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+            <i class="bi bi-cash-coin"></i> Retribuzione
+          </div>
+          <div class="card-body py-2 px-3">
+            <div class="row g-2" style="font-size:.83rem">
+              <div class="col-6 col-sm-3">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Lordo mensile *</label>
+                {{ form.stipendio_lordo_mensile }}
+              </div>
+              <div class="col-6 col-sm-3">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Paga base</label>
+                {{ form.paga_base_mensile }}
+              </div>
+              <div class="col-6 col-sm-3">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Contingenza</label>
+                {{ form.contingenza_mensile }}
+              </div>
+              <div class="col-6 col-sm-3">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">EDR</label>
+                {{ form.edr_mensile }}
+              </div>
+              <div class="col-6 col-sm-3">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Premio obiettivi</label>
+                {{ form.premio_obiettivi }}
+              </div>
+              <div class="col-6 col-sm-3">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Aliquota TFR %</label>
+                {{ form.aliquota_tfr }}
+              </div>
+              <div class="col-12 col-sm-6">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Fondo pensione</label>
+                {{ form.fondo_pensione }}
+              </div>
+              <div class="col-12">
+                <div class="d-flex gap-3 mt-1">
+                  <div class="form-check form-check-inline">
+                    {{ form.tredicesima }}
+                    <label class="form-check-label" for="{{ form.tredicesima.id_for_label }}" style="font-size:.82rem">13ª mensilità</label>
+                  </div>
+                  <div class="form-check form-check-inline">
+                    {{ form.quattordicesima }}
+                    <label class="form-check-label" for="{{ form.quattordicesima.id_for_label }}" style="font-size:.82rem">14ª mensilità</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# Ferie, permessi, malattia #}
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-header py-2 px-3"
+               style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+            <i class="bi bi-calendar3"></i> Ferie e permessi
+          </div>
+          <div class="card-body py-2 px-3">
+            <div class="row g-2" style="font-size:.83rem">
+              <div class="col-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Ferie annuali (gg)</label>
+                {{ form.giorni_ferie_annuali }}
+              </div>
+              <div class="col-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Permessi annuali (gg)</label>
+                {{ form.giorni_permesso_annuali }}
+              </div>
+              <div class="col-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Malattia retribuita (gg)</label>
+                {{ form.giorni_malattia_retribuiti }}
+              </div>
+              <div class="col-12">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Riposi compensativi (regola)</label>
+                {{ form.riposi_compensativi_regola }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# Straordinari e scatti #}
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-header py-2 px-3"
+               style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+            <i class="bi bi-arrow-up-right-circle"></i> Straordinari e scatti
+          </div>
+          <div class="card-body py-2 px-3">
+            <div class="row g-2" style="font-size:.83rem">
+              <div class="col-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Straord. diurno %</label>
+                {{ form.ore_straordinario_diurno_maggiorazione }}
+              </div>
+              <div class="col-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Straord. notturno %</label>
+                {{ form.ore_straordinario_notturno_maggiorazione }}
+              </div>
+              <div class="col-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Straord. festivo %</label>
+                {{ form.ore_straordinario_festivo_maggiorazione }}
+              </div>
+              <div class="col-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Periodicità scatti (mesi)</label>
+                {{ form.scatto_periodicita_mesi }}
+              </div>
+              <div class="col-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Importo scatto €</label>
+                {{ form.scatto_importo }}
+              </div>
+              <div class="col-4">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Max scatti</label>
+                {{ form.numero_scatti_massimi }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Validità dal</label>
+                {{ form.decorrenza_validita_da }}
+              </div>
+              <div class="col-6">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Validità al</label>
+                {{ form.decorrenza_validita_a }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger small py-2">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="d-flex gap-2 mb-4">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-floppy-fill"></i> Salva bozza contratto
+          </button>
+          {% if proposta %}
+          <a href="{% url 'dettaglio_proposta' proposta.id %}" class="btn btn-outline-secondary btn-sm">
+            Annulla
+          </a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+
+    {# ── Colonna DX: Riferimenti CCNL + Simulazione ─────────── #}
+    <div class="col-12 col-xl-5">
+
+      {# Dati candidato #}
+      <div class="card border-0 shadow-sm mb-3" style="font-size:.82rem">
+        <div class="card-header py-2 px-3"
+             style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+          <i class="bi bi-person-vcard"></i> Candidato
+        </div>
+        <div class="card-body py-2 px-3">
+          <div><strong>{{ dip.nome }} {{ dip.cognome }}</strong></div>
+          {% if dip.codice_fiscale %}<div class="text-muted">CF: {{ dip.codice_fiscale }}</div>{% endif %}
+          {% if profilo %}
+          <div class="text-muted">Familiari a carico: {{ profilo.num_familiari_a_carico|default:"0" }}</div>
+          {% if profilo.regione_residenza %}<div class="text-muted">Regione: {{ profilo.regione_residenza }}</div>{% endif %}
+          {% endif %}
+        </div>
+      </div>
+
+      {# Parametri CCNL di riferimento #}
+      {% if parametro_ccnl %}
+      <div class="card border-0 shadow-sm mb-3" style="font-size:.82rem">
+        <div class="card-header py-2 px-3"
+             style="background:#e8f5e9;font-size:.82rem;font-weight:700;color:#1b5e20;border-bottom:1px solid #c8e6c9">
+          <i class="bi bi-table"></i> Parametri CCNL — Livello {{ parametro_ccnl.livello }}
+        </div>
+        <div class="card-body py-2 px-3">
+          <table class="table table-sm table-borderless mb-0" style="font-size:.8rem">
+            <tbody>
+              <tr><td class="text-muted py-0">CCNL</td><td class="fw-semibold py-0">{{ parametro_ccnl.ccnl }}</td></tr>
+              <tr><td class="text-muted py-0">Versione</td><td class="py-0">{{ parametro_ccnl.versione }}</td></tr>
+              <tr><td class="text-muted py-0">Qualifica</td><td class="py-0">{{ parametro_ccnl.qualifica }}</td></tr>
+              <tr><td class="text-muted py-0">Minimo tabellare</td><td class="py-0 fw-semibold">€ {{ parametro_ccnl.minimo_tabellare|euro_it }}</td></tr>
+              {% if parametro_ccnl.contingenza_mensile %}
+              <tr><td class="text-muted py-0">Contingenza</td><td class="py-0">€ {{ parametro_ccnl.contingenza_mensile|euro_it }}</td></tr>
+              {% endif %}
+              {% if parametro_ccnl.edr_mensile %}
+              <tr><td class="text-muted py-0">EDR</td><td class="py-0">€ {{ parametro_ccnl.edr_mensile|euro_it }}</td></tr>
+              {% endif %}
+              {% if parametro_ccnl.totale_tabellare %}
+              <tr><td class="text-muted py-0">Totale tabellare</td><td class="py-0 fw-bold text-success">€ {{ parametro_ccnl.totale_tabellare|euro_it }}</td></tr>
+              {% endif %}
+              {% if parametro_ccnl.ore_settimanali %}
+              <tr><td class="text-muted py-0">Ore sett.</td><td class="py-0">{{ parametro_ccnl.ore_settimanali|ore_hm }} h</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Simulazione netto #}
+      {% if simulazione %}
+      <div class="card border-0 shadow-sm mb-3" style="font-size:.82rem">
+        <div class="card-header py-2 px-3"
+             style="background:#fff8e1;font-size:.82rem;font-weight:700;color:#7b4f00;border-bottom:1px solid #ffe082">
+          <i class="bi bi-calculator"></i> Simulazione netto (mese corrente)
+        </div>
+        <div class="card-body py-2 px-3">
+          <table class="table table-sm table-borderless mb-0" style="font-size:.8rem">
+            <tbody>
+              <tr><td class="text-muted py-0">Lordo mensile</td>
+                  <td class="py-0 fw-semibold">€ {{ simulazione.lordo_mensile|euro_it }}</td></tr>
+              {% if simulazione.trattenute %}
+              {% with t=simulazione.trattenute %}
+              <tr><td class="text-muted py-0">INPS dipend.</td>
+                  <td class="py-0 text-danger">- € {{ t.inps_dipendente|abs_num|euro_it }}</td></tr>
+              <tr><td class="text-muted py-0">IRPEF lorda</td>
+                  <td class="py-0 text-danger">- € {{ t.irpef_lorda|abs_num|euro_it }}</td></tr>
+              <tr><td class="text-muted py-0">Detrazioni lavoro</td>
+                  <td class="py-0 text-success">+ € {{ t.detrazioni_lavoro|abs_num|euro_it }}</td></tr>
+              {% if t.addizionale_regionale %}
+              <tr><td class="text-muted py-0">Add. regionale</td>
+                  <td class="py-0 text-danger">- € {{ t.addizionale_regionale|abs_num|euro_it }}</td></tr>
+              {% endif %}
+              {% endwith %}
+              {% endif %}
+              {% if simulazione.netto %}
+              <tr style="border-top:1px solid #dee2e6">
+                <td class="py-1 fw-bold">Netto stimato</td>
+                <td class="py-1 fw-bold" style="color:#1b5e20;font-size:.9rem">
+                  € {{ simulazione.netto|euro_it }}
+                </td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+          <div class="text-muted mt-1" style="font-size:.72rem">
+            <i class="bi bi-info-circle"></i>
+            Stima basata sui dati attuali del contratto. Verificare dopo il salvataggio.
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Stato iter #}
+      <div class="card border-0 shadow-sm mb-3" style="font-size:.82rem">
+        <div class="card-header py-2 px-3"
+             style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+          <i class="bi bi-diagram-3"></i> Stato iter contrattuale
+        </div>
+        <div class="card-body py-2 px-3">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="badge bg-warning text-dark">{{ contratto.get_stato_display }}</span>
+            <span class="text-muted" style="font-size:.78rem">in attesa di firma candidato</span>
+          </div>
+          {% if proposta %}
+          <div class="text-muted" style="font-size:.78rem">
+            Proposta origine: <strong>{{ proposta.numero_proposta }}</strong>
+            &nbsp;·&nbsp; {{ proposta.get_stato_display }}
+          </div>
+          {% endif %}
+          <div class="text-muted mt-1" style="font-size:.78rem">
+            Creato: {{ contratto.data_creazione|date:"d/m/Y H:i" }}
+            {% if contratto.modificato_da %}
+            &nbsp;·&nbsp; Modificato da {{ contratto.modificato_da.get_full_name|default:contratto.modificato_da.username }}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+    </div>{# /col DX #}
+  </div>{# /row #}
+</div>
+{% endblock %}

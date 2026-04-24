@@ -1,0 +1,84 @@
+{
+  "part_time_fipe": {
+    "tipologie": {
+      "orizzontale": {
+        "descrizione": "Riduzione dell'orario giornaliero"
+      },
+      "verticale": {
+        "descrizione": "Lavoro solo in alcuni giorni della settimana"
+      },
+      "misto": {
+        "descrizione": "Combinazione di orizzontale e verticale"
+      }
+    },
+
+    "limiti_orari": {
+      "min_settimanali": 16,
+      "max_settimanali": 30,
+      "full_time_riferimento": 40,
+      "descrizione": "Limiti orari previsti dal CCNL FIPE per il part-time"
+    },
+
+    "lavoro_supplementare": {
+      "consentito": true,
+      "limite_percentuale": 25,
+      "maggiorazione": 0.15,
+      "conversione_in_banca_ore": true,
+      "descrizione": "Ore oltre l'orario contrattuale ma entro il full-time"
+    },
+
+    "straordinario": {
+      "consentito": false,
+      "eccezioni": [
+        "accordo scritto",
+        "esigenze eccezionali documentate"
+      ],
+      "descrizione": "Il part-time non può fare straordinario salvo accordi specifici"
+    },
+
+    "maggiorazioni_specifiche": {
+      "notturno": 0.30,
+      "festivo": 0.20,
+      "notturno_festivo": 0.50,
+      "descrizione": "Maggiorazioni applicate anche ai part-time"
+    },
+
+    "diritti": {
+      "pari_trattamento": true,
+      "proporzionalita": true,
+      "accesso_formazione": true,
+      "diritto_precedenza_full_time": true
+    },
+
+    "compatibilita": {
+      "stagionali": true,
+      "apprendistato": true,
+      "banca_ore": {
+        "consentita": true,
+        "note": "Il lavoro supplementare può confluire in banca ore"
+      }
+    },
+
+    "impatto_contributivo_fiscale": {
+      "inps": {
+        "calcolo_proporzionale": true
+      },
+      "inail": {
+        "calcolo_proporzionale": true
+      },
+      "irpef": {
+        "imponibile_proporzionale": true
+      },
+      "tfr": {
+        "maturazione_proporzionale": true
+      }
+    },
+
+    "validazioni": {
+      "ore_non_negative": true,
+      "rispetto_limiti_settimanali": true,
+      "supplementare_non_supera_25_percento": true,
+      "straordinario_non_consentito": true
+    }
+  }
+}

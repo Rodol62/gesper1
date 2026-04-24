@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Carica documento dipendente</h2>
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <!-- Qui va il form di upload -->
+    <input type="file" name="file">
+    <input type="submit" value="Carica">
+</form>
+{% endblock %}

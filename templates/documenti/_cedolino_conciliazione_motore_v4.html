@@ -1,0 +1,144 @@
+{# Conciliazione: lettura PDF (report odierno) vs dati salvati CedolinoMotoreV4 (motore posizionale v4). #}
+{% if conciliazione_v4 %}
+<div class="ced-confronto border-bottom">
+  {% if conciliazione_v4.stato == "senza_report" %}
+  <div class="alert alert-warning py-2 px-3 mb-0 rounded-0 small">
+    <strong>Conciliazione con estrazione v4:</strong> impossibile (PDF non letto o errore estrazione).
+  </div>
+  {% elif conciliazione_v4.stato == "senza_salvato" %}
+  <div class="alert alert-secondary py-2 px-3 mb-0 rounded-0 small">
+    <strong>Nessuna estrazione v4 collegata a questo file PDF</strong>
+    (nessuna riga <code>CedolinoMotoreV4</code> con <code>documento_id</code> = questo documento, e nessun dato riusabile da altro file senza rischio di incrocio).
+    <span class="d-block text-muted mt-1">
+      Per salvare l’estrazione posizionale da <em>questo</em> PDF e abilitare i confronti DB vs PDF (netto, lordo, imponibile, contributi, voci), usa il pulsante <strong>v4</strong> nella colonna «Azioni» della riga della tabella sopra.
+    </span>
+    {% if v4_conflitto_documento_id %}
+    <div class="alert alert-info py-2 px-3 mt-2 mb-0 small border-info">
+      <strong>Stesso periodo, altro documento:</strong> in archivio c’è già un’estrazione v4 per questo dipendente e mese/anno, ma legata al documento
+      <a href="{% url 'visualizza_documento' v4_conflitto_documento_id %}" class="alert-link fw-semibold">#{{ v4_conflitto_documento_id }}</a>
+      (probabilmente un duplicato o una versione precedente del cedolino). Non la riusiamo automaticamente su questo PDF.
+      Se <em>questo</em> è il file giusto, premi comunque <strong>v4</strong> qui: aggiorna il legame e sostituisce i dati memorizzati con l’estrazione da questo PDF.
+    </div>
+    {% endif %}
+  </div>
+  {% elif conciliazione_v4.stato == "ok" %}
+  <div class="alert alert-success py-2 px-3 mb-0 rounded-0 small d-flex align-items-center flex-wrap gap-2">
+    <span><i class="bi bi-check-circle-fill me-1"></i><strong>Conciliazione completa</strong></span>
+    <span class="text-muted">Snapshot DB vs PDF e subtotali ricalcolati da voci (F3–F5, F9) ok; formule <strong>bloccanti</strong> (F3–F5, F8, F9) ok. Eventuali F1, F2 o F7 in elenco sono solo diagnostiche e non determinano questo esito.</span>
+  </div>
+  {% else %}
+  <div class="alert alert-danger py-2 px-3 mb-0 rounded-0 small">
+    <strong><i class="bi bi-exclamation-triangle-fill me-1"></i>Differenze rispetto all’estrazione v4 salvata</strong>
+    {% if conciliazione_v4.n_diff %}
+    <span class="badge bg-light text-danger ms-1">{{ conciliazione_v4.n_diff }} incongruenze</span>
+    {% endif %}
+    <span class="d-block text-muted mt-1 small">Verifica le righe sotto: differenze tra DB e PDF, subtotali calcolati da voci vs PDF, o formule F1–F9 non rispettate sui dati memorizzati. Aggiorna l’estrazione v4 se il PDF o il parser sono cambiati.</span>
+  </div>
+  {% endif %}
+
+  {% if conciliazione_v4.righe %}
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered mb-0 align-middle" style="font-size:.76rem">
+      <thead class="table-light">
+        <tr>
+          <th>Controllo</th>
+          <th>Riferimento (DB / elaborato)</th>
+          <th>PDF oggi</th>
+          <th class="text-end mono" style="width:6.5rem" title="Importi: Riferimento − Lettura (con segno). Righe voce: lettura − DB.">Δ</th>
+          <th class="text-center" style="width:5rem">Esito</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cr in conciliazione_v4.righe %}
+        <tr>
+          <td class="fw-semibold">{{ cr.campo }}</td>
+          <td class="text-break">{{ cr.riferimento }}</td>
+          <td class="text-break">{{ cr.lettura }}</td>
+          <td class="text-end mono">
+            {% if "Righe voce" in cr.campo %}
+              {{ cr.delta|default:"—" }}
+            {% elif cr.delta and cr.delta != "—" %}
+              {{ cr.delta }} €
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if cr.ok == True %}
+            <span class="text-success" title="Coerente"><i class="bi bi-check-lg"></i></span>
+            {% elif cr.ok == False %}
+            <span class="text-danger" title="Differenza"><i class="bi bi-x-lg"></i></span>
+            {% else %}
+            <span class="text-muted" title="Non applicabile">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% if cr.nota %}
+        <tr>
+          <td colspan="5" class="small text-muted py-1 border-top-0">{{ cr.nota }}</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if conciliazione_v4.controlli_formula %}
+  <div class="table-responsive border-top">
+    <p class="small text-muted mb-1 px-2 pt-2 mb-0">Dettaglio formule F1–F9 sul cedolino ricostruito dai dati memorizzati (calcolato vs valore di riferimento nel record).</p>
+    <table class="table table-sm table-bordered mb-0 align-middle" style="font-size:.72rem">
+      <thead class="table-light">
+        <tr>
+          <th>Controllo</th>
+          <th>Formula</th>
+          <th class="text-end">Calc.</th>
+          <th class="text-end">Rif.</th>
+          <th class="text-end mono" title="Calcolato − Rif. (segno: + se il calcolato supera il riferimento letto nel record)">Δ</th>
+          <th class="text-center" style="width:4rem">OK</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fc in conciliazione_v4.controlli_formula %}
+        <tr class="{% if not fc.ok %}table-warning{% endif %}">
+          <td class="fw-semibold">{{ fc.campo }}</td>
+          <td class="text-break small">{{ fc.formula }}</td>
+          <td class="text-end mono">{{ fc.calcolato }}</td>
+          <td class="text-end mono">{{ fc.letto }}</td>
+          <td class="text-end mono">{{ fc.delta }}{% if fc.delta and fc.delta != "—" %} €{% endif %}</td>
+          <td class="text-center">{% if fc.ok %}<span class="text-success"><i class="bi bi-check-lg"></i></span>{% else %}<span class="text-danger"><i class="bi bi-x-lg"></i></span>{% endif %}</td>
+        </tr>
+        {% if fc.nota %}
+        <tr><td colspan="6" class="small text-muted py-0 border-top-0">{{ fc.nota }}</td></tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if show_staff_filters and documento_id and conciliazione_v4.stato != "senza_report" and cedolino_ref_post %}
+  <div class="px-2 py-2 border-top bg-light bg-opacity-50">
+    <form method="post" class="d-inline-flex flex-wrap align-items-center gap-2">
+      {% csrf_token %}
+      <input type="hidden" name="salva_estrazione_v4" value="{{ documento_id }}">
+      {% if cedolino_ref_post.buste_scheda %}
+      <input type="hidden" name="buste_scheda" value="{{ cedolino_ref_post.buste_scheda }}">
+      {% endif %}
+      <input type="hidden" name="anno" value="{{ cedolino_ref_post.anno }}">
+      <input type="hidden" name="page" value="{{ cedolino_ref_post.page }}">
+      {% if cedolino_ref_post.azienda_id %}
+      <input type="hidden" name="azienda_id" value="{{ cedolino_ref_post.azienda_id }}">
+      {% endif %}
+      {% if cedolino_ref_post.dipendente %}
+      <input type="hidden" name="dipendente" value="{{ cedolino_ref_post.dipendente }}">
+      {% endif %}
+      <button type="submit" class="btn btn-outline-secondary btn-sm py-0" title="Esegue parse_bytes (motore v4) e salva/aggiorna cedolino e voci">
+        <i class="bi bi-database-down"></i> {% if conciliazione_v4.ha_salvato %}Aggiorna{% else %}Memorizza{% endif %} estrazione v4
+      </button>
+      <span class="small text-muted">Sovrascrive i dati in <code>CedolinoMotoreV4</code> per dipendente e periodo del cedolino letto dal PDF.</span>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endif %}

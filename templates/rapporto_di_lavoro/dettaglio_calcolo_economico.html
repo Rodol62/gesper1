@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% load currency_filters format_it_tags %}
+
+{% block title %}Dettaglio calcolo economico - Livello {{ parametro.livello }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">📊 Calcolo economico dettagliato</h2>
+    <a href="{% url 'gestione_riferimenti_economici' %}" class="btn btn-outline-secondary">← Torna a Riferimenti economici</a>
+  </div>
+
+  <!-- Intestazione parametro -->
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">{{ parametro.ccnl }} - {{ parametro.versione }}</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4">
+          <strong>Livello:</strong> {{ parametro.livello }}<br>
+          <strong>Qualifica:</strong> {{ parametro.qualifica }}
+        </div>
+        <div class="col-md-4">
+          <strong>Sezione:</strong> {{ parametro.get_sezione_display }}<br>
+          <strong>Tipo:</strong> {{ parametro.tipo_contratto_nazionale }}
+        </div>
+        <div class="col-md-4">
+          <strong>Validità:</strong><br>
+          {% if parametro.decorrenza_validita_da %}
+            dal {{ parametro.decorrenza_validita_da|date:"d/m/Y" }}
+            {% if parametro.decorrenza_validita_a %}al {{ parametro.decorrenza_validita_a|date:"d/m/Y" }}{% endif %}
+          {% else %}
+            Non specificata
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- COLONNA SINISTRA: NETTO DIPENDENTE -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0">💰 Netto per il dipendente</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tbody>
+              <tr>
+                <td><strong>Stipendio lordo mensile</strong></td>
+                <td class="text-end"><strong>{{ calcolo.lordo_mensile|euro_full }}</strong></td>
+              </tr>
+              <tr class="table-light">
+                <td colspan="2"><small class="text-muted">Detrazioni</small></td>
+              </tr>
+              <tr>
+                <td class="ps-3">Contributi INPS dipendente (9,19%)</td>
+                <td class="text-end text-danger">- {{ calcolo.netto.inps_dipendente|euro_full }}</td>
+              </tr>
+              <tr class="table-secondary">
+                <td><strong>Imponibile fiscale</strong></td>
+                <td class="text-end"><strong>{{ calcolo.netto.imponibile|euro_full }}</strong></td>
+              </tr>
+              <tr class="table-light">
+                <td colspan="2"><small class="text-muted">Imposte</small></td>
+              </tr>
+              <tr>
+                <td class="ps-3">IRPEF lorda</td>
+                <td class="text-end text-danger">- {{ calcolo.netto.irpef_lorda|euro_full }}</td>
+              </tr>
+              <tr>
+                <td class="ps-3">Detrazioni fiscali lavoro dipendente</td>
+                <td class="text-end text-success">+ {{ calcolo.netto.detrazioni|euro_full }}</td>
+              </tr>
+              <tr>
+                <td class="ps-3"><strong>IRPEF netta da versare</strong></td>
+                <td class="text-end text-danger"><strong>- {{ calcolo.netto.irpef_netta|euro_full }}</strong></td>
+              </tr>
+              <tr class="table-success">
+                <td><h5 class="mb-0">💵 NETTO IN BUSTA PAGA</h5></td>
+                <td class="text-end"><h5 class="mb-0"><strong>{{ calcolo.netto.netto|euro_full }}</strong></h5></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="alert alert-info mt-3 mb-0">
+            <small>
+              <strong>ℹ️ Note fiscali:</strong><br>
+              • Scaglioni IRPEF: 23% fino a 28k€, 35% fino a 50k€, 43% oltre<br>
+              • Detrazioni calcolate in base al reddito annuo<br>
+              • Reddito annuo stimato: <strong>{{ reddito_annuo|euro_full:0 }}</strong>
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLONNA DESTRA: COSTO AZIENDA -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-warning">
+          <h5 class="mb-0">🏢 Costo totale per l'azienda</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tbody>
+              <tr>
+                <td><strong>Stipendio lordo mensile</strong></td>
+                <td class="text-end"><strong>{{ calcolo.lordo_mensile|euro_full }}</strong></td>
+              </tr>
+              <tr class="table-light">
+                <td colspan="2"><small class="text-muted">Contributi e accantonamenti</small></td>
+              </tr>
+              <tr>
+                <td class="ps-3">Contributi INPS azienda (~30%)</td>
+                <td class="text-end">+ {{ calcolo.costo_azienda.inps_azienda|euro_full }}</td>
+              </tr>
+              <tr>
+                <td class="ps-3">Accantonamento TFR (1/13,5)</td>
+                <td class="text-end">+ {{ calcolo.costo_azienda.tfr|euro_full }}</td>
+              </tr>
+              <tr class="table-light">
+                <td colspan="2"><small class="text-muted">Ratei mensilità aggiuntive</small></td>
+              </tr>
+              <tr>
+                <td class="ps-3">Rateo 13ª mensilità (1/12)</td>
+                <td class="text-end">+ {{ calcolo.costo_azienda.rateo_13|euro_full }}</td>
+              </tr>
+              <tr>
+                <td class="ps-3">Rateo 14ª mensilità (1/12)</td>
+                <td class="text-end">+ {{ calcolo.costo_azienda.rateo_14|euro_full }}</td>
+              </tr>
+              <tr>
+                <td class="ps-3">Rateo ferie/permessi (12%)</td>
+                <td class="text-end">+ {{ calcolo.costo_azienda.rateo_ferie_permessi|euro_full }}</td>
+              </tr>
+              <tr class="table-warning">
+                <td><h5 class="mb-0">📈 COSTO MENSILE TOTALE</h5></td>
+                <td class="text-end"><h5 class="mb-0"><strong>{{ calcolo.costo_azienda.costo_totale_mensile|euro_full }}</strong></h5></td>
+              </tr>
+              <tr class="table-warning">
+                <td><h5 class="mb-0">📊 COSTO ANNUO TOTALE</h5></td>
+                <td class="text-end"><h5 class="mb-0"><strong>{{ calcolo.costo_azienda.costo_totale_annuo|euro_full:0 }}</strong></h5></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="alert alert-warning mt-3 mb-0">
+            <small>
+              <strong>⚠️ Note sul costo:</strong><br>
+              • Include tutti gli oneri contributivi e accantonamenti<br>
+              • Ratei distribuiti su 12 mensilità<br>
+              • Incidenza totale: <strong>{{ costo_percentuale|num_it:1 }}%</strong> sul lordo
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Riepilogo comparativo -->
+  <div class="card">
+    <div class="card-header bg-dark text-white">
+      <h5 class="mb-0">📋 Riepilogo comparativo</h5>
+    </div>
+    <div class="card-body">
+      <div class="row text-center">
+        <div class="col-md-4">
+          <div class="p-3 border rounded bg-light">
+            <h6 class="text-muted mb-2">LORDO MENSILE</h6>
+            <h3 class="mb-0">{{ calcolo.lordo_mensile|euro_full }}</h3>
+            <small class="text-muted">Base di calcolo</small>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="p-3 border rounded bg-success bg-opacity-10">
+            <h6 class="text-success mb-2">NETTO DIPENDENTE</h6>
+            <h3 class="mb-0 text-success">{{ calcolo.netto.netto|euro_full }}</h3>
+            <small class="text-muted">{{ netto_percentuale|num_it:1 }}% del lordo</small>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="p-3 border rounded bg-warning bg-opacity-10">
+            <h6 class="text-warning mb-2">COSTO AZIENDA</h6>
+            <h3 class="mb-0 text-warning">{{ calcolo.costo_azienda.costo_totale_mensile|euro_full }}</h3>
+            <small class="text-muted">{{ costo_percentuale|num_it:1 }}% del lordo</small>
+          </div>
+        </div>
+      </div>
+
+      <hr class="my-4">
+
+      <div class="alert alert-secondary mb-0">
+        <h6 class="alert-heading">💡 Interpretazione dei dati</h6>
+        <ul class="mb-0">
+          <li><strong>Netto dipendente:</strong> Quanto effettivamente riceve il lavoratore ogni mese in busta paga dopo contributi e imposte.</li>
+          <li><strong>Costo azienda:</strong> Quanto spende effettivamente l'azienda per questo dipendente, includendo tutti gli oneri contributivi e accantonamenti.</li>
+          <li><strong>Differenza:</strong> Il costo totale per l'azienda è circa <strong>{{ incidenza_costo|euro }}</strong> in più rispetto al lordo ({{ incidenza_costo_perc|num_it:1 }}%).</li>
+          <li><strong>Tassazione effettiva:</strong> Il dipendente paga circa <strong>{{ trattenute|euro }}</strong> tra contributi e imposte ({{ trattenute_perc|num_it:1 }}% del lordo).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-3">
+    <a href="{% url 'parametro_economico_modifica' parametro.id %}" class="btn btn-primary">✏️ Modifica parametro</a>
+    <a href="{% url 'gestione_riferimenti_economici' %}" class="btn btn-outline-secondary">← Torna all'elenco</a>
+  </div>
+</div>
+{% endblock %}

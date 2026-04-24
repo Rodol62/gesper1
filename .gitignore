@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+env/
+
+# Django
+db.sqlite3
+*.log
+staticfiles/
+
+# Radice dati locale (DB, upload, dump) — vedi GESPER_DATA_ROOT / documento/
+documento/db.sqlite3
+documento/media/
+documento/archivio/*
+!documento/archivio/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Test / tooling
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Cursor (opzionale: togliere la riga se vuoi versionare regole/skills di progetto)
+.cursor/
+
+# Claude
+.claude/

@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Carica documento personale — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:540px">
+
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <a href="{% url 'candidato_miei_documenti' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.75rem">
+      <i class="bi bi-arrow-left"></i> I miei documenti
+    </a>
+    <h6 class="mb-0" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-upload"></i> Carica documento personale
+    </h6>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card border-0 shadow-sm mb-3" style="background:#f0f4f8;border:1px solid #dde4ec!important">
+    <div class="card-body py-2 px-3" style="font-size:.78rem;color:#555">
+      <i class="bi bi-info-circle"></i>
+      Carica i tuoi documenti di identità, attestati professionali e certificazioni.
+      I documenti saranno visibili al personale HR e all'amministrazione.
+      <strong>Formati accettati:</strong> PDF, JPG, PNG. Max 10MB.
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body py-4 px-3">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label style="font-size:.8rem;font-weight:700;color:#1b3a5f">Tipo documento *</label>
+          <select name="tipo" class="form-select form-select-sm" required style="font-size:.83rem">
+            <option value="">— Seleziona —</option>
+            {% for val, label in tipo_choices %}
+            <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label style="font-size:.8rem;font-weight:700;color:#1b3a5f">Descrizione / Titolo</label>
+          <input type="text" name="descrizione" class="form-control form-control-sm"
+                 style="font-size:.83rem" maxlength="200"
+                 placeholder="Es. Carta d'identità scadenza 2028, Attestato HACCP…">
+        </div>
+
+        <div class="mb-4">
+          <label style="font-size:.8rem;font-weight:700;color:#1b3a5f">File *</label>
+          <input type="file" name="file" class="form-control form-control-sm" required
+                 style="font-size:.83rem" accept=".pdf,.jpg,.jpeg,.png">
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-sm"
+                  style="background:#1b3a5f;color:#fff;font-size:.82rem">
+            <i class="bi bi-cloud-upload"></i> Carica
+          </button>
+          <a href="{% url 'candidato_miei_documenti' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.82rem">
+            Annulla
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

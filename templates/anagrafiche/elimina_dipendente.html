@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% load ruoli_tags %}
+{% block title %}Elimina dipendente{% endblock %}
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:640px">
+  <h2 class="h5 mb-3 text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Conferma eliminazione</h2>
+  <div class="alert alert-warning">
+    Stai per <strong>eliminare definitivamente</strong> il dipendente
+    <strong>{{ dipendente.cognome }} {{ dipendente.nome }}</strong>
+    {% if dipendente.matricola %}(mat. {{ dipendente.matricola }}){% endif %}
+    — {{ dipendente.azienda.nome }}.
+    L’operazione non è reversibile (dati collegati possono essere rimossi o resi orfani secondo le regole del database).
+  </div>
+  <form method="post" class="d-flex flex-wrap gap-2">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>Elimina</button>
+    <a href="{% url 'dettaglio_dipendente' dipendente.pk %}" class="btn btn-outline-secondary">Annulla</a>
+  </form>
+</div>
+{% endblock %}

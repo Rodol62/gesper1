@@ -1,0 +1,650 @@
+{% extends 'base.html' %}
+{% block title %}Impostazioni di sistema — {{ config.nome_sito }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:860px">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{% if msg.tags == 'error' %}danger{% else %}{{ msg.tags|default:'info' }}{% endif %} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Intestazione -->
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:6px;
+              padding:.6rem 1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between">
+    <h5 style="margin:0;font-size:.92rem;font-weight:800">
+      <i class="bi bi-gear-fill"></i> Impostazioni di sistema
+    </h5>
+    <a href="{% url 'dashboard_admin' %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">← Dashboard</a>
+  </div>
+
+  <!-- Tab nav -->
+  <ul class="nav nav-tabs mb-3" style="font-size:.8rem">
+    <li class="nav-item">
+      <a class="nav-link {% if tab == 'sito' %}active{% endif %}"
+         href="?tab=sito"><i class="bi bi-building"></i> Sito</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if tab == 'email' %}active{% endif %}"
+         href="?tab=email"><i class="bi bi-envelope"></i> E-mail / SMTP</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if tab == 'aspetto' %}active{% endif %}"
+         href="?tab=aspetto"><i class="bi bi-palette"></i> Aspetto</a>
+    </li>
+  </ul>
+
+  <form method="post" id="formImpostazioni">
+    {% csrf_token %}
+    <input type="hidden" name="tab_corrente" value="{{ tab }}">
+
+    <!-- ═══ TAB SITO ═══════════════════════════════════════════ -->
+    <div {% if tab != 'sito' %}style="display:none"{% endif %}>
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header"><i class="bi bi-info-circle"></i> Informazioni sito</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">{{ form.nome_sito.label }}</label>
+              {{ form.nome_sito }}
+              {% if form.nome_sito.help_text %}<div class="form-text">{{ form.nome_sito.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.nome_azienda.label }}</label>
+              {{ form.nome_azienda }}
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">{{ form.indirizzo_sede.label }}</label>
+              {{ form.indirizzo_sede }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ form.partita_iva.label }}</label>
+              {{ form.partita_iva }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header"><i class="bi bi-geo-alt"></i> Geolocalizzazione presenze (default globale)</div>
+        <div class="card-body">
+          <div class="alert alert-info py-2 small mb-3" style="font-size:.76rem">
+            Queste impostazioni sono i <strong>default globali</strong>. Se una azienda ha coordinate sede compilate,
+            quelle aziendali hanno priorità per il controllo geofence.
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check">
+                {{ form.presenze_geo_enabled }}
+                <label class="form-check-label" for="{{ form.presenze_geo_enabled.id_for_label }}">{{ form.presenze_geo_enabled.label }}</label>
+              </div>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check">
+                {{ form.presenze_geo_require_gps }}
+                <label class="form-check-label" for="{{ form.presenze_geo_require_gps.id_for_label }}">{{ form.presenze_geo_require_gps.label }}</label>
+              </div>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check">
+                {{ form.presenze_geo_enforce_geofence }}
+                <label class="form-check-label" for="{{ form.presenze_geo_enforce_geofence.id_for_label }}">{{ form.presenze_geo_enforce_geofence.label }}</label>
+              </div>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label">{{ form.presenze_geo_center_lat.label }}</label>
+              {{ form.presenze_geo_center_lat }}
+              {% if form.presenze_geo_center_lat.help_text %}<div class="form-text">{{ form.presenze_geo_center_lat.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ form.presenze_geo_center_lon.label }}</label>
+              {{ form.presenze_geo_center_lon }}
+              {% if form.presenze_geo_center_lon.help_text %}<div class="form-text">{{ form.presenze_geo_center_lon.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ form.presenze_geo_radius_m.label }}</label>
+              {{ form.presenze_geo_radius_m }}
+            </div>
+
+            <div class="col-md-12">
+              <div class="form-check">
+                {{ form.presenze_geo_enforce_for_test }}
+                <label class="form-check-label" for="{{ form.presenze_geo_enforce_for_test.id_for_label }}">{{ form.presenze_geo_enforce_for_test.label }}</label>
+                {% if form.presenze_geo_enforce_for_test.help_text %}<div class="form-text">{{ form.presenze_geo_enforce_for_test.help_text }}</div>{% endif %}
+              </div>
+            </div>
+
+            <div class="col-md-12">
+              <div class="border rounded p-3" style="background:#f8fbff;border-color:#d9e8f7 !important;">
+                <div class="fw-semibold mb-2" style="font-size:.82rem">
+                  <i class="bi bi-crosshair2"></i> Compilazione guidata coordinate
+                </div>
+                <div class="small text-muted mb-2" style="font-size:.74rem">
+                  Puoi valorizzare latitudine/longitudine da indirizzo sede, da link/coordinate Google Maps o dalla tua posizione attuale.
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                  <button type="button" class="btn btn-outline-primary btn-sm" id="btnGeoDaIndirizzo">
+                    <i class="bi bi-signpost-2"></i> Trova da indirizzo sede
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="btnGeoDaMaps">
+                    <i class="bi bi-map"></i> Estrai da Google Maps
+                  </button>
+                  <button type="button" class="btn btn-outline-dark btn-sm" id="btnGeoPosizione">
+                    <i class="bi bi-geo"></i> Usa posizione attuale
+                  </button>
+                </div>
+
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+                  <input type="text" id="geoMapsInput" class="form-control" placeholder="Incolla link Google Maps o coordinate (es. 45.4642, 9.1900)">
+                </div>
+                <div id="geoStatus" class="form-text mt-2"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2"></i> Salva impostazioni sito</button>
+    </div>
+
+    <!-- ═══ TAB EMAIL ══════════════════════════════════════════ -->
+    <div {% if tab != 'email' %}style="display:none"{% endif %}>
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header"><i class="bi bi-server"></i> Configurazione SMTP</div>
+        <div class="card-body">
+          <div class="alert alert-info py-2 small mb-3" style="font-size:.78rem">
+            <i class="bi bi-info-circle"></i>
+            <strong>Gmail:</strong> usa un indirizzo Gmail e una
+            <a href="https://myaccount.google.com/apppasswords" target="_blank">Password per le app</a>
+            (non la password normale). Abilita prima la verifica in 2 passaggi sull'account Google.
+          </div>
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label">{{ form.smtp_host.label }}</label>
+              {{ form.smtp_host }}
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ form.smtp_port.label }}</label>
+              {{ form.smtp_port }}
+            </div>
+            <div class="col-md-2 d-flex align-items-end pb-1">
+              <div class="form-check">
+                {{ form.smtp_use_tls }}
+                <label class="form-check-label" for="{{ form.smtp_use_tls.id_for_label }}">{{ form.smtp_use_tls.label }}</label>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.smtp_user.label }}</label>
+              {{ form.smtp_user }}
+              <div class="form-text">{{ form.smtp_user.help_text }}</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.smtp_password.label }}</label>
+              {{ form.smtp_password }}
+              <div class="form-text">{{ form.smtp_password.help_text }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header"><i class="bi bi-envelope-at"></i> Mittente e notifiche</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">{{ form.email_mittente_nome.label }}</label>
+              {{ form.email_mittente_nome }}
+              <div class="form-text">{{ form.email_mittente_nome.help_text }}</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.email_notifiche_hr.label }}</label>
+              {{ form.email_notifiche_hr }}
+              <div class="form-text">{{ form.email_notifiche_hr.help_text }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header"><i class="bi bi-link-45deg"></i> URL pubblica</div>
+        <div class="card-body">
+          <div class="alert alert-light border py-2 small mb-3" style="font-size:.76rem">
+            <strong>URL pubblica base:</strong> usata per i link nelle e-mail (es. certificazione firma, reset password)
+            quando accedi da localhost o da un host interno non raggiungibile dai destinatari.
+          </div>
+          <div class="row g-3">
+            <div class="col-md-12">
+              <label class="form-label">{{ form.url_pubblica_base.label }}</label>
+              {{ form.url_pubblica_base }}
+              {% if form.url_pubblica_base.help_text %}<div class="form-text">{{ form.url_pubblica_base.help_text }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Anteprima mittente -->
+      <div class="alert alert-secondary py-2 small mb-3" style="font-size:.78rem">
+        <i class="bi bi-envelope-check"></i>
+        Mittente attuale:
+        {% if config.smtp_user %}
+          <strong>{% if config.email_mittente_nome %}{{ config.email_mittente_nome }} &lt;{{ config.smtp_user }}&gt;{% else %}{{ config.smtp_user }}{% endif %}</strong>
+          {% if not config.smtp_password %}
+            <span class="badge bg-warning text-dark ms-2">Password non impostata</span>
+          {% else %}
+            <span class="badge bg-success ms-2">Credenziali configurate</span>
+          {% endif %}
+        {% else %}
+          <span class="text-muted">Non configurato</span>
+        {% endif %}
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-sm mb-4"><i class="bi bi-check2"></i> Salva impostazioni e-mail</button>
+    </div>
+
+    <!-- ═══ TAB EMAIL — SEZIONE TEST (sempre visibile nel tab email) ══ -->
+    <div {% if tab != 'email' %}style="display:none"{% endif %}>
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2" style="background:#f0f4fa;font-size:.82rem;font-weight:700;color:#1b3a5f">
+          <i class="bi bi-tools"></i> Diagnostica e test SMTP
+        </div>
+        <div class="card-body">
+
+          {# ── Checklist stato configurazione ── #}
+          <div class="mb-3">
+            <div style="font-size:.78rem;font-weight:700;color:#444;margin-bottom:.4rem">Stato configurazione</div>
+            <div class="d-flex flex-wrap gap-2">
+              <span class="badge {% if config.smtp_host %}bg-success{% else %}bg-danger{% endif %}" style="font-size:.72rem">
+                <i class="bi bi-{% if config.smtp_host %}check-circle{% else %}x-circle{% endif %}"></i>
+                Host SMTP {% if config.smtp_host %}({{ config.smtp_host }}:{{ config.smtp_port }}){% else %}non impostato{% endif %}
+              </span>
+              <span class="badge {% if config.smtp_user %}bg-success{% else %}bg-danger{% endif %}" style="font-size:.72rem">
+                <i class="bi bi-{% if config.smtp_user %}check-circle{% else %}x-circle{% endif %}"></i>
+                Utente {% if not config.smtp_user %}non impostato{% endif %}
+              </span>
+              <span class="badge {% if config.smtp_password %}bg-success{% else %}bg-warning text-dark{% endif %}" style="font-size:.72rem">
+                <i class="bi bi-{% if config.smtp_password %}check-circle{% else %}exclamation-circle{% endif %}"></i>
+                Password {% if config.smtp_password %}impostata{% else %}non impostata{% endif %}
+              </span>
+              <span class="badge bg-secondary" style="font-size:.72rem">
+                <i class="bi bi-shield-lock"></i>
+                TLS {% if config.smtp_use_tls %}attivo{% else %}disattivato{% endif %}
+              </span>
+            </div>
+          </div>
+
+          {# ── Feedback azioni test (visibile nel tab, non solo in cima) ── #}
+          {% if messages and tab == 'email' %}
+            {% for msg in messages %}
+            <div class="alert alert-{% if msg.tags == 'error' %}danger{% else %}{{ msg.tags|default:'info' }}{% endif %} py-2 small mb-2" role="alert">
+              {{ msg }}
+            </div>
+            {% endfor %}
+          {% endif %}
+
+          {# ── Ultimo test (se eseguito) ── #}
+          {% if config.ultimo_test_email_data %}
+          <div class="mb-3 p-2 rounded" style="background:{% if config.ultimo_test_email_esito == 'ok' %}#f0faf4;border:1px solid #b7dfc9{% else %}#fff5f5;border:1px solid #f5c2c2{% endif %}">
+            <div style="font-size:.78rem;font-weight:700;color:{% if config.ultimo_test_email_esito == 'ok' %}#0a6640{% else %}#b91c1c{% endif %}">
+              <i class="bi bi-{% if config.ultimo_test_email_esito == 'ok' %}check-circle-fill{% else %}x-circle-fill{% endif %}"></i>
+              Ultimo test: {% if config.ultimo_test_email_esito == 'ok' %}Successo{% else %}Errore{% endif %}
+              &nbsp;·&nbsp;
+              <span style="font-weight:400;color:#555">{{ config.ultimo_test_email_data|date:"d/m/Y H:i" }}</span>
+            </div>
+            <div style="font-size:.75rem;color:#555;margin-top:2px">
+              {% if config.ultimo_test_email_esito == 'ok' %}
+                <i class="bi bi-envelope-check"></i> Inviata a: <strong>{{ config.ultimo_test_email_destinatario }}</strong>
+              {% else %}
+                <i class="bi bi-bug"></i> {{ config.ultimo_test_email_messaggio }}
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+
+          {# ── Form test ── #}
+          <div class="row g-3 align-items-end">
+            <div class="col-md-6">
+              <label style="font-size:.76rem;font-weight:700;color:#555;display:block">
+                Destinatario e-mail di test
+              </label>
+              <input type="email" name="test_destinatario"
+                     class="form-control form-control-sm"
+                     value="{{ config.smtp_user }}"
+                     placeholder="Es. admin@tuosito.it"
+                     style="font-size:.82rem"
+                     form="formTestEmail">
+              <div style="font-size:.68rem;color:#888;margin-top:2px">
+                Lascia invariato per inviare al mittente SMTP. Puoi specificare qualsiasi indirizzo.
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="d-flex gap-2 flex-wrap">
+                <button type="submit" name="action" value="test_connessione"
+                        class="btn btn-outline-secondary btn-sm"
+                        form="formTestEmail"
+                        style="font-size:.78rem">
+                  <i class="bi bi-plug"></i> Testa connessione SMTP
+                </button>
+                <button type="submit" name="action" value="test_email"
+                        class="btn btn-sm"
+                        style="background:#1b3a5f;color:#fff;font-size:.78rem"
+                        form="formTestEmail"
+                        {% if not config.smtp_user or not config.smtp_password %}disabled title="Configura prima utente e password SMTP"{% endif %}>
+                  <i class="bi bi-send-fill"></i> Invia e-mail di test
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3 p-2 rounded" style="background:#f8f9fb;border:1px solid #e2e8f0;font-size:.72rem;color:#666">
+            <i class="bi bi-info-circle"></i>
+            <strong>Come funziona il test:</strong>
+            <ul style="margin:.3rem 0 0 1rem;padding:0">
+              <li><strong>Testa connessione SMTP</strong> — verifica che il server sia raggiungibile e che le credenziali siano accettate, senza inviare nulla.</li>
+              <li><strong>Invia e-mail di test</strong> — invia un messaggio reale all'indirizzo indicato. Se lo ricevi, la configurazione funziona correttamente.</li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+
+    </div>{# /test panel #}
+
+    <!-- ═══ TAB ASPETTO ════════════════════════════════════════ -->
+    <div {% if tab != 'aspetto' %}style="display:none"{% endif %}>
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header"><i class="bi bi-palette2"></i> Colori</div>
+        <div class="card-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-auto">
+              <label class="form-label d-block">{{ form.colore_primario.label }}</label>
+              <div class="d-flex align-items-center gap-2">
+                {{ form.colore_primario }}
+                <input type="text" id="hex_primario" value="{{ config.colore_primario }}"
+                       style="width:90px;font-size:.78rem;padding:3px 6px;border:1px solid #c5d0dc;border-radius:4px"
+                       oninput="document.getElementById('{{ form.colore_primario.id_for_label }}').value=this.value">
+              </div>
+            </div>
+            <div class="col-auto">
+              <label class="form-label d-block">{{ form.colore_accent.label }}</label>
+              <div class="d-flex align-items-center gap-2">
+                {{ form.colore_accent }}
+                <input type="text" id="hex_accent" value="{{ config.colore_accent }}"
+                       style="width:90px;font-size:.78rem;padding:3px 6px;border:1px solid #c5d0dc;border-radius:4px"
+                       oninput="document.getElementById('{{ form.colore_accent.id_for_label }}').value=this.value">
+              </div>
+            </div>
+            <div class="col-auto">
+              <label class="form-label d-block">{{ form.colore_sfondo.label }}</label>
+              <div class="d-flex align-items-center gap-2">
+                {{ form.colore_sfondo }}
+                <input type="text" id="hex_sfondo" value="{{ config.colore_sfondo }}"
+                       style="width:90px;font-size:.78rem;padding:3px 6px;border:1px solid #c5d0dc;border-radius:4px"
+                       oninput="document.getElementById('{{ form.colore_sfondo.id_for_label }}').value=this.value">
+              </div>
+            </div>
+          </div>
+          <!-- Anteprima colori -->
+          <div class="mt-3 p-3 rounded" id="preview_colori"
+               style="background:{{ config.colore_sfondo }};border:1px solid #c5d0dc">
+            <div class="d-flex gap-2 align-items-center">
+              <div style="background:{{ config.colore_primario }};color:#fff;padding:6px 14px;border-radius:4px;font-size:.78rem;font-weight:700">
+                Navbar / Primario
+              </div>
+              <div style="background:{{ config.colore_accent }};color:#fff;padding:6px 14px;border-radius:4px;font-size:.78rem;font-weight:700">
+                Bottone Accent
+              </div>
+              <span style="font-size:.78rem;color:#555">← Anteprima colori (ricarica dopo il salvataggio)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header"><i class="bi bi-fonts"></i> Tipografia</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">{{ form.font_famiglia.label }}</label>
+              {{ form.font_famiglia }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.font_dimensione_base.label }}</label>
+              {{ form.font_dimensione_base }}
+            </div>
+          </div>
+          <!-- Anteprima font -->
+          <div class="mt-3 p-3 rounded" style="background:#f4f7fa;border:1px solid #c5d0dc">
+            <p style="margin:0;font-size:.78rem;color:#666">Anteprima testo:</p>
+            <p id="preview_font" style="margin:4px 0 0;font-size:{{ config.font_dimensione_base }}px">
+              Il sistema gestionale GESPER — Gestione del Personale Multiaziendale.
+              Testo di esempio con il font selezionato.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2"></i> Salva aspetto</button>
+        <a href="?tab=aspetto&reset=1" class="btn btn-outline-secondary btn-sm"
+           data-confirm-title="Ripristina aspetto"
+           data-confirm-variant="warning"
+           data-confirm-ok-label="Ripristina"
+           data-confirm-message="Confermi il ripristino dei colori e del font di default per questa azienda?">
+          <i class="bi bi-arrow-counterclockwise"></i> Ripristina default
+        </a>
+      </div>
+    </div>
+
+  </form>
+
+  {# Form separato per le azioni di test (non salva le impostazioni) #}
+  <form id="formTestEmail" method="post" action="">
+    {% csrf_token %}
+  </form>
+
+</div>
+
+<script>
+// Aggiorna i campi hex quando cambia il color picker
+document.querySelectorAll('input[type=color]').forEach(function(picker) {
+  picker.addEventListener('input', function() {
+    var hexInput = this.parentElement.querySelector('input[type=text]');
+    if (hexInput) hexInput.value = this.value;
+  });
+});
+
+// Anteprima font in tempo reale
+var selFont = document.getElementById('{{ form.font_famiglia.id_for_label }}');
+var selSize = document.getElementById('{{ form.font_dimensione_base.id_for_label }}');
+var prevFont = document.getElementById('preview_font');
+
+var fontMap = {
+  'system': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+  'inter': '"Inter", sans-serif',
+  'roboto': '"Roboto", sans-serif',
+  'open-sans': '"Open Sans", sans-serif',
+  'lato': '"Lato", sans-serif',
+  'source-sans': '"Source Sans 3", sans-serif',
+};
+
+function aggiornaFont() {
+  if (prevFont && selFont) {
+    prevFont.style.fontFamily = fontMap[selFont.value] || fontMap['system'];
+    prevFont.style.fontSize = (selSize ? selSize.value : '14') + 'px';
+  }
+}
+if (selFont) selFont.addEventListener('change', aggiornaFont);
+if (selSize) selSize.addEventListener('change', aggiornaFont);
+
+// Geolocalizzazione: compilazione assistita coordinate
+(function() {
+  const latInput = document.getElementById('{{ form.presenze_geo_center_lat.id_for_label }}');
+  const lonInput = document.getElementById('{{ form.presenze_geo_center_lon.id_for_label }}');
+  const indirizzoInput = document.getElementById('{{ form.indirizzo_sede.id_for_label }}');
+  const mapsInput = document.getElementById('geoMapsInput');
+  const statusBox = document.getElementById('geoStatus');
+  const btnDaIndirizzo = document.getElementById('btnGeoDaIndirizzo');
+  const btnDaMaps = document.getElementById('btnGeoDaMaps');
+  const btnPosizione = document.getElementById('btnGeoPosizione');
+  const csrfToken = document.querySelector('#formImpostazioni input[name="csrfmiddlewaretoken"]')?.value || '';
+
+  function setStatus(msg, type) {
+    if (!statusBox) return;
+    const color = type === 'ok' ? '#0f5132' : (type === 'err' ? '#842029' : '#5c6770');
+    statusBox.style.color = color;
+    statusBox.textContent = msg || '';
+  }
+
+  function setCoords(lat, lon, source) {
+    if (!latInput || !lonInput) return;
+    latInput.value = Number(lat).toFixed(6);
+    lonInput.value = Number(lon).toFixed(6);
+    setStatus(`Coordinate aggiornate da ${source}: ${latInput.value}, ${lonInput.value}`, 'ok');
+  }
+
+  function parseCoords(text) {
+    if (!text) return null;
+    const raw = String(text).trim();
+
+    let m = raw.match(/@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/);
+    if (m) return [parseFloat(m[1]), parseFloat(m[2])];
+
+    m = raw.match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+    if (m) return [parseFloat(m[1]), parseFloat(m[2])];
+
+    try {
+      const u = new URL(raw);
+      const candidates = ['q', 'll', 'query', 'daddr', 'destination'];
+      for (const key of candidates) {
+        const val = u.searchParams.get(key);
+        if (!val) continue;
+        const mm = val.match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+        if (mm) return [parseFloat(mm[1]), parseFloat(mm[2])];
+      }
+    } catch (e) {
+      // input non URL valido
+    }
+
+    return null;
+  }
+
+  function validRange(lat, lon) {
+    return Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+  }
+
+  if (btnDaMaps) {
+    btnDaMaps.addEventListener('click', function() {
+      const value = mapsInput ? mapsInput.value : '';
+      const coords = parseCoords(value);
+      if (!coords) {
+        setStatus('Coordinate non riconosciute. Incolla un link Google Maps con coordinate o "lat, lon".', 'err');
+        return;
+      }
+      const [lat, lon] = coords;
+      if (!validRange(lat, lon)) {
+        setStatus('Coordinate fuori range valido.', 'err');
+        return;
+      }
+      setCoords(lat, lon, 'Google Maps');
+    });
+  }
+
+  if (btnDaIndirizzo) {
+    btnDaIndirizzo.addEventListener('click', async function() {
+      const indirizzo = (indirizzoInput && indirizzoInput.value ? indirizzoInput.value : '').trim();
+      if (indirizzo.length < 5) {
+        setStatus('Inserisci un indirizzo sede valido prima di cercare le coordinate.', 'err');
+        return;
+      }
+
+      setStatus('Ricerca coordinate da indirizzo in corso…', 'info');
+      try {
+        const body = new URLSearchParams({ indirizzo });
+        const res = await fetch('{% url "impostazioni_geocode" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: body.toString(),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          setStatus(data.error || 'Nessun risultato trovato per l’indirizzo indicato.', 'err');
+          return;
+        }
+        setCoords(data.lat, data.lon, 'indirizzo sede');
+      } catch (err) {
+        setStatus('Errore durante la ricerca coordinate da indirizzo.', 'err');
+      }
+    });
+  }
+
+  if (btnPosizione) {
+    btnPosizione.addEventListener('click', function() {
+      if (!navigator.geolocation) {
+        setStatus('Geolocalizzazione non supportata dal browser.', 'err');
+        return;
+      }
+
+      const onSuccess = function(pos) {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        if (!validRange(lat, lon)) {
+          setStatus('Coordinate GPS non valide.', 'err');
+          return;
+        }
+        setCoords(lat, lon, 'posizione attuale');
+      };
+
+      const opzioniAltaPrecisione = { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 };
+      const opzioniFallback = { enableHighAccuracy: false, timeout: 22000, maximumAge: 300000 };
+
+      setStatus('Recupero posizione attuale…', 'info');
+      navigator.geolocation.getCurrentPosition(
+        onSuccess,
+        function(err1) {
+          // Se va in timeout, riprova una volta in modalità meno restrittiva
+          if (err1 && err1.code === 3) {
+            setStatus('GPS lento: nuovo tentativo in corso…', 'info');
+            navigator.geolocation.getCurrentPosition(
+              onSuccess,
+              function(err2) {
+                if (err2 && err2.code === 1) {
+                  setStatus('Permesso posizione negato dal browser. Abilita la posizione per questo sito oppure usa "Trova da indirizzo sede" o "Estrai da Google Maps".', 'err');
+                  return;
+                }
+                if (err2 && err2.code === 2) {
+                  setStatus('Posizione non disponibile sul dispositivo. Usa "Trova da indirizzo sede" o "Estrai da Google Maps".', 'err');
+                  return;
+                }
+                setStatus('Impossibile ottenere la posizione attuale (timeout GPS). Usa una delle modalità alternative.', 'err');
+              },
+              opzioniFallback
+            );
+            return;
+          }
+
+          if (err1 && err1.code === 1) {
+            setStatus('Permesso posizione negato dal browser. Abilita la posizione per questo sito oppure usa "Trova da indirizzo sede" o "Estrai da Google Maps".', 'err');
+            return;
+          }
+          if (err1 && err1.code === 2) {
+            setStatus('Posizione non disponibile sul dispositivo. Usa "Trova da indirizzo sede" o "Estrai da Google Maps".', 'err');
+            return;
+          }
+          setStatus('Impossibile ottenere la posizione attuale. Usa una delle modalità alternative.', 'err');
+        },
+        opzioniAltaPrecisione
+      );
+    });
+  }
+})();
+</script>
+{% endblock %}

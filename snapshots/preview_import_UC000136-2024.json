@@ -1,0 +1,23 @@
+{
+  "pdf": "/Applications/XAMPP/xamppfiles/htdocs/gesper/UC000136-2024.PDF",
+  "source_name": "UC000136-2024.PDF",
+  "natura_busta_file": "ORDINARIA",
+  "azienda": {
+    "id": 1,
+    "nome": "Punto Zero SRLS"
+  },
+  "f24_pages": [],
+  "summary": {
+    "pages_total": 256,
+    "buste_pages": 0,
+    "f24_pages": 0,
+    "f24_importo_stimato": null,
+    "buste_uniche": 0,
+    "buste_duplicate_pages": [],
+    "matched": 0,
+    "to_create": 0,
+    "ambiguous": 0,
+    "already_present": 0
+  },
+  "rows": []
+}

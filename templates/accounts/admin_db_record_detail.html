@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}{{ verbose_name }} #{{ obj.pk }} — Gesper{% endblock %}
+
+{% block extra_head %}
+<style>
+.rec-header {
+  background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent) 100%);
+  color: #fff;
+  border-radius: 6px;
+  padding: .55rem 1rem;
+  margin-bottom: .65rem;
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap;
+}
+.rec-header h4 { font-size: .85rem; font-weight: 800; margin: 0; }
+.rec-dl dt { font-size: .62rem; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted); margin-bottom: .1rem; }
+.rec-dl dd { font-size: var(--sz-sm); margin-bottom: .5rem; word-break: break-word; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="rec-header">
+  <div>
+    <h4><i class="bi bi-file-earmark-text"></i> {{ verbose_name }} <span style="opacity:.85">#{{ obj.pk }}</span></h4>
+    <div style="font-size:.68rem;opacity:.85;font-family:monospace">{{ app_label }}.{{ model_name }}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'admin_db_record_edit' app_label model_name obj.pk %}" class="btn btn-sm btn-light" style="font-size:.65rem">Modifica</a>
+    <a href="{% url 'admin_db_record_delete' app_label model_name obj.pk %}" class="btn btn-sm btn-outline-light" style="font-size:.65rem">Elimina</a>
+    <a href="{% url 'admin_table_detail' app_label model_name %}" class="btn btn-sm btn-outline-light" style="font-size:.65rem">Elenco</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white py-2" style="font-size:.75rem;font-weight:700;color:var(--c-primary)">Campi</div>
+      <div class="card-body py-3">
+        <dl class="rec-dl mb-0">
+          {% for f in field_rows %}
+          <dt>{{ f.verbose }}</dt>
+          <dd>
+            {% if f.is_file and f.file_url %}
+              <a href="{{ f.file_url }}" target="_blank" rel="noopener">{{ f.value|default:"Scarica file" }}</a>
+            {% elif f.value %}
+              {{ f.value }}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </dd>
+          {% endfor %}
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    {% if m2m_rows %}
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white py-2" style="font-size:.75rem;font-weight:700;color:var(--c-primary)">Relazioni molti-a-molti</div>
+      <div class="card-body py-2" style="font-size:var(--sz-sm)">
+        {% for m in m2m_rows %}
+        <div class="mb-2">
+          <div style="font-size:.62rem;text-transform:uppercase;color:var(--c-muted);font-weight:600">{{ m.verbose }}</div>
+          {% if m.error %}
+            <span class="text-muted">Non disponibile</span>
+          {% elif m.items %}
+            <ul class="mb-0 ps-3">
+              {% for it in m.items %}<li>{{ it }}</li>{% endfor %}
+            </ul>
+            {% if m.truncated %}<span class="text-muted" style="font-size:.65rem">(prime 50 voci)</span>{% endif %}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

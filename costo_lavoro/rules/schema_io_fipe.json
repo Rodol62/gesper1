@@ -1,0 +1,105 @@
+{
+  "schema_io_fipe": {
+    "input": {
+      "dati_lavoratore": {
+        "nome": "string",
+        "cognome": "string",
+        "codice_fiscale": "string",
+        "livello": "string",
+        "mansione": "string",
+        "anzianita_anni": "number",
+        "tipologia_contratto": "tempo_indeterminato | tempo_determinato | stagionale | apprendistato",
+        "part_time": {
+          "attivo": "boolean",
+          "ore_settimanali": "number"
+        }
+      },
+
+      "dati_azienda": {
+        "ragione_sociale": "string",
+        "ateco": "string",
+        "numero_dipendenti": "number",
+        "azienda_minore": "boolean",
+        "stagionalita": "boolean",
+        "banca_ore": "boolean",
+        "benefit_attivi": ["vitto", "alloggio", "auto", "telefono", "welfare"]
+      },
+
+      "dati_orario": {
+        "ore_ordinarie": "number",
+        "ore_straordinario": "number",
+        "ore_notturno": "number",
+        "ore_festivo": "number",
+        "ore_notturno_festivo": "number",
+        "ore_supplementare": "number"
+      },
+
+      "dati_assenze": [
+        {
+          "tipo": "malattia | infortunio | ferie | permesso | maternita | 104 | congedo_parentale",
+          "giorni": "number"
+        }
+      ],
+
+      "dati_retribuzione": {
+        "superminimi": "number",
+        "premi": "number",
+        "indennita": ["cassa", "maneggio_denaro", "turni", "vitto", "alloggio"]
+      },
+
+      "dati_benefit": {
+        "fringe_benefit": "number",
+        "welfare": "number"
+      },
+
+      "parametri_fiscali": {
+        "regione": "string",
+        "comune": "string"
+      }
+    },
+
+    "output": {
+      "retribuzione": {
+        "paga_base": "number",
+        "scatti_anzianita": "number",
+        "indennita": "number",
+        "maggiorazioni": "number",
+        "premi": "number",
+        "retribuzione_lorda": "number"
+      },
+
+      "contributi": {
+        "inps_lavoratore": "number",
+        "inps_azienda": "number",
+        "inail": "number"
+      },
+
+      "fisco": {
+        "imponibile_irpef": "number",
+        "irpef": "number",
+        "addizionale_regionale": "number",
+        "addizionale_comunale": "number",
+        "netto_in_busta": "number"
+      },
+
+      "tfr": {
+        "quota_maturata": "number",
+        "rivalutazione_annua": "number"
+      },
+
+      "riepilogo_orario": {
+        "ore_totali": "number",
+        "ore_straordinario": "number",
+        "ore_supplementare": "number",
+        "ore_notturno": "number",
+        "ore_festivo": "number"
+      },
+
+      "validazioni": {
+        "errori": ["string"],
+        "warning": ["string"],
+        "esito": "ok | error"
+      }
+    }
+  }
+}
