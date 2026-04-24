@@ -17,6 +17,8 @@
 # Auth / candidati (2026): dopo rsync eseguire migrate (non usare GESPER_SKIP_MIGRATE=1) per applicare
 # accounts 0024–0026 — verifica e-mail al login, TOTP web, disattivazione flag SMS in DB; registrazione
 # candidato solo OTP e-mail + template aggiornati.
+# Dopo migrate/restart: python manage.py verifica_registrazione_candidato
+# (se serve solo DB: stesso comando con --fix-db per sms_abilitato=False).
 #
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
