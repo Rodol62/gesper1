@@ -101,11 +101,20 @@ class Presenza(models.Model):
             (self.ora_entrata2, self.ora_uscita2),
             (self.ora_entrata3, self.ora_uscita3),
         ]
+        intervalli_visti = set()
         for ent, usc in coppie:
             if ent and usc:
+                # Evita doppio conteggio quando lo stesso turno viene copiato su piu' colonne.
+                key = (ent, usc)
+                if key in intervalli_visti:
+                    continue
+                intervalli_visti.add(key)
                 t_in  = datetime.combine(ddate.today(), ent)
                 t_out = datetime.combine(ddate.today(), usc)
+                # Supporta anche turni che superano la mezzanotte (es. 22:00-02:00).
                 diff  = (t_out - t_in).total_seconds() / 3600
+                if diff <= 0:
+                    diff += 24
                 if diff > 0:
                     totale += diff
         return round(totale, 2)
