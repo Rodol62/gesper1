@@ -26,9 +26,11 @@ def get_presenze_mese_aggregato(dipendente, anno: int, mese: int, azienda=None) 
 
     Ore domenicali: ore effettive lavorate in domenica (magg. % su lordo)
     Ore festive:    ore effettive lavorate in festività (non domenica)
-    Ore ordinarie retribuite: ore lavorate in giorni feriali non festivi,
-      al netto delle ore registrate come straordinario (no doppio conteggio
-      con domenicali/festivi).
+    Ore ordinarie retribuite: base oraria retribuita del mese (ore effettive
+      lavorate al netto delle ore registrate come straordinario), usata dal
+      motore in modalita' ore effettive.
+      Le ore domenicali/festive restano valorizzate separatamente per
+      applicare la sola maggiorazione in aggiunta alla base.
     """
     from presenze.models import Presenza
     from .utils_calendario import get_festivita_mese
@@ -100,13 +102,12 @@ def get_presenze_mese_aggregato(dipendente, anno: int, mese: int, azienda=None) 
             else:
                 ore_straord_diurno    += ore_st
 
-        # Ore ordinarie retribuite (feriali non festivi): ore lavorate meno straord.
-        # Domenica e festività lavorata sono interamente a maggiorazione (non qui).
-        if not is_domenica and not (is_festivo or p.causale == 'FE'):
-            ol = Decimal(str(p.ore_lavorate() or 0)).quantize(_Q2)
-            part = ol - ore_st
-            if part > 0:
-                ore_ordinarie_retribuite += part
+        # Base ore effettive del mese: tutte le ore lavorate (incluse dom/fest),
+        # al netto delle sole ore classificate come straordinario.
+        ol = Decimal(str(p.ore_lavorate() or 0)).quantize(_Q2)
+        part = ol - ore_st
+        if part > 0:
+            ore_ordinarie_retribuite += part
 
     return {
         'ore_straord_diurno':     ore_straord_diurno,
