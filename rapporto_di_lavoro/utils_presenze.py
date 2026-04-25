@@ -26,6 +26,9 @@ def get_presenze_mese_aggregato(dipendente, anno: int, mese: int, azienda=None) 
 
     Ore domenicali: ore effettive lavorate in domenica (magg. % su lordo)
     Ore festive:    ore effettive lavorate in festività (non domenica)
+    Ore ordinarie retribuite: ore lavorate in giorni feriali non festivi,
+      al netto delle ore registrate come straordinario (no doppio conteggio
+      con domenicali/festivi).
     """
     from presenze.models import Presenza
     from .utils_calendario import get_festivita_mese
@@ -52,6 +55,7 @@ def get_presenze_mese_aggregato(dipendente, anno: int, mese: int, azienda=None) 
     ore_straord_nott_fest = Decimal('0')
     ore_domenicali        = Decimal('0')
     ore_festivi_lav       = Decimal('0')
+    ore_ordinarie_retribuite = Decimal('0')
     giorni_assenza        = Decimal('0')
     giorni_ferie          = Decimal('0')
     ore_permessi          = Decimal('0')
@@ -96,6 +100,14 @@ def get_presenze_mese_aggregato(dipendente, anno: int, mese: int, azienda=None) 
             else:
                 ore_straord_diurno    += ore_st
 
+        # Ore ordinarie retribuite (feriali non festivi): ore lavorate meno straord.
+        # Domenica e festività lavorata sono interamente a maggiorazione (non qui).
+        if not is_domenica and not (is_festivo or p.causale == 'FE'):
+            ol = Decimal(str(p.ore_lavorate() or 0)).quantize(_Q2)
+            part = ol - ore_st
+            if part > 0:
+                ore_ordinarie_retribuite += part
+
     return {
         'ore_straord_diurno':     ore_straord_diurno,
         'ore_straord_notturno':   ore_straord_notturno,
@@ -104,6 +116,7 @@ def get_presenze_mese_aggregato(dipendente, anno: int, mese: int, azienda=None) 
         'ore_straord_nott_fest':  ore_straord_nott_fest,
         'ore_domenicali':         ore_domenicali,
         'ore_festivi_lavorati':   ore_festivi_lav,
+        'ore_ordinarie_retribuite': ore_ordinarie_retribuite,
         'giorni_assenza_ingiust': giorni_assenza,
         'giorni_ferie_godute':    giorni_ferie,
         'ore_permessi_goduti':    ore_permessi,

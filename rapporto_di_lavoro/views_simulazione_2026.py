@@ -3,6 +3,7 @@ Simulazione annua (organico e costo personale) — calcolo su scenario ruoli×qu
 Usa il motore canonico mensile ripetuto sul periodo (es. anno solare 2026).
 """
 import logging
+import json
 from decimal import Decimal
 from datetime import date
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -20,7 +21,10 @@ from .models import (
     TipoContratto,
     SimulazioneOrganico,
     RuoloOrganico2026,
+    PropostaAssunzione,
+    RapportoDiLavoro,
 )
+from presenze.models import Presenza, RiepilogoMensilePresenze
 from .utils_calcoli import (
     calcola_netto_dipendente,
     calcola_addizionale_regionale_sicilia,
@@ -64,9 +68,13 @@ def _get_sim_params(request):
     così le view secondarie (Excel, CreaProposte) li trovano anche senza querystring.
     """
     from django.http import QueryDict
-    if request.method == 'POST' and any(k.startswith('ruolo_') for k in request.POST):
-        request.session['sim2026_querystring'] = request.POST.urlencode()
-        return request.POST
+    if request.method == 'POST':
+        post = request.POST
+        # Marker nascosto sul form config: garantisce che il POST della simulazione annua
+        # non venga scartato (es. parsing ambiguo, scenario senza righe dopo «Rimuovi tutti»).
+        if post.get('sim2026_form') or any(str(k).startswith('ruolo_') for k in post.keys()):
+            request.session['sim2026_querystring'] = post.urlencode()
+            return post
     if any(k.startswith('ruolo_') for k in request.GET):
         request.session['sim2026_querystring'] = request.GET.urlencode()
         return request.GET
@@ -99,6 +107,22 @@ def _get_azienda_con_fallback(user, session):
     return Azienda.objects.order_by('id').first()
 
 
+def _prepara_ruoli_config_per_template(ruoli_config):
+    """Aggiunge source_json_html per value= degli hidden (JSON valido + escape HTML).
+
+    Nome senza underscore iniziale: i template Django non consentono ruolo._campo.
+    """
+    for r in ruoli_config or []:
+        try:
+            r['source_json_html'] = json.dumps(
+                r.get('soggetti_riferimento') or [],
+                ensure_ascii=False,
+                separators=(',', ':'),
+            )
+        except (TypeError, ValueError):
+            r['source_json_html'] = '[]'
+
+
 def _somma_testate_ruoli(ruoli_config) -> int:
     """Somma le quantità (testate) dei ruoli nello scenario simulato."""
     tot = 0
@@ -108,6 +132,230 @@ def _somma_testate_ruoli(ruoli_config) -> int:
         except (TypeError, ValueError):
             pass
     return tot
+
+
+def _tipo_rapporto_sim_prefill(tipo_contratto, data_fine_rapporto):
+    """
+    Valore tipo_rapporto atteso dal motore simulazione / costo_lavoro.
+    TD/stagionale/apprendistato da TipoContratto; data fine esplicita (TD o proposta) → determinato.
+    """
+    if tipo_contratto:
+        t = (getattr(tipo_contratto, 'tipo', None) or '').lower()
+        if t == 'apprendistato':
+            return 'apprendistato'
+        if t.startswith('det_') or t.startswith('stag_'):
+            return 'determinato'
+    if data_fine_rapporto:
+        return 'determinato'
+    return 'indeterminato'
+
+
+def _ruoli_precaricati_da_profili(azienda, anno=2026):
+    """Genera ruoli_config precompilati per singolo soggetto (attivo/candidato)."""
+    from anagrafiche.models import Dipendente
+
+    if not azienda:
+        return []
+
+    dipendenti = list(
+        Dipendente.objects.filter(azienda=azienda, stato__in=('attivo', 'candidato'))
+        .order_by('cognome', 'nome', 'id')
+    )
+    if not dipendenti:
+        return []
+
+    dip_ids = [d.id for d in dipendenti]
+    contratti_map = {}
+    for c in (
+        RapportoDiLavoro.objects.filter(azienda=azienda, dipendente_id__in=dip_ids)
+        .select_related('tipo_contratto')
+        .order_by('dipendente_id', '-data_modifica', '-id')
+    ):
+        contratti_map.setdefault(c.dipendente_id, c)
+
+    proposte_map = {}
+    for p in (
+        PropostaAssunzione.objects.filter(azienda=azienda, dipendente_id__in=dip_ids)
+        .select_related('tipo_contratto')
+        .order_by('dipendente_id', '-data_modifica', '-id')
+    ):
+        proposte_map.setdefault(p.dipendente_id, p)
+
+    riepiloghi = RiepilogoMensilePresenze.objects.filter(azienda=azienda, anno=anno, dipendente_id__in=dip_ids)
+    riepiloghi_by_dip = {}
+    for r in riepiloghi:
+        riepiloghi_by_dip.setdefault(r.dipendente_id, {})[r.mese] = r
+
+    livelli_ordered = []
+    _seen_lv = set()
+    for _lv in ParametroCCNLTurismo.objects.filter(attivo=True).order_by('livello', 'qualifica').values_list('livello', flat=True):
+        if _lv not in _seen_lv:
+            _seen_lv.add(_lv)
+            livelli_ordered.append(_lv)
+    livelli_validi = set(livelli_ordered)
+    livello_ccnl_fallback = livelli_ordered[0] if livelli_ordered else ''
+    livelli_ci = {str(x).lower(): x for x in livelli_ordered}
+
+    def _eta_da_data_nascita(dn):
+        if not dn:
+            return None
+        today = date.today()
+        return today.year - dn.year - ((today.month, today.day) < (dn.month, dn.day))
+
+    def _anni_da_data(d):
+        if not d:
+            return 0
+        today = date.today()
+        y = today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+        return max(0, y)
+
+    ruoli = []
+    for idx, dip in enumerate(dipendenti, start=1):
+        c = contratti_map.get(dip.id)
+        p = proposte_map.get(dip.id)
+        src = c or p
+
+        livello = ''
+        tipo_contratto_id = ''
+        data_inizio_obj = date(anno, 1, 1)
+        data_fine_obj = date(anno, 12, 31)
+        superminimo = Decimal('0')
+        ind_turno = Decimal('0')
+        ind_extra = Decimal('0')
+        percettore_naspi = None
+        tipo_incentivo = None
+        tipo_rapporto_sim = 'indeterminato'
+
+        if c:
+            livello = (c.livello_ccnl or dip.livello or '').strip()
+            tipo_contratto_id = str(c.tipo_contratto_id or '')
+            data_inizio_obj = c.data_inizio_rapporto or data_inizio_obj
+            data_fine_obj = c.data_fine_rapporto or data_fine_obj
+            superminimo = Decimal(str(getattr(c, 'superminimo_mensile', None) or 0)).quantize(Decimal('0.01'))
+            ind_extra = Decimal(c.edr_mensile or 0).quantize(Decimal('0.01'))
+            tipo_rapporto_sim = _tipo_rapporto_sim_prefill(c.tipo_contratto, c.data_fine_rapporto)
+        elif p:
+            livello = (p.livello_ccnl or dip.livello or '').strip()
+            tipo_contratto_id = str(p.tipo_contratto_id or '')
+            data_inizio_obj = p.data_inizio_rapporto or data_inizio_obj
+            data_fine_obj = p.data_fine_rapporto or data_fine_obj
+            superminimo = Decimal(str(getattr(p, 'superminimo_mensile', None) or 0)).quantize(Decimal('0.01'))
+            ind_turno = Decimal(p.indennita_mensile or 0).quantize(Decimal('0.01'))
+            ind_extra = Decimal(p.edr_mensile or 0).quantize(Decimal('0.01'))
+            tipo_rapporto_sim = _tipo_rapporto_sim_prefill(p.tipo_contratto, p.data_fine_rapporto)
+        else:
+            livello = (dip.livello or '').strip()
+            if dip.data_assunzione:
+                data_inizio_obj = dip.data_assunzione
+            if dip.data_cessazione:
+                data_fine_obj = dip.data_cessazione
+
+        raw_l = (livello or '').strip()
+        if raw_l in livelli_validi:
+            livello = raw_l
+        elif raw_l:
+            livello = livelli_ci.get(raw_l.lower()) or ''
+        else:
+            livello = ''
+        if not livello and livello_ccnl_fallback:
+            livello = livello_ccnl_fallback
+
+        from .utils_presenze import get_presenze_mese_aggregato
+
+        calendario = {}
+        by_mese = riepiloghi_by_dip.get(dip.id, {})
+        for m in range(1, 13):
+            r = by_mese.get(m)
+            if Presenza.objects.filter(dipendente=dip, data__year=anno, data__month=m).exists():
+                agg = get_presenze_mese_aggregato(dip, anno, m, azienda)
+                calendario[m] = {
+                    'ore_straord_diurno': agg['ore_straord_diurno'],
+                    'ore_straord_notturno': agg['ore_straord_notturno'],
+                    'ore_straord_festivo': agg['ore_straord_festivo'],
+                    'ore_straord_domenica': agg['ore_straord_domenica'],
+                    'ore_straord_nott_fest': agg['ore_straord_nott_fest'],
+                    'ore_ordinarie_retribuite': agg['ore_ordinarie_retribuite'],
+                    'ore_domenicali': agg['ore_domenicali'],
+                    'giorni_festivi': agg['ore_festivi_lavorati'],
+                    'giorni_assenza': agg['giorni_assenza_ingiust'],
+                    'trattenute_extra_mese': Decimal('0'),
+                    'competenze_extra_non_imponibili': Decimal('0'),
+                }
+            elif r:
+                calendario[m] = {
+                    'ore_straord_diurno': Decimal(str(getattr(r, 'ore_straord_diurno', 0) or 0)),
+                    'ore_straord_notturno': Decimal(str(getattr(r, 'ore_straord_notturno', 0) or 0)),
+                    'ore_straord_festivo': Decimal(str(getattr(r, 'ore_straord_festivo', 0) or 0)),
+                    'ore_straord_domenica': Decimal(str(getattr(r, 'ore_straord_domenica', 0) or 0)),
+                    'ore_straord_nott_fest': Decimal(str(getattr(r, 'ore_straord_nott_fest', 0) or 0)),
+                    'ore_ordinarie_retribuite': Decimal(str(getattr(r, 'ore_ordinarie', 0) or 0)),
+                    'ore_domenicali': Decimal(str(getattr(r, 'ore_domenicali', 0) or 0)),
+                    'giorni_festivi': Decimal(str(getattr(r, 'ore_festivi', 0) or 0)),
+                    'giorni_assenza': Decimal(str(getattr(r, 'giorni_assenza_ingiust', 0) or 0)),
+                    'trattenute_extra_mese': Decimal('0'),
+                    'competenze_extra_non_imponibili': Decimal('0'),
+                }
+            else:
+                calendario[m] = {
+                    'ore_straord_diurno': Decimal('0'),
+                    'ore_straord_notturno': Decimal('0'),
+                    'ore_straord_festivo': Decimal('0'),
+                    'ore_straord_domenica': Decimal('0'),
+                    'ore_straord_nott_fest': Decimal('0'),
+                    'ore_ordinarie_retribuite': Decimal('0'),
+                    'ore_domenicali': Decimal('0'),
+                    'giorni_festivi': Decimal('0'),
+                    'giorni_assenza': Decimal('0'),
+                    'trattenute_extra_mese': Decimal('0'),
+                    'competenze_extra_non_imponibili': Decimal('0'),
+                }
+
+        cognome_nome = f"{dip.cognome} {dip.nome}".strip()
+        # Etichetta mansione: da contratto / proposta (posizione CCNL), altrimenti anagrafica
+        if c and (c.posizione or '').strip():
+            mansione_label = c.posizione.strip()
+        elif p and (p.posizione or '').strip():
+            mansione_label = p.posizione.strip()
+        elif p and (p.titolo or '').strip():
+            mansione_label = (p.titolo or '').strip()[:120]
+        else:
+            mansione_label = dip.get_mansione_display() if dip.mansione else (dip.ruolo or '')
+        anni_anz = _anni_da_data(dip.data_assunzione or data_inizio_obj)
+
+        ruoli.append({
+            'id': str(idx),
+            'nome': cognome_nome,
+            'quantita': 1,
+            'livello': livello,
+            'tipo_contratto_id': tipo_contratto_id,
+            'tipo_rapporto': tipo_rapporto_sim,
+            'data_inizio': data_inizio_obj,
+            'data_fine': data_fine_obj,
+            'regione': 'sicilia',
+            'eta': _eta_da_data_nascita(dip.data_nascita),
+            'categoria': None,
+            'percettore_naspi': percettore_naspi,
+            'tipo_incentivo': tipo_incentivo,
+            'anni_anzianita': anni_anz,
+            'superminimo': superminimo,
+            'indennita_turno': ind_turno,
+            'indennita_extra': ind_extra,
+            'premio_risultato_annuo': Decimal('0'),
+            'calendario_mensile': calendario,
+            'dipendente_id': dip.id,
+            'stato_soggetto': dip.stato,
+            'mansione_label': mansione_label,
+            'origine_dati': 'auto_profilo',
+            'nominativi_riferimento': cognome_nome,
+            'soggetti_riferimento': [{
+                'dipendente_id': dip.id,
+                'stato': dip.stato,
+                'cognome_nome': cognome_nome,
+                'mansione': mansione_label,
+            }],
+        })
+
+    return ruoli
 
 
 def _normalizza_ccnl_key(ccnl_str):
@@ -452,7 +700,7 @@ def _build_ruoli_config(request):
             ruolo_id = key.split('_')[1]
             nome = params.get(f'nome_{ruolo_id}', '')
             quantita = int(params.get(f'qta_{ruolo_id}', 0))
-            livello = params.get(f'livello_{ruolo_id}', '')
+            livello = (params.get(f'livello_{ruolo_id}', '') or '').strip()
             tipo_contratto_id = params.get(f'tipo_{ruolo_id}', '')
             data_inizio_str = params.get(f'data_inizio_{ruolo_id}', '2026-01-01')
             data_fine_str = params.get(f'data_fine_{ruolo_id}', '2026-12-31')
@@ -515,6 +763,17 @@ def _build_ruoli_config(request):
             # Dipendente opzionale per importazione presenze reali
             dip_raw = (params.get(f'dip_{ruolo_id}', '') or '').strip()
             dipendente_id = int(dip_raw) if dip_raw.isdigit() else None
+            origine_dati = (params.get(f'origine_{ruolo_id}', '') or 'manuale').strip() or 'manuale'
+            nominativi_riferimento = (params.get(f'source_nom_{ruolo_id}', '') or '').strip()
+            soggetti_raw = (params.get(f'source_json_{ruolo_id}', '') or '').strip()
+            soggetti_riferimento = []
+            if soggetti_raw:
+                try:
+                    parsed = json.loads(soggetti_raw)
+                    if isinstance(parsed, list):
+                        soggetti_riferimento = parsed
+                except Exception:
+                    soggetti_riferimento = []
 
             # Calendario mensile straordinari/maggiorazioni
             # Chiavi: m{mese}_sd_{ruolo_id}    → ore straord. diurno
@@ -562,7 +821,9 @@ def _build_ruoli_config(request):
             except (ValueError, AttributeError):
                 data_fine = date(2026, 12, 31)
 
-            if quantita > 0 and livello:
+            # Includi sempre le testate con qta>0: il motore gestisce livello mancante (riga "missing").
+            # Escludere qui le righe senza livello lasciava ruoli_config vuoto e la simulazione senza dati.
+            if quantita > 0:
                 ruoli.append({
                     'id': ruolo_id,
                     'nome': nome,
@@ -585,8 +846,77 @@ def _build_ruoli_config(request):
                     'premio_risultato_annuo': premio_risultato_annuo,
                     'dipendente_id': dipendente_id,
                     'calendario_mensile': calendario_mensile,
+                    'origine_dati': origine_dati,
+                    'nominativi_riferimento': nominativi_riferimento,
+                    'soggetti_riferimento': soggetti_riferimento,
                 })
     return ruoli
+
+
+def _normalizza_ruolo_per_motore(ruolo):
+    """Adatta un ruolo (tracciato soggetto) ai parametri attesi dal motore simulazione."""
+    def _dec(v, default='0'):
+        try:
+            return Decimal(str(v if v is not None else default))
+        except Exception:
+            return Decimal(default)
+
+    def _to_date(v, fallback):
+        if isinstance(v, date):
+            return v
+        if isinstance(v, str) and v:
+            try:
+                return date.fromisoformat(v)
+            except Exception:
+                return fallback
+        return fallback
+
+    base = {
+        'id': ruolo.get('id'),
+        'nome': (ruolo.get('nome') or '').strip(),
+        'quantita': int(ruolo.get('quantita') or 1),
+        'livello': (ruolo.get('livello') or '').strip(),
+        'tipo_contratto_id': str(ruolo.get('tipo_contratto_id') or ''),
+        'data_inizio': _to_date(ruolo.get('data_inizio'), date(2026, 1, 1)),
+        'data_fine': _to_date(ruolo.get('data_fine'), date(2026, 12, 31)),
+        'regione': ((ruolo.get('regione') or 'sicilia').strip().lower()),
+        'eta': ruolo.get('eta'),
+        'percettore_naspi': ruolo.get('percettore_naspi'),
+        'tipo_incentivo': (ruolo.get('tipo_incentivo') or None),
+        'anni_anzianita': int(ruolo.get('anni_anzianita') or 0),
+        'superminimo': _dec(ruolo.get('superminimo')),
+        'indennita_turno': _dec(ruolo.get('indennita_turno')),
+        'indennita_extra': _dec(ruolo.get('indennita_extra')),
+        'premio_risultato_annuo': _dec(ruolo.get('premio_risultato_annuo')),
+        'tipo_rapporto': (ruolo.get('tipo_rapporto') or 'indeterminato'),
+        'categoria': ruolo.get('categoria'),
+        'dipendente_id': ruolo.get('dipendente_id'),
+        'stato_soggetto': ruolo.get('stato_soggetto'),
+        'mansione_label': ruolo.get('mansione_label'),
+        'origine_dati': ruolo.get('origine_dati'),
+        'nominativi_riferimento': ruolo.get('nominativi_riferimento'),
+        'soggetti_riferimento': ruolo.get('soggetti_riferimento') or [],
+    }
+
+    cal_raw = ruolo.get('calendario_mensile') or {}
+    cal = {}
+    for m in range(1, 13):
+        md = cal_raw.get(m) or cal_raw.get(str(m)) or {}
+        cal[m] = {
+            'ore_straord_diurno': _dec(md.get('ore_straord_diurno')),
+            'ore_straord_notturno': _dec(md.get('ore_straord_notturno')),
+            'ore_straord_festivo': _dec(md.get('ore_straord_festivo')),
+            'ore_straord_domenica': _dec(md.get('ore_straord_domenica')),
+            'ore_straord_nott_fest': _dec(md.get('ore_straord_nott_fest')),
+            'ore_ordinarie_retribuite': _dec(md.get('ore_ordinarie_retribuite')),
+            'ore_domenicali': _dec(md.get('ore_domenicali')),
+            'giorni_festivi': _dec(md.get('giorni_festivi')),
+            'giorni_assenza': _dec(md.get('giorni_assenza')),
+            'trattenute_extra_mese': _dec(md.get('trattenute_extra_mese')),
+            'competenze_extra_non_imponibili': _dec(md.get('competenze_extra_non_imponibili')),
+        }
+    base['calendario_mensile'] = cal
+    return base
 
 
 def _calcola_giorni_attivi_nel_mese(anno, mese_num, data_inizio, data_fine):
@@ -887,6 +1217,7 @@ def _calcola_simulazione_2026(request):
         }
         
         for ruolo in ruoli_config:
+            ruolo = _normalizza_ruolo_per_motore(ruolo)
             if ruolo['quantita'] <= 0:
                 continue
             
@@ -966,17 +1297,24 @@ def _calcola_simulazione_2026(request):
             _cal_mensile = ruolo.get('calendario_mensile', {}).get(mese_num, {})
             _scatto = _calcola_scatto_totale(livello_effettivo, ruolo.get('anni_anzianita', 0), scatti_db)
 
-            _ore_ord_mese = _cal_mensile.get('ore_ordinarie_retribuite', Decimal('0'))
+            _ore_ord_cal = _cal_mensile.get('ore_ordinarie_retribuite', Decimal('0'))
+            try:
+                _ore_ord_cal = Decimal(str(_ore_ord_cal or 0))
+            except Exception:
+                _ore_ord_cal = Decimal('0')
+            use_modalita_ore = _ore_ord_cal > 0
+
+            _ore_ord_mese = _ore_ord_cal
             if _ore_ord_mese <= 0:
                 _ore_mens_param = Decimal(str(parametro.ore_mensili or 0))
                 if _ore_mens_param <= 0:
                     _ore_mens_param = (Decimal(str(parametro.ore_settimanali or 40)) * Decimal('4.333333')).quantize(Decimal('0.01'))
                 _ore_ord_mese = (_ore_mens_param * coeff_ore * coeff_ratei_calendario).quantize(Decimal('0.01'))
 
-            # Fallback ore festive: coerente con simulatore_paga
-            # (se non valorizzate dal calendario mensile, calcolo automatico dalle festività del mese)
+            # Fallback ore festive: solo se non si usano ore effettive da calendario dipendente
+            # (se non valorizzate dal calendario mensile, stima da festività del mese — come simulatore_paga)
             _ore_fest_mese = _cal_mensile.get('giorni_festivi', Decimal('0'))
-            if _ore_fest_mese <= 0:
+            if _ore_fest_mese <= 0 and not use_modalita_ore:
                 from .utils_calendario import get_festivita_mese as _get_fest
                 _ore_gg = (Decimal(str(parametro.ore_giornaliere or 0)) * coeff_ore).quantize(Decimal('0.01'))
                 if _ore_gg > 0:
@@ -1011,6 +1349,8 @@ def _calcola_simulazione_2026(request):
                 giorni_assenza_ingiust=_cal_mensile.get('giorni_assenza', Decimal('0')),
                 trattenute_extra_mese=_cal_mensile.get('trattenute_extra_mese', Decimal('0')),
                 competenze_extra_non_imponibili=_cal_mensile.get('competenze_extra_non_imponibili', Decimal('0')),
+                modalita_ore_effettive=use_modalita_ore,
+                auto_ore_domenicali_da_calendario=not use_modalita_ore,
                 ccnl_obj=_ccnl,
             )
 
@@ -1529,6 +1869,16 @@ def _load_ruoli_da_db(azienda):
             'indennita_extra': getattr(row, 'indennita_extra', Decimal('0')) if has_indennita_extra else Decimal('0'),
             'premio_risultato_annuo': row.premio_risultato_annuo,
             'calendario_mensile': calendario,
+            'origine_dati': getattr(row, 'origine_dati', 'manuale'),
+            'nominativi_riferimento': getattr(row, 'nominativi_riferimento', '') or '',
+            'soggetti_riferimento': getattr(row, 'soggetti_riferimento', []) or [],
+            'dipendente_id': getattr(row, 'dipendente_id', None),
+            'stato_soggetto': getattr(row, 'stato_soggetto', '') or '',
+            'mansione_label': (
+                getattr(row, 'mansione_label', '') or
+                (((getattr(row, 'soggetti_riferimento', []) or [{}])[0].get('mansione'))
+                 if (getattr(row, 'soggetti_riferimento', []) or []) else '')
+            ),
         })
     return ruoli
 
@@ -1547,6 +1897,9 @@ def _salva_ruoli_nel_db(azienda, user, ruoli_config):
         create_kwargs = dict(
             azienda=azienda,
             ordinamento=idx,
+            dipendente_id=r.get('dipendente_id'),
+            stato_soggetto=(r.get('stato_soggetto') or ''),
+            mansione_label=(r.get('mansione_label') or ''),
             nome=r.get('nome') or '',
             quantita=int(r.get('quantita') or 1),
             livello=str(r.get('livello') or ''),
@@ -1564,6 +1917,9 @@ def _salva_ruoli_nel_db(azienda, user, ruoli_config):
             indennita_turno=r.get('indennita_turno') or Decimal('0'),
             premio_risultato_annuo=r.get('premio_risultato_annuo') or Decimal('0'),
             calendario_mensile=cal_json,
+            origine_dati=r.get('origine_dati') or 'manuale',
+            nominativi_riferimento=r.get('nominativi_riferimento') or '',
+            soggetti_riferimento=r.get('soggetti_riferimento') or [],
             modificato_da=user,
         )
         if has_indennita_extra:
@@ -1586,9 +1942,15 @@ def simulazione_2026_config(request):
 
     ha_parametri_ruoli = any(k.startswith('ruolo_') for k in request.GET)
 
-    if not ha_parametri_ruoli and not request.GET.get('reset'):
-        # Nessun parametro ruolo nel GET: carica direttamente dal DB
-        ruoli_config = _load_ruoli_da_db(azienda) if azienda else []
+    if not ha_parametri_ruoli:
+        # Nuova regola: sorgente canonica = anagrafica/contratti/proposte correnti.
+        # Rigenera sempre i box per singolo soggetto e riallinea la tabella RuoloOrganico2026.
+        ruoli_config = _ruoli_precaricati_da_profili(azienda, anno=2026) if azienda else []
+        if azienda:
+            try:
+                _salva_ruoli_nel_db(azienda, request.user, ruoli_config)
+            except Exception:
+                logger.exception('Errore riallineamento automatico RuoloOrganico2026 da anagrafica')
     else:
         ruoli_config = _build_ruoli_config(request)
 
@@ -1620,13 +1982,14 @@ def simulazione_2026_config(request):
             .exclude(stato='cessato')
             .order_by('cognome', 'nome')
         )
-
     testate_scenario = _somma_testate_ruoli(ruoli_config)
     delta_organico = (
         (testate_scenario - dipendenti_attivi_count)
         if dipendenti_attivi_count is not None
         else None
     )
+
+    _prepara_ruoli_config_per_template(ruoli_config)
 
     return render(
         request,

@@ -1,473 +1,490 @@
 {% extends 'base.html' %}
-{% load currency_filters format_it_tags %}
+{% load currency_filters format_it_tags l10n %}
 
-{% block title %}Simulazione annua — Configurazione{% endblock %}
+{% block title %}Simulazione annua — Costo personale 2026{% endblock %}
 
 {% block extra_head %}
 <style>
 :root {
-  --c-primary:  #1b3a5f;
-  --c-accent:   #2d6199;
-  --c-border:   #c5d0dc;
-  --c-muted:    #5c6b7d;
-  --c-alt:      #f4f7fa;
-  --c-ok:       #0a6640;
-  --sz-xs:      0.68rem;
-  --sz-sm:      0.74rem;
-  --sz-base:    0.80rem;
+  --sim26-primary: #0f2744;
+  --sim26-accent: #1e5a8a;
+  --sim26-border: #c8d4e2;
+  --sim26-muted: #5a6b7d;
+  --sim26-bg: #f0f4f9;
+  --sim26-card: #fff;
+  --sim26-ok: #0d6e4a;
 }
-body { font-size: var(--sz-base); }
+.sim26-wrap { font-size: 0.82rem; max-width: 1180px; margin: 0 auto; }
 
-/* ── Topbar ─────────────────────────────────────────────── */
-.sim-topbar {
-  background: var(--c-primary);
+.sim26-hero {
+  background: linear-gradient(135deg, var(--sim26-primary) 0%, #1a3d66 100%);
   color: #fff;
-  padding: .45rem 1rem;
-  border-radius: 6px;
-  margin-bottom: .75rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .5rem;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
 }
-.sim-topbar h5 { font-size: .95rem; font-weight: 700; margin: 0; letter-spacing: .02em; }
-.sim-topbar .meta { font-size: var(--sz-xs); opacity: .8; }
+.sim26-hero h1 { font-size: 1.15rem; font-weight: 700; margin: 0 0 .35rem; letter-spacing: .02em; }
+.sim26-hero p { margin: 0; font-size: .78rem; opacity: .92; line-height: 1.45; }
+.sim26-hero .meta { margin-top: .5rem; font-size: .72rem; opacity: .85; }
 
-/* ── Action bar ─────────────────────────────────────────── */
-.sim-actions {
+.sim26-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: .5rem;
+  margin-bottom: 1rem;
+}
+.sim26-step {
+  background: var(--sim26-card);
+  border: 1px solid var(--sim26-border);
+  border-radius: 8px;
+  padding: .55rem .7rem;
+  border-left: 3px solid var(--sim26-accent);
+}
+.sim26-step strong { display: block; font-size: .68rem; color: var(--sim26-primary); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .2rem; }
+.sim26-step span { font-size: .74rem; color: var(--sim26-muted); line-height: 1.35; }
+
+.sim26-global {
+  background: var(--sim26-bg);
+  border: 1px solid var(--sim26-border);
+  border-radius: 8px;
+  padding: .6rem .85rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem;
+}
+.sim26-global label { font-size: .68rem; font-weight: 700; text-transform: uppercase; color: var(--sim26-muted); margin: 0 .35rem 0 0; }
+.sim26-global .hint { font-size: .65rem; color: var(--sim26-muted); max-width: 420px; }
+
+.sim26-actions {
   position: sticky;
   bottom: 0;
   background: #fff;
-  border-top: 2px solid var(--c-border);
-  padding: .5rem 1rem;
+  border-top: 2px solid var(--sim26-border);
+  padding: .65rem 0;
+  margin-top: 1rem;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   gap: .5rem;
-  z-index: 100;
-  box-shadow: 0 -2px 8px rgba(0,0,0,.07);
+  z-index: 50;
+  box-shadow: 0 -4px 16px rgba(15,39,68,.08);
 }
 
-/* ── Ruolo card ─────────────────────────────────────────── */
-.ruolo-card {
-  border: 1px solid var(--c-border);
-  border-left: 3px solid var(--c-accent);
-  border-radius: 5px;
-  margin-bottom: .6rem;
-  background: #fff;
+.sim-person-card {
+  background: var(--sim26-card);
+  border: 1px solid var(--sim26-border);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
 }
-.ruolo-card .rc-head {
-  background: var(--c-alt);
-  padding: .25rem .6rem;
-  border-bottom: 1px solid var(--c-border);
+.sim-person-head {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   justify-content: space-between;
   gap: .5rem;
-  border-radius: 4px 4px 0 0;
+  padding: .65rem .85rem;
+  background: var(--sim26-bg);
+  border-bottom: 1px solid var(--sim26-border);
 }
-.ruolo-card .rc-head .rc-title {
-  font-size: var(--sz-xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  color: var(--c-accent);
-}
-.ruolo-card .rc-body { padding: .45rem .6rem; }
+.sim-person-head .who { font-weight: 700; font-size: .9rem; color: var(--sim26-primary); }
+.sim-person-head .mans { font-size: .76rem; color: var(--sim26-muted); margin-top: .15rem; }
+.sim-person-body { padding: .75rem .85rem; }
 
-/* ── Section label ──────────────────────────────────────── */
-.sec-label {
-  font-size: .63rem;
+.sim-badge { font-size: .62rem; font-weight: 700; padding: .12rem .45rem; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+.sim-badge-attivo { background: #d1fae5; color: #065f46; }
+.sim-badge-candidato { background: #fef3c7; color: #92400e; }
+
+.sim-sec-title {
+  font-size: .65rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .06em;
-  color: var(--c-muted);
-  border-bottom: 1px solid var(--c-border);
-  padding-bottom: 2px;
-  margin-bottom: .3rem;
+  color: var(--sim26-muted);
+  margin: .75rem 0 .4rem;
+  padding-bottom: .2rem;
+  border-bottom: 1px solid var(--sim26-border);
 }
+.sim-sec-title:first-child { margin-top: 0; }
 
-/* ── Form controls ──────────────────────────────────────── */
-.fc { font-size: var(--sz-sm) !important; padding: .18rem .35rem !important; }
-.flabel { font-size: .63rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--c-muted); margin-bottom: 2px; display: block; }
+.fc-sim { font-size: .78rem !important; padding: .22rem .4rem !important; }
+.lbl-sim { font-size: .62rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--sim26-muted); margin-bottom: 2px; display: block; }
 
-/* ── Calendar ───────────────────────────────────────────── */
-.cal-table th { font-size: .63rem; padding: .15rem .25rem; background: #e8eef5; color: var(--c-primary); text-align: center; white-space: nowrap; }
-.cal-table td { padding: .1rem .15rem; }
-.cal-input { width: 52px !important; padding: .1rem !important; font-size: .7rem !important; text-align: center !important; }
-.cal-mese { font-size: .7rem; font-weight: 600; color: var(--c-primary); padding: .1rem .3rem; white-space: nowrap; }
+.cal-table th { font-size: .62rem; padding: .12rem .2rem; background: #e8eef5; color: var(--sim26-primary); text-align: center; white-space: nowrap; }
+.cal-table td { padding: .08rem .1rem; }
+.cal-input { width: 50px !important; padding: .08rem !important; font-size: .68rem !important; text-align: center !important; }
+.cal-mese { font-size: .68rem; font-weight: 600; color: var(--sim26-primary); padding: .08rem .25rem; white-space: nowrap; }
 
-/* ── Badge variabili ────────────────────────────────────── */
-.badge-note { font-size: .58rem; background: #e2e8f0; color: #475569; border-radius: 3px; padding: .1rem .3rem; vertical-align: middle; }
-
-/* ── Btn compact ────────────────────────────────────────── */
-.btn-xs { font-size: .7rem; padding: .15rem .45rem; }
-
-/* ── Empty state ────────────────────────────────────────── */
-.empty-state { text-align: center; padding: 2rem; color: var(--c-muted); font-size: var(--sz-sm); border: 2px dashed var(--c-border); border-radius: 6px; }
+.sim-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--sim26-muted);
+  border: 2px dashed var(--sim26-border);
+  border-radius: 10px;
+  background: #fafbfc;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 mt-2">
+<div class="container-fluid px-3 py-3 sim26-wrap">
 
-  <!-- Topbar -->
-  <div class="sim-topbar">
-    <div>
-      <h5>Simulazione annua</h5>
-      <span class="meta">CCNL Turismo-FIPE &nbsp;|&nbsp; Periodo 01/01/2026–31/12/2026 &nbsp;|&nbsp; Azienda: <strong>{{ azienda_operativa.nome|default:"non selezionata" }}</strong></span>
-    </div>
-    <div class="d-flex gap-2 align-items-center">
-      {% if not azienda_operativa %}
-        <span class="badge bg-warning text-dark" style="font-size:.68rem">Seleziona un'azienda operativa</span>
-      {% endif %}
+  <div class="sim26-hero">
+    <h1>Costo personale — simulazione annua 2026</h1>
+    <p>
+      Per ogni <strong>dipendente attivo</strong> o <strong>candidato</strong> in anagrafica compili i parametri retributivi e il periodo (fino al <strong>31/12/2026</strong>).
+      I dati alimentano il <strong>motore di simulazione</strong> CCNL Turismo–FIPE: al termine ottieni il costo annuo complessivo per l’azienda e il dettaglio mensile.
+    </p>
+    <div class="meta">
+      Azienda: <strong>{{ azienda_operativa.nome|default:"— seleziona un’azienda operativa —" }}</strong>
       {% if ultima_modifica %}
-        <span class="badge bg-success" style="font-size:.65rem" title="Ruoli caricati dalla tabella RuoloOrganico2026">
-          ✓ Ruoli salvati — {{ ultima_modifica|date:"d/m/Y H:i" }}
-        </span>
-        <a href="?reset=1" class="btn btn-sm btn-outline-warning btn-xs" title="Svuota il form e inizia da zero"
-           data-confirm-title="Nuova configurazione"
+        &nbsp;·&nbsp; Ultimo salvataggio scenario: {{ ultima_modifica|date:"d/m/Y H:i" }}
+        <a href="?reset=1" class="text-warning ms-1" style="font-size:.72rem"
+           data-confirm-title="Nuova simulazione"
            data-confirm-variant="warning"
-           data-confirm-ok-label="Resetta"
-           data-confirm-message="Confermi il reset della configurazione corrente e l'avvio di una nuova simulazione vuota?">+ Nuova config</a>
+           data-confirm-ok-label="Azzera"
+           data-confirm-message="Vuoi ricostruire lo scenario da zero dagli attuali attivi e candidati?">Azzera e ricarica</a>
       {% endif %}
-      <a href="{% url 'calendario_aziendale' %}" class="btn btn-sm btn-outline-light btn-xs" title="Configura calendario lavorativo aziendale">📅 Calendario</a>
-      <a href="{% url 'lista_dipendenti' %}{% if azienda_operativa %}?stato=attivo{% endif %}" class="btn btn-sm btn-outline-light btn-xs" title="Anagrafica dipendenti in carico (stato attivo)"><i class="bi bi-people"></i> Dipendenti</a>
-      <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-sm btn-outline-light btn-xs">← Proposte</a>
     </div>
   </div>
 
-  <div class="alert alert-light border py-2 small mb-2" role="status" style="font-size:.74rem">
-    <div class="mb-1"><strong>Simulazione annua.</strong> Scenario ruoli e costo su tutto l’anno; il confronto con l’organico in carico è nel riepilogo e nell’export. Il <strong>calendario aziendale</strong> influenza giorni lavorativi e presenze.</div>
-    <div class="mb-0 text-muted" style="font-size:.9em">
-      <a href="{% url 'guida_modulo' 'modulo-admin' %}">Guida: operazioni HR / admin</a>
+  <div class="sim26-steps">
+    <div class="sim26-step">
+      <strong>1. Dati soggetto</strong>
+      <span>Nome, mansione da contratto o proposta, livello CCNL e tipo contratto (ore).</span>
+    </div>
+    <div class="sim26-step">
+      <strong>2. Periodo e accessori</strong>
+      <span>Date inizio/fine rapporto nel 2026, voci variabili, straordinari opzionali.</span>
+    </div>
+    <div class="sim26-step">
+      <strong>3. Calcolo</strong>
+      <span>Invio al motore: costo d’azienda su 12 mesi e contributi/F24 stimati.</span>
     </div>
   </div>
 
-  {% if azienda_operativa and dipendenti_attivi_count is not None %}
-  <div class="alert alert-light border py-2 px-3 mb-2" style="font-size:.74rem;border-left:3px solid var(--c-accent) !important">
-    <strong>Organico reale vs scenario.</strong>
-    Dipendenti <strong>in carico</strong> (stato attivo): <strong>{{ dipendenti_attivi_count }}</strong>.
-    Nel form sotto, la somma delle <strong>Qtà</strong> per ruolo è <strong>{{ testate_scenario }}</strong> testate di scenario.
-    {% if delta_organico is not None %}
-      {% if delta_organico > 0 %}
-        <span class="text-success">→ Prospettiva di <strong>+{{ delta_organico }}</strong> testate rispetto all’organico attuale.</span>
-      {% elif delta_organico < 0 %}
-        <span class="text-warning">→ Prospettiva di <strong>{{ delta_organico }}</strong> testate (riduzione vs oggi).</span>
-      {% else %}
-        <span class="text-muted">→ Scenario allineato al numero di dipendenti attivi (stesso ordine di grandezza).</span>
-      {% endif %}
-    {% endif %}
-    <span class="d-block mt-1 text-muted" style="font-size:.68rem">Usare le quantità per modellare assunzioni o riduzioni; collegare un dipendente al ruolo solo per importare le presenze nell’anno.</span>
-  </div>
-  {% elif not azienda_operativa %}
-  <div class="alert alert-warning py-2 small mb-2">Seleziona un’<strong>azienda operativa</strong> dalla dashboard o da Anagrafiche per filtrare i dipendenti e il confronto organico.</div>
+  {% if not azienda_operativa %}
+  <div class="alert alert-warning py-2 small">Seleziona un’<strong>azienda operativa</strong> dalla dashboard per caricare i dipendenti e avviare la simulazione.</div>
   {% endif %}
 
+  {% if azienda_operativa and dipendenti_attivi_count is not None %}
+  <div class="alert alert-light border py-2 small mb-3" style="border-left:3px solid var(--sim26-accent)!important">
+    Dipendenti <strong>attivi</strong> in anagrafica: <strong>{{ dipendenti_attivi_count }}</strong>.
+    Soggetti nello <strong>scenario</strong> (attivi + candidati nel form): <strong>{{ testate_scenario }}</strong>.
+    {% if delta_organico is not None %}
+      {% if delta_organico > 0 %}<span class="text-success">Scenario con {{ delta_organico }} testate in più rispetto agli attivi.</span>
+      {% elif delta_organico < 0 %}<span class="text-warning">Scenario con {{ delta_organico }} testate rispetto agli attivi.</span>
+      {% else %}<span class="text-muted">Scenario allineato al numero di attivi.</span>{% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% localize off %}
   <form method="post" action="{% url 'simulazione_2026_risultato' %}" id="formSimulazione">
     {% csrf_token %}
+    {# Marker riconosciuto da _get_sim_params: assicura che il POST attivi la simulazione #}
+    <input type="hidden" name="sim2026_form" value="1">
 
-    <!-- Parametri globali simulazione -->
-    <div class="d-flex align-items-center gap-3 mb-2 px-2 py-2" style="background:var(--c-alt);border:1px solid var(--c-border);border-radius:5px;">
-      <span style="font-size:.72rem;font-weight:700;color:var(--c-primary);white-space:nowrap;">Parametri globali</span>
-      <div class="d-flex align-items-center gap-1">
-        <label class="flabel mb-0" style="white-space:nowrap;">Divisore orario</label>
-        <select name="divisore" class="form-select fc" style="width:auto">
-          <option value="173.33" {% if request.GET.divisore != '172' and request.GET.divisore != '26' %}selected{% endif %}>173,33 &mdash; standard</option>
-          <option value="172"    {% if request.GET.divisore == '172'  %}selected{% endif %}>172,00</option>
-          <option value="26"     {% if request.GET.divisore == '26'   %}selected{% endif %}>26 &mdash; FIPE/Turismo (÷ 26 gg)</option>
+    <div class="sim26-global">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <label for="id_divisore">Divisore orario</label>
+        <select name="divisore" id="id_divisore" class="form-select fc-sim" style="width:auto;min-width:11rem">
+          <option value="173.33" {% if request.GET.divisore != '172' and request.GET.divisore != '26' %}selected{% endif %}>173,33 (standard)</option>
+          <option value="172" {% if request.GET.divisore == '172' %}selected{% endif %}>172</option>
+          <option value="26" {% if request.GET.divisore == '26' %}selected{% endif %}>26 — FIPE (÷ 26 gg)</option>
         </select>
       </div>
-      <span style="font-size:.62rem;color:var(--c-muted);">Il divisore determina la paga oraria: lordo&nbsp;mensile&nbsp;÷&nbsp;divisore</span>
+      <span class="hint">Il divisore converte il lordo mensile tabellare in paga oraria per straordinari e maggiorazioni.</span>
+      <div class="ms-auto d-flex gap-2 flex-wrap">
+        <a href="{% url 'calendario_aziendale' %}" class="btn btn-sm btn-outline-secondary">Calendario aziendale</a>
+        <a href="{% url 'lista_dipendenti' %}{% if azienda_operativa %}?stato=attivo{% endif %}" class="btn btn-sm btn-outline-secondary">Anagrafica</a>
+        <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-sm btn-outline-secondary">Proposte</a>
+      </div>
     </div>
 
-    <!-- Header sezione ruoli -->
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <span style="font-size:.8rem; font-weight:700; color:var(--c-primary);">Profili Ruolo</span>
-      <button type="button" class="btn btn-sm btn-success btn-xs" onclick="aggiungiRuolo()">+ Aggiungi ruolo</button>
-    </div>
+    <p class="text-muted small mb-2 px-1" style="font-size:.68rem;line-height:1.35">
+      Il <strong>superminimo</strong> è la voce retributiva concordata oltre i minimi tabellari CCNL (€/mese, imponibile): su <strong>contratto</strong> e <strong>proposta</strong> è salvato in anagrafica; se assente risulta <strong>0</strong>.
+      Conta per tredicesima/quattordicesima, TFR, INPS, ferie e permessi, malattia e maternità, trattamento economico complessivo; non è un bonus una tantum — resta stabile finché non si modifica in contratto/proposta o qui per la simulazione.
+    </p>
 
     <div id="ruoliContainer" data-ruoli-count="{{ ruoli_config|length }}">
 
       {% for ruolo in ruoli_config %}
-      <div class="ruolo-card">
-        <div class="rc-head">
-          <span class="rc-title">Ruolo {{ forloop.counter }} {% if ruolo.nome %}&mdash; {{ ruolo.nome }}{% endif %}</span>
-          <button type="button" class="btn btn-outline-danger btn-xs py-0" onclick="rimuoviRuolo(this)">rimuovi</button>
+      <div class="sim-person-card ruolo-card" data-ruolo-id="{{ ruolo.id }}">
+        <div class="sim-person-head">
+          <div>
+            <div class="who">{{ ruolo.nome }}</div>
+            {% if ruolo.mansione_label %}
+              <div class="mans"><i class="bi bi-briefcase"></i> {{ ruolo.mansione_label }}</div>
+            {% endif %}
+          </div>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            {% if ruolo.stato_soggetto == 'attivo' %}
+              <span class="sim-badge sim-badge-attivo">Attivo</span>
+            {% elif ruolo.stato_soggetto == 'candidato' %}
+              <span class="sim-badge sim-badge-candidato">Candidato</span>
+            {% endif %}
+            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size:.7rem" onclick="rimuoviRuolo(this)" title="Escludi questo soggetto dallo scenario">Rimuovi</button>
+          </div>
         </div>
-        <div class="rc-body">
+        <div class="sim-person-body">
           <input type="hidden" name="ruolo_{{ ruolo.id }}" value="1">
+          <input type="hidden" name="origine_{{ ruolo.id }}" value="{{ ruolo.origine_dati|default:'auto_profilo' }}">
+          <input type="hidden" name="source_nom_{{ ruolo.id }}" value="{{ ruolo.nominativi_riferimento|default:'' }}">
+          <input type="hidden" name="source_json_{{ ruolo.id }}" value="{{ ruolo.source_json_html|default:'[]'|escape }}">
+          <input type="hidden" name="premio_{{ ruolo.id }}" value="0">
 
-          <!-- Riga A: identificazione -->
+          <div class="sim-sec-title">Parametri collegati al motore di simulazione</div>
           <div class="row g-2 mb-2">
-            <div class="col-md-3 col-6">
-              <label class="flabel">Nome ruolo</label>
-              <input type="text" name="nome_{{ ruolo.id }}" class="form-control fc" value="{{ ruolo.nome }}" placeholder="Es: Cameriere">
+            <div class="col-lg-4 col-md-6">
+              <label class="lbl-sim" for="nome_{{ ruolo.id }}">Cognome e nome</label>
+              <input type="text" id="nome_{{ ruolo.id }}" name="nome_{{ ruolo.id }}" class="form-control fc-sim" value="{{ ruolo.nome }}" autocomplete="name">
             </div>
-            <div class="col-md-1 col-3">
-              <label class="flabel">Qtà</label>
-              <input type="number" name="qta_{{ ruolo.id }}" class="form-control fc text-center" value="{{ ruolo.quantita }}" min="0" max="100">
+            <div class="col-6 col-md-3 col-lg-1">
+              <label class="lbl-sim">Testate</label>
+              <input type="number" name="qta_{{ ruolo.id }}" class="form-control fc-sim text-center" value="1" min="1" max="1" readonly title="Una testata per persona">
             </div>
-            <div class="col-md-2 col-6">
-              <label class="flabel">Livello CCNL</label>
-              <select name="livello_{{ ruolo.id }}" class="form-select fc">
-                <option value="">— seleziona —</option>
+            <div class="col-6 col-md-3 col-lg-2">
+              <label class="lbl-sim" for="livello_{{ ruolo.id }}">Livello CCNL</label>
+              <select id="livello_{{ ruolo.id }}" name="livello_{{ ruolo.id }}" class="form-select fc-sim">
+                <option value="">— Livello —</option>
                 {% for p in parametri_ccnl %}{% ifchanged p.livello %}
                   <option value="{{ p.livello }}" {% if p.livello == ruolo.livello %}selected{% endif %}>L{{ p.livello }} — {{ p.qualifica }}</option>
                 {% endifchanged %}{% endfor %}
               </select>
             </div>
-            <div class="col-md-2 col-6">
-              <label class="flabel">Tipo contratto</label>
-              <select name="tipo_{{ ruolo.id }}" class="form-select fc">
-                <option value="">Full-time (1.00)</option>
+            <div class="col-md-6 col-lg-3">
+              <label class="lbl-sim" for="tipo_{{ ruolo.id }}">Tipo contratto (ore settimanali)</label>
+              <select id="tipo_{{ ruolo.id }}" name="tipo_{{ ruolo.id }}" class="form-select fc-sim">
+                <option value="">Full-time (1,00)</option>
                 {% for tc in tipi_contratto %}
                   <option value="{{ tc.id }}" {% if tc.id|stringformat:"s" == ruolo.tipo_contratto_id %}selected{% endif %}>{{ tc.nome }} ({{ tc.coefficiente_ore }})</option>
                 {% endfor %}
               </select>
             </div>
-            <div class="col-md-2 col-6">
-              <label class="flabel">Data inizio</label>
-              <input type="date" name="data_inizio_{{ ruolo.id }}" class="form-control fc" value="{{ ruolo.data_inizio|date:'Y-m-d'|default:'2026-01-01' }}">
+            <div class="col-6 col-md-3">
+              <label class="lbl-sim" for="di_{{ ruolo.id }}">Inizio rapporto</label>
+              <input type="date" id="di_{{ ruolo.id }}" name="data_inizio_{{ ruolo.id }}" class="form-control fc-sim" value="{{ ruolo.data_inizio|date:'Y-m-d'|default:'2026-01-01' }}">
             </div>
-            <div class="col-md-2 col-6">
-              <label class="flabel">Data fine</label>
-              <input type="date" name="data_fine_{{ ruolo.id }}" class="form-control fc" value="{{ ruolo.data_fine|date:'Y-m-d'|default:'2026-12-31' }}">
+            <div class="col-6 col-md-3">
+              <label class="lbl-sim" for="df_{{ ruolo.id }}">Fine (max 31/12/2026)</label>
+              <input type="date" id="df_{{ ruolo.id }}" name="data_fine_{{ ruolo.id }}" class="form-control fc-sim" value="{{ ruolo.data_fine|date:'Y-m-d'|default:'2026-12-31' }}">
             </div>
           </div>
 
-          <!-- Riga B: contratto / agevolazioni -->
+          <input type="hidden" name="tipo_rapporto_{{ ruolo.id }}" value="{{ ruolo.tipo_rapporto|default:'indeterminato' }}">
+          <input type="hidden" name="categoria_{{ ruolo.id }}" value="">
+
+          <div class="sim-sec-title">Agevolazioni e decontribuzione</div>
           <div class="row g-2 mb-2">
-            <div class="col-md-2 col-6">
-              <label class="flabel">Tipo rapporto</label>
-              <select name="tipo_rapporto_{{ ruolo.id }}" class="form-select fc">
-                <option value="indeterminato" {% if ruolo.tipo_rapporto == 'indeterminato' %}selected{% endif %}>Indeterminato</option>
-                <option value="determinato"   {% if ruolo.tipo_rapporto == 'determinato'   %}selected{% endif %}>Determinato</option>
-                <option value="apprendistato" {% if ruolo.tipo_rapporto == 'apprendistato' %}selected{% endif %}>Apprendistato</option>
-              </select>
+            <div class="col-md-3">
+              <label class="lbl-sim" for="reg_{{ ruolo.id }}">Regione</label>
+              <input type="text" id="reg_{{ ruolo.id }}" name="regione_{{ ruolo.id }}" class="form-control fc-sim" value="{{ ruolo.regione|default:'sicilia' }}">
             </div>
-            <div class="col-md-2 col-4">
-              <label class="flabel">Regione</label>
-              <input type="text" name="regione_{{ ruolo.id }}" class="form-control fc" value="{{ ruolo.regione|default:'sicilia' }}">
+            <div class="col-md-2">
+              <label class="lbl-sim" for="eta_{{ ruolo.id }}">Età</label>
+              <input type="number" id="eta_{{ ruolo.id }}" name="eta_{{ ruolo.id }}" class="form-control fc-sim text-center" value="{{ ruolo.eta|default:'' }}" min="16" max="100" placeholder="—">
             </div>
-            <div class="col-md-1 col-3">
-              <label class="flabel">Età</label>
-              <input type="number" name="eta_{{ ruolo.id }}" class="form-control fc text-center" value="{{ ruolo.eta|default:'' }}" min="16" max="100" placeholder="—">
-            </div>
-            <div class="col-md-2 col-5">
-              <label class="flabel">Categoria</label>
-              <input type="text" name="categoria_{{ ruolo.id }}" class="form-control fc" value="{{ ruolo.categoria|default:'' }}" placeholder="—">
-            </div>
-            <div class="col-md-2 col-5">
-              <label class="flabel">Percettore NASpI</label>
-              <select name="percettore_naspi_{{ ruolo.id }}" class="form-select fc">
+            <div class="col-md-3">
+              <label class="lbl-sim" for="naspi_{{ ruolo.id }}">Percettore NASpI</label>
+              <select id="naspi_{{ ruolo.id }}" name="percettore_naspi_{{ ruolo.id }}" class="form-select fc-sim">
                 <option value="" {% if ruolo.percettore_naspi is None %}selected{% endif %}>—</option>
-                <option value="si" {% if ruolo.percettore_naspi is True  %}selected{% endif %}>Sì</option>
+                <option value="si" {% if ruolo.percettore_naspi is True %}selected{% endif %}>Sì</option>
                 <option value="no" {% if ruolo.percettore_naspi is False %}selected{% endif %}>No</option>
               </select>
             </div>
-            <div class="col-md-3 col-12">
-              <label class="flabel">Tipo incentivo decontrib.</label>
-              <input type="text" name="tipo_incentivo_{{ ruolo.id }}" class="form-control fc" value="{{ ruolo.tipo_incentivo|default:'' }}" placeholder="—">
+            <div class="col-md-4">
+              <label class="lbl-sim" for="inc_{{ ruolo.id }}">Tipo incentivo / decontrib.</label>
+              <input type="text" id="inc_{{ ruolo.id }}" name="tipo_incentivo_{{ ruolo.id }}" class="form-control fc-sim" value="{{ ruolo.tipo_incentivo|default:'' }}" placeholder="es. Sud, …">
             </div>
           </div>
 
-          <!-- Riga C: voci retributive variabili -->
-          <div class="sec-label">Voci retributive variabili</div>
+          <div class="sim-sec-title">Voci retributive variabili (€/mese, tranne anzianità)</div>
           <div class="row g-2 mb-2">
-            <div class="col-md-2 col-4">
-              <label class="flabel">Anni anzianità</label>
-              <input type="number" name="anni_anz_{{ ruolo.id }}" class="form-control fc text-center" value="{{ ruolo.anni_anzianita|default:'0' }}" min="0" max="40">
+            <div class="col-6 col-md-3">
+              <label class="lbl-sim" for="anz_{{ ruolo.id }}">Anni anzianità</label>
+              <input type="number" id="anz_{{ ruolo.id }}" name="anni_anz_{{ ruolo.id }}" class="form-control fc-sim text-center" value="{{ ruolo.anni_anzianita|default:'0' }}" min="0" max="40">
             </div>
-            <div class="col-md-2 col-4">
-              <label class="flabel">Superminimo €/mese</label>
-              <input type="number" name="superminimo_{{ ruolo.id }}" class="form-control fc" value="{{ ruolo.superminimo|default:'' }}" min="0" step="0.01" placeholder="0,00">
+            <div class="col-6 col-md-3">
+              <label class="lbl-sim" for="sm_{{ ruolo.id }}" title="Somma concordata oltre il minimo CCNL, imponibile; non dedotta dal lordo.">Superminimo (€/mese)</label>
+              <input type="number" id="sm_{{ ruolo.id }}" name="superminimo_{{ ruolo.id }}" class="form-control fc-sim" value="{{ ruolo.superminimo|default:'' }}" min="0" step="0.01" placeholder="0">
             </div>
-            <div class="col-md-2 col-4">
-              <label class="flabel">Ind. turno €/mese</label>
-              <input type="number" name="ind_turno_{{ ruolo.id }}" class="form-control fc" value="{{ ruolo.indennita_turno|default:'' }}" min="0" step="0.01" placeholder="0,00">
+            <div class="col-6 col-md-3">
+              <label class="lbl-sim" for="it_{{ ruolo.id }}">Ind. turno</label>
+              <input type="number" id="it_{{ ruolo.id }}" name="ind_turno_{{ ruolo.id }}" class="form-control fc-sim" value="{{ ruolo.indennita_turno|default:'' }}" min="0" step="0.01" placeholder="0">
             </div>
-            <div class="col-md-2 col-4">
-              <label class="flabel" title="EDR, El.Dis.Bil. o qualsiasi voce extra individuale">Ind. extra €/mese <span class="badge-note" title="Elemento Distinto, El.Dis.Bil., voce individuale aggiuntiva">EDR/extra</span></label>
-              <input type="number" name="ind_extra_{{ ruolo.id }}" class="form-control fc" value="{{ ruolo.indennita_extra|default:'' }}" min="0" step="0.01" placeholder="0,00">
+            <div class="col-6 col-md-3">
+              <label class="lbl-sim" for="ie_{{ ruolo.id }}">Ind. extra (EDR)</label>
+              <input type="number" id="ie_{{ ruolo.id }}" name="ind_extra_{{ ruolo.id }}" class="form-control fc-sim" value="{{ ruolo.indennita_extra|default:'' }}" min="0" step="0.01" placeholder="0">
             </div>
           </div>
 
-          <!-- Sezione calendario straordinari (collapse) -->
-          <div class="sec-label d-flex align-items-center justify-content-between">
-            <span>Straordinari / Maggiorazioni mensili</span>
-            <button type="button" class="btn btn-outline-secondary btn-xs py-0 px-2"
-                    data-bs-toggle="collapse" data-bs-target="#cal_{{ ruolo.id }}" style="font-size:.62rem">
-              mostra calendario ▾
-            </button>
+          <div class="sim-sec-title d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <span>Straordinari e presenze {{ anno }} (opzionale)</span>
+            <button type="button" class="btn btn-outline-primary btn-sm py-0" data-bs-toggle="collapse" data-bs-target="#cal_{{ ruolo.id }}">Mostra / nascondi griglia mensile</button>
           </div>
-          <!-- Dipendente opzionale per importazione presenze -->
-          <div class="d-flex align-items-center gap-2 mb-1" style="flex-wrap:wrap">
-            <select name="dip_{{ ruolo.id }}" class="form-select form-select-sm dip-sel" style="max-width:220px;font-size:.7rem" data-ruolo-id="{{ ruolo.id }}">
-              <option value="">— Nessun dipendente —</option>
-              {% for dip in dipendenti %}
-              <option value="{{ dip.pk }}" {% if ruolo.dipendente_id == dip.pk %}selected{% endif %}>{{ dip.cognome }} {{ dip.nome }}</option>
-              {% endfor %}
-            </select>
-            <button type="button" class="btn btn-sm py-0 btn-carica-presenze"
-                    data-ruolo-id="{{ ruolo.id }}"
-                    style="font-size:.65rem;background:#0d6efd;color:#fff">
-              <i class="bi bi-cloud-download me-1"></i>Carica presenze
-            </button>
-            <span class="carica-info" data-ruolo-id="{{ ruolo.id }}" style="font-size:.6rem;color:#666"></span>
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            {% if ruolo.dipendente_id %}
+              <input type="hidden" name="dip_{{ ruolo.id }}" value="{{ ruolo.dipendente_id }}">
+              <span class="text-muted" style="font-size:.72rem">Presenze: collegate al dipendente #{{ ruolo.dipendente_id }}</span>
+              <button type="button" class="btn btn-sm btn-primary py-0 btn-carica-presenze"
+                      data-ruolo-id="{{ ruolo.id }}" data-dipendente-id="{{ ruolo.dipendente_id }}">
+                <i class="bi bi-cloud-download"></i> Importa da presenze {{ anno }}
+              </button>
+            {% else %}
+              <select name="dip_{{ ruolo.id }}" class="form-select form-select-sm fc-sim" style="max-width:240px" data-ruolo-id="{{ ruolo.id }}">
+                <option value="">— Dipendente per import presenze —</option>
+                {% for dip in dipendenti %}
+                <option value="{{ dip.pk }}" {% if ruolo.dipendente_id == dip.pk %}selected{% endif %}>{{ dip.cognome }} {{ dip.nome }}</option>
+                {% endfor %}
+              </select>
+              <button type="button" class="btn btn-sm btn-primary py-0 btn-carica-presenze" data-ruolo-id="{{ ruolo.id }}">
+                <i class="bi bi-cloud-download"></i> Importa presenze
+              </button>
+            {% endif %}
+            <span class="carica-info text-muted" data-ruolo-id="{{ ruolo.id }}" style="font-size:.68rem"></span>
           </div>
+
           <div id="cal_{{ ruolo.id }}" class="collapse">
-            <div class="table-responsive mt-1">
-              <table class="table table-bordered cal-table mb-1">
+            <div class="table-responsive">
+              <table class="table table-bordered table-sm cal-table mb-2">
                 <thead>
                   <tr>
-                    <th style="min-width:38px">Mese</th>
-                    <th title="Straord. feriale +15%">Str. fer. (h)</th>
-                    <th title="Straord. notturno +30%">Str. not. (h)</th>
-                    <th title="Straord. festivo (no dom.) +30%">Str. fest. (h)</th>
-                    <th title="Straord. eccedenza domenica +30%">Str. dom. (h)</th>
-                    <th title="Straord. nott-fest +60%">Str. n-f (h)</th>
-                    <th title="Ore domenicali lavorate × paga oraria × +15%">Ore dom. (h)</th>
-                    <th title="Ore festive lavorate × paga oraria × +20%">Ore fest. (h)</th>
-                    <th title="Assenze ingiustificate">Ass. (gg)</th>
+                    <th>Mese</th>
+                    <th title="Straord. feriale">Str. fer.</th>
+                    <th title="Straord. notturno">Str. not.</th>
+                    <th title="Straord. festivo">Str. fest.</th>
+                    <th title="Straord. domenica">Str. dom.</th>
+                    <th title="Straord. nott+fest">Str. n-f</th>
+                    <th title="Ore ordinarie retribuite (feriali non festivi, netto straord.)">Ore ord.</th>
+                    <th title="Ore domenicali">Ore dom.</th>
+                    <th title="Ore festive">Ore fest.</th>
+                    <th title="Assenze ingiust.">Ass.</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for mn, ma in mesi_abbr %}
                   <tr>
                     <td class="cal-mese">{{ ma }}</td>
-                    <td><input type="number" name="m{{ mn }}_sd_{{ ruolo.id }}"       class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_straord_diurno'|default:'0' }}" min="0" step="0.5"></td>
-                    <td><input type="number" name="m{{ mn }}_sn_{{ ruolo.id }}"       class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_straord_notturno'|default:'0' }}" min="0" step="0.5"></td>
-                    <td><input type="number" name="m{{ mn }}_sf_{{ ruolo.id }}"       class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_straord_festivo'|default:'0' }}" min="0" step="0.5"></td>
-                    <td><input type="number" name="m{{ mn }}_sdom_{{ ruolo.id }}"     class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_straord_domenica'|default:'0' }}" min="0" step="0.5"></td>
-                    <td><input type="number" name="m{{ mn }}_snf_{{ ruolo.id }}"      class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_straord_nott_fest'|default:'0' }}" min="0" step="0.5"></td>
-                    <td><input type="number" name="m{{ mn }}_dom_{{ ruolo.id }}"      class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_domenicali'|default:'0' }}" min="0" step="0.5"></td>
-                    <td><input type="number" name="m{{ mn }}_fest_{{ ruolo.id }}"     class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'giorni_festivi'|default:'0' }}" min="0" step="0.5"></td>
-                    <td><input type="number" name="m{{ mn }}_assenze_{{ ruolo.id }}"  class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'giorni_assenza'|default:'0' }}" min="0" step="1"></td>
+                    <td><input type="number" name="m{{ mn }}_sd_{{ ruolo.id }}" class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_straord_diurno'|default:'0' }}" min="0" step="0.5"></td>
+                    <td><input type="number" name="m{{ mn }}_sn_{{ ruolo.id }}" class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_straord_notturno'|default:'0' }}" min="0" step="0.5"></td>
+                    <td><input type="number" name="m{{ mn }}_sf_{{ ruolo.id }}" class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_straord_festivo'|default:'0' }}" min="0" step="0.5"></td>
+                    <td><input type="number" name="m{{ mn }}_sdom_{{ ruolo.id }}" class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_straord_domenica'|default:'0' }}" min="0" step="0.5"></td>
+                    <td><input type="number" name="m{{ mn }}_snf_{{ ruolo.id }}" class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_straord_nott_fest'|default:'0' }}" min="0" step="0.5"></td>
+                    <td><input type="number" name="m{{ mn }}_ord_{{ ruolo.id }}" class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_ordinarie_retribuite'|default:'0' }}" min="0" step="0.5"></td>
+                    <td><input type="number" name="m{{ mn }}_dom_{{ ruolo.id }}" class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'ore_domenicali'|default:'0' }}" min="0" step="0.5"></td>
+                    <td><input type="number" name="m{{ mn }}_fest_{{ ruolo.id }}" class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'giorni_festivi'|default:'0' }}" min="0" step="0.5"></td>
+                    <td><input type="number" name="m{{ mn }}_assenze_{{ ruolo.id }}" class="form-control cal-input" value="{{ ruolo.calendario_mensile|get_item:mn|get_item:'giorni_assenza'|default:'0' }}" min="0" step="1"></td>
                   </tr>
                   {% endfor %}
                 </tbody>
               </table>
             </div>
-            <p style="font-size:.63rem; color:var(--c-muted); margin:0 0 .4rem">Maggiorazioni CCNL FIPE 2026: feriale +15% &bull; notturno +30% &bull; festivo +30% &bull; nott-fest +60% &bull; domenicale +15% &bull; festivo lavorato +20%</p>
+            <p class="text-muted small mb-0">Con <strong>Ore ord.</strong> &gt; 0 il motore usa le ore effettive del mese (come dal calendario presenze). Maggiorazioni CCNL FIPE: feriale +15%, notturno +30%, festivo +30%, domenica straord. +30%, nott+fest +60%, domenica lav. +15%, festivo lav. +20%.</p>
           </div>
-
         </div>
       </div>
       {% empty %}
-      <div class="empty-state" id="emptyMsg">
-        Nessun ruolo configurato &mdash; clicca <strong>+ Aggiungi ruolo</strong> per iniziare.
+      <div class="sim-empty" id="emptyMsg">
+        <p class="mb-2">Nessun dipendente <strong>attivo</strong> o <strong>candidato</strong> trovato per questa azienda.</p>
+        <p class="mb-0 small">Aggiungi anagrafiche oppure usa <strong>+ Aggiungi riga manuale</strong> per simulare un soggetto non in elenco.</p>
       </div>
       {% endfor %}
     </div>
 
-    <!-- Action bar sticky -->
-    <div class="sim-actions">
-      <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-outline-secondary btn-sm">← Annulla</a>
-      <button type="button" class="btn btn-sm btn-success" onclick="aggiungiRuolo()">+ Ruolo</button>
-      <button type="submit" class="btn btn-primary btn-sm">Calcola costo annuale dello scenario &rarr;</button>
+    <div class="sim26-actions">
+      <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-outline-secondary">Annulla</a>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="aggiungiRuoloManuale()">+ Riga manuale</button>
+      <button type="submit" class="btn btn-primary" formnovalidate>Calcola costo annuale per l’azienda (2026)</button>
     </div>
-
   </form>
+  {% endlocalize %}
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-/* Opzioni serializzate dal server */
-const OPT_LIVELLO = `{% for p in parametri_ccnl %}{% ifchanged p.livello %}<option value="{{ p.livello }}">L{{ p.livello }} — {{ p.qualifica }}</option>
-{% endifchanged %}{% endfor %}`;
-const OPT_TIPO = `<option value="">Full-time (1.00)</option>{% for tc in tipi_contratto %}<option value="{{ tc.id }}">{{ tc.nome }} ({{ tc.coefficiente_ore }})</option>
-{% endfor %}`;
-const OPT_DIPENDENTI = `<option value="">— Nessun dipendente —</option>{% for dip in dipendenti %}<option value="{{ dip.pk }}">{{ dip.cognome }} {{ dip.nome }}</option>{% endfor %}`;
 const ANNO_SIM = {{ anno|anno_it }};
 const API_PRESENZE = '{% url "api_presenze_simulatore" %}';
 const MESI = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
 
+const OPT_LIVELLO = `{% for p in parametri_ccnl %}{% ifchanged p.livello %}<option value="{{ p.livello }}">L{{ p.livello }} — {{ p.qualifica }}</option>{% endifchanged %}{% endfor %}`;
+const OPT_TIPO = `<option value="">Full-time (1,00)</option>{% for tc in tipi_contratto %}<option value="{{ tc.id }}">{{ tc.nome }} ({{ tc.coefficiente_ore }})</option>{% endfor %}`;
+const OPT_DIPENDENTI = `<option value="">— Dipendente per import presenze —</option>{% for dip in dipendenti %}<option value="{{ dip.pk }}">{{ dip.cognome }} {{ dip.nome }}</option>{% endfor %}`;
+
 const container = document.getElementById('ruoliContainer');
 let nextId = Number(container.dataset.ruoliCount || 0) + 1;
 
-function _calRows(id) {
+function _calRowsHtml(id) {
   return MESI.map((m, i) => {
     const n = i + 1;
-    return `<tr>
-      <td class="cal-mese">${m}</td>
-      <td><input type="number" name="m${n}_sd_${id}"       class="form-control cal-input" value="0" min="0" step="0.5"></td>
-      <td><input type="number" name="m${n}_sn_${id}"       class="form-control cal-input" value="0" min="0" step="0.5"></td>
-      <td><input type="number" name="m${n}_sf_${id}"       class="form-control cal-input" value="0" min="0" step="0.5"></td>
-      <td><input type="number" name="m${n}_sdom_${id}"     class="form-control cal-input" value="0" min="0" step="0.5"></td>
-      <td><input type="number" name="m${n}_snf_${id}"      class="form-control cal-input" value="0" min="0" step="0.5"></td>
-      <td><input type="number" name="m${n}_dom_${id}"      class="form-control cal-input" value="0" min="0" step="0.5"></td>
-      <td><input type="number" name="m${n}_fest_${id}"     class="form-control cal-input" value="0" min="0" step="0.5"></td>
-      <td><input type="number" name="m${n}_assenze_${id}"  class="form-control cal-input" value="0" min="0" step="1"></td>
-    </tr>`;
+    return `<tr><td class="cal-mese">${m}</td>
+      <td><input type="number" name="m${n}_sd_${id}" class="form-control cal-input" value="0" min="0" step="0.5"></td>
+      <td><input type="number" name="m${n}_sn_${id}" class="form-control cal-input" value="0" min="0" step="0.5"></td>
+      <td><input type="number" name="m${n}_sf_${id}" class="form-control cal-input" value="0" min="0" step="0.5"></td>
+      <td><input type="number" name="m${n}_sdom_${id}" class="form-control cal-input" value="0" min="0" step="0.5"></td>
+      <td><input type="number" name="m${n}_snf_${id}" class="form-control cal-input" value="0" min="0" step="0.5"></td>
+      <td><input type="number" name="m${n}_ord_${id}" class="form-control cal-input" value="0" min="0" step="0.5"></td>
+      <td><input type="number" name="m${n}_dom_${id}" class="form-control cal-input" value="0" min="0" step="0.5"></td>
+      <td><input type="number" name="m${n}_fest_${id}" class="form-control cal-input" value="0" min="0" step="0.5"></td>
+      <td><input type="number" name="m${n}_assenze_${id}" class="form-control cal-input" value="0" min="0" step="1"></td></tr>`;
   }).join('');
 }
 
-function aggiungiRuolo() {
-  const empty = container.querySelector('#emptyMsg, .empty-state');
+function aggiungiRuoloManuale() {
+  const empty = container.querySelector('#emptyMsg, .sim-empty');
   if (empty) empty.remove();
-
   const id = nextId++;
   container.insertAdjacentHTML('beforeend', `
-  <div class="ruolo-card">
-    <div class="rc-head">
-      <span class="rc-title">Nuovo ruolo</span>
-      <button type="button" class="btn btn-outline-danger btn-xs py-0" onclick="rimuoviRuolo(this)">rimuovi</button>
+  <div class="sim-person-card ruolo-card" data-ruolo-id="${id}">
+    <div class="sim-person-head">
+      <div><div class="who">Riga manuale</div><div class="mans">Compila i campi e collega eventualmente le presenze</div></div>
+      <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size:.7rem" onclick="rimuoviRuolo(this)">Rimuovi</button>
     </div>
-    <div class="rc-body">
+    <div class="sim-person-body">
       <input type="hidden" name="ruolo_${id}" value="1">
-      <!-- A -->
+      <input type="hidden" name="origine_${id}" value="manuale">
+      <input type="hidden" name="source_nom_${id}" value="">
+      <input type="hidden" name="source_json_${id}" value="[]">
+      <input type="hidden" name="premio_${id}" value="0">
+      <div class="sim-sec-title">Parametri collegati al motore di simulazione</div>
       <div class="row g-2 mb-2">
-        <div class="col-md-3 col-6"><label class="flabel">Nome ruolo</label><input type="text" name="nome_${id}" class="form-control fc" placeholder="Es: Cameriere"></div>
-        <div class="col-md-1 col-3"><label class="flabel">Qtà</label><input type="number" name="qta_${id}" class="form-control fc text-center" value="1" min="0" max="100"></div>
-        <div class="col-md-2 col-6"><label class="flabel">Livello CCNL</label><select name="livello_${id}" class="form-select fc"><option value="">— seleziona —</option>${OPT_LIVELLO}</select></div>
-        <div class="col-md-2 col-6"><label class="flabel">Tipo contratto</label><select name="tipo_${id}" class="form-select fc">${OPT_TIPO}</select></div>
-        <div class="col-md-2 col-6"><label class="flabel">Data inizio</label><input type="date" name="data_inizio_${id}" class="form-control fc" value="2026-01-01"></div>
-        <div class="col-md-2 col-6"><label class="flabel">Data fine</label><input type="date" name="data_fine_${id}" class="form-control fc" value="2026-12-31"></div>
+        <div class="col-lg-4 col-md-6"><label class="lbl-sim">Cognome e nome</label><input type="text" name="nome_${id}" class="form-control fc-sim" placeholder="Cognome Nome"></div>
+        <div class="col-6 col-md-3 col-lg-1"><label class="lbl-sim">Testate</label><input type="number" name="qta_${id}" class="form-control fc-sim text-center" value="1" min="1" max="1" readonly></div>
+        <div class="col-6 col-md-3 col-lg-2"><label class="lbl-sim">Livello CCNL</label><select name="livello_${id}" class="form-select fc-sim"><option value="">— Livello —</option>${OPT_LIVELLO}</select></div>
+        <div class="col-md-6 col-lg-3"><label class="lbl-sim">Tipo contratto</label><select name="tipo_${id}" class="form-select fc-sim">${OPT_TIPO}</select></div>
+        <div class="col-6 col-md-3"><label class="lbl-sim">Inizio</label><input type="date" name="data_inizio_${id}" class="form-control fc-sim" value="2026-01-01"></div>
+        <div class="col-6 col-md-3"><label class="lbl-sim">Fine</label><input type="date" name="data_fine_${id}" class="form-control fc-sim" value="2026-12-31"></div>
       </div>
-      <!-- B -->
+      <input type="hidden" name="tipo_rapporto_${id}" value="indeterminato"><input type="hidden" name="categoria_${id}" value="">
+      <div class="sim-sec-title">Agevolazioni</div>
       <div class="row g-2 mb-2">
-        <div class="col-md-2 col-6"><label class="flabel">Tipo rapporto</label><select name="tipo_rapporto_${id}" class="form-select fc"><option value="indeterminato" selected>Indeterminato</option><option value="determinato">Determinato</option><option value="apprendistato">Apprendistato</option></select></div>
-        <div class="col-md-2 col-4"><label class="flabel">Regione</label><input type="text" name="regione_${id}" class="form-control fc" value="sicilia"></div>
-        <div class="col-md-1 col-3"><label class="flabel">Età</label><input type="number" name="eta_${id}" class="form-control fc text-center" min="16" max="100" placeholder="—"></div>
-        <div class="col-md-2 col-5"><label class="flabel">Categoria</label><input type="text" name="categoria_${id}" class="form-control fc" placeholder="—"></div>
-        <div class="col-md-2 col-5"><label class="flabel">Percettore NASpI</label><select name="percettore_naspi_${id}" class="form-select fc"><option value="">—</option><option value="si">Sì</option><option value="no">No</option></select></div>
-        <div class="col-md-3 col-12"><label class="flabel">Tipo incentivo decontrib.</label><input type="text" name="tipo_incentivo_${id}" class="form-control fc" placeholder="—"></div>
+        <div class="col-md-3"><label class="lbl-sim">Regione</label><input type="text" name="regione_${id}" class="form-control fc-sim" value="sicilia"></div>
+        <div class="col-md-2"><label class="lbl-sim">Età</label><input type="number" name="eta_${id}" class="form-control fc-sim text-center" min="16" max="100" placeholder="—"></div>
+        <div class="col-md-3"><label class="lbl-sim">NASpI</label><select name="percettore_naspi_${id}" class="form-select fc-sim"><option value="">—</option><option value="si">Sì</option><option value="no">No</option></select></div>
+        <div class="col-md-4"><label class="lbl-sim">Incentivo / decontrib.</label><input type="text" name="tipo_incentivo_${id}" class="form-control fc-sim" placeholder=""></div>
       </div>
-      <!-- C -->
-      <div class="sec-label">Voci retributive variabili</div>
+      <div class="sim-sec-title">Voci retributive variabili</div>
       <div class="row g-2 mb-2">
-        <div class="col-md-2 col-4"><label class="flabel">Anni anzianità</label><input type="number" name="anni_anz_${id}" class="form-control fc text-center" value="0" min="0" max="40"></div>
-        <div class="col-md-2 col-4"><label class="flabel">Superminimo €/mese</label><input type="number" name="superminimo_${id}" class="form-control fc" min="0" step="0.01" placeholder="0,00"></div>
-        <div class="col-md-2 col-4"><label class="flabel">Ind. turno €/mese</label><input type="number" name="ind_turno_${id}" class="form-control fc" min="0" step="0.01" placeholder="0,00"></div>
-        <div class="col-md-2 col-4"><label class="flabel">Ind. extra €/mese</label><input type="number" name="ind_extra_${id}" class="form-control fc" min="0" step="0.01" placeholder="0,00"></div>
+        <div class="col-6 col-md-3"><label class="lbl-sim">Anni anz.</label><input type="number" name="anni_anz_${id}" class="form-control fc-sim text-center" value="0" min="0" max="40"></div>
+        <div class="col-6 col-md-3"><label class="lbl-sim">Superm.</label><input type="number" name="superminimo_${id}" class="form-control fc-sim" min="0" step="0.01" placeholder="0"></div>
+        <div class="col-6 col-md-3"><label class="lbl-sim">Ind. turno</label><input type="number" name="ind_turno_${id}" class="form-control fc-sim" min="0" step="0.01" placeholder="0"></div>
+        <div class="col-6 col-md-3"><label class="lbl-sim">Ind. extra</label><input type="number" name="ind_extra_${id}" class="form-control fc-sim" min="0" step="0.01" placeholder="0"></div>
       </div>
-      <!-- Calendario -->
-      <div class="sec-label d-flex align-items-center justify-content-between">
-        <span>Straordinari / Maggiorazioni mensili</span>
-        <button type="button" class="btn btn-outline-secondary btn-xs py-0 px-2" data-bs-toggle="collapse" data-bs-target="#cal_${id}" style="font-size:.62rem">mostra calendario ▾</button>
+      <div class="sim-sec-title d-flex justify-content-between align-items-center flex-wrap gap-2"><span>Straordinari (opzionale)</span>
+        <button type="button" class="btn btn-outline-primary btn-sm py-0" data-bs-toggle="collapse" data-bs-target="#cal_${id}">Griglia mensile</button></div>
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <select name="dip_${id}" class="form-select form-select-sm fc-sim" style="max-width:260px">${OPT_DIPENDENTI}</select>
+        <button type="button" class="btn btn-sm btn-primary py-0 btn-carica-presenze" data-ruolo-id="${id}"><i class="bi bi-cloud-download"></i> Importa presenze</button>
+        <span class="carica-info text-muted" data-ruolo-id="${id}" style="font-size:.68rem"></span>
       </div>
-      <div class="d-flex align-items-center gap-2 mb-1" style="flex-wrap:wrap">
-        <select name="dip_${id}" class="form-select form-select-sm dip-sel" style="max-width:220px;font-size:.7rem" data-ruolo-id="${id}">
-          <option value="">— Nessun dipendente —</option>
-          ${OPT_DIPENDENTI}
-        </select>
-        <button type="button" class="btn btn-sm py-0 btn-carica-presenze"
-                data-ruolo-id="${id}"
-                style="font-size:.65rem;background:#0d6efd;color:#fff">
-          <i class="bi bi-cloud-download me-1"></i>Carica presenze
-        </button>
-        <span class="carica-info" data-ruolo-id="${id}" style="font-size:.6rem;color:#666"></span>
-      </div>
-      <div id="cal_${id}" class="collapse">
-        <div class="table-responsive mt-1">
-          <table class="table table-bordered cal-table mb-1">
-            <thead><tr><th style="min-width:38px">Mese</th><th title="Str. feriale +15%">Str. fer. (h)</th><th title="Str. notturno +30%">Str. not. (h)</th><th title="Str. festivo +30%">Str. fest. (h)</th><th title="Str. domenica +30%">Str. dom. (h)</th><th title="Str. nott-fest +60%">Str. n-f (h)</th><th title="ore×paga/h×+15%">Ore dom. (h)</th><th title="ore×paga/h×+20%">Ore fest. (h)</th><th title="Assenze ingiust.">Ass. (gg)</th></tr></thead>
-            <tbody>${_calRows(id)}</tbody>
-          </table>
-        </div>
-        <p style="font-size:.63rem;color:var(--c-muted);margin:0 0 .4rem">Feriale +15% &bull; notturno +30% &bull; festivo +30% &bull; nott-fest +60% &bull; domenicale +15% &bull; festivo lav. +20%</p>
-      </div>
+      <div id="cal_${id}" class="collapse"><div class="table-responsive"><table class="table table-bordered table-sm cal-table mb-2">
+        <thead><tr><th>Mese</th><th>Str.f</th><th>Str.n</th><th>Str.fe</th><th>Str.do</th><th>Str.nf</th><th>O.ord</th><th>O.dom</th><th>O.fe</th><th>Ass</th></tr></thead>
+        <tbody>${_calRowsHtml(id)}</tbody></table></div></div>
     </div>
   </div>`);
 }
@@ -476,74 +493,67 @@ function rimuoviRuolo(btn) {
   btn.closest('.ruolo-card').remove();
   if (!container.querySelector('.ruolo-card')) {
     container.insertAdjacentHTML('beforeend',
-      '<div class="empty-state" id="emptyMsg">Nessun ruolo configurato &mdash; clicca <strong>+ Aggiungi ruolo</strong>.</div>');
+      '<div class="sim-empty" id="emptyMsg">Nessun soggetto nello scenario. Usa <strong>+ Riga manuale</strong> oppure ricarica la pagina.</div>');
   }
 }
 
-/* ── Carica da presenze ──────────────────────────────────────────── */
 async function caricaPresenzeRuolo(btn) {
   const ruoloId = btn.dataset.ruoloId;
-  const dipSel  = document.querySelector(`[name="dip_${ruoloId}"]`);
-  const infoEl  = document.querySelector(`.carica-info[data-ruolo-id="${ruoloId}"]`);
-
-  if (!dipSel || !dipSel.value) {
-    if (infoEl) infoEl.textContent = 'Seleziona prima un dipendente.';
+  const dipSel = document.querySelector(`[name="dip_${ruoloId}"]`);
+  const infoEl = document.querySelector(`.carica-info[data-ruolo-id="${ruoloId}"]`);
+  let dipId = (btn.dataset.dipendenteId || '').trim();
+  if (!dipId && dipSel && dipSel.value) dipId = dipSel.value.trim();
+  if (!dipId) {
+    if (infoEl) infoEl.textContent = 'Seleziona un dipendente o usa una riga collegata all’anagrafica.';
     return;
   }
 
   btn.disabled = true;
   const origHtml = btn.innerHTML;
-  btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Caricamento…';
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> …';
   if (infoEl) infoEl.textContent = '';
 
   try {
-    const params = new URLSearchParams({ dipendente_id: dipSel.value, anno: ANNO_SIM });
+    const params = new URLSearchParams({ dipendente_id: dipId, anno: String(ANNO_SIM) });
     const resp = await fetch(`${API_PRESENZE}?${params}`);
     if (!resp.ok) {
       const e = await resp.json().catch(() => ({}));
       if (infoEl) infoEl.textContent = 'Errore: ' + (e.errore || resp.statusText);
       return;
     }
-    const yearly = await resp.json();   // {"1": {...}, ..., "12": {...}}
-
+    const yearly = await resp.json();
     const _fv = (v) => (v % 1 === 0 ? String(v) : parseFloat(v).toFixed(2));
-    let loaded = 0;
-
     for (let m = 1; m <= 12; m++) {
       const d = yearly[String(m)];
       if (!d) continue;
       const _s = (suffix, val) => {
         const el = document.querySelector(`[name="m${m}_${suffix}_${ruoloId}"]`);
-        if (el) { el.value = _fv(val); loaded++; }
+        if (el) el.value = _fv(val);
       };
-      _s('sd',      d.ore_straord_diurno);
-      _s('sn',      d.ore_straord_notturno);
-      _s('sf',      d.ore_straord_festivo);
-      _s('sdom',    d.ore_straord_domenica);
-      _s('snf',     d.ore_straord_nott_fest);
-      _s('dom',     d.ore_domenicali);
-      _s('fest',    d.ore_festivi_lavorati);
+      _s('sd', d.ore_straord_diurno);
+      _s('sn', d.ore_straord_notturno);
+      _s('sf', d.ore_straord_festivo);
+      _s('sdom', d.ore_straord_domenica);
+      _s('snf', d.ore_straord_nott_fest);
+      _s('dom', d.ore_domenicali);
+      _s('fest', d.ore_festivi_lavorati);
       _s('assenze', d.giorni_assenza_ingiust);
+      _s('ord', d.ore_ordinarie_retribuite != null && d.ore_ordinarie_retribuite !== undefined ? d.ore_ordinarie_retribuite : 0);
     }
-
-    if (infoEl) infoEl.innerHTML =
-      `<span style="color:green"><i class="bi bi-check2"></i> Caricati dati presenze anno ${ANNO_SIM}</span>`;
-
-    // Espandi il calendario se ci sono valori
+    if (infoEl) infoEl.innerHTML = '<span class="text-success"><i class="bi bi-check2"></i> Presenze importate</span>';
     const calDiv = document.getElementById(`cal_${ruoloId}`);
-    if (calDiv && !calDiv.classList.contains('show')) {
+    if (calDiv && window.bootstrap && !calDiv.classList.contains('show')) {
       new bootstrap.Collapse(calDiv, { show: true });
     }
   } catch (err) {
-    if (infoEl) infoEl.textContent = 'Errore di rete: ' + err.message;
+    if (infoEl) infoEl.textContent = 'Errore: ' + err.message;
   } finally {
     btn.disabled = false;
     btn.innerHTML = origHtml;
   }
 }
 
-/* Delegazione eventi per bottoni "Carica presenze" (inclusi quelli aggiunti dinamicamente) */
-document.addEventListener('click', e => {
+document.addEventListener('click', (e) => {
   const btn = e.target.closest('.btn-carica-presenze');
   if (btn) caricaPresenzeRuolo(btn);
 });
