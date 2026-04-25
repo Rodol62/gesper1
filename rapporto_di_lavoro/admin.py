@@ -228,7 +228,7 @@ class PropostaAssunzioneAdmin(admin.ModelAdmin):
 			'fields': (
 				'stipendio_lordo_mensile',
 				'paga_base_mensile', 'contingenza_mensile',
-				'edr_mensile', 'indennita_mensile',
+				'edr_mensile', 'superminimo_mensile', 'indennita_mensile',
 			)
 		}),
 		('Orario di lavoro', {
@@ -1102,57 +1102,14 @@ class TestMotorePagaAdmin(admin.ModelAdmin):
 				# ferie e permessi goduti: già compresi nel lordo mensile, non decurtano
 				# li mostriamo informativamente
 
-				# ── Lordo imponibile INPS ─────────────────────────────────────
+				# ── Lordo competenze mensili (+ quote 13ª/14ª nella base INPS, come motore canonico)
 				lordo_mensile = (lordo_base + tot_straord - decurt_assenze).quantize(Q2)
 
-				# ── Aliquote contributive ─────────────────────────────────────
-				inps_dip_p = Decimal('0.0936')
-				inps_az_p  = Decimal('0.2931')
-				inail_p    = Decimal('0.0074')
-
 				_ccnl_obj = CCNL.objects.filter(sigla__icontains='FIPE').first()
-				if _ccnl_obj:
-					pc = ParametroContributi.objects.filter(ccnl=_ccnl_obj, anno=anno, tipo_contributo='inps', attivo=True).first()
-					if pc:
-						inps_dip_p = (pc.aliquota_dipendente / 100).quantize(Decimal('0.0001'))
-						inps_az_p  = (pc.aliquota_azienda    / 100).quantize(Decimal('0.0001'))
-					pc2 = ParametroContributi.objects.filter(ccnl=_ccnl_obj, anno=anno, tipo_contributo='inail', attivo=True).first()
-					if pc2:
-						inail_p = (pc2.aliquota_azienda / 100).quantize(Decimal('0.0001'))
-
-				inps_dip  = (lordo_mensile * inps_dip_p).quantize(Q2)
-				inps_az   = (lordo_mensile * inps_az_p ).quantize(Q2)
-				inail_az  = (lordo_mensile * inail_p   ).quantize(Q2)
-				tot_contrib_dip = inps_dip
-				tot_contrib_az  = (inps_az + inail_az).quantize(Q2)
-
-				# ── IRPEF ─────────────────────────────────────────────────────
-				imponibile_m    = (lordo_mensile - inps_dip).quantize(Q2)
-				imponibile_ann  = float(imponibile_m) * 12
-				irpef_lorda_m   = Decimal(str(calcola_irpef_lorda(float(imponibile_m), anno=anno))).quantize(Q2)
-				detrazioni_m    = Decimal(str(calcola_detrazioni(float(imponibile_m), anno=anno))).quantize(Q2)
-				irpef_netta_m   = max(irpef_lorda_m - detrazioni_m, Decimal('0')).quantize(Q2)
-				netto_base      = (lordo_mensile - inps_dip - irpef_netta_m).quantize(Q2)
-
-				# ── Bonus fiscali (crediti d'imposta anticipati dall'azienda) ─
-				ti   = Decimal(str(calcola_trattamento_integrativo(imponibile_ann, anno))).quantize(Q2)
-				l207 = Decimal(str(calcola_bonus_l207_2024(imponibile_ann, anno))).quantize(Q2)
-				crediti_imposta = (ti + l207).quantize(Q2)
-				netto_totale    = (netto_base + ti + l207).quantize(Q2)
-
-				# ── Addizionali (stima — versate anno successivo) ─────────────
-				add_reg_ann = Decimal(str(calcola_addizionale_regionale_sicilia(imponibile_ann, anno=anno))).quantize(Q2)
-				add_com_ann = Decimal(str(calcola_addizionale_comunale_stima(imponibile_ann, anno=anno))).quantize(Q2)
-				add_reg_m   = (add_reg_ann / 12).quantize(Q2)
-				add_com_m   = (add_com_ann / 12).quantize(Q2)
-				add_tot_ann = (add_reg_ann + add_com_ann).quantize(Q2)
-
-				# ── Coefficienti ratei da ParametroRatei ─────────────────────
 				c_tfr  = Decimal('0.0691')
 				c_13   = (Decimal('1') / Decimal('12')).quantize(Q6)
 				c_14   = Decimal('0')
 				c_fer  = Decimal('0.1154')
-
 				if _ccnl_obj:
 					for tipo_r, transform, attr in [
 						('tfr',             lambda r: r.coefficiente / 100, 'c_tfr'),
@@ -1168,14 +1125,57 @@ class TestMotorePagaAdmin(admin.ModelAdmin):
 							elif attr == 'c_14':  c_14  = val
 							elif attr == 'c_fer': c_fer = val
 
+				rat13_m    = (lordo_base * c_13).quantize(Q2)
+				rat14_m    = (lordo_base * c_14).quantize(Q2)
+				lordo_imponibile_inps_m = (lordo_mensile + rat13_m + rat14_m).quantize(Q2)
+
+				# ── Aliquote contributive ─────────────────────────────────────
+				inps_dip_p = Decimal('0.0936')
+				inps_az_p  = Decimal('0.2931')
+				inail_p    = Decimal('0.0074')
+
+				if _ccnl_obj:
+					pc = ParametroContributi.objects.filter(ccnl=_ccnl_obj, anno=anno, tipo_contributo='inps', attivo=True).first()
+					if pc:
+						inps_dip_p = (pc.aliquota_dipendente / 100).quantize(Decimal('0.0001'))
+						inps_az_p  = (pc.aliquota_azienda    / 100).quantize(Decimal('0.0001'))
+					pc2 = ParametroContributi.objects.filter(ccnl=_ccnl_obj, anno=anno, tipo_contributo='inail', attivo=True).first()
+					if pc2:
+						inail_p = (pc2.aliquota_azienda / 100).quantize(Decimal('0.0001'))
+
+				inps_dip  = (lordo_imponibile_inps_m * inps_dip_p).quantize(Q2)
+				inps_az   = (lordo_imponibile_inps_m * inps_az_p ).quantize(Q2)
+				inail_az  = (lordo_imponibile_inps_m * inail_p   ).quantize(Q2)
+				tot_contrib_dip = inps_dip
+				tot_contrib_az  = (inps_az + inail_az).quantize(Q2)
+
+				# ── IRPEF ─────────────────────────────────────────────────────
+				imponibile_m    = (lordo_imponibile_inps_m - inps_dip).quantize(Q2)
+				imponibile_ann  = float(imponibile_m) * 12
+				irpef_lorda_m   = Decimal(str(calcola_irpef_lorda(float(imponibile_m), anno=anno))).quantize(Q2)
+				detrazioni_m    = Decimal(str(calcola_detrazioni(float(imponibile_m), anno=anno))).quantize(Q2)
+				irpef_netta_m   = max(irpef_lorda_m - detrazioni_m, Decimal('0')).quantize(Q2)
+				netto_base      = (lordo_imponibile_inps_m - inps_dip - irpef_netta_m).quantize(Q2)
+
+				# ── Bonus fiscali (crediti d'imposta anticipati dall'azienda) ─
+				ti   = Decimal(str(calcola_trattamento_integrativo(imponibile_ann, anno))).quantize(Q2)
+				l207 = Decimal(str(calcola_bonus_l207_2024(imponibile_ann, anno))).quantize(Q2)
+				crediti_imposta = (ti + l207).quantize(Q2)
+				netto_totale    = (netto_base + ti + l207).quantize(Q2)
+
+				# ── Addizionali (stima — versate anno successivo) ─────────────
+				add_reg_ann = Decimal(str(calcola_addizionale_regionale_sicilia(imponibile_ann, anno=anno))).quantize(Q2)
+				add_com_ann = Decimal(str(calcola_addizionale_comunale_stima(imponibile_ann, anno=anno))).quantize(Q2)
+				add_reg_m   = (add_reg_ann / 12).quantize(Q2)
+				add_com_m   = (add_com_ann / 12).quantize(Q2)
+				add_tot_ann = (add_reg_ann + add_com_ann).quantize(Q2)
+
 				tfr_m      = (lordo_mensile * c_tfr).quantize(Q2)
-				rat13_m    = (lordo_mensile * c_13 ).quantize(Q2)
-				rat14_m    = (lordo_mensile * c_14 ).quantize(Q2)
 				rat_fer_m  = (lordo_mensile * c_fer).quantize(Q2)
 				tot_ratei_lordi = (tfr_m + rat13_m + rat14_m + rat_fer_m).quantize(Q2)
 
 				# Ratei netti (tassazione proporzionale, senza TI/L207 che non si applica a 13ª/TFR)
-				ratio = (netto_base / lordo_mensile).quantize(Q6) if lordo_mensile else Decimal('0')
+				ratio = (netto_base / lordo_imponibile_inps_m).quantize(Q6) if lordo_imponibile_inps_m else Decimal('0')
 				tfr_n     = (tfr_m     * ratio).quantize(Q2)
 				rat13_n   = (rat13_m   * ratio).quantize(Q2)
 				rat14_n   = (rat14_m   * ratio).quantize(Q2)
@@ -1200,7 +1200,7 @@ class TestMotorePagaAdmin(admin.ModelAdmin):
 				f24_totale      = (f24_inps + f24_erario).quantize(Q2)
 
 				# ── Costo azienda ─────────────────────────────────────────────
-				costo_corrente  = (lordo_mensile + inps_az + inail_az).quantize(Q2)
+				costo_corrente  = (lordo_imponibile_inps_m + inps_az + inail_az).quantize(Q2)
 				costo_differito = tot_ratei_lordi  # TFR + 13ª + 14ª + ferie accantonati
 				costo_mensile   = (costo_corrente + costo_differito).quantize(Q2)
 				costo_annuo     = (costo_mensile * 12).quantize(Q2)
@@ -1246,6 +1246,7 @@ class TestMotorePagaAdmin(admin.ModelAdmin):
 					'tot_straord': tot_straord,
 					'decurt_assenze': decurt_assenze,
 					'lordo_mensile': lordo_mensile,
+					'lordo_imponibile_inps_m': lordo_imponibile_inps_m,
 					# Info assenze/ferie (informative)
 					'gg_ferie_godute': gg_ferie,
 					'ore_perm_goduti': ore_perm,

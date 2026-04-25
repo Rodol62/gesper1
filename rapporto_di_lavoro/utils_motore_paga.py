@@ -128,6 +128,7 @@ def ricava_parametri_proposta_contrattuale(
         'paga_base_mensile': risultato['paga_base'],
         'contingenza_mensile': risultato['contingenza'],
         'edr_mensile': risultato['edr'],
+        'superminimo_mensile': superminimo.quantize(Q2),
         'indennita_mensile': risultato['indennita'],
         'ore_settimanali': ore_sett,
         'ore_mensili': ore_mens,
@@ -194,6 +195,12 @@ def calcola_busta_paga_mese(
     """
     Calcola la busta paga mensile completa per un dipendente.
     Implementazione canonica — usata da Simulatore Paga e Simulazione annua.
+
+    L.207/2024 (art.1 c.4): fuori dal lordo contributivo; credito IRPEF (detrazione / netto)
+    secondo i flag fiscali — non concorre all'imponibile INPS.
+
+    Quote mensili 13ª/14ª (ratei): incluse nella base INPS/IRPEF mensile (lordo imponibile
+    previdenziale = competenze mensili + rat13_m + rat14_m), coerente con cedolini da conciliazione.
 
     Returns full result dict with: voci, lordo, netto, contributi, ratei, f24, costo azienda.
     """
@@ -393,15 +400,53 @@ def calcola_busta_paga_mese(
     tot_dom_fest  = (imp_dom_magg + imp_fest_magg).quantize(Q2)
 
     # ── Assenze ingiustificate ────────────────────────────────────────────────
-    decurt_assenze = (giorni_assenza_ingiust * paga_giornaliera).quantize(Q2)
+    # In modalita' ore effettive le assenze sono gia' riflesse nelle ore ordinarie
+    # retribuite del mese: evitare doppia decurtazione sul lordo.
+    if modalita_ore_effettive and ore_ordinarie_retribuite > 0:
+        decurt_assenze = Decimal('0')
+    else:
+        decurt_assenze = (giorni_assenza_ingiust * paga_giornaliera).quantize(Q2)
 
-    # ── Lordo imponibile INPS ─────────────────────────────────────────────────
+    # ── Lordo competenze mensili (rubrica; 13ª/14ª ratei si sommano sotto per base INPS)
     imp_ordinario_ore = (ore_ordinarie_retribuite * paga_oraria).quantize(Q2)
     if modalita_ore_effettive and ore_ordinarie_retribuite > 0:
-        # Modalità provvisoria: base da ore effettive (coerenza cedolino TeamSystem)
-        lordo_mensile = (imp_ordinario_ore + tot_straord + tot_dom_fest - decurt_assenze).quantize(Q2)
+        # Base mensile su ore effettive: quota oraria lorda contrattuale * ore effettive
+        # + maggiorazioni del mese (straordinari, domenicali, festivi).
+        lordo_mensile = (imp_ordinario_ore + tot_straord + tot_dom_fest).quantize(Q2)
     else:
         lordo_mensile = (lordo_base + tot_straord + tot_dom_fest - decurt_assenze).quantize(Q2)
+
+    # ── Coefficienti ratei (serve prima dei contributi: 13ª/14ª nella base INPS) ─
+    c_tfr = Decimal('0.0691')
+    c_13 = (Decimal('1') / Decimal('12')).quantize(Q6)
+    c_14 = Decimal('0')
+    c_fer = Decimal('0.1154')
+    if ccnl_obj:
+        for tipo_r, transform, attr in [
+            ('tfr',             lambda r: r.coefficiente / 100, 'c_tfr'),
+            ('tredicesima',     lambda r: r.coefficiente / 12,  'c_13'),
+            ('quattordicesima', lambda r: r.coefficiente / 12,  'c_14'),
+            ('ferie',           lambda r: r.coefficiente / 100, 'c_fer'),
+        ]:
+            tipi_lookup = [tipo_r]
+            if tipo_r == 'ferie':
+                tipi_lookup.append('indennita_ferie')
+
+            pr = ParametroRatei.objects.filter(
+                ccnl=ccnl_obj, anno=anno_pr, tipo_rateo__in=tipi_lookup, attivo=True
+            ).order_by('tipo_rateo').first()
+            if pr:
+                val = transform(pr).quantize(Q6)
+                if   attr == 'c_tfr': c_tfr = val
+                elif attr == 'c_13':  c_13  = val
+                elif attr == 'c_14':  c_14  = val
+                elif attr == 'c_fer': c_fer = val
+
+    # 13ª/14ª su base contrattuale fissa (pro-rata già incorporato in lordo_base)
+    rat13_m = (lordo_base * c_13).quantize(Q2)
+    rat14_m = (lordo_base * c_14).quantize(Q2)
+    # Base previdenziale/IRPEF mensile: competenze + quote mensili 13ª/14ª (cedolino consulente)
+    lordo_imponibile_inps_m = (lordo_mensile + rat13_m + rat14_m).quantize(Q2)
 
     # ── Contributi da DB ──────────────────────────────────────────────────────
     inps_dip_p = Decimal('0.0936')
@@ -418,12 +463,12 @@ def calcola_busta_paga_mese(
         if pc2:
             inail_p = (pc2.aliquota_azienda / 100).quantize(Q4)
 
-    inps_dip = (lordo_mensile * inps_dip_p).quantize(Q2)
-    inps_az  = (lordo_mensile * inps_az_p ).quantize(Q2)
-    inail_az = (lordo_mensile * inail_p   ).quantize(Q2)
+    inps_dip = (lordo_imponibile_inps_m * inps_dip_p).quantize(Q2)
+    inps_az  = (lordo_imponibile_inps_m * inps_az_p ).quantize(Q2)
+    inail_az = (lordo_imponibile_inps_m * inail_p   ).quantize(Q2)
 
     # ── IRPEF ─────────────────────────────────────────────────────────────────
-    imponibile_m   = (lordo_mensile - inps_dip).quantize(Q2)
+    imponibile_m   = (lordo_imponibile_inps_m - inps_dip).quantize(Q2)
     imponibile_ann = float(imponibile_m) * 12
     irpef_lorda_m  = Decimal(str(calcola_irpef_lorda(float(imponibile_m), anno=anno))).quantize(Q2)
     detrazioni_m   = Decimal(str(calcola_detrazioni(float(imponibile_m), anno=anno, num_familiari=num_familiari_a_carico))).quantize(Q2)
@@ -442,13 +487,13 @@ def calcola_busta_paga_mese(
     if fiscale_modalita_cedolino and l207_come_detrazione_irpef:
         detrazioni_tot_m = (detrazioni_m + l207).quantize(Q2)
         irpef_netta_m = max(irpef_lorda_m - detrazioni_tot_m, Decimal('0')).quantize(Q2)
-        netto_base = (lordo_mensile - inps_dip - irpef_netta_m).quantize(Q2)
+        netto_base = (lordo_imponibile_inps_m - inps_dip - irpef_netta_m).quantize(Q2)
         crediti_imposta = ti.quantize(Q2)
         netto_totale = (netto_base + ti).quantize(Q2)
         detrazioni_m = detrazioni_tot_m
     else:
         irpef_netta_m = max(irpef_lorda_m - detrazioni_m, Decimal('0')).quantize(Q2)
-        netto_base = (lordo_mensile - inps_dip - irpef_netta_m).quantize(Q2)
+        netto_base = (lordo_imponibile_inps_m - inps_dip - irpef_netta_m).quantize(Q2)
         crediti_imposta = (ti + l207).quantize(Q2)
         netto_totale = (netto_base + ti + l207).quantize(Q2)
 
@@ -470,41 +515,11 @@ def calcola_busta_paga_mese(
     add_reg_m   = (add_reg_ann / 12).quantize(Q2)
     add_com_m   = (add_com_ann / 12).quantize(Q2)
 
-    # ── Ratei da DB ───────────────────────────────────────────────────────────
-    c_tfr = Decimal('0.0691')
-    c_13  = (Decimal('1') / Decimal('12')).quantize(Q6)
-    c_14  = Decimal('0')
-    c_fer = Decimal('0.1154')
-    if ccnl_obj:
-        for tipo_r, transform, attr in [
-            ('tfr',             lambda r: r.coefficiente / 100, 'c_tfr'),
-            ('tredicesima',     lambda r: r.coefficiente / 12,  'c_13'),
-            ('quattordicesima', lambda r: r.coefficiente / 12,  'c_14'),
-            ('ferie',           lambda r: r.coefficiente / 100, 'c_fer'),
-        ]:
-            tipi_lookup = [tipo_r]
-            # Compatibilità dati legacy: alcuni seed usano "indennita_ferie" al posto di "ferie"
-            if tipo_r == 'ferie':
-                tipi_lookup.append('indennita_ferie')
-
-            pr = ParametroRatei.objects.filter(
-                ccnl=ccnl_obj, anno=anno_pr, tipo_rateo__in=tipi_lookup, attivo=True
-            ).order_by('tipo_rateo').first()
-            if pr:
-                val = transform(pr).quantize(Q6)
-                if   attr == 'c_tfr': c_tfr = val
-                elif attr == 'c_13':  c_13  = val
-                elif attr == 'c_14':  c_14  = val
-                elif attr == 'c_fer': c_fer = val
-
     tfr_m     = (lordo_mensile * c_tfr).quantize(Q2)
-    # 13ª/14ª su base contrattuale fissa (pro-rata già incorporato in lordo_base)
-    rat13_m   = (lordo_base * c_13 ).quantize(Q2)
-    rat14_m   = (lordo_base * c_14 ).quantize(Q2)
     rat_fer_m = (lordo_mensile * c_fer).quantize(Q2)
     tot_ratei_lordi = (tfr_m + rat13_m + rat14_m + rat_fer_m).quantize(Q2)
 
-    ratio     = (netto_base / lordo_mensile).quantize(Q6) if lordo_mensile else Decimal('0')
+    ratio     = (netto_base / lordo_imponibile_inps_m).quantize(Q6) if lordo_imponibile_inps_m else Decimal('0')
     tfr_n     = (tfr_m     * ratio).quantize(Q2)
     rat13_n   = (rat13_m   * ratio).quantize(Q2)
     rat14_n   = (rat14_m   * ratio).quantize(Q2)
@@ -527,7 +542,7 @@ def calcola_busta_paga_mese(
     f24_totale      = (f24_inps + f24_erario).quantize(Q2)
 
     # ── Costo azienda ─────────────────────────────────────────────────────────
-    costo_corrente  = (lordo_mensile + inps_az + inail_az).quantize(Q2)
+    costo_corrente  = (lordo_imponibile_inps_m + inps_az + inail_az).quantize(Q2)
     costo_differito = tot_ratei_lordi
     costo_mensile   = (costo_corrente + costo_differito).quantize(Q2)
     costo_annuo     = (costo_mensile * 12).quantize(Q2)
@@ -627,6 +642,7 @@ def calcola_busta_paga_mese(
         'gg_ferie_godute': giorni_ferie_godute, 'ore_perm_goduti': ore_permessi_goduti,
         # ── Lordo ─────────────────────────────────────────────────────────────
         'lordo_mensile': lordo_mensile,
+        'lordo_imponibile_inps_m': lordo_imponibile_inps_m,
         # ── Contributi ────────────────────────────────────────────────────────
         'inps_dip_perc': (inps_dip_p * 100).quantize(Q2),
         'inps_az_perc':  (inps_az_p  * 100).quantize(Q2),
