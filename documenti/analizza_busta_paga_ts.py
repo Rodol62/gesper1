@@ -43,6 +43,8 @@ def _parse_importo_it(s: Any) -> Decimal | None:
 CATEGORIE_VOCI: dict[str, tuple[str, str]] = {
     "8001": ("COMPETENZA", "Lavoro Ordinario"),
     "8010": ("COMPETENZA", "Lavoro Domenicale 15%"),
+    "8108": ("COMPETENZA", "Festivita' Non Goduta (ore)"),
+    "8109": ("COMPETENZA", "Festivita' Godute (ore)"),
     "8020": ("COMPETENZA", "Lavoro Straordinario"),
     "8030": ("COMPETENZA", "Lavoro Notturno"),
     "8830": ("LIQUIDAZIONE", "Ferie Residue"),
@@ -116,6 +118,7 @@ VOCI_MANUALI: list[tuple[str, str, str]] = [
     ("405", r"IND\.SOST\.PREAVVISO", r"405\s+IND\.SOST\.PREAVVISO\s+([\d,]+)\s+63,94642\s+([\d.,]+)"),
     ("8001", r"LAVORO ORDINARIO", r"8001[^\n]+?([\d,]+)\s+9,16512\s+([\d.,]+)"),
     ("8010", r"LAVORO DOMENICALE", r"8010[^\n]+?([\d,]+)\s+10,53989\s+([\d.,]+)"),
+    ("8108", r"FEST\.?\s*NON\s*GODUTA", r"8108[^\n]+?([\d,]+)\s+[\d,]+\s+([\d.,]+)"),
     ("1800", r"RATA ADDIZ\.REGIONALE", r"1800[^\n]+?([\d,]+)"),
     ("1802", r"RATA ADD\.COMUNALE", r"1802[^\n]+?([\d,]+)"),
     ("1812", r"ACCONTO ADD\.COMUNALE", r"1812[^\n]+?([\d,]+)"),

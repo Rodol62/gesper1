@@ -87,6 +87,7 @@ CODICI = {
     "8010": ("COMPETENZA",   "Lavoro Domenicale 15%"),
     "8011": ("COMPETENZA",   "Lav.Domen.con Mag. 15%"),
     "8020": ("COMPETENZA",   "Lavoro Festivo 20%"),
+    "8108": ("COMPETENZA",   "Festivita' Non Goduta (ore)"),
     "8109": ("COMPETENZA",   "Festivita' Godute (ore)"),
     "109":  ("COMPETENZA",   "Festivita' Godute (ore)"),
     "8728": ("COMPETENZA",   "Ferie Godute"),
