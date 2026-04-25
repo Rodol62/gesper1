@@ -215,7 +215,7 @@ def _autocompleta_retribuzione_proposta(proposta, azienda_operativa, preserve_ma
 		proposta.qualifica = parametro.qualifica
 
 	# 2) Variabili extra da profilo SIM2026 (se numero proposta compatibile)
-	superminimo = Decimal('0')
+	superminimo = Decimal(str(getattr(proposta, 'superminimo_mensile', None) or 0))
 	indennita_turno = Decimal('0')
 	indennita_extra = Decimal('0')
 	scatto_anzianita = Decimal('0')
@@ -2609,10 +2609,18 @@ def _get_flags_imponibilita_voce(codice_voce):
 	}
 	if not codice_voce:
 		return default
+	# Fallback espliciti per codici TeamSystem usati in conciliazione cedolino.
+	# Usati quando la voce non e' ancora censita in VoceRetributiva.
+	cod_norm = str(codice_voce).strip().upper()
+	fallback_ts = {
+		'8108': default,  # FEST. NON GODUTA (ore): competenza imponibile
+	}
+	if cod_norm in fallback_ts:
+		return fallback_ts[cod_norm]
 	try:
 		voce = (
 			VoceRetributiva.objects
-			.filter(codice__iexact=str(codice_voce).strip(), attivo=True)
+			.filter(codice__iexact=cod_norm, attivo=True)
 			.only('imponibile_inps', 'imponibile_inail', 'imponibile_irpef', 'imponibile_parziale')
 			.first()
 		)
@@ -5157,11 +5165,14 @@ def _proposta_context_extra(proposta):
 	# Art. 5: paga base / contingenza / EDR da tabella CCNL (full-time sul parametro) × coeff. part-time.
 	# I campi sulla proposta possono restare disallineati in bozza; per PDF e dettaglio la fonte è il parametro.
 	art5_indennita = _q2(proposta.indennita_mensile)
+	art5_superminimo = _q2(getattr(proposta, 'superminimo_mensile', None))
 	param = proposta.parametro_ccnl_risolto
 	art5_paga_base = _q2(proposta.paga_base_mensile)
 	art5_contingenza = _q2(proposta.contingenza_mensile)
 	art5_edr = _q2(proposta.edr_mensile)
-	art5_tabellare_tot = (art5_paga_base + art5_contingenza + art5_edr + art5_indennita).quantize(Q2, rounding=ROUND_HALF_UP)
+	art5_tabellare_tot = (
+		art5_paga_base + art5_contingenza + art5_edr + art5_superminimo + art5_indennita
+	).quantize(Q2, rounding=ROUND_HALF_UP)
 	if param is not None:
 		base_ft = _q2(getattr(param, 'paga_base_mensile', 0))
 		if base_ft <= 0:
@@ -5172,9 +5183,9 @@ def _proposta_context_extra(proposta):
 			art5_paga_base = (base_ft * coeff_pt).quantize(Q2, rounding=ROUND_HALF_UP)
 			art5_contingenza = (cont_ft * coeff_pt).quantize(Q2, rounding=ROUND_HALF_UP)
 			art5_edr = (edr_ft * coeff_pt).quantize(Q2, rounding=ROUND_HALF_UP)
-			art5_tabellare_tot = (art5_paga_base + art5_contingenza + art5_edr + art5_indennita).quantize(
-				Q2, rounding=ROUND_HALF_UP
-			)
+			art5_tabellare_tot = (
+				art5_paga_base + art5_contingenza + art5_edr + art5_superminimo + art5_indennita
+			).quantize(Q2, rounding=ROUND_HALF_UP)
 
 	# Retribuzione tabellare mensile (Art. 5): mai include i 1/12 di 13ª/14ª se non rateizzati in busta.
 	lor_tab = art5_tabellare_tot
@@ -5222,6 +5233,7 @@ def _proposta_context_extra(proposta):
 		'art5_paga_base': art5_paga_base,
 		'art5_contingenza': art5_contingenza,
 		'art5_edr': art5_edr,
+		'art5_superminimo': art5_superminimo,
 		'art5_indennita': art5_indennita,
 		'art5_tabellare_tot': art5_tabellare_tot,
 		'tot_retribuzione_lorda_tabellare_mensile': lor_tab,
@@ -5507,6 +5519,7 @@ def _genera_proposta_pdf(proposta, extra):
 	art5_pb         = extra.get('art5_paga_base', proposta.paga_base_mensile)
 	art5_cont       = extra.get('art5_contingenza', proposta.contingenza_mensile)
 	art5_edr_v      = extra.get('art5_edr', proposta.edr_mensile)
+	art5_sup        = extra.get('art5_superminimo', getattr(proposta, 'superminimo_mensile', None))
 	art5_ind        = extra.get('art5_indennita', proposta.indennita_mensile)
 	art5_tab_tot    = extra.get('art5_tabellare_tot', extra.get('tot_retribuzione_lorda_tabellare_mensile', proposta.stipendio_lordo_mensile))
 
@@ -5651,9 +5664,14 @@ def _genera_proposta_pdf(proposta, extra):
 			p('E.D.R. (Elemento Distinto dalla Retribuzione — Prot. 31/07/1992)', s_normal),
 			p(f"{euro(art5_edr_v)}", s_right),
 		])
+	if art5_sup and art5_sup > 0:
+		tbl_ret_data.append([
+			p('Superminimo (oltre minimo tabellare CCNL)', s_normal),
+			p(f"{euro(art5_sup)}", s_right),
+		])
 	if art5_ind and art5_ind > 0:
 		tbl_ret_data.append([
-			p('Indennità contrattuale / superminimo', s_normal),
+			p('Altre indennità (es. di funzione)', s_normal),
 			p(f"{euro(art5_ind)}", s_right),
 		])
 	if tred_att_pdf:

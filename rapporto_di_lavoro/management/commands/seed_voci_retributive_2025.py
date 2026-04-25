@@ -296,6 +296,28 @@ class Command(BaseCommand):
                 'riferimento_normativo': 'Art. 2109 c.c. — D.Lgs. 66/2003 art. 10',
             },
             {
+                'codice': '8108',
+                'nome': 'Festività non goduta (ore) — TeamSystem',
+                'categoria': 'ferie_monetizzate',
+                'imponibile_inps': True, 'imponibile_inail': True, 'imponibile_irpef': True,
+                'descrizione': (
+                    'Voce cedolino TeamSystem: festività non goduta liquidata a ore. '
+                    'Classificata come competenza imponibile per conciliazione con cedolino consulente.'
+                ),
+                'riferimento_normativo': 'Art. 2109 c.c. — D.Lgs. 66/2003 art. 10',
+            },
+            {
+                'codice': '8109',
+                'nome': 'Festività goduta (ore) — TeamSystem',
+                'categoria': 'straordinario',
+                'imponibile_inps': True, 'imponibile_inail': True, 'imponibile_irpef': True,
+                'descrizione': (
+                    'Voce cedolino TeamSystem: festività goduta retribuita a ore '
+                    '(competenza imponibile).'
+                ),
+                'riferimento_normativo': 'CCNL Turismo — festività',
+            },
+            {
                 'codice': 'PREAVVISO_MANCATO',
                 'nome': 'Indennità mancato preavviso (in luogo del preavviso lavorato)',
                 'categoria': 'preavviso',
