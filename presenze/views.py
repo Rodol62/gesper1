@@ -886,6 +886,37 @@ def _min_tra(t1, t2) -> int:
 _CAUSALI_ORE_LAVORATE = frozenset(('P', 'ST', 'SMART', 'FE'))
 
 
+def _minuti_turni_presenza(p) -> tuple[int, int, int]:
+    """
+    Minuti per turno (T1, T2, T3) con deduplica degli intervalli identici.
+    Evita il raddoppio quando lo stesso orario è stato copiato su turno 2/3.
+    """
+    if not p:
+        return 0, 0, 0
+    raw = [
+        _min_tra(p.ora_entrata, p.ora_uscita),
+        _min_tra(p.ora_entrata2, p.ora_uscita2),
+        _min_tra(p.ora_entrata3, p.ora_uscita3),
+    ]
+    keys = [
+        (p.ora_entrata, p.ora_uscita),
+        (p.ora_entrata2, p.ora_uscita2),
+        (p.ora_entrata3, p.ora_uscita3),
+    ]
+    seen = set()
+    out = []
+    for mins, key in zip(raw, keys):
+        if mins <= 0:
+            out.append(0)
+            continue
+        if key in seen:
+            out.append(0)
+            continue
+        seen.add(key)
+        out.append(mins)
+    return out[0], out[1], out[2]
+
+
 def _minuti_lavorati_presenza(p) -> int:
     """
     Minuti lavorati T1+T2+T3 da un record Presenza (totale mese / export).
@@ -897,11 +928,8 @@ def _minuti_lavorati_presenza(p) -> int:
         return 0
     if p.causale not in _CAUSALI_ORE_LAVORATE:
         return 0
-    return (
-        _min_tra(p.ora_entrata, p.ora_uscita)
-        + _min_tra(p.ora_entrata2, p.ora_uscita2)
-        + _min_tra(p.ora_entrata3, p.ora_uscita3)
-    )
+    m1, m2, m3 = _minuti_turni_presenza(p)
+    return m1 + m2 + m3
 
 
 def _straord_giorno_semplice(ore_giorno: float, ore_std: Decimal, presenza) -> Optional[Decimal]:
@@ -1322,9 +1350,7 @@ def calendario_presenze(request, dipendente_id, anno=None, mese=None):
         elif p and p.causale not in _CAUSALI_ORE_LAVORATE:
             m1 = m2 = m3 = 0
         else:
-            m1 = _min_tra(p.ora_entrata, p.ora_uscita) if p else 0
-            m2 = _min_tra(p.ora_entrata2, p.ora_uscita2) if p else 0
-            m3 = _min_tra(p.ora_entrata3, p.ora_uscita3) if p else 0
+            m1, m2, m3 = _minuti_turni_presenza(p)
         min_giorno = m1 + m2 + m3
         panorama_giorni.append({
             'data': d,
@@ -1993,9 +2019,7 @@ def riepilogo_mese(request):
             elif p and p.causale not in _CAUSALI_ORE_LAVORATE:
                 m1 = m2 = m3 = 0
             else:
-                m1 = _min_tra(p.ora_entrata, p.ora_uscita) if p else 0
-                m2 = _min_tra(p.ora_entrata2, p.ora_uscita2) if p else 0
-                m3 = _min_tra(p.ora_entrata3, p.ora_uscita3) if p else 0
+                m1, m2, m3 = _minuti_turni_presenza(p)
             min_giorno = m1 + m2 + m3
             giorni_riga.append({
                 'data': d,
