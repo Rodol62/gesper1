@@ -96,9 +96,10 @@ def calcola_schema_divisori(
     - **giorni lavorativi mese** e **settimanali** (default 26 e 6, configurabili).
     - **ore lavorative giornaliere** (qui): media ore_settimanali / giorni_lavorativi_settimanali (riferimento
       contrattuale). In ``calcola_busta_paga_mese`` la stessa logica (h/sett ÷ 6) alimenta ``ore_giornaliere``
-      per maggiorazioni; con divisore orario (172/173,33) la **paga oraria** è la somma delle singole voci
-      tabellari FT nel mese ciascuna divisa per il divisore (``retribuzione_oraria_di_fatto``), non un unico
-      quoziente su ``totale_tabellare`` se diverso dalla somma delle parti.
+      per maggiorazioni; con divisore orario (172/173,33) la **retribuzione oraria di fatto** è la somma di
+      ``(importo tabellare CCNL della voce × pro-rata mese) ÷ divisore`` per ciascuna voce (paga, contingenza,
+      EDR, indennità tabellare, scatto), **senza** applicare prima il coefficiente part-time su quegli importi
+      (allineamento foglio Excel INPS / FIPE). Il part-time resta sulle ore mensili e sulle voci in busta.
     """
     div = divisore_orario if divisore_orario > 0 else Decimal('173.33')
     ore_sett = ore_settimanali if ore_settimanali > 0 else Decimal('40')

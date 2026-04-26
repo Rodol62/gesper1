@@ -54,7 +54,8 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
         self.assertEqual(r['paga_oraria'], Decimal('12.5000'))
         self.assertEqual(r['lordo_tabellare_ft_equiv'], Decimal('2150.00'))
 
-    def test_part_time_moltiplica_voci_prima_del_divisore(self):
+    def test_part_time_orarie_tabellari_come_ft_excel_non_scalano_coeff(self):
+        """Excel FIPE: ogni voce tabellare FT ÷ 172; il part-time non moltiplica l'importo prima del divisore."""
         cp = _parametro_ccnl_test()
         tipo_pt = SimpleNamespace(coefficiente_ore=Decimal('0.5'))
         r = calcola_busta_paga_mese(
@@ -70,11 +71,46 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
             indennita_extra=Decimal('0'),
             ccnl_obj=None,
         )
-        self.assertEqual(r['oraria_tabellare_paga_base'], Decimal('5.0000'))
-        self.assertEqual(r['oraria_tabellare_contingenza'], Decimal('1.0000'))
-        self.assertEqual(r['oraria_tabellare_edr'], Decimal('0.2500'))
-        self.assertEqual(r['retribuzione_oraria_di_fatto'], Decimal('6.2500'))
-        self.assertEqual(r['paga_oraria'], Decimal('6.2500'))
+        self.assertEqual(r['oraria_tabellare_paga_base'], Decimal('10.0000'))
+        self.assertEqual(r['oraria_tabellare_contingenza'], Decimal('2.0000'))
+        self.assertEqual(r['oraria_tabellare_edr'], Decimal('0.5000'))
+        self.assertEqual(r['retribuzione_oraria_di_fatto'], Decimal('12.5000'))
+        self.assertEqual(r['paga_oraria'], Decimal('12.5000'))
+        self.assertEqual(r['paga_base'], Decimal('860.00'))
+
+    def test_allineamento_excel_1021_49_522_37_scatto_90_percento(self):
+        cp = _parametro_ccnl_test(
+            paga_base_mensile=Decimal('1021.49'),
+            contingenza_mensile=Decimal('522.37'),
+            edr_mensile=Decimal('0'),
+            indennita_mensile=Decimal('0'),
+            scatto_importo=Decimal('32.54'),
+        )
+        tipo_pt = SimpleNamespace(coefficiente_ore=Decimal('0.9'))
+        r = calcola_busta_paga_mese(
+            parametro_ccnl=cp,
+            tipo_contratto=tipo_pt,
+            anno=2026,
+            mese=1,
+            divisore_str='172',
+            ore_domenicali=Decimal('24'),
+            mensilita_contrattuale_piena=True,
+            superminimo=Decimal('0'),
+            scatto_anzianita=Decimal('0'),
+            indennita_turno=Decimal('0'),
+            indennita_extra=Decimal('0'),
+            ccnl_obj=None,
+        )
+        self.assertEqual(r['paga_base'], Decimal('919.34'))
+        self.assertEqual(r['oraria_tabellare_paga_base'], Decimal('5.9389'))
+        self.assertEqual(r['oraria_tabellare_contingenza'], Decimal('3.0370'))
+        self.assertEqual(r['oraria_tabellare_scatto'], Decimal('0.1892'))
+        self.assertEqual(r['retribuzione_oraria_di_fatto'], Decimal('9.1651'))
+        self.assertEqual(r['paga_oraria'], Decimal('9.1651'))
+        self.assertEqual(
+            r['imp_dom_magg'],
+            (Decimal('24') * Decimal('9.1651') * Decimal('0.15')).quantize(Decimal('0.01')),
+        )
 
     def test_straordinario_diurno_sulla_retribuzione_oraria_di_fatto(self):
         cp = _parametro_ccnl_test()

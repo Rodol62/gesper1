@@ -322,23 +322,21 @@ def calcola_busta_paga_mese(
     lordo_base  = (paga_base + contingenza + edr + indennita
                    + superminimo_r + indennita_turno_r + scatto_r + indennita_extra_r).quantize(Q2)
 
+    _c_m = Decimal(str(cp.contingenza_mensile or 0))
+    _e_m = Decimal(str(cp.edr_mensile or 0))
+    _i_m = Decimal(str(cp.indennita_mensile or 0))
+
     lordo_pieno = (
-        (
-            _paga_tbl
-            + Decimal(str(cp.contingenza_mensile or 0))
-            + Decimal(str(cp.edr_mensile or 0))
-            + Decimal(str(cp.indennita_mensile or 0))
-        )
-        * coeff
+        (_paga_tbl + _c_m + _e_m + _i_m) * coeff
     ).quantize(Q2)
 
-    # Somma voci tabellari nel mese (coeff. part-time e pro-rata già in paga_base, contingenza, …).
+    # Somma voci tabellari CCNL (parametro) nel mese: importi da tabella FT × solo pro-rata giorni (no coeff. PT).
+    # Allineamento foglio Excel INPS: paga oraria voce = importo tabellare ÷ 172; il part-time è sulle ore, non qui.
     lordo_tabellare_ft_equiv = (
-        (paga_base + contingenza + edr + indennita + scatto_r).quantize(Q2)
-    )
+        (_paga_tbl + _c_m + _e_m + _i_m + _scatto_mens_ft) * frazione
+    ).quantize(Q2)
 
-    # Retribuzione oraria di fatto = Σ (importo mensile voce ÷ divisore), come foglio Excel
-    # (paga/172 + contingenza/172 + …); stesso risultato che dividere ogni voce FT per 172 e moltiplicare per coeff.
+    # Retribuzione oraria di fatto = Σ ((voce tabellare FT × frazione mese) ÷ divisore), come Excel (es. 1021,49/172).
     h_oraria_paga_base = Decimal('0')
     h_oraria_contingenza = Decimal('0')
     h_oraria_edr = Decimal('0')
@@ -347,11 +345,12 @@ def calcola_busta_paga_mese(
     retribuzione_oraria_di_fatto = Decimal('0')
     if divisore_dec > Decimal('30'):
         div = divisore_dec
-        h_oraria_paga_base = (paga_base / div).quantize(Q4)
-        h_oraria_contingenza = (contingenza / div).quantize(Q4)
-        h_oraria_edr = (edr / div).quantize(Q4)
-        h_oraria_indennita = (indennita / div).quantize(Q4)
-        h_oraria_scatto = (scatto_r / div).quantize(Q4) if scatto_r > 0 else Decimal('0')
+        fr = frazione
+        h_oraria_paga_base = ((_paga_tbl * fr) / div).quantize(Q4)
+        h_oraria_contingenza = ((_c_m * fr) / div).quantize(Q4)
+        h_oraria_edr = ((_e_m * fr) / div).quantize(Q4)
+        h_oraria_indennita = ((_i_m * fr) / div).quantize(Q4)
+        h_oraria_scatto = ((_scatto_mens_ft * fr) / div).quantize(Q4) if _scatto_mens_ft > 0 else Decimal('0')
         retribuzione_oraria_di_fatto = (
             h_oraria_paga_base + h_oraria_contingenza + h_oraria_edr + h_oraria_indennita + h_oraria_scatto
         ).quantize(Q4)
