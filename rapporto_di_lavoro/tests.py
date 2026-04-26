@@ -24,6 +24,7 @@ def _parametro_ccnl_test(**overrides):
         'straordinario_notturno_maggiorazione': Decimal('30'),
         'straordinario_festivo_maggiorazione': Decimal('30'),
         'scatto_importo': Decimal('0'),
+        'totale_tabellare': Decimal('0'),
     }
     base.update(overrides)
     return SimpleNamespace(**base)
@@ -111,6 +112,34 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
             r['imp_dom_magg'],
             (Decimal('24') * Decimal('9.1651') * Decimal('0.15')).quantize(Decimal('0.01')),
         )
+
+    def test_totale_tabellare_copre_scatto_non_in_colonna_dedicata(self):
+        """Totale tabellare CCNL > somma voci: gap trattato come scatto FT per /172 e busta (× coeff.)."""
+        cp = _parametro_ccnl_test(
+            paga_base_mensile=Decimal('1021.49'),
+            contingenza_mensile=Decimal('522.37'),
+            edr_mensile=Decimal('0'),
+            indennita_mensile=Decimal('0'),
+            scatto_importo=Decimal('0'),
+            totale_tabellare=Decimal('1576.40'),
+        )
+        tipo_pt = SimpleNamespace(coefficiente_ore=Decimal('0.9'))
+        r = calcola_busta_paga_mese(
+            parametro_ccnl=cp,
+            tipo_contratto=tipo_pt,
+            anno=2026,
+            mese=1,
+            divisore_str='172',
+            mensilita_contrattuale_piena=True,
+            superminimo=Decimal('0'),
+            scatto_anzianita=Decimal('0'),
+            indennita_turno=Decimal('0'),
+            indennita_extra=Decimal('0'),
+            ccnl_obj=None,
+        )
+        self.assertEqual(r['tabellare_gap_ft'], Decimal('32.54'))
+        self.assertEqual(r['oraria_tabellare_scatto'], Decimal('0.1892'))
+        self.assertEqual(r['retribuzione_oraria_di_fatto'], Decimal('9.1651'))
 
     def test_straordinario_diurno_sulla_retribuzione_oraria_di_fatto(self):
         cp = _parametro_ccnl_test()

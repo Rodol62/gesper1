@@ -306,35 +306,43 @@ def calcola_busta_paga_mese(
     _paga_tbl = Decimal(str(cp.paga_base_mensile or 0))
     if _paga_tbl <= 0:
         _paga_tbl = Decimal(str(getattr(cp, 'minimo_tabellare', None) or 0))
+    _c_m = Decimal(str(cp.contingenza_mensile or 0))
+    _e_m = Decimal(str(cp.edr_mensile or 0))
+    _i_m = Decimal(str(cp.indennita_mensile or 0))
+
     paga_base       = _v(_paga_tbl)
     contingenza     = _v(cp.contingenza_mensile)
     edr             = _v(cp.edr_mensile)
     indennita       = _v(cp.indennita_mensile)
     superminimo_r       = (superminimo       * coeff * frazione).quantize(Q2)
     indennita_turno_r   = (indennita_turno   * coeff * frazione).quantize(Q2)
-    # Scatto: se non passato (0), usa importo tabellare da parametro CCNL (come riga Excel).
+    # Scatto esplicito (contratto o colonna parametro CCNL).
     _scatto_mens_ft = Decimal(str(scatto_anzianita or 0))
     if _scatto_mens_ft <= 0:
         _scatto_mens_ft = Decimal(str(getattr(cp, 'scatto_importo', None) or 0))
-    scatto_r            = (_scatto_mens_ft * coeff * frazione).quantize(Q2)
+    # Se ``totale_tabellare`` supera la somma delle voci distinte (paga, cont., EDR, ind., scatto),
+    # la differenza è il «resto» tabellare (es. scatti nel totale riga Excel ma non valorizzati in ``scatto_importo``).
+    _tab_ref = Decimal(str(getattr(cp, 'totale_tabellare', None) or 0))
+    accounted_ft = (_paga_tbl + _c_m + _e_m + _i_m + _scatto_mens_ft).quantize(Q2)
+    tabellare_gap_ft = Decimal('0')
+    if _tab_ref > accounted_ft + Decimal('0.005'):
+        tabellare_gap_ft = (_tab_ref - accounted_ft).quantize(Q2)
+    _scatto_mens_ft_tot = (_scatto_mens_ft + tabellare_gap_ft).quantize(Q2)
+
+    scatto_r            = (_scatto_mens_ft_tot * coeff * frazione).quantize(Q2)
     indennita_extra_r   = (indennita_extra   * coeff * frazione).quantize(Q2)
 
     lordo_base  = (paga_base + contingenza + edr + indennita
                    + superminimo_r + indennita_turno_r + scatto_r + indennita_extra_r).quantize(Q2)
 
-    _c_m = Decimal(str(cp.contingenza_mensile or 0))
-    _e_m = Decimal(str(cp.edr_mensile or 0))
-    _i_m = Decimal(str(cp.indennita_mensile or 0))
-
     lordo_pieno = (
         (_paga_tbl + _c_m + _e_m + _i_m) * coeff
     ).quantize(Q2)
 
-    # Somma voci tabellari CCNL (parametro) nel mese: importi da tabella FT × solo pro-rata giorni (no coeff. PT).
-    # Allineamento foglio Excel INPS: paga oraria voce = importo tabellare ÷ 172; il part-time è sulle ore, non qui.
+    # Riferimento tabellare mese (FT × pro-rata): preferisci totale da anagrafica CCNL se valorizzato.
     lordo_tabellare_ft_equiv = (
-        (_paga_tbl + _c_m + _e_m + _i_m + _scatto_mens_ft) * frazione
-    ).quantize(Q2)
+        (_tab_ref * frazione).quantize(Q2) if _tab_ref > 0 else ((_paga_tbl + _c_m + _e_m + _i_m + _scatto_mens_ft_tot) * frazione).quantize(Q2)
+    )
 
     # Retribuzione oraria di fatto = Σ ((voce tabellare FT × frazione mese) ÷ divisore), come Excel (es. 1021,49/172).
     h_oraria_paga_base = Decimal('0')
@@ -350,7 +358,7 @@ def calcola_busta_paga_mese(
         h_oraria_contingenza = ((_c_m * fr) / div).quantize(Q4)
         h_oraria_edr = ((_e_m * fr) / div).quantize(Q4)
         h_oraria_indennita = ((_i_m * fr) / div).quantize(Q4)
-        h_oraria_scatto = ((_scatto_mens_ft * fr) / div).quantize(Q4) if _scatto_mens_ft > 0 else Decimal('0')
+        h_oraria_scatto = ((_scatto_mens_ft_tot * fr) / div).quantize(Q4) if _scatto_mens_ft_tot > 0 else Decimal('0')
         retribuzione_oraria_di_fatto = (
             h_oraria_paga_base + h_oraria_contingenza + h_oraria_edr + h_oraria_indennita + h_oraria_scatto
         ).quantize(Q4)
@@ -700,6 +708,7 @@ def calcola_busta_paga_mese(
         'oraria_tabellare_scatto': h_oraria_scatto,
         # Somma voci tabellari FT nel mese (× frazione); supermin./turno/extra fuori.
         'lordo_tabellare_ft_equiv': lordo_tabellare_ft_equiv,
+        'tabellare_gap_ft': tabellare_gap_ft,
         # ── Voci base ─────────────────────────────────────────────────────────
         'paga_base': paga_base, 'contingenza': contingenza, 'edr': edr, 'indennita': indennita,
         'superminimo': superminimo_r, 'indennita_turno': indennita_turno_r,

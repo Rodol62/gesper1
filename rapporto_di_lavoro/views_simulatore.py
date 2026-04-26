@@ -220,9 +220,14 @@ def simulatore_paga(request):
         if r['indennita_turno']:
             voci.append({'nome': 'Indennità turno', 'importo': r['indennita_turno'], 'inps': True, 'irpef': True, 'note': 'Turni notturni/speciali'})
         if r.get('scatto') and r['scatto'] > 0:
+            _sc_note = 'Da parametro CCNL (tabella livello) se non diversamente indicato'
+            if r.get('tabellare_gap_ft') and r['tabellare_gap_ft'] > 0:
+                _sc_note += (
+                    f' — incluso € {r["tabellare_gap_ft"]} FT da (totale tabellare − somma voci distinte)'
+                )
             voci.append(_r_tab(
                 'Scatto anzianità', 'scatto',
-                'Da parametro CCNL (tabella livello) se non diversamente indicato',
+                _sc_note,
                 'oraria_tabellare_scatto',
             ))
         # Straordinari — solo se ore > 0

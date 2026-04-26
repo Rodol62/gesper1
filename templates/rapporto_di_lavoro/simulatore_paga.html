@@ -818,7 +818,7 @@
             <tr>
               <td colspan="2"><strong>Lordo competenze + ratei 13ª/14ª (totale cedolino)</strong></td>
               {% if risultato.divisore > 30 %}
-              <td class="amt text-muted" style="font-size:.72rem" title="Somma €/h tabellari = retribuzione oraria di fatto">{{ risultato.retribuzione_oraria_di_fatto|num_it:4 }}</td>
+              <td class="text-muted">—</td>
               {% endif %}
               <td class="amt" style="color:var(--c-primary)">€ {{ risultato.lordo_con_1314|euro_it }}</td>
               <td colspan="3" class="text-muted">
@@ -846,7 +846,7 @@
               <td colspan="3" class="text-muted" style="font-size:.62rem">
                 Ore/mese: {{ risultato.ore_mensili|floatformat:2 }} h · Ore/gg: {{ risultato.ore_giornaliere|floatformat:2 }} h
                 {% if risultato.divisore > 30 and risultato.lordo_tabellare_ft_equiv %}
-                  <span class="d-block mt-1">Colonna €/h tab.: importo <strong>tabellare CCNL</strong> della voce (parametro, tempo pieno) × eventuale pro-rata giorni ÷ {{ risultato.divisore|floatformat:0 }} — <strong>non</strong> l’importo in busta già moltiplicato per il part-time. Somma = retribuzione oraria di fatto (straord. e maggiorazioni). Riferimento somma tabellare mese € {{ risultato.lordo_tabellare_ft_equiv|euro_it }}. Quota/gg: lordo competenze ÷ 26.</span>
+                  <span class="d-block mt-1">Colonna €/h tab.: importo <strong>tabellare CCNL</strong> della voce (tempo pieno) × pro-rata giorni ÷ {{ risultato.divisore|floatformat:0 }}; la somma è la retribuzione oraria di fatto (straord. e maggiorazioni).{% if risultato.tabellare_gap_ft %} Se il parametro ha <strong>totale tabellare</strong> maggiore della somma delle voci distinte, la differenza (€ {{ risultato.tabellare_gap_ft|euro_it }} FT) concorre allo scatto / orario come nel foglio Excel.{% endif %} Riferimento tabellare mese € {{ risultato.lordo_tabellare_ft_equiv|euro_it }}. Quota/gg: lordo competenze ÷ 26.</span>
                 {% endif %}
               </td>
             </tr>
