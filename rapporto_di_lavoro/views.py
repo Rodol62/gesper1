@@ -6819,6 +6819,12 @@ def modifica_contratto(request, contratto_id):
 				ccnl_obj=ccnl_fipe,
 				num_familiari_a_carico=num_familiari,
 				regione_residenza=regione,
+				rateo_13_mensile_in_imponibile=bool(
+					getattr(contratto, 'tredicesima_rateo_mensile_in_imponibile', False)
+				),
+				rateo_14_mensile_in_imponibile=bool(
+					getattr(contratto, 'quattordicesima_rateo_mensile_in_imponibile', False)
+				),
 			)
 	except Exception:
 		pass

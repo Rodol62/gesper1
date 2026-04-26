@@ -485,6 +485,8 @@ def _busta_per_fonte(fonte, tredicesima=True, quattordicesima=False, num_familia
             logger.exception('Errore risoluzione profilo SIM2026 in _busta_per_fonte')
 
     try:
+        r13_imp = bool(getattr(fonte, 'tredicesima_rateo_mensile_in_imponibile', False))
+        r14_imp = bool(getattr(fonte, 'quattordicesima_rateo_mensile_in_imponibile', False))
         r = _calcola_busta(
             parametro_ccnl=cp,
             tipo_contratto=getattr(fonte, 'tipo_contratto', None),
@@ -501,6 +503,8 @@ def _busta_per_fonte(fonte, tredicesima=True, quattordicesima=False, num_familia
             ccnl_obj=ccnl_obj,
             num_familiari_a_carico=num_familiari_a_carico,
             regione_residenza=regione_residenza or 'Sicilia',
+            rateo_13_mensile_in_imponibile=r13_imp,
+            rateo_14_mensile_in_imponibile=r14_imp,
         )
         return _calc_ret_da_busta(r, tredicesima, quattordicesima)
     except Exception:

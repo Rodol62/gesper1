@@ -88,6 +88,9 @@
   <p><strong>Paga base:</strong> {{ contratto.paga_base_mensile|euro_full }}</p>
   <p><strong>Contingenza:</strong> {{ contratto.contingenza_mensile|euro_full }}</p>
   <p><strong>EDR:</strong> {{ contratto.edr_mensile|euro_full }}</p>
+  {% if contratto.superminimo_mensile and contratto.superminimo_mensile > 0 %}
+  <p><strong>Superminimo (€/mese):</strong> {{ contratto.superminimo_mensile|euro_full }}</p>
+  {% endif %}
   {% if rat13_mensile %}
   <p><strong>Rateo mensile 13ª mensilità</strong> (art. 133 CCNL FIPE, erogato a dicembre): <strong>{{ rat13_mensile|euro_full }}</strong> — accantonato mensilmente e incluso nella base di calcolo del costo del lavoro.</p>
   {% endif %}
@@ -108,7 +111,7 @@
   <ol>
     <li><strong>Oggetto del contratto:</strong> assunzione del lavoratore con mansioni indicate, nel rispetto dell'art. 2103 c.c.</li>
     <li><strong>Inquadramento:</strong> applicazione del CCNL Turismo Confcommercio per livello, qualifica e trattamento normativo.</li>
-    <li><strong>Trattamento economico:</strong> retribuzione mensile lorda, elementi fissi (paga base, contingenza, EDR) e indennità.</li>
+    <li><strong>Trattamento economico:</strong> retribuzione mensile lorda, elementi fissi (paga base, contingenza, EDR), eventuale superminimo concordato e altre indennità.</li>
     <li><strong>Orario di lavoro:</strong> disciplina secondo D.Lgs. 66/2003, inclusi straordinari e relative maggiorazioni.</li>
     <li><strong>Riposi e ferie:</strong> riconoscimento dei riposi giornalieri/settimanali, ferie e permessi secondo legge e CCNL.</li>
     <li><strong>Scatti di anzianità:</strong> maturazione periodica secondo importo e periodicità indicati.</li>

@@ -152,10 +152,17 @@ def simulatore_paga(request):
         gg_ferie    = _gg('giorni_ferie_godute')
         ore_perm    = _gg('ore_permessi_goduti')
 
+        # Ratei 13ª/14ª nella base INPS/IRPEF/INAIL solo se erogati mensilmente in busta (contratto / simulazione).
+        r13_imp_m = _get('rateo_13_mensile_in_imponibile', '0') == '1'
+        r14_imp_m = _get('rateo_14_mensile_in_imponibile', '0') == '1'
+
         # ── Auto-calcolo dal calendario se ore non inserite ───────────────────
         # Domenicali: delegate al motore (usa calendario + chiusure aziendali).
-        # Festivi: manteniamo auto-computo locale per retrocompatibilità UI.
-        _ore_gg = (Decimal(str(cp.ore_giornaliere or 0)) * coeff).quantize(Q2)
+        # Festivi: ore/gg = h settimanali tabellari × coeff. part-time ÷ 6 (stesso criterio del motore busta).
+        _ost = (Decimal(str(cp.ore_settimanali or 0)) * coeff).quantize(Q2)
+        _ore_gg = (_ost / Decimal('6')).quantize(Q2) if _ost > 0 else (
+            (Decimal(str(cp.ore_giornaliere or 0)) * coeff).quantize(Q2)
+        )
         if not ore_fest and _ore_gg:
             from .utils_calendario import get_festivita_mese as _get_fest
             _n_fest = sum(
@@ -187,6 +194,8 @@ def simulatore_paga(request):
             giorni_ferie_godute=gg_ferie,
             ore_permessi_goduti=ore_perm,
             ccnl_obj=_ccnl_obj,
+            rateo_13_mensile_in_imponibile=r13_imp_m,
+            rateo_14_mensile_in_imponibile=r14_imp_m,
         )
 
         # ── Voci per tabella Box 1 (solo importo > 0) ────────────────────────
@@ -202,6 +211,14 @@ def simulatore_paga(request):
             voci.append({'nome': 'Superminimo', 'importo': r['superminimo'], 'inps': True, 'irpef': True, 'note': 'Individuale/aziendale'})
         if r['indennita_turno']:
             voci.append({'nome': 'Indennità turno', 'importo': r['indennita_turno'], 'inps': True, 'irpef': True, 'note': 'Turni notturni/speciali'})
+        if r.get('scatto') and r['scatto'] > 0:
+            voci.append({
+                'nome': 'Scatto anzianità',
+                'importo': r['scatto'],
+                'inps': True,
+                'irpef': True,
+                'note': 'Da parametro CCNL (tabella livello) se non diversamente indicato',
+            })
         # Straordinari — solo se ore > 0
         if ore_sd:
             voci.append({'nome': f'Straord. diurno (+{r["magg_diur_pct"]}%)',   'importo': r['imp_sd'],  'ore': ore_sd,  'inps': True, 'irpef': True})

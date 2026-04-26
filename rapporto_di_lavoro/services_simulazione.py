@@ -214,6 +214,8 @@ def calcola_base_simulazione_motore_unico(
 			ccnl_obj=ccnl_fipe,
 			num_familiari_a_carico=0,
 			regione_residenza='Sicilia',
+			rateo_13_mensile_in_imponibile=False,
+			rateo_14_mensile_in_imponibile=False,
 		)
 		return {
 			'lordo_mensile': simulazione.get('lordo_mensile', Decimal('0.00')),

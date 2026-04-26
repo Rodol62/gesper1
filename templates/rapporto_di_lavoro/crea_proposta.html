@@ -126,8 +126,8 @@
     <!-- Sezione 3: Retribuzione -->
     <h5 class="mt-4 mb-3">Retribuzione Mensile <span class="badge bg-secondary">€ = Euro; precompilata</span></h5>
     <div class="alert alert-light border-start border-info p-3 mb-3">
-      <strong>Formula Stipendio Lordo:</strong> Paga Base + Contingenza + EDR + Indennità = Lordo Mensile
-      <br/><small>Questi campi si compilano automaticamente dal CCNL selezionato e sono modificabili solo per esigenze speciali.</small>
+      <strong>Formula Stipendio Lordo (riferimento):</strong> Paga Base + Contingenza + EDR + Indennità (+ superminimo se previsto) → allineamento al lordo mensile.
+      <br/><small>Le voci tabellari si precompilano dal CCNL; il <strong>superminimo</strong> è un importo concordato oltre il minimo CCNL (€/mese, imponibile), da indicare solo se applicabile.</small>
     </div>
     <div id="msg-retribuzione-source" class="alert alert-success py-2 mb-3" style="display:none;">
       Dati retributivi precompilati da CCNL vigente.
@@ -159,6 +159,15 @@
         {{ form.edr_mensile }}
         <small class="text-muted d-block">Elemento Distinitivo Retributivo specifico CCNL</small>
         {% if form.edr_mensile.errors %}<div class="text-danger small">{{ form.edr_mensile.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label class="form-label" for="{{ form.superminimo_mensile.id_for_label }}">{{ form.superminimo_mensile.label }} (€/mese)</label>
+        {{ form.superminimo_mensile }}
+        <small class="text-muted d-block">Oltre il minimo tabellare CCNL; imponibile, stabile (13ª/14ª, TFR, INPS, ferie/permessi, malattia/maternità). Lasciare 0 se non previsto.</small>
+        {% if form.superminimo_mensile.errors %}<div class="text-danger small">{{ form.superminimo_mensile.errors }}</div>{% endif %}
       </div>
     </div>
 
@@ -254,6 +263,27 @@
             <span class="badge bg-primary ms-1">luglio</span>
           </label>
           <small class="text-muted d-block">Se flaggata: rateo mensile in busta (deroga su richiesta dipendente); se non flaggata: pagamento ordinario a luglio</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <div class="form-check">
+          {{ form.tredicesima_rateo_mensile_in_imponibile }}
+          <label class="form-check-label" for="{{ form.tredicesima_rateo_mensile_in_imponibile.id_for_label }}">
+            <strong>13ª: quota 1/12 in imponibile mensile</strong>
+          </label>
+          <small class="text-muted d-block">Solo se la quota è effettivamente in cedolino ogni mese (INPS/IRPEF/INAIL sul mese). Altrimenti il motore calcola il rateo solo come riferimento.</small>
+        </div>
+      </div>
+      <div class="col-md-6 mb-3">
+        <div class="form-check">
+          {{ form.quattordicesima_rateo_mensile_in_imponibile }}
+          <label class="form-check-label" for="{{ form.quattordicesima_rateo_mensile_in_imponibile.id_for_label }}">
+            <strong>14ª: quota 1/12 in imponibile mensile</strong>
+          </label>
+          <small class="text-muted d-block">Come sopra, per la quattordicesima.</small>
         </div>
       </div>
     </div>

@@ -30,6 +30,10 @@ urlpatterns = [
 
     # ── Riepilogo mese tutti i dipendenti ───────────────────────
     path('riepilogo/', views.riepilogo_mese, name='riepilogo_presenze_mese'),
+    path('riepilogo/scostamento-cedolino/', views.riepilogo_scostamento_cedolino, name='riepilogo_scostamento_cedolino'),
+    path('riepilogo/scostamento-fiscale-cedolino/', views.riepilogo_scostamento_fiscale_cedolino, name='riepilogo_scostamento_fiscale_cedolino'),
+    path('riepilogo/scostamento-cedolino/export.xlsx', views.export_scostamento_cedolino_excel, name='export_scostamento_cedolino_excel'),
+    path('riepilogo/scostamento-cedolino/export.pdf', views.export_scostamento_cedolino_pdf, name='export_scostamento_cedolino_pdf'),
     path('riepilogo/estendi-orari/', views.estendi_orari_riepilogo_mese, name='estendi_orari_riepilogo_mese'),
 
     # ── Export Excel per consulente ─────────────────────────────

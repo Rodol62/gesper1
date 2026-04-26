@@ -220,16 +220,21 @@ class Command(BaseCommand):
                 'codice': 'TREDICESIMA',
                 'nome': 'Tredicesima mensilità (rateo o liquidazione)',
                 'categoria': 'tredicesima',
-                'imponibile_inps': True, 'imponibile_inail': True, 'imponibile_irpef': True,
-                'descrizione': 'Mensilità aggiuntiva erogata a dicembre o per ratei mensili.',
+                'imponibile_inps': False, 'imponibile_inail': False, 'imponibile_irpef': False,
+                'descrizione': (
+                    'Rateo o liquidazione 13ª. Imponibile INPS/IRPEF/INAIL del mese solo se la quota '
+                    '1/12 è effettivamente in busta (flag contratto); altrimenti solo accantonamento.'
+                ),
                 'riferimento_normativo': 'CCNL Turismo',
             },
             {
                 'codice': 'QUATTORDICESIMA',
                 'nome': 'Quattordicesima mensilità (rateo o liquidazione)',
                 'categoria': 'quattordicesima',
-                'imponibile_inps': True, 'imponibile_inail': True, 'imponibile_irpef': True,
-                'descrizione': 'Mensilità aggiuntiva estiva (luglio) prevista da alcuni CCNL Turismo.',
+                'imponibile_inps': False, 'imponibile_inail': False, 'imponibile_irpef': False,
+                'descrizione': (
+                    'Come la 13ª: imponibile mensile solo se rateo in cedolino; altrimenti accantonamento.'
+                ),
                 'riferimento_normativo': 'CCNL Turismo Confcommercio — 14ª mensilità',
             },
             {
@@ -276,6 +281,16 @@ class Command(BaseCommand):
                 'categoria': 'straordinario',
                 'imponibile_inps': True, 'imponibile_inail': True, 'imponibile_irpef': True,
                 'descrizione': 'Ore lavorate nei giorni festivi con relativa maggiorazione.',
+            },
+            {
+                'codice': 'MAGG_DOM_FEST',
+                'nome': 'Maggiorazioni lavoro domenicale e festivo (non straordinario)',
+                'categoria': 'straordinario',
+                'imponibile_inps': True, 'imponibile_inail': True, 'imponibile_irpef': True,
+                'descrizione': (
+                    'Maggiorazioni CCNL su ore ordinarie in domenica/festivo (non quota straordinario). '
+                    'Matura 13ª/14ª e concorre al TFR secondo schema motore Gesper.'
+                ),
             },
             {
                 'codice': 'IND_TURNO',

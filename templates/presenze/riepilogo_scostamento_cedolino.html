@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% load format_it_tags %}
+{% block title %}Scostamento ore calendario vs cedolino — GESPER{% endblock %}
+
+{% block content %}
+<style>
+  .sc-table th, .sc-table td { font-size: .72rem; vertical-align: middle; }
+  .sc-table thead th { background: #f4f7fa; color: #1b3a5f; font-weight: 700; border-color: #dde4ec; }
+  .sc-row-ok { background: #f0fdf4; }
+  .sc-row-diff { background: #fff7ed; box-shadow: inset 3px 0 0 #ea580c; }
+  .sc-row-no-ced { background: #f8fafc; color: #64748b; }
+  .sc-tip-row td { font-size: .66rem; background: #fafbfc; color: #475569; }
+  .sc-tip-row td:first-child { padding-left: 1.25rem; border-left: 3px solid #94a3b8; }
+</style>
+<div class="container-fluid px-3 mt-3">
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:8px;padding:.7rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem">
+    <div>
+      <div style="font-size:.7rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em">Conciliazione ore</div>
+      <h5 style="margin:0;font-size:.97rem;font-weight:800">
+        <i class="bi bi-clipboard-data"></i> {{ azienda.nome }} — Scostamento ore calendario vs cedolino ({{ anno|anno_it }})
+      </h5>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno|anno_it }}{% if mese %}&mese={{ mese|stringformat:'d' }}{% endif %}{% if q_filter %}&q={{ q_filter|urlencode }}{% endif %}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;font-size:.78rem">
+        <i class="bi bi-arrow-left"></i> Torna a riepilogo presenze
+      </a>
+      <a href="{% url 'export_scostamento_cedolino_excel' %}?anno={{ anno|anno_it }}{% if mese %}&mese={{ mese|stringformat:'d' }}{% endif %}{% if q_filter %}&q={{ q_filter|urlencode }}{% endif %}&ordina={{ ordina }}&filtro={{ filtro }}"
+         class="btn btn-sm" style="background:#1a7a42;color:#fff;font-size:.78rem">
+        <i class="bi bi-file-earmark-excel-fill"></i> Excel
+      </a>
+      <a href="{% url 'export_scostamento_cedolino_pdf' %}?anno={{ anno|anno_it }}{% if mese %}&mese={{ mese|stringformat:'d' }}{% endif %}{% if q_filter %}&q={{ q_filter|urlencode }}{% endif %}&ordina={{ ordina }}&filtro={{ filtro }}"
+         class="btn btn-sm" style="background:#8b5cf6;color:#fff;font-size:.78rem">
+        <i class="bi bi-file-earmark-pdf-fill"></i> PDF orizzontale
+      </a>
+      <a href="{% url 'riepilogo_scostamento_fiscale_cedolino' %}?anno={{ anno|anno_it }}{% if mese %}&mese={{ mese|stringformat:'d' }}{% endif %}{% if q_filter %}&q={{ q_filter|urlencode }}{% endif %}"
+         class="btn btn-sm" style="background:#0b7285;color:#fff;font-size:.78rem">
+        <i class="bi bi-calculator"></i> Scostamento fiscale
+      </a>
+    </div>
+  </div>
+
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <strong>Riepilogo (universo filtri anno/mese/ricerca):</strong>
+    {{ stat.totale }} combinazioni dipendente/mese —
+    <span class="text-warning fw-semibold">{{ stat.con_scostamento }}</span> con scostamento ≠ 0,
+    <span class="text-secondary">{{ stat.senza_cedolino }}</span> senza cedolino motore in elenco.
+    {% if filtro != 'tutti' %}
+    <span class="ms-1">Mostrate in tabella: <strong>{{ stat.visualizzate }}</strong>.</span>
+    {% endif %}
+    <div class="text-muted mt-1 mb-0" style="font-size:.88em">
+      Ordine mese disponibile sia crescente che decrescente nell'anno. Il dettaglio tipologie è in <strong>collapse</strong> per singolo dipendente/mese.
+    </div>
+  </div>
+
+  <div class="card mb-3 border-0 shadow-sm">
+    <div class="card-body py-2">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-auto">
+          <label class="form-label mb-1 small fw-semibold text-muted">Anno</label>
+          <input type="number" min="2020" max="2100" name="anno" class="form-control form-control-sm" value="{{ anno|anno_it }}">
+        </div>
+        <div class="col-auto">
+          <label class="form-label mb-1 small fw-semibold text-muted">Mese</label>
+          <select name="mese" class="form-select form-select-sm">
+            <option value="">Tutto l'anno</option>
+            {% for k, v in mesi_options %}
+              <option value="{{ k }}" {% if mese == k %}selected{% endif %}>{{ v }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto flex-grow-1" style="min-width:220px">
+          <label class="form-label mb-1 small fw-semibold text-muted">Cerca dipendente</label>
+          <input type="text" name="q" class="form-control form-control-sm" value="{{ q_filter|default:'' }}" placeholder="Cognome, nome, CF o matricola…">
+        </div>
+        <div class="col-auto">
+          <label class="form-label mb-1 small fw-semibold text-muted">Ordina</label>
+          <select name="ordina" class="form-select form-select-sm" title="Come ordinare le righe della tabella">
+            <option value="scostamento" {% if ordina == 'scostamento' %}selected{% endif %}>Scostamento (↓ |Δ|)</option>
+            <option value="dipendente" {% if ordina == 'dipendente' %}selected{% endif %}>Dipendente A→Z</option>
+            <option value="mese_desc" {% if ordina == 'mese_desc' %}selected{% endif %}>Mese (più recente → meno recente)</option>
+            <option value="mese_asc" {% if ordina == 'mese_asc' %}selected{% endif %}>Mese (meno recente → più recente)</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label mb-1 small fw-semibold text-muted">Filtro</label>
+          <select name="filtro" class="form-select form-select-sm">
+            <option value="tutti" {% if filtro == 'tutti' %}selected{% endif %}>Tutti</option>
+            <option value="solo_scostamento" {% if filtro == 'solo_scostamento' %}selected{% endif %}>Solo scostamento ≠ 0</option>
+            <option value="senza_cedolino" {% if filtro == 'senza_cedolino' %}selected{% endif %}>Senza cedolino</option>
+            <option value="da_conciliare" {% if filtro == 'da_conciliare' %}selected{% endif %}>Da conciliare (no ced. o Δ≠0)</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-search"></i> Applica</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0" style="overflow-x:auto">
+      <table class="sc-table table table-sm table-bordered align-middle mb-0">
+        <thead class="table-light">
+          <tr style="font-size:.72rem">
+            <th>Dipendente</th>
+            <th>Mese</th>
+            <th class="text-end">Giorni mese</th>
+            <th class="text-end">Righe calendario</th>
+            <th class="text-end">Ore calendario</th>
+            <th class="text-end">Ore cedolino</th>
+            <th class="text-end">Ord</th>
+            <th class="text-end">Dom</th>
+            <th class="text-end">Fest</th>
+            <th class="text-end">Cal Ord</th>
+            <th class="text-end">Cal Dom</th>
+            <th class="text-end">Cal Fest</th>
+            <th class="text-end">Cal Straord</th>
+            <th class="text-end">Δ Ord</th>
+            <th class="text-end">Δ Dom</th>
+            <th class="text-end">Δ Fest</th>
+            <th class="text-end">Δ Straord</th>
+            <th class="text-end">Scostamento</th>
+            <th class="text-center" style="min-width:80px">Dettaglio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr class="{% if not r.has_cedolino %}sc-row-no-ced{% elif r.scostamento != 0 %}sc-row-diff{% else %}sc-row-ok{% endif %}">
+            <td>
+              <a href="{% url 'calendario_presenze' r.dip.id %}?anno={{ anno|anno_it }}&mese={{ r.mese|stringformat:'d' }}" class="text-decoration-none">
+                {{ r.dip.cognome }} {{ r.dip.nome }}
+              </a>
+            </td>
+            <td>{{ r.mese_nome }}</td>
+            <td class="text-end">{{ r.giorni_mese }}</td>
+            <td class="text-end">{{ r.righe_calendario }}</td>
+            <td class="text-end fw-semibold">{{ r.ore_calendario|floatformat:2 }}</td>
+            <td class="text-end {% if not r.has_cedolino %}text-muted{% endif %}">{{ r.ore_cedolino|floatformat:2 }}</td>
+            <td class="text-end">{{ r.ore_ced_ord|floatformat:2 }}</td>
+            <td class="text-end">{{ r.ore_ced_dom|floatformat:2 }}</td>
+            <td class="text-end">{{ r.ore_ced_fest|floatformat:2 }}</td>
+            <td class="text-end">{{ r.cal_ord|floatformat:2 }}</td>
+            <td class="text-end">{{ r.cal_dom|floatformat:2 }}</td>
+            <td class="text-end">{{ r.cal_fest|floatformat:2 }}</td>
+            <td class="text-end">{{ r.cal_straord|floatformat:2 }}</td>
+            <td class="text-end {% if r.delta_ord > 0 %}text-danger{% elif r.delta_ord < 0 %}text-warning{% else %}text-success{% endif %}">{{ r.delta_ord|floatformat:2 }}</td>
+            <td class="text-end {% if r.delta_dom > 0 %}text-danger{% elif r.delta_dom < 0 %}text-warning{% else %}text-success{% endif %}">{{ r.delta_dom|floatformat:2 }}</td>
+            <td class="text-end {% if r.delta_fest > 0 %}text-danger{% elif r.delta_fest < 0 %}text-warning{% else %}text-success{% endif %}">{{ r.delta_fest|floatformat:2 }}</td>
+            <td class="text-end {% if r.delta_straord > 0 %}text-danger{% elif r.delta_straord < 0 %}text-warning{% else %}text-success{% endif %}">{{ r.delta_straord|floatformat:2 }}</td>
+            <td class="text-end fw-bold {% if r.scostamento > 0 %}text-danger{% elif r.scostamento < 0 %}text-warning{% else %}text-success{% endif %}">
+              {{ r.scostamento|floatformat:2 }}
+            </td>
+            <td class="text-center">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#{{ r.id_collapse }}" aria-expanded="false">
+                tipologie
+              </button>
+            </td>
+          </tr>
+          <tr class="collapse" id="{{ r.id_collapse }}">
+            <td colspan="19" class="p-0">
+              <table class="table table-sm mb-0">
+                <thead>
+                  <tr class="sc-tip-row">
+                    <td style="font-weight:700">Tipologia</td>
+                    <td class="text-end" style="font-weight:700">Ore calendario</td>
+                    <td class="text-end" style="font-weight:700">Ore cedolino</td>
+                    <td class="text-end" style="font-weight:700">Δ</td>
+                    <td style="font-weight:700">Codici busta</td>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for t in r.tipologie %}
+                  <tr class="sc-tip-row">
+                    <td>{{ t.label }}</td>
+                    <td class="text-end">{% if t.cal is not None %}{{ t.cal|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="text-end">{% if t.ced is not None %}{{ t.ced|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="text-end">{% if t.delta is not None %}{{ t.delta|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td>{{ t.codici }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="19" class="text-center text-muted py-3">Nessun dato disponibile.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

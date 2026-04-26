@@ -2112,6 +2112,558 @@ def riepilogo_mese(request):
     })
 
 
+def _scostamento_filters_from_request(request):
+    today = date.today()
+    anno = _parse_int(request.GET.get('anno'), today.year)
+    mese_raw = (request.GET.get('mese') or '').strip()
+    mese = _parse_int(mese_raw, 0) if mese_raw else 0
+    if mese < 0 or mese > 12:
+        mese = 0
+
+    q_filter = (request.GET.get('q') or '').strip()
+    ordina = (request.GET.get('ordina') or 'scostamento').strip()
+    if ordina not in ('scostamento', 'dipendente', 'mese_desc', 'mese_asc'):
+        ordina = 'scostamento'
+    filtro = (request.GET.get('filtro') or 'tutti').strip()
+    if filtro not in ('tutti', 'solo_scostamento', 'senza_cedolino', 'da_conciliare'):
+        filtro = 'tutti'
+    return anno, mese, q_filter, ordina, filtro
+
+
+def _build_rows_scostamento_cedolino(azienda, anno: int, mese: int, q_filter: str, ordina: str, filtro: str):
+    from .utils import dipendenti_per_riepilogo_mese
+    from documenti.models import CedolinoMotoreV4, VoceCedolinoMotoreV4
+    from rapporto_di_lavoro.utils_presenze import (
+        confronto_tipologie_cal_vs_cedolino_v4,
+        get_presenze_mese_aggregato,
+    )
+
+    mesi = [mese] if mese else list(range(1, 13))
+    dip_qs = dipendenti_per_riepilogo_mese(azienda, anno, mese or 1)
+    if q_filter:
+        qobj = (
+            Q(cognome__icontains=q_filter)
+            | Q(nome__icontains=q_filter)
+            | Q(codice_fiscale__icontains=q_filter)
+        )
+        if q_filter.isdigit():
+            qobj |= Q(matricola=int(q_filter))
+        dip_qs = dip_qs.filter(qobj)
+    dipendenti = list(dip_qs.order_by('cognome', 'nome'))
+
+    cod_ord = {'8001'}
+    cod_dom = {'8010', '8011'}
+    cod_fest = {'8020', '8108', '8109', '109'}
+    q2 = Decimal('0.01')
+
+    def _safe_dec(v):
+        try:
+            return Decimal(str(v or 0))
+        except Exception:
+            return Decimal('0')
+
+    rows_all = []
+    for dip in dipendenti:
+        for m in mesi:
+            di, df = _periodo_rapporto_dipendente_per_mese(dip, azienda, anno, m)
+            ps, pe = _intervallo_mese_per_rapporto(anno, m, di, df)
+            qs = Presenza.objects.filter(dipendente=dip, data__year=anno, data__month=m).order_by('data')
+            qsp = qs.filter(data__gte=ps, data__lte=pe) if (ps and pe) else qs.none()
+            ore_cal = Decimal(str(sum(_minuti_lavorati_presenza(p) for p in qsp) / 60)).quantize(q2)
+
+            if ps and pe:
+                agg = get_presenze_mese_aggregato(dip, anno, m, azienda, data_da=ps, data_a=pe)
+            else:
+                agg = get_presenze_mese_aggregato(dip, anno, m, azienda, data_da=date(2099, 1, 1), data_a=date(2099, 1, 1))
+
+            ced = (
+                CedolinoMotoreV4.objects.filter(
+                    dipendente_id=dip.id, anno=anno, mese=m, natura_busta='ORDINARIA'
+                )
+                .order_by('-id')
+                .first()
+            )
+            ord_h = Decimal('0')
+            dom_h = Decimal('0')
+            fest_h = Decimal('0')
+            ced_by: dict[str, Decimal] = defaultdict(lambda: Decimal('0'))
+            if ced:
+                for v in VoceCedolinoMotoreV4.objects.filter(cedolino=ced):
+                    code = str(v.codice or '').strip()
+                    if not code:
+                        continue
+                    h = _safe_dec(v.ore_gg).quantize(q2)
+                    ced_by[code] += h
+                    if code in cod_ord:
+                        ord_h += h
+                    elif code in cod_dom:
+                        dom_h += h
+                    elif code in cod_fest:
+                        fest_h += h
+            ore_ced = (ord_h + dom_h + fest_h).quantize(q2)
+            diff = (ore_ced - ore_cal).quantize(q2)
+
+            tipologie = confronto_tipologie_cal_vs_cedolino_v4(agg, dict(ced_by))
+            tip_map = {t['key']: t for t in tipologie}
+            cal_ord = tip_map.get('ord', {}).get('cal') or Decimal('0')
+            ced_ord = tip_map.get('ord', {}).get('ced') or Decimal('0')
+            cal_dom = tip_map.get('dom', {}).get('cal') or Decimal('0')
+            ced_dom = tip_map.get('dom', {}).get('ced') or Decimal('0')
+            cal_fest = tip_map.get('fest_lav', {}).get('cal') or Decimal('0')
+            ced_fest = tip_map.get('fest_lav', {}).get('ced') or Decimal('0')
+            cal_str = ((tip_map.get('nott', {}).get('cal') or Decimal('0')) + (tip_map.get('stra_altri', {}).get('cal') or Decimal('0'))).quantize(q2)
+            ced_str = ((tip_map.get('nott', {}).get('ced') or Decimal('0')) + (tip_map.get('stra_altri', {}).get('ced') or Decimal('0'))).quantize(q2)
+
+            rows_all.append({
+                'id_collapse': f"scd-{dip.id}-{anno}-{m}",
+                'dip': dip,
+                'mese': m,
+                'mese_nome': MESI_ITA[m] if 0 <= m < len(MESI_ITA) else str(m),
+                'giorni_mese': calendar.monthrange(anno, m)[1],
+                'righe_calendario': qsp.count(),
+                'ore_calendario': ore_cal,
+                'ore_cedolino': ore_ced,
+                'ore_ced_ord': ord_h.quantize(q2),
+                'ore_ced_dom': dom_h.quantize(q2),
+                'ore_ced_fest': fest_h.quantize(q2),
+                'scostamento': diff,
+                'has_cedolino': bool(ced),
+                'tipologie': tipologie,
+                'cal_ord': cal_ord.quantize(q2), 'ced_ord': ced_ord.quantize(q2), 'delta_ord': (cal_ord - ced_ord).quantize(q2),
+                'cal_dom': cal_dom.quantize(q2), 'ced_dom': ced_dom.quantize(q2), 'delta_dom': (cal_dom - ced_dom).quantize(q2),
+                'cal_fest': cal_fest.quantize(q2), 'ced_fest': ced_fest.quantize(q2), 'delta_fest': (cal_fest - ced_fest).quantize(q2),
+                'cal_straord': cal_str, 'ced_straord': ced_str, 'delta_straord': (cal_str - ced_str).quantize(q2),
+            })
+
+    stat = {
+        'totale': len(rows_all),
+        'con_scostamento': sum(1 for r in rows_all if r['scostamento'] != 0),
+        'senza_cedolino': sum(1 for r in rows_all if not r['has_cedolino']),
+    }
+    rows = list(rows_all)
+    if filtro == 'solo_scostamento':
+        rows = [r for r in rows_all if r['scostamento'] != 0]
+    elif filtro == 'senza_cedolino':
+        rows = [r for r in rows_all if not r['has_cedolino']]
+    elif filtro == 'da_conciliare':
+        rows = [r for r in rows_all if (not r['has_cedolino']) or (r['scostamento'] != 0)]
+
+    if ordina == 'dipendente':
+        rows.sort(key=lambda r: (r['dip'].cognome.lower(), r['dip'].nome.lower(), -r['mese']))
+    elif ordina == 'mese_asc':
+        rows.sort(key=lambda r: (r['mese'], r['dip'].cognome.lower(), r['dip'].nome.lower()))
+    elif ordina == 'mese_desc':
+        rows.sort(key=lambda r: (-r['mese'], r['dip'].cognome.lower(), r['dip'].nome.lower()))
+    else:
+        rows.sort(key=lambda r: (-abs(r['scostamento']), -r['mese'], r['dip'].cognome.lower(), r['dip'].nome.lower()))
+
+    stat['visualizzate'] = len(rows)
+    return rows, stat, mesi
+
+
+@login_required
+def riepilogo_scostamento_cedolino(request):
+    if not _is_admin_hr(request.user):
+        return HttpResponseForbidden("Accesso negato")
+    azienda = _get_azienda(request)
+    if not azienda:
+        messages.warning(request, "Selezionare un'azienda operativa.")
+        return redirect('profile')
+
+    anno, mese, q_filter, ordina, filtro = _scostamento_filters_from_request(request)
+    rows, stat, _mesi = _build_rows_scostamento_cedolino(azienda, anno, mese, q_filter, ordina, filtro)
+    return render(request, 'presenze/riepilogo_scostamento_cedolino.html', {
+        'azienda': azienda,
+        'anno': anno,
+        'mese': mese,
+        'mesi_nomi': MESI_ITA,
+        'mesi_options': [(i, MESI_ITA[i]) for i in range(1, 13)],
+        'rows': rows,
+        'q_filter': q_filter,
+        'ordina': ordina,
+        'filtro': filtro,
+        'stat': stat,
+    })
+
+
+@login_required
+def export_scostamento_cedolino_excel(request):
+    if not _is_admin_hr(request.user):
+        return HttpResponseForbidden("Accesso negato")
+    azienda = _get_azienda(request)
+    if not azienda:
+        return HttpResponse("Azienda non selezionata.", status=400)
+    anno, mese, q_filter, ordina, filtro = _scostamento_filters_from_request(request)
+    rows, _stat, mesi = _build_rows_scostamento_cedolino(azienda, anno, mese, q_filter, ordina, filtro)
+
+    import openpyxl
+    from io import BytesIO
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+
+    for m in mesi:
+        ws = wb.create_sheet(title=f"{MESI_ITA[m][:3]}-{anno}")
+        ws.append([
+            'Dipendente', 'Mese', 'Ore cal', 'Ore ced', 'Scostamento',
+            'Cal Ord', 'Ced Ord', 'Δ Ord', 'Cal Dom', 'Ced Dom', 'Δ Dom',
+            'Cal Fest', 'Ced Fest', 'Δ Fest', 'Cal Straord', 'Ced Straord', 'Δ Straord',
+        ])
+        for r in [x for x in rows if x['mese'] == m]:
+            ws.append([
+                f"{r['dip'].cognome} {r['dip'].nome}", r['mese_nome'],
+                float(r['ore_calendario']), float(r['ore_cedolino']), float(r['scostamento']),
+                float(r['cal_ord']), float(r['ced_ord']), float(r['delta_ord']),
+                float(r['cal_dom']), float(r['ced_dom']), float(r['delta_dom']),
+                float(r['cal_fest']), float(r['ced_fest']), float(r['delta_fest']),
+                float(r['cal_straord']), float(r['ced_straord']), float(r['delta_straord']),
+            ])
+            for t in r.get('tipologie', []):
+                ws.append([
+                    '', '', '', '', '',
+                    t.get('label', ''),
+                    float(t['cal']) if t.get('cal') is not None else '',
+                    float(t['ced']) if t.get('ced') is not None else '',
+                    float(t['delta']) if t.get('delta') is not None else '',
+                    '', '', '', '', '', '', '', '',
+                ])
+        for col in ws.columns:
+            ws.column_dimensions[col[0].column_letter].width = 14
+
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    resp = HttpResponse(out.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    resp['Content-Disposition'] = f'attachment; filename="scostamento_cedolino_{anno}.xlsx"'
+    return resp
+
+
+@login_required
+def export_scostamento_cedolino_pdf(request):
+    if not _is_admin_hr(request.user):
+        return HttpResponseForbidden("Accesso negato")
+    azienda = _get_azienda(request)
+    if not azienda:
+        return HttpResponse("Azienda non selezionata.", status=400)
+    anno, mese, q_filter, ordina, filtro = _scostamento_filters_from_request(request)
+    rows, _stat, _mesi = _build_rows_scostamento_cedolino(azienda, anno, mese, q_filter, ordina, filtro)
+
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=16, rightMargin=16, topMargin=16, bottomMargin=16)
+    styles = getSampleStyleSheet()
+    story = [Paragraph(f"Scostamento calendario vs cedolino — {azienda.nome} — {anno}", styles['Heading3']), Spacer(1, 8)]
+    data = [[
+        'Dipendente', 'Mese', 'Cal', 'Ced', 'Δ',
+        'Cal Ord', 'Ced Ord', 'Δ Ord', 'Cal Dom', 'Ced Dom', 'Δ Dom', 'Cal Fest', 'Ced Fest', 'Δ Fest'
+    ]]
+    for r in rows:
+        data.append([
+            f"{r['dip'].cognome} {r['dip'].nome}", r['mese_nome'],
+            f"{r['ore_calendario']:.2f}", f"{r['ore_cedolino']:.2f}", f"{r['scostamento']:.2f}",
+            f"{r['cal_ord']:.2f}", f"{r['ced_ord']:.2f}", f"{r['delta_ord']:.2f}",
+            f"{r['cal_dom']:.2f}", f"{r['ced_dom']:.2f}", f"{r['delta_dom']:.2f}",
+            f"{r['cal_fest']:.2f}", f"{r['ced_fest']:.2f}", f"{r['delta_fest']:.2f}",
+        ])
+    tbl = Table(data, repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1b3a5f')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#d0d7de')),
+        ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ('ALIGN', (2, 1), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(tbl)
+    doc.build(story)
+    resp = HttpResponse(buf.getvalue(), content_type='application/pdf')
+    resp['Content-Disposition'] = f'attachment; filename="scostamento_cedolino_{anno}.pdf"'
+    return resp
+
+
+def _build_rows_scostamento_fiscale(
+    azienda, anno: int, mese: int, q_filter: str, divisore_raw=None, percorso_fiscale=None
+):
+    from anagrafiche.models import Dipendente
+    from documenti.models import CedolinoMotoreV4, VoceCedolinoMotoreV4
+    from rapporto_di_lavoro.models import (
+        CCNL,
+        ParametroScattiAnnuali,
+        RuoloOrganico2026,
+        TipoContratto,
+    )
+    from rapporto_di_lavoro.risoluzione_contratto_motore import (
+        divisore_str_da_parametro_get,
+        kwargs_percorso_fiscale_sim,
+        rapporto_sottoscritto_attivo_nel_mese,
+        risolvi_parametro_ccnl_per_mese,
+        superminimo_da_rapporto_o_ruolo,
+    )
+    from rapporto_di_lavoro.services_simulazione import invoca_calcola_busta_paga_mese
+    from rapporto_di_lavoro.views_simulazione_2026 import _calcola_scatto_totale
+
+    q2 = Decimal('0.01')
+    mesi = [mese] if mese else list(range(1, 13))
+    dip_qs = Dipendente.objects.filter(azienda=azienda, stato='attivo')
+    if q_filter:
+        qobj = (
+            Q(cognome__icontains=q_filter)
+            | Q(nome__icontains=q_filter)
+            | Q(codice_fiscale__icontains=q_filter)
+        )
+        if q_filter.isdigit():
+            qobj |= Q(matricola=int(q_filter))
+        dip_qs = dip_qs.filter(qobj)
+    dipendenti = list(dip_qs.order_by('cognome', 'nome'))
+
+    ccnl = CCNL.objects.filter(sigla__icontains='FIPE').first()
+    scatti_db: dict = {}
+    if ccnl:
+        for s in ParametroScattiAnnuali.objects.filter(ccnl=ccnl, anno=anno, attivo=True):
+            scatti_db.setdefault(s.livello, []).append((int(s.anni_anzianita or 0), Decimal(str(s.importo_scatto or 0))))
+        for k in scatti_db:
+            scatti_db[k].sort(key=lambda x: x[0])
+
+    def _d(v):
+        try:
+            return Decimal(str(v or 0)).quantize(q2)
+        except Exception:
+            return Decimal('0.00')
+
+    divisore_str = divisore_str_da_parametro_get(divisore_raw)
+    rows = []
+    for dip in dipendenti:
+        ruolo = RuoloOrganico2026.objects.filter(azienda=azienda, dipendente=dip).order_by('-data_modifica').first()
+        if not ruolo:
+            continue
+        for m in mesi:
+            data_mese = date(anno, m, 1)
+            rapporto = rapporto_sottoscritto_attivo_nel_mese(
+                dipendente=dip, azienda=azienda, anno=anno, mese=m
+            )
+            _lc = (rapporto.livello_ccnl or '').strip() if rapporto else ''
+            livello_eff = _lc or str(ruolo.livello or '')
+            parametro, fonte_parametro = risolvi_parametro_ccnl_per_mese(
+                rapporto=rapporto,
+                data_primo_giorno_mese=data_mese,
+                livello_fallback=str(ruolo.livello or ''),
+            )
+            if not parametro:
+                continue
+            tc = None
+            if rapporto and rapporto.tipo_contratto_id:
+                tc = rapporto.tipo_contratto
+            if tc is None:
+                try:
+                    tc = TipoContratto.objects.get(pk=int(ruolo.tipo_contratto_id or 0))
+                except Exception:
+                    tc = TipoContratto.objects.filter(attivo=True).order_by('id').first()
+            if not tc:
+                continue
+
+            cal_m = (ruolo.calendario_mensile or {}).get(str(m), (ruolo.calendario_mensile or {}).get(m, {})) or {}
+            ore_ord = _d(cal_m.get('ore_ordinarie_retribuite', 0))
+            scatto = _calcola_scatto_totale(str(livello_eff), int(ruolo.anni_anzianita or 0), scatti_db)
+            data_inizio_eff = rapporto.data_inizio_rapporto if rapporto else ruolo.data_inizio
+            data_fine_eff = rapporto.data_fine_rapporto if rapporto else ruolo.data_fine
+            superminimo_eff = superminimo_da_rapporto_o_ruolo(
+                rapporto=rapporto, ruolo_superminimo=ruolo.superminimo
+            )
+            premio_extra = Decimal('0')
+            if rapporto is not None:
+                try:
+                    premio_extra = Decimal(str(rapporto.premio_obiettivi or 0)).quantize(q2)
+                except Exception:
+                    premio_extra = Decimal('0.00')
+            fiscal_kw = kwargs_percorso_fiscale_sim(percorso_fiscale)
+
+            sim = invoca_calcola_busta_paga_mese(
+                log_prefix='SCOSTAMENTO_FISCALE',
+                parametro_ccnl=parametro,
+                tipo_contratto=tc,
+                anno=anno,
+                mese=m,
+                azienda=azienda,
+                data_inizio_rapporto=data_inizio_eff,
+                data_fine_rapporto=data_fine_eff,
+                divisore_str=divisore_str,
+                superminimo=superminimo_eff,
+                indennita_turno=Decimal(str(ruolo.indennita_turno or 0)),
+                scatto_anzianita=scatto,
+                indennita_extra=premio_extra,
+                ore_straord_diurno=Decimal(str(cal_m.get('ore_straord_diurno', 0) or 0)),
+                ore_straord_notturno=Decimal(str(cal_m.get('ore_straord_notturno', 0) or 0)),
+                ore_straord_festivo=Decimal(str(cal_m.get('ore_straord_festivo', 0) or 0)),
+                ore_straord_domenica=Decimal(str(cal_m.get('ore_straord_domenica', 0) or 0)),
+                ore_straord_nott_fest=Decimal(str(cal_m.get('ore_straord_nott_fest', 0) or 0)),
+                ore_ordinarie_retribuite=ore_ord,
+                ore_domenicali=Decimal(str(cal_m.get('ore_domenicali', 0) or 0)),
+                ore_festivi=Decimal(str(cal_m.get('giorni_festivi', 0) or 0)),
+                giorni_assenza_ingiust=Decimal(str(cal_m.get('giorni_assenza', 0) or 0)),
+                trattenute_extra_mese=Decimal(str(cal_m.get('trattenute_extra_mese', 0) or 0)),
+                competenze_extra_non_imponibili=Decimal(str(cal_m.get('competenze_extra_non_imponibili', 0) or 0)),
+                modalita_ore_effettive=ore_ord > 0,
+                auto_ore_domenicali_da_calendario=not (ore_ord > 0),
+                ccnl_obj=ccnl,
+                contratto_esclude_tredicesima=bool(rapporto is not None and rapporto.tredicesima is False),
+                contratto_esclude_quattordicesima=bool(
+                    rapporto is not None and rapporto.quattordicesima is False
+                ),
+                rateo_13_mensile_in_imponibile=bool(
+                    rapporto is not None and getattr(rapporto, 'tredicesima_rateo_mensile_in_imponibile', False)
+                ),
+                rateo_14_mensile_in_imponibile=bool(
+                    rapporto is not None and getattr(rapporto, 'quattordicesima_rateo_mensile_in_imponibile', False)
+                ),
+                **fiscal_kw,
+            )
+
+            ced = (
+                CedolinoMotoreV4.objects
+                .filter(dipendente=dip, anno=anno, mese=m, natura_busta='ORDINARIA')
+                .order_by('-id')
+                .first()
+            )
+            if not ced:
+                continue
+
+            sim_voci = {}
+            for v in sim.get('voci_classificate', []):
+                code = str(v.get('codice') or '').strip()
+                if not code:
+                    continue
+                sim_voci[code] = _d(v.get('importo'))
+            ced_voci = defaultdict(lambda: Decimal('0.00'))
+            for v in VoceCedolinoMotoreV4.objects.filter(cedolino=ced):
+                code = str(v.codice or '').strip()
+                if not code:
+                    continue
+                ced_voci[code] += _d(v.importo)
+
+            codes = sorted(set(sim_voci.keys()) | set(ced_voci.keys()))
+            voci_delta = []
+            for code in codes:
+                s_val = _d(sim_voci.get(code, 0))
+                c_val = _d(ced_voci.get(code, 0))
+                delta = (s_val - c_val).quantize(q2)
+                if delta != 0:
+                    voci_delta.append({
+                        'codice': code,
+                        'sim_importo': s_val,
+                        'ced_importo': c_val,
+                        'delta_importo': delta,
+                    })
+            voci_delta.sort(key=lambda x: abs(x['delta_importo']), reverse=True)
+
+            sim_impon_inps = _d(sim.get('lordo_imponibile_inps_m'))
+            ced_impon_inps = _d(ced.imponibile_contrib)
+            sim_inps_dip = _d(sim.get('inps_dip'))
+            ced_inps_dip = _d(ced.tot_contrib_soc)
+            sim_imposte = _d(sim.get('irpef_netta'))
+            ced_imposte = _d(ced.tot_trat_irpef)
+            sim_netto = _d(sim.get('netto_totale'))
+            ced_netto = _d(ced.netto_busta)
+            modalita_ore = ore_ord > 0
+            parametri_motore = {
+                'divisore_str': divisore_str,
+                'fonte_parametro_ccnl': fonte_parametro,
+                'parametro_ccnl_id': parametro.id,
+                'livello_ccnl_eff': livello_eff,
+                'contratto': (
+                    f"{rapporto.numero_contratto} (dal {data_inizio_eff})"
+                    if rapporto
+                    else '— (solo ruolo organico 2026)'
+                ),
+                'tipo_contratto': getattr(tc, 'nome', None) or str(tc.pk),
+                'coeff_ore_contratto': _d(getattr(tc, 'coefficiente_ore', None) or 1),
+                'superminimo_mese': superminimo_eff,
+                'scatto_anzianita': scatto,
+                'modalita_ore_effettive': modalita_ore,
+                'ore_ordinarie_retribuite': ore_ord,
+                'inps_dip_perc_sim': _d(sim.get('inps_dip_perc')),
+                'irpef_lorda_sim': _d(sim.get('irpef_lorda')),
+                'ced_irpef_erario': _d(ced.irpef_erario),
+                'ced_addiz_reg': _d(ced.addiz_regionale),
+                'ced_addiz_com': _d(ced.addiz_comunale),
+                'nota_inps_cedolino': (
+                    'Sul cedolino TS v4 il campo «Tot. contributi sociali» corrisponde alla quota '
+                    'INPS dipendente (IVS) in riga contributi, non alla somma azienda+dipendente.'
+                ),
+                'percorso_fiscale': (percorso_fiscale or 'standard').strip(),
+                'premio_obiettivi_mese': premio_extra,
+                'contr_escl_13': bool(rapporto is not None and rapporto.tredicesima is False),
+                'contr_escl_14': bool(rapporto is not None and rapporto.quattordicesima is False),
+                'coeff_rateo_13': _d(sim.get('c_13')),
+                'coeff_rateo_14': _d(sim.get('c_14')),
+                'rat13_m': _d(sim.get('rat13_m')),
+                'rat14_m': _d(sim.get('rat14_m')),
+                'fiscale_modalita_cedolino': bool(sim.get('fiscale_modalita_cedolino')),
+                'l207_come_detrazione': bool(sim.get('l207_come_detrazione_irpef')),
+            }
+
+            rows.append({
+                'id_collapse': f"fisc-{dip.id}-{anno}-{m}",
+                'dip': dip,
+                'mese': m,
+                'mese_nome': MESI_ITA[m],
+                'sim_impon_inps': sim_impon_inps,
+                'ced_impon_inps': ced_impon_inps,
+                'delta_impon_inps': (sim_impon_inps - ced_impon_inps).quantize(q2),
+                'sim_inps_dip': sim_inps_dip,
+                'ced_inps_dip': ced_inps_dip,
+                'delta_inps_dip': (sim_inps_dip - ced_inps_dip).quantize(q2),
+                'sim_imposte': sim_imposte,
+                'ced_imposte': ced_imposte,
+                'delta_imposte': (sim_imposte - ced_imposte).quantize(q2),
+                'sim_netto': sim_netto,
+                'ced_netto': ced_netto,
+                'delta_netto': (sim_netto - ced_netto).quantize(q2),
+                'sim_lordo': _d(sim.get('lordo_mensile')),
+                'ced_lordo': _d(ced.totale_lordo),
+                'delta_lordo': (_d(sim.get('lordo_mensile')) - _d(ced.totale_lordo)).quantize(q2),
+                'voci_delta': voci_delta[:30],  # top differenze per leggibilità
+                'parametri_motore': parametri_motore,
+            })
+    rows.sort(key=lambda r: (r['dip'].cognome.lower(), r['dip'].nome.lower(), r['mese']))
+    return rows
+
+
+@login_required
+def riepilogo_scostamento_fiscale_cedolino(request):
+    if not _is_admin_hr(request.user):
+        return HttpResponseForbidden("Accesso negato")
+    azienda = _get_azienda(request)
+    if not azienda:
+        messages.warning(request, "Selezionare un'azienda operativa.")
+        return redirect('profile')
+    today = date.today()
+    anno = _parse_int(request.GET.get('anno'), today.year)
+    mese_raw = (request.GET.get('mese') or '').strip()
+    mese = _parse_int(mese_raw, 0) if mese_raw else 0
+    if mese < 0 or mese > 12:
+        mese = 0
+    q_filter = (request.GET.get('q') or '').strip()
+    divisore_raw = (request.GET.get('divisore') or '173.33').strip()
+    percorso_fiscale = (request.GET.get('percorso_fiscale') or 'standard').strip()
+    rows = _build_rows_scostamento_fiscale(
+        azienda, anno, mese, q_filter, divisore_raw=divisore_raw, percorso_fiscale=percorso_fiscale
+    )
+    return render(request, 'presenze/riepilogo_scostamento_fiscale_cedolino.html', {
+        'azienda': azienda,
+        'anno': anno,
+        'mese': mese,
+        'rows': rows,
+        'q_filter': q_filter,
+        'divisore': divisore_raw,
+        'percorso_fiscale': percorso_fiscale,
+        'mesi_options': [(i, MESI_ITA[i]) for i in range(1, 13)],
+    })
+
+
 def _presenza_blocca_estensione_orari(p) -> bool:
     """
     In modalità «solo giorni senza presenza», indica se una riga esistente non va sovrascritta.
@@ -2788,6 +3340,14 @@ def _calcola_cedolino_da_riepilogo(riepilogo):
         'indennita_extra':   Decimal('0'),
         'ccnl_obj':          ccnl_obj,
         'modalita_ore_effettive': True,
+        'contratto_esclude_tredicesima': bool(contratto.tredicesima is False),
+        'contratto_esclude_quattordicesima': bool(contratto.quattordicesima is False),
+        'rateo_13_mensile_in_imponibile': bool(
+            getattr(contratto, 'tredicesima_rateo_mensile_in_imponibile', False)
+        ),
+        'rateo_14_mensile_in_imponibile': bool(
+            getattr(contratto, 'quattordicesima_rateo_mensile_in_imponibile', False)
+        ),
     })
     return calcola_busta_paga_mese(**kwargs)
 

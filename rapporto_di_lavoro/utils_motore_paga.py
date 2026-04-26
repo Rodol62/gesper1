@@ -93,6 +93,9 @@ def ricava_parametri_proposta_contrattuale(
         # Proposta/contratto: mensilità tabellare piena (no prorata ingresso/uscita sul mese di riferimento)
         mensilita_contrattuale_piena=True,
         anno_parametro_ratei=anno_ratei,
+        # Anteprima economica: ratei in imponibile solo se flag espliciti su proposta/contratto (default no).
+        rateo_13_mensile_in_imponibile=False,
+        rateo_14_mensile_in_imponibile=False,
     )
 
     tredicesima = False
@@ -191,6 +194,10 @@ def calcola_busta_paga_mese(
     regione_residenza: str = 'Sicilia',  # usato per calcolo addizionale regionale
     mensilita_contrattuale_piena: bool = False,
     anno_parametro_ratei: int | None = None,
+    contratto_esclude_tredicesima: bool = False,
+    contratto_esclude_quattordicesima: bool = False,
+    rateo_13_mensile_in_imponibile: bool = False,
+    rateo_14_mensile_in_imponibile: bool = False,
 ) -> dict:
     """
     Calcola la busta paga mensile completa per un dipendente.
@@ -199,8 +206,11 @@ def calcola_busta_paga_mese(
     L.207/2024 (art.1 c.4): fuori dal lordo contributivo; credito IRPEF (detrazione / netto)
     secondo i flag fiscali — non concorre all'imponibile INPS.
 
-    Quote mensili 13ª/14ª (ratei): incluse nella base INPS/IRPEF mensile (lordo imponibile
-    previdenziale = competenze mensili + rat13_m + rat14_m), coerente con cedolini da conciliazione.
+    Quote mensili 13ª/14ª (``rat13_m`` / ``rat14_m``): sempre calcolate come riferimento/accantonamento.
+    Concorrono alla base INPS/IRPEF/INAIL del mese **solo** se ``rateo_*_mensile_in_imponibile`` è True
+    (quota 1/12 effettivamente in busta). Se False, restano fuori dall'imponibile mensile ma compaiono
+    comunque nei totali ratei / costo differito. Se il contratto esclude la mensilità (``contratto_esclude_*``),
+    il coefficiente e quindi il rateo lordo sono zero.
 
     Returns full result dict with: voci, lordo, netto, contributi, ratei, f24, costo azienda.
     """
@@ -281,8 +291,10 @@ def calcola_busta_paga_mese(
     # Fallback: 4.3 → 40 × 4.3 = 172 ore/mese (divisore contrattuale FIPE piccoli esercizi)
     _ore_mens_ccnl = Decimal(str(cp.ore_mensili)) if cp.ore_mensili else (ore_sett_r * Decimal('4.3')).quantize(Q2)
     ore_mensili = (_ore_mens_ccnl * coeff).quantize(Q2)
-    # Ore giornaliere contrattuale = ore mensili / divisore giornaliero 26
-    ore_giorn = (ore_mensili / Decimal('26')).quantize(Q4)
+    # Ore «giorno» per maggiorazioni / ore calendariali (allineamento prassi FIPE / foglio Excel INPS):
+    # h settimanali contrattuali ÷ 6 (es. PT 90%: 36÷6 = 6), non ore_mensili÷26 (quella resta solo riferimento mensile).
+    ore_media_settimanale_su_6gg = (ore_sett_r / Decimal('6')).quantize(Q4) if ore_sett_r else Decimal('0')
+    ore_giorn = ore_media_settimanale_su_6gg
 
     # ── Divisore ──────────────────────────────────────────────────────────────
     div_raw = str(divisore_str).replace(',', '.')
@@ -300,7 +312,11 @@ def calcola_busta_paga_mese(
     indennita       = _v(cp.indennita_mensile)
     superminimo_r       = (superminimo       * coeff * frazione).quantize(Q2)
     indennita_turno_r   = (indennita_turno   * coeff * frazione).quantize(Q2)
-    scatto_r            = (scatto_anzianita  * coeff * frazione).quantize(Q2)
+    # Scatto: se non passato (0), usa importo tabellare da parametro CCNL (come riga Excel).
+    _scatto_mens_ft = Decimal(str(scatto_anzianita or 0))
+    if _scatto_mens_ft <= 0:
+        _scatto_mens_ft = Decimal(str(getattr(cp, 'scatto_importo', None) or 0))
+    scatto_r            = (_scatto_mens_ft * coeff * frazione).quantize(Q2)
     indennita_extra_r   = (indennita_extra   * coeff * frazione).quantize(Q2)
 
     lordo_base  = (paga_base + contingenza + edr + indennita
@@ -316,19 +332,47 @@ def calcola_busta_paga_mese(
         * coeff
     ).quantize(Q2)
 
+    # Somma voci tabellari nel mese (coeff. part-time e pro-rata già in paga_base, contingenza, …).
+    lordo_tabellare_ft_equiv = (
+        (paga_base + contingenza + edr + indennita + scatto_r).quantize(Q2)
+    )
+
+    # Retribuzione oraria di fatto = Σ (importo mensile voce ÷ divisore), come foglio Excel
+    # (paga/172 + contingenza/172 + …); stesso risultato che dividere ogni voce FT per 172 e moltiplicare per coeff.
+    h_oraria_paga_base = Decimal('0')
+    h_oraria_contingenza = Decimal('0')
+    h_oraria_edr = Decimal('0')
+    h_oraria_indennita = Decimal('0')
+    h_oraria_scatto = Decimal('0')
+    retribuzione_oraria_di_fatto = Decimal('0')
+    if divisore_dec > Decimal('30'):
+        div = divisore_dec
+        h_oraria_paga_base = (paga_base / div).quantize(Q4)
+        h_oraria_contingenza = (contingenza / div).quantize(Q4)
+        h_oraria_edr = (edr / div).quantize(Q4)
+        h_oraria_indennita = (indennita / div).quantize(Q4)
+        h_oraria_scatto = (scatto_r / div).quantize(Q4) if scatto_r > 0 else Decimal('0')
+        retribuzione_oraria_di_fatto = (
+            h_oraria_paga_base + h_oraria_contingenza + h_oraria_edr + h_oraria_indennita + h_oraria_scatto
+        ).quantize(Q4)
+
     # ── Paga oraria / giornaliera ─────────────────────────────────────────────
     if modalita_ore_effettive:
         # Modalità provvisoria cedolino: usa la base contrattuale completa (incl. super/scatti/ind.)
         paga_oraria = (lordo_base / ore_mensili).quantize(Q4) if ore_mensili else Decimal('0')
         paga_giornaliera = (paga_oraria * ore_giorn).quantize(Q4)
     elif divisore_dec > Decimal('30'):
-        # Divisore orario (es. 173): paga oraria = lordo/173, giornaliera = lordo/26
-        paga_oraria      = (lordo_pieno / divisore_dec).quantize(Q4)
-        paga_giornaliera = (lordo_pieno / Decimal('26')).quantize(Q4)
+        # Divisore orario: paga oraria = retribuzione oraria di fatto (somma voci/172); non totale_tabellare unico.
+        paga_oraria      = retribuzione_oraria_di_fatto
+        paga_giornaliera = (lordo_base / Decimal('26')).quantize(Q4)
     else:
         # Divisore giornaliero (es. 26): paga giornaliera = lordo/26, oraria = lordo/ore_mensili
         paga_giornaliera = (lordo_pieno / divisore_dec).quantize(Q4)
         paga_oraria      = (lordo_pieno / ore_mensili).quantize(Q4) if ore_mensili else Decimal('0')
+
+    # Fuori dal percorso «voci/172»: R coincide con paga_oraria (ore effettive o divisore 26).
+    if modalita_ore_effettive or divisore_dec <= Decimal('30'):
+        retribuzione_oraria_di_fatto = paga_oraria
 
     # ── Auto ore domenicali da calendario (se non fornite o impostate a zero) ─
     ore_domenicali_auto = False
@@ -442,11 +486,18 @@ def calcola_busta_paga_mese(
                 elif attr == 'c_14':  c_14  = val
                 elif attr == 'c_fer': c_fer = val
 
+    if contratto_esclude_tredicesima:
+        c_13 = Decimal('0')
+    if contratto_esclude_quattordicesima:
+        c_14 = Decimal('0')
+
     # 13ª/14ª su base contrattuale fissa (pro-rata già incorporato in lordo_base)
     rat13_m = (lordo_base * c_13).quantize(Q2)
     rat14_m = (lordo_base * c_14).quantize(Q2)
-    # Base previdenziale/IRPEF mensile: competenze + quote mensili 13ª/14ª (cedolino consulente)
-    lordo_imponibile_inps_m = (lordo_mensile + rat13_m + rat14_m).quantize(Q2)
+    rat13_in_imponibile_m = (rat13_m if rateo_13_mensile_in_imponibile else Decimal('0')).quantize(Q2)
+    rat14_in_imponibile_m = (rat14_m if rateo_14_mensile_in_imponibile else Decimal('0')).quantize(Q2)
+    # Base previdenziale/IRPEF mensile: competenze + eventuali quote 13ª/14ª erogate in busta
+    lordo_imponibile_inps_m = (lordo_mensile + rat13_in_imponibile_m + rat14_in_imponibile_m).quantize(Q2)
 
     # ── Contributi da DB ──────────────────────────────────────────────────────
     inps_dip_p = Decimal('0.0936')
@@ -563,7 +614,7 @@ def calcola_busta_paga_mese(
         ('STRAORD_NOTTURNO', 'Straordinario notturno', imp_sn),
         ('STRAORD_FESTIVO', 'Straordinario festivo e nott. festivo', (imp_sf + imp_snf).quantize(Q2)),
         ('STRAORD_DOMENICA', 'Straordinario domenicale', imp_sdom),
-        ('STRAORD_FESTIVO', 'Maggiorazioni domenicali/festive', (imp_dom_magg + imp_fest_magg).quantize(Q2)),
+        ('MAGG_DOM_FEST', 'Maggiorazioni domenicali/festive', (imp_dom_magg + imp_fest_magg).quantize(Q2)),
         ('TI_DL3_2020', 'Trattamento integrativo', ti),
         ('BONUS_L207_2024', 'Bonus L207/2024', l207),
         ('TREDICESIMA', 'Rateo tredicesima', rat13_m),
@@ -574,12 +625,21 @@ def calcola_busta_paga_mese(
     voci_db = {
         v.codice: v for v in VoceRetributiva.objects.filter(codice__in=codici, attivo=True)
     }
+    from .models import MappaturaVoceMotore
+    from .motore_paga_schema import applica_trattamento_a_riga_voce, calcola_schema_divisori
+
+    mappature_motore = {
+        m.codice_voce: m
+        for m in MappaturaVoceMotore.objects.filter(attivo=True, codice_voce__in=codici)
+    }
+
     voci_classificate = []
     for codice, descr, importo in voci_input:
         if importo == Decimal('0'):
             continue
         voce = voci_db.get(codice)
-        voci_classificate.append({
+        mappa = mappature_motore.get(codice)
+        base_row = {
             'codice': codice,
             'descrizione': descr,
             'importo': importo.quantize(Q2),
@@ -588,7 +648,23 @@ def calcola_busta_paga_mese(
             'imponibile_inail': bool(voce.imponibile_inail) if voce else None,
             'imponibile_irpef': bool(voce.imponibile_irpef) if voce else None,
             'categoria': voce.categoria if voce else None,
-        })
+        }
+        voci_classificate.append(
+            applica_trattamento_a_riga_voce(
+                base_row,
+                voce,
+                mappa,
+                rateo_13_mensile_in_imponibile=rateo_13_mensile_in_imponibile,
+                rateo_14_mensile_in_imponibile=rateo_14_mensile_in_imponibile,
+            ),
+        )
+
+    schema_divisori = None
+    if divisore_dec > Decimal('30'):
+        schema_divisori = calcola_schema_divisori(
+            divisore_orario=divisore_dec,
+            ore_settimanali=ore_sett_r,
+        )
 
     return {
         # ── Periodo ───────────────────────────────────────────────────────────
@@ -611,9 +687,20 @@ def calcola_busta_paga_mese(
         # ── Ore / divisore ────────────────────────────────────────────────────
         'ore_mensili': ore_mensili, 'ore_giornaliere': ore_giorn,
         'ore_settimanali_contr': ore_sett_r,
+        # Coincide con ore_giorn (h/sett contrattuali ÷ 6); esposto per template/retrocompat.
+        'ore_media_settimanale_su_6gg': ore_media_settimanale_su_6gg,
         'giorni_eff_settimana': round(float(ore_sett_r) / float(ore_giorn)) if ore_giorn else 6,
         'divisore': divisore_dec,
+        'schema_divisori': schema_divisori,
         'paga_oraria': paga_oraria, 'paga_giornaliera': paga_giornaliera,
+        'retribuzione_oraria_di_fatto': retribuzione_oraria_di_fatto,
+        'oraria_tabellare_paga_base': h_oraria_paga_base,
+        'oraria_tabellare_contingenza': h_oraria_contingenza,
+        'oraria_tabellare_edr': h_oraria_edr,
+        'oraria_tabellare_indennita': h_oraria_indennita,
+        'oraria_tabellare_scatto': h_oraria_scatto,
+        # Somma voci tabellari FT nel mese (× frazione); supermin./turno/extra fuori.
+        'lordo_tabellare_ft_equiv': lordo_tabellare_ft_equiv,
         # ── Voci base ─────────────────────────────────────────────────────────
         'paga_base': paga_base, 'contingenza': contingenza, 'edr': edr, 'indennita': indennita,
         'superminimo': superminimo_r, 'indennita_turno': indennita_turno_r,
@@ -666,6 +753,10 @@ def calcola_busta_paga_mese(
         'netto_base': netto_base, 'netto_totale': netto_totale,
         # ── Ratei ─────────────────────────────────────────────────────────────
         'c_tfr': c_tfr, 'c_13': c_13, 'c_14': c_14, 'c_fer': c_fer,
+        'rateo_13_mensile_in_imponibile': rateo_13_mensile_in_imponibile,
+        'rateo_14_mensile_in_imponibile': rateo_14_mensile_in_imponibile,
+        'rat13_in_imponibile_m': rat13_in_imponibile_m,
+        'rat14_in_imponibile_m': rat14_in_imponibile_m,
         'tfr_m': tfr_m, 'rat13_m': rat13_m, 'rat14_m': rat14_m, 'rat_fer_m': rat_fer_m,
         'tot_ratei_lordi': tot_ratei_lordi,
         'tfr_ora': tfr_ora, 'tfr_gg': tfr_gg, 'rat13_ora': rat13_ora, 'rat13_gg': rat13_gg,

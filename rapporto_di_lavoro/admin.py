@@ -41,6 +41,7 @@ from .models import (
 	SimulazioneOrganico,
 	SimulazioneVoceRetributivaOre,
 	VoceRetributiva,
+	MappaturaVoceMotore,
 	ParametroVoceRetributiva,
 	# Nuovi modelli parametrici CCNL
 	CCNL,
@@ -337,6 +338,27 @@ class VoceRetributivaAdmin(admin.ModelAdmin):
 	)
 	search_fields = ('codice', 'nome', 'descrizione', 'riferimento_normativo')
 	readonly_fields = ('data_creazione', 'data_modifica')
+
+
+@admin.register(MappaturaVoceMotore)
+class MappaturaVoceMotoreAdmin(admin.ModelAdmin):
+	list_display = (
+		'codice_voce',
+		'ordine_calcolo',
+		'voce_retributiva',
+		'imponibile_inps',
+		'imponibile_inail',
+		'imponibile_irpef',
+		'matura_tredicesima',
+		'matura_quattordicesima',
+		'concorre_tfr',
+		'etichetta_riconciliazione',
+		'attivo',
+	)
+	list_filter = ('attivo', 'imponibile_inps', 'concorre_tfr', 'matura_tredicesima')
+	search_fields = ('codice_voce', 'etichetta_riconciliazione', 'note_riconciliazione')
+	readonly_fields = ('data_creazione', 'data_modifica')
+	autocomplete_fields = ('voce_retributiva',)
 
 
 @admin.register(FestivitaCalendario)
@@ -1360,6 +1382,8 @@ class TestMotorePagaAdmin(admin.ModelAdmin):
 				indennita_turno=Decimal(str(test.indennita_turno or 0)),
 				indennita_extra=altre_voci,
 				ccnl_obj=ccnl_obj,
+				rateo_13_mensile_in_imponibile=False,
+				rateo_14_mensile_in_imponibile=False,
 			)
 
 			# Mappatura chiavi legacy (compatibilità con campi TestMotorePaga)

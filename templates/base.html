@@ -527,6 +527,10 @@ window.__GESPER_PORTAL_BASE = "{{ gesper_portal_web_base|default:'/'|escapejs }}
             <a href="{% url 'riepilogo_mensile_motore' %}"><i class="bi bi-calculator"></i> Cedolino da riepilogo</a>
             <a href="{% url 'monti_saldi' %}"><i class="bi bi-journal-bookmark"></i> Monti (ferie / ROL)</a>
             <div class="dd-sep"></div>
+            <span class="dd-label">Conciliazione cedolino</span>
+            <a href="{% url 'riepilogo_scostamento_cedolino' %}"><i class="bi bi-clipboard-data"></i> Scostamento ore vs cedolino</a>
+            <a href="{% url 'riepilogo_scostamento_fiscale_cedolino' %}"><i class="bi bi-calculator"></i> Scostamento fiscale vs cedolino</a>
+            <div class="dd-sep"></div>
             <span class="dd-label">Export</span>
             <a href="{% url 'consulente_presenze' %}"><i class="bi bi-download"></i> Export presenze (schermata)</a>
             <a href="{% url 'export_presenze_excel' %}"><i class="bi bi-file-earmark-excel-fill"></i> Export Excel mese corrente</a>
@@ -586,6 +590,12 @@ window.__GESPER_PORTAL_BASE = "{{ gesper_portal_web_base|default:'/'|escapejs }}
             {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
             <a href="{% url 'riepilogo_mensile_motore' %}"><i class="bi bi-calculator"></i> Cedolino da riepilogo</a>
             <a href="{% url 'monti_saldi' %}"><i class="bi bi-journal-bookmark"></i> Monti (ferie / ROL)</a>
+            {% endif %}
+            {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
+            <div class="dd-sep"></div>
+            <span class="dd-label">Conciliazione cedolino</span>
+            <a href="{% url 'riepilogo_scostamento_cedolino' %}"><i class="bi bi-clipboard-data"></i> Scostamento ore vs cedolino</a>
+            <a href="{% url 'riepilogo_scostamento_fiscale_cedolino' %}"><i class="bi bi-calculator"></i> Scostamento fiscale vs cedolino</a>
             {% endif %}
             <div class="dd-sep"></div>
             <span class="dd-label">Export</span>

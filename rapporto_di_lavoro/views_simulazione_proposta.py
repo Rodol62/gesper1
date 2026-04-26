@@ -113,6 +113,14 @@ def simulazione_economica_proposta(request, proposta_id: int):
             ccnl_obj=ccnl_obj,
             num_familiari_a_carico=num_familiari,
             regione_residenza=regione,
+            contratto_esclude_tredicesima=bool(proposta.tredicesima is False),
+            contratto_esclude_quattordicesima=bool(proposta.quattordicesima is False),
+            rateo_13_mensile_in_imponibile=bool(
+                getattr(proposta, 'tredicesima_rateo_mensile_in_imponibile', False)
+            ),
+            rateo_14_mensile_in_imponibile=bool(
+                getattr(proposta, 'quattordicesima_rateo_mensile_in_imponibile', False)
+            ),
         )
     except Exception as exc:
         return render(request, 'rapporto_di_lavoro/simulazione_economica_proposta.html', {
@@ -120,14 +128,20 @@ def simulazione_economica_proposta(request, proposta_id: int):
             'errore': f'Errore durante il calcolo: {exc}',
         })
 
-    # ── Valori colonna A: netto mensile + ratei 13ª/14ª (pagati mensilmente) ──
+    # ── Valori colonna A: netto mensile + ratei 13ª/14ª solo se flag «in imponibile» su proposta ──
     netto = r['netto_totale']
     ore_mensili_r = r.get('ore_mensili', Decimal(divisore_str))
     Q2 = Decimal('0.01')
 
-    # Ratei 13ª/14ª: per FIPE sono pagati mensilmente → inclusi nel netto di colonna A
-    includi_rat13 = getattr(proposta, 'tredicesima', True)
-    includi_rat14 = getattr(proposta, 'quattordicesima', False)
+    # Colonna A: netto + quote 13ª/14ª solo se erogate mensilmente in busta (come base imponibile).
+    includi_rat13 = bool(
+        getattr(proposta, 'tredicesima', True)
+        and getattr(proposta, 'tredicesima_rateo_mensile_in_imponibile', False)
+    )
+    includi_rat14 = bool(
+        getattr(proposta, 'quattordicesima', False)
+        and getattr(proposta, 'quattordicesima_rateo_mensile_in_imponibile', False)
+    )
     rat13_n_v = r.get('rat13_n', Decimal('0')) if includi_rat13 else Decimal('0')
     rat14_n_v = r.get('rat14_n', Decimal('0')) if includi_rat14 else Decimal('0')
     rat13_m_v = r.get('rat13_m', Decimal('0')) if includi_rat13 else Decimal('0')

@@ -1166,6 +1166,12 @@ def _calcola_simulazione_2026(request):
             _gg_lav_cache[_m] = {'giorni_conv_26': 26, 'giorni_lavorativi': 26, 'dates_festivita': []}
 
     risultati_mensili = []
+    from anagrafiche.models import Dipendente
+    from .risoluzione_contratto_motore import (
+        rapporto_sottoscritto_attivo_nel_mese,
+        risolvi_parametro_ccnl_per_mese,
+        superminimo_da_rapporto_o_ruolo,
+    )
 
     for mese_num in range(1, 13):
         # Giorni nel mese: usa monthrange per gestire correttamente anni bisestili
@@ -1221,12 +1227,33 @@ def _calcola_simulazione_2026(request):
             if ruolo['quantita'] <= 0:
                 continue
             
-            # Il livello scelto dall'utente ha sempre la priorità.
-            # La risoluzione da mansione è solo un fallback per quando non è specificato.
-            livello_effettivo = ruolo['livello'] or _risolvi_livello_da_mansione(ruolo.get('nome'), rule_engine)
+            # Contratto reale (se ruolo ancorato a dipendente): livello, date e tabella CCNL come scostamento fiscale.
+            rap_sim = None
+            _dip_pk = ruolo.get('dipendente_id')
+            if _dip_pk and azienda_operativa:
+                dip_o = Dipendente.objects.filter(pk=int(_dip_pk), azienda=azienda_operativa).first()
+                if dip_o:
+                    rap_sim = rapporto_sottoscritto_attivo_nel_mese(
+                        dipendente=dip_o, azienda=azienda_operativa, anno=anno, mese=mese_num
+                    )
 
-            # Usa la versione CCNL corretta per il mese (decorrenza più recente ≤ data mese)
-            parametro = _parametri_ccnl_per_mese[mese_num].filter(livello=livello_effettivo).first()
+            livello_da_ruolo = (ruolo.get('livello') or '').strip() or _risolvi_livello_da_mansione(
+                ruolo.get('nome'), rule_engine
+            )
+            _lc_contr = (rap_sim.livello_ccnl or '').strip() if rap_sim else ''
+            livello_effettivo = _lc_contr or livello_da_ruolo
+
+            data_inizio_motore = rap_sim.data_inizio_rapporto if rap_sim else ruolo['data_inizio']
+            data_fine_motore = rap_sim.data_fine_rapporto if rap_sim else ruolo['data_fine']
+
+            parametro_ccnl_res, _fonte_pc_sim = risolvi_parametro_ccnl_per_mese(
+                rapporto=rap_sim,
+                data_primo_giorno_mese=date(anno, mese_num, 1),
+                livello_fallback=str(livello_da_ruolo or ''),
+            )
+            parametro = parametro_ccnl_res or _parametri_ccnl_per_mese[mese_num].filter(
+                livello=livello_effettivo
+            ).first()
             if not parametro:
                 righe_ruoli.append({
                     'ruolo_id': ruolo['id'],
@@ -1236,23 +1263,26 @@ def _calcola_simulazione_2026(request):
                     'missing': True,
                 })
                 continue
-            
-            # Tipo contratto e coefficiente ore
+
+            # Tipo contratto e coefficiente ore (contratto ha priorità sul ruolo organico)
             tipo_contratto = None
             coeff_ore = Decimal('1.00')
-            if ruolo['tipo_contratto_id']:
+            if rap_sim and rap_sim.tipo_contratto_id:
+                tipo_contratto = rap_sim.tipo_contratto
+            elif ruolo['tipo_contratto_id']:
                 try:
                     tipo_contratto = tipi_contratto.get(id=int(ruolo['tipo_contratto_id']))
-                    coeff_ore = Decimal(str(tipo_contratto.coefficiente_ore or Decimal('1.00')))
                 except (TipoContratto.DoesNotExist, ValueError):
-                    pass
-            
-            # Giorni attivi su calendario
+                    tipo_contratto = None
+            if tipo_contratto is not None:
+                coeff_ore = Decimal(str(tipo_contratto.coefficiente_ore or Decimal('1.00')))
+
+            # Giorni attivi su calendario (date effettive contratto se presenti)
             giorni_attivi_calendario = _calcola_giorni_attivi_nel_mese(
                 anno=anno,
                 mese_num=mese_num,
-                data_inizio=ruolo['data_inizio'],
-                data_fine=ruolo['data_fine']
+                data_inizio=data_inizio_motore,
+                data_fine=data_fine_motore,
             )
 
             # Se non è attivo in questo mese, salta
@@ -1324,6 +1354,17 @@ def _calcola_simulazione_2026(request):
                     )
                     _ore_fest_mese = (Decimal(str(_n_fest)) * _ore_gg).quantize(Decimal('0.01'))
 
+            premio_contr = Decimal('0')
+            if rap_sim is not None:
+                try:
+                    premio_contr = Decimal(str(rap_sim.premio_obiettivi or 0))
+                except Exception:
+                    premio_contr = Decimal('0')
+            ind_extra_tot = (ruolo.get('indennita_extra', Decimal('0')) + premio_contr).quantize(Decimal('0.01'))
+            superminimo_eff = superminimo_da_rapporto_o_ruolo(
+                rapporto=rap_sim, ruolo_superminimo=ruolo.get('superminimo')
+            )
+
             _r = invoca_calcola_busta_paga_mese(
                 log_prefix='SIMULAZIONE_2026',
                 parametro_ccnl=parametro,
@@ -1331,13 +1372,13 @@ def _calcola_simulazione_2026(request):
                 anno=anno,
                 mese=mese_num,
                 azienda=azienda_operativa,
-                data_inizio_rapporto=ruolo['data_inizio'],
-                data_fine_rapporto=ruolo['data_fine'],
+                data_inizio_rapporto=data_inizio_motore,
+                data_fine_rapporto=data_fine_motore,
                 divisore_str=str(divisore_ore),
-                superminimo=ruolo.get('superminimo', Decimal('0')),
+                superminimo=superminimo_eff,
                 indennita_turno=ruolo.get('indennita_turno', Decimal('0')),
                 scatto_anzianita=_scatto,
-                indennita_extra=ruolo.get('indennita_extra', Decimal('0')),
+                indennita_extra=ind_extra_tot,
                 ore_straord_diurno=_cal_mensile.get('ore_straord_diurno', Decimal('0')),
                 ore_straord_notturno=_cal_mensile.get('ore_straord_notturno', Decimal('0')),
                 ore_straord_festivo=_cal_mensile.get('ore_straord_festivo', Decimal('0')),
@@ -1352,6 +1393,16 @@ def _calcola_simulazione_2026(request):
                 modalita_ore_effettive=use_modalita_ore,
                 auto_ore_domenicali_da_calendario=not use_modalita_ore,
                 ccnl_obj=_ccnl,
+                contratto_esclude_tredicesima=bool(rap_sim is not None and rap_sim.tredicesima is False),
+                contratto_esclude_quattordicesima=bool(
+                    rap_sim is not None and rap_sim.quattordicesima is False
+                ),
+                rateo_13_mensile_in_imponibile=bool(
+                    rap_sim is not None and getattr(rap_sim, 'tredicesima_rateo_mensile_in_imponibile', False)
+                ),
+                rateo_14_mensile_in_imponibile=bool(
+                    rap_sim is not None and getattr(rap_sim, 'quattordicesima_rateo_mensile_in_imponibile', False)
+                ),
             )
 
             lordo_unit    = _r['lordo_mensile']

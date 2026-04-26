@@ -22,7 +22,8 @@ Chiusura mese (Fase B4): ``presenze_mese_bloccate()`` → niente create/update/d
 ``RiepilogoMensilePresenze`` del dipendente è approvato o elaborato.
 
 Logica di classificazione delle ore:
-    - Soglia giornaliera (ore_std): proposta CCNL → turno dipendente → part-time su rapporto (ore≠40)
+    - Soglia giornaliera (ore_std): ore_giornaliere su proposta → parametro CCNL proposta → turno dipendente
+      → part-time su rapporto (ore≠40: ore_settimanali ÷ 6, convenzione CCNL turismo/FIPE come simulatore)
       → media da pianificazione orari (fasce mensili/annuali) → tabella CCNL per livello
       → rapporto 40h/5 → default azienda/FIPE.
     - Domenica (weekday=6): ore ≤ std → ore_domenicali; eccedenza → ore_straord_domenica
@@ -332,12 +333,15 @@ def _ore_std_da_turno_dipendente(dipendente, data_rif: date) -> Optional[Decimal
 
 def _ore_std_da_proposta_rapporto(rdl) -> Optional[Decimal]:
     """
-    Proposta collegata al rapporto (OneToOne): il parametro tabellare è la fonte retributiva/oraria
-    corretta; evita di usare solo Rapporto.ore_settimanali=40 (default) che dà 8h/g a tutti.
+    Proposta collegata al rapporto (OneToOne): prima l'orario giornaliero esplicito sulla proposta
+    (stesso valore usato in documenti/simulatore, es. part-time 36h → 6h con 6 gg), poi il parametro CCNL.
     """
     proposta = getattr(rdl, 'proposta_origine', None)
     if not proposta:
         return None
+    og_prop = getattr(proposta, 'ore_giornaliere', None)
+    if og_prop is not None and Decimal(str(og_prop)) > 0:
+        return Decimal(str(og_prop)).quantize(Decimal('0.0001'))
     try:
         cp = proposta.parametro_ccnl_risolto
     except Exception:
@@ -384,10 +388,10 @@ def ore_std_giornaliere_contratto(dipendente, azienda, anno: int, mese: int) -> 
     Priorità:
       1. ParametroCCNLTurismo da proposta collegata al Rapporto
       2. Turno assegnato al dipendente (orario specifico)
-      3. Rapporto part-time: ore_settimanali ≠ 40 → /5
+      3. Rapporto part-time: ore_settimanali ≠ 40 → /6 (allineato a CCNL turismo / simulatore paga; non ÷26 busta)
       4. Media settimanale da pianificazione orari (fasce mensili o annuali azienda)
       5. Tabella CCNL per livello
-      6. Rapporto full-time: ore_settimanali / 5 (tip. 40 → 8h)
+      6. Rapporto full-time: ore_settimanali / 5 (tip. 40 → 8h lun–ven)
       7. Azienda ore_settimanali_standard / 5, poi ore_giornaliere_standard
       8. Default FIPE ~6.65h
     """
@@ -410,7 +414,8 @@ def ore_std_giornaliere_contratto(dipendente, azienda, anno: int, mese: int) -> 
         if rdl and rdl.ore_settimanali is not None:
             os = Decimal(str(rdl.ore_settimanali))
             if os > 0 and os != fulltime_ref:
-                return (os / Decimal('5')).quantize(Decimal('0.0001'))
+                # 6 gg/sett. come schema divisori / simulatore (non la paga oraria ÷26)
+                return (os / Decimal('6')).quantize(Decimal('0.0001'))
 
         if azienda is not None:
             og_piano = ore_media_settimana_da_pianificazione(azienda, anno, mese)

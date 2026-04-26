@@ -100,8 +100,32 @@ class RapportoDiLavoro(models.Model):
 	paga_base_mensile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	contingenza_mensile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	edr_mensile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+	superminimo_mensile = models.DecimalField(
+		max_digits=10,
+		decimal_places=2,
+		default=0,
+		verbose_name='Superminimo mensile',
+		help_text=(
+			'Importo retributivo concordato oltre i minimi tabellari CCNL (€/mese, imponibile). '
+			'Entra in tredicesima/quattordicesima, TFR, INPS, ferie/permessi, malattia/maternità e trattamento economico; '
+			'non è bonus una tantum — resta stabile fino a modifica contrattuale.'
+		),
+	)
 	tredicesima = models.BooleanField(default=True)
 	quattordicesima = models.BooleanField(default=False)
+	tredicesima_rateo_mensile_in_imponibile = models.BooleanField(
+		default=False,
+		verbose_name='13ª: quota mensile in busta (base INPS/IRPEF/INAIL)',
+		help_text=(
+			'Se attivo, la quota 1/12 erogata ogni mese in cedolino concorre alla base contributiva e fiscale mensile. '
+			'Se disattivo, il rateo resta solo accantonamento / riferimento (es. pagamento a dicembre).'
+		),
+	)
+	quattordicesima_rateo_mensile_in_imponibile = models.BooleanField(
+		default=False,
+		verbose_name='14ª: quota mensile in busta (base INPS/IRPEF/INAIL)',
+		help_text='Come per la 13ª: solo se la quota mensile è effettivamente in busta e imponibile mensilmente.',
+	)
 	premio_obiettivi = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
 	ore_settimanali = models.DecimalField(max_digits=5, decimal_places=2, default=40)
@@ -528,9 +552,30 @@ class PropostaAssunzione(models.Model):
 	paga_base_mensile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	contingenza_mensile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	edr_mensile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+	superminimo_mensile = models.DecimalField(
+		max_digits=10,
+		decimal_places=2,
+		default=0,
+		verbose_name='Superminimo mensile',
+		help_text=(
+			'Importo retributivo concordato oltre i minimi tabellari CCNL (€/mese, imponibile). '
+			'Entra in tredicesima/quattordicesima, TFR, INPS, ferie/permessi, malattia/maternità e trattamento economico; '
+			'non è bonus una tantum — resta stabile fino a modifica.'
+		),
+	)
 	indennita_mensile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	tredicesima = models.BooleanField(default=True, help_text='Mensilità aggiuntiva pagata a dicembre (CCNL FIPE)')
 	quattordicesima = models.BooleanField(default=False, help_text='Mensilità aggiuntiva pagata a luglio (CCNL FIPE turismo)')
+	tredicesima_rateo_mensile_in_imponibile = models.BooleanField(
+		default=False,
+		verbose_name='13ª: quota mensile in busta (imponibile mensile)',
+		help_text='Se vero, la quota 1/12 mensile è in cedolino e concorre a INPS/IRPEF/INAIL del mese; altrimenti è solo accantonamento teorico.',
+	)
+	quattordicesima_rateo_mensile_in_imponibile = models.BooleanField(
+		default=False,
+		verbose_name='14ª: quota mensile in busta (imponibile mensile)',
+		help_text='Come per la 13ª: attivare solo se la 14ª è rateizzata in busta ogni mese.',
+	)
 	giorni_ferie_annuali = models.IntegerField(default=26, help_text='Giorni di ferie annue spettanti (art. 7 D.Lgs. 66/2003)')
 	giorni_permesso_annuali = models.IntegerField(default=3, help_text='Giorni di permesso retribuito annui (CCNL)')
 	ore_settimanali = models.DecimalField(max_digits=5, decimal_places=2, default=40)
@@ -786,9 +831,12 @@ class PropostaAssunzione(models.Model):
 			paga_base_mensile=self.paga_base_mensile,
 			contingenza_mensile=self.contingenza_mensile,
 			edr_mensile=self.edr_mensile,
+			superminimo_mensile=self.superminimo_mensile,
 			ore_settimanali=self.ore_settimanali,
 			tredicesima=self.tredicesima,
 			quattordicesima=self.quattordicesima,
+			tredicesima_rateo_mensile_in_imponibile=self.tredicesima_rateo_mensile_in_imponibile,
+			quattordicesima_rateo_mensile_in_imponibile=self.quattordicesima_rateo_mensile_in_imponibile,
 			giorni_ferie_annuali=self.giorni_ferie_annuali,
 			giorni_permesso_annuali=self.giorni_permesso_annuali,
 			ore_straordinario_diurno_maggiorazione=self.straordinario_diurno_maggiorazione,
@@ -1679,6 +1727,64 @@ class VoceRetributiva(models.Model):
 		return base
 
 
+class MappaturaVoceMotore(models.Model):
+	"""
+	Tabella di collegamento certa: codice voce usato dal motore busta paga mensile
+	↔ trattamento INPS / INAIL / IRPEF / maturazione 13ª·14ª / TFR.
+
+	Usata per riconciliazione con buste e cedolini e per estendere il motore con nuove voci
+	senza deploy di codice (righe attive in admin).
+	"""
+	codice_voce = models.CharField(
+		max_length=50,
+		unique=True,
+		db_index=True,
+		help_text='Codice univoco allineato al motore (es. MINIMO_TABELLARE, MAGG_DOM_FEST, STRAORD_DIURNO).',
+	)
+	voce_retributiva = models.ForeignKey(
+		'VoceRetributiva',
+		null=True,
+		blank=True,
+		on_delete=models.SET_NULL,
+		related_name='mappature_motore',
+		verbose_name='Voce retributiva (anagrafica)',
+		help_text='Opzionale: collega alla scheda VoceRetributiva omonima o correlata.',
+	)
+	ordine_calcolo = models.PositiveSmallIntegerField(
+		default=99,
+		help_text='Ordine di presentazione / schema (1 = paga base oraria, …).',
+	)
+	imponibile_inps = models.BooleanField(default=True)
+	imponibile_inail = models.BooleanField(default=True)
+	imponibile_irpef = models.BooleanField(default=True)
+	matura_tredicesima = models.BooleanField(default=True)
+	matura_quattordicesima = models.BooleanField(default=True)
+	concorre_tfr = models.BooleanField(default=True)
+	etichetta_riconciliazione = models.CharField(
+		max_length=200,
+		blank=True,
+		verbose_name='Etichetta riconciliazione',
+		help_text='Es. etichetta busta paga / cedolino TeamSystem per controllo incrociato.',
+	)
+	note_riconciliazione = models.TextField(
+		blank=True,
+		verbose_name='Note per riconciliazione',
+		help_text='Riferimenti normativi o regole aziendali applicate alla voce.',
+	)
+	attivo = models.BooleanField(default=True)
+	data_creazione = models.DateTimeField(auto_now_add=True)
+	data_modifica = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		verbose_name = 'Mappatura voce motore paga'
+		verbose_name_plural = 'Mappature voci motore paga'
+		ordering = ['ordine_calcolo', 'codice_voce']
+
+	def __str__(self):
+		st = '' if self.attivo else ' [off]'
+		return f'{self.codice_voce} (ord.{self.ordine_calcolo}){st}'
+
+
 class ParametroVoceRetributiva(models.Model):
 	"""
 	Valorizzazione economica delle voci retributive per contesto contrattuale.
@@ -1952,6 +2058,15 @@ class RuoloOrganico2026(models.Model):
 	ordinamento = models.PositiveSmallIntegerField(default=0)
 
 	# Identificazione ruolo
+	dipendente = models.ForeignKey(
+		Dipendente,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		related_name='ruoli_organico_2026',
+	)
+	stato_soggetto = models.CharField(max_length=20, blank=True, default='')
+	mansione_label = models.CharField(max_length=120, blank=True, default='')
 	nome = models.CharField(max_length=120, blank=True)
 	quantita = models.PositiveSmallIntegerField(default=1)
 	livello = models.CharField(max_length=20)
@@ -1983,6 +2098,18 @@ class RuoloOrganico2026(models.Model):
 
 	# Straordinari/maggiorazioni mensili: {1: {ore_straord_diurno, ...}, ..., 12: {...}}
 	calendario_mensile = models.JSONField(default=dict, blank=True)
+	# Provenienza dati usati per precompilare il ruolo (attivi/candidati + contratti/proposte)
+	origine_dati = models.CharField(
+		max_length=20,
+		default='manuale',
+		choices=[
+			('manuale', 'Manuale'),
+			('auto_profilo', 'Autocompilato da profili'),
+			('misto', 'Misto (auto + modifiche manuali)'),
+		],
+	)
+	nominativi_riferimento = models.TextField(blank=True, default='')
+	soggetti_riferimento = models.JSONField(default=list, blank=True)
 
 	data_modifica = models.DateTimeField(auto_now=True)
 	modificato_da = models.ForeignKey(

@@ -39,11 +39,11 @@
     </div>
   </div>
 
-  <!-- KPI (nessun duplicato con le card sotto) -->
+  <!-- KPI: colonna in flex + link flex-grow così l’area cliccabile copre tutta la card (evita buchi con h-100 su <a> inline). -->
   <div class="row g-2 g-md-3 mb-4">
-    <div class="col-6 col-md">
-      <a href="{% url 'lista_dipendenti' %}?stato=attivo" class="text-decoration-none">
-        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #1b3a5f !important">
+    <div class="col-6 col-md d-flex">
+      <a href="{% url 'lista_dipendenti' %}?stato=attivo" class="text-decoration-none text-reset d-flex flex-grow-1">
+        <div class="card border-0 shadow-sm flex-grow-1 w-100" style="border-left:4px solid #1b3a5f !important">
           <div class="card-body text-center py-3">
             <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ dipendenti_attivi }}</div>
             <div class="text-muted" style="font-size:.78rem">Dipendenti attivi</div>
@@ -51,9 +51,10 @@
         </div>
       </a>
     </div>
-    <div class="col-6 col-md">
-      <a href="{% url 'consulente_candidati' %}" class="text-decoration-none">
-        <div class="card border-0 shadow-sm h-100">
+    <div class="col-6 col-md d-flex">
+      {# Conteggio = dipendenti in stato «candidato»; destinazione = stessa lista anagrafica filtrata (coerente con la card). #}
+      <a href="{% url 'lista_dipendenti' %}?stato=candidato" class="text-decoration-none text-reset d-flex flex-grow-1">
+        <div class="card border-0 shadow-sm flex-grow-1 w-100">
           <div class="card-body text-center py-3">
             <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ candidati_count }}</div>
             <div class="text-muted" style="font-size:.78rem">Candidati</div>
@@ -61,9 +62,9 @@
         </div>
       </a>
     </div>
-    <div class="col-6 col-md">
-      <a href="{% url 'consulente_candidati' %}?stato=firmata_candidato" class="text-decoration-none">
-        <div class="card border-0 shadow-sm h-100 {% if proposte_da_approvare > 0 %}border-warning border-2{% endif %}">
+    <div class="col-6 col-md d-flex">
+      <a href="{% url 'consulente_candidati' %}?stato=firmata_candidato" class="text-decoration-none text-reset d-flex flex-grow-1">
+        <div class="card border-0 shadow-sm flex-grow-1 w-100 {% if proposte_da_approvare > 0 %}border-warning border-2{% endif %}">
           <div class="card-body text-center py-3">
             <div style="font-size:1.75rem;font-weight:700;{% if proposte_da_approvare > 0 %}color:#c87f00{% else %}color:#1b3a5f{% endif %}">{{ proposte_da_approvare }}</div>
             <div class="text-muted" style="font-size:.78rem">Proposte da approvare{% if proposte_da_approvare > 0 %} <i class="bi bi-exclamation-circle text-warning"></i>{% endif %}</div>
@@ -71,9 +72,9 @@
         </div>
       </a>
     </div>
-    <div class="col-6 col-md">
-      <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno_corrente }}&mese={{ mese_corrente_num }}" class="text-decoration-none">
-        <div class="card border-0 shadow-sm h-100">
+    <div class="col-6 col-md d-flex">
+      <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno_corrente }}&mese={{ mese_corrente_num }}" class="text-decoration-none text-reset d-flex flex-grow-1">
+        <div class="card border-0 shadow-sm flex-grow-1 w-100">
           <div class="card-body text-center py-3">
             <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ presenze_mese_count }}</div>
             <div class="text-muted" style="font-size:.78rem"><i class="bi bi-calendar-check me-1"></i>Presenze</div>
@@ -82,9 +83,9 @@
         </div>
       </a>
     </div>
-    <div class="col-6 col-md">
-      <a href="{% url 'lista_documenti' %}?categoria=buste&tipo=busta_paga&anno=&dipendente=" class="text-decoration-none">
-        <div class="card border-0 shadow-sm h-100">
+    <div class="col-6 col-md d-flex">
+      <a href="{% url 'lista_documenti' %}?categoria=buste&tipo=busta_paga&anno=&dipendente=" class="text-decoration-none text-reset d-flex flex-grow-1">
+        <div class="card border-0 shadow-sm flex-grow-1 w-100">
           <div class="card-body text-center py-3">
             <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ buste_paga_count }}</div>
             <div class="text-muted" style="font-size:.78rem">Buste paga</div>
@@ -93,9 +94,9 @@
         </div>
       </a>
     </div>
-    <div class="col-6 col-md">
-      <a href="{% url 'lista_f24_documenti' %}" class="text-decoration-none">
-        <div class="card border-0 shadow-sm h-100">
+    <div class="col-6 col-md d-flex">
+      <a href="{% url 'lista_f24_documenti' %}" class="text-decoration-none text-reset d-flex flex-grow-1">
+        <div class="card border-0 shadow-sm flex-grow-1 w-100">
           <div class="card-body text-center py-3">
             <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ f24_documenti_count }}</div>
             <div class="text-muted" style="font-size:.78rem">F24</div>
@@ -104,9 +105,9 @@
         </div>
       </a>
     </div>
-    <div class="col-6 col-md">
-      <a href="{% url 'lista_cud_documenti' %}" class="text-decoration-none">
-        <div class="card border-0 shadow-sm h-100">
+    <div class="col-6 col-md d-flex">
+      <a href="{% url 'lista_cud_documenti' %}" class="text-decoration-none text-reset d-flex flex-grow-1">
+        <div class="card border-0 shadow-sm flex-grow-1 w-100">
           <div class="card-body text-center py-3">
             <div style="font-size:1.75rem;font-weight:700;color:#1b3a5f">{{ cud_certificati_count }}</div>
             <div class="text-muted" style="font-size:.78rem">CUD / certificati</div>
@@ -115,9 +116,9 @@
         </div>
       </a>
     </div>
-    <div class="col-6 col-md">
-      <a href="{% url 'lista_contratti_scadenza' %}" class="text-decoration-none">
-        <div class="card border-0 shadow-sm h-100 {% if td_in_scadenza or td_scaduti_aperti %}border-warning border-2{% endif %}">
+    <div class="col-6 col-md d-flex">
+      <a href="{% url 'lista_contratti_scadenza' %}" class="text-decoration-none text-reset d-flex flex-grow-1">
+        <div class="card border-0 shadow-sm flex-grow-1 w-100 {% if td_in_scadenza or td_scaduti_aperti %}border-warning border-2{% endif %}">
           <div class="card-body text-center py-3">
             <div style="font-size:1.75rem;font-weight:700;{% if td_scaduti_aperti %}color:#b02a37{% elif td_in_scadenza %}color:#c87f00{% else %}color:#1b3a5f{% endif %}">{{ td_in_scadenza|add:td_scaduti_aperti }}</div>
             <div class="text-muted" style="font-size:.78rem">TD scadenze{% if td_scaduti_aperti %} <span class="text-danger">({{ td_scaduti_aperti }} scaduti)</span>{% endif %}</div>
@@ -137,6 +138,7 @@
           <div class="d-flex flex-column gap-1" style="font-size:.84rem">
             <a href="{% url 'consulente_candidati' %}">Candidati e proposte</a>
             <a href="{% url 'lista_dipendenti' %}?stato=attivo">Elenco dipendenti attivi</a>
+            <a href="{% url 'lista_dipendenti' %}?stato=candidato">Elenco candidati (anagrafica)</a>
           </div>
         </div>
       </div>
@@ -159,6 +161,8 @@
           <div class="d-flex flex-column gap-1" style="font-size:.84rem">
             <a href="{% url 'consulente_presenze' %}">Export presenze (schermata / CSV)</a>
             <a href="{% url 'riepilogo_presenze_mese' %}">Griglia mese tutti i dipendenti</a>
+            <a href="{% url 'riepilogo_scostamento_cedolino' %}">Scostamento calendario vs cedolino</a>
+            <a href="{% url 'riepilogo_scostamento_fiscale_cedolino' %}">Scostamento fiscale simulazione vs cedolino</a>
             <a href="{% url 'export_presenze_excel' %}">Export Excel mese corrente</a>
           </div>
         </div>

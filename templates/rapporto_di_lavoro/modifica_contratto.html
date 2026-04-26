@@ -134,6 +134,10 @@
                 {{ form.edr_mensile }}
               </div>
               <div class="col-6 col-sm-3">
+                <label class="form-label mb-1 text-muted" style="font-size:.75rem">Superminimo €/mese</label>
+                {{ form.superminimo_mensile }}
+              </div>
+              <div class="col-6 col-sm-3">
                 <label class="form-label mb-1 text-muted" style="font-size:.75rem">Premio obiettivi</label>
                 {{ form.premio_obiettivi }}
               </div>
@@ -154,6 +158,17 @@
                   <div class="form-check form-check-inline">
                     {{ form.quattordicesima }}
                     <label class="form-check-label" for="{{ form.quattordicesima.id_for_label }}" style="font-size:.82rem">14ª mensilità</label>
+                  </div>
+                </div>
+                <p class="text-muted mb-1 mt-2" style="font-size:.68rem">Se la quota 1/12 è in cedolino ogni mese, spunta anche sotto (base INPS/IRPEF/INAIL del mese).</p>
+                <div class="d-flex flex-wrap gap-3">
+                  <div class="form-check form-check-inline">
+                    {{ form.tredicesima_rateo_mensile_in_imponibile }}
+                    <label class="form-check-label" for="{{ form.tredicesima_rateo_mensile_in_imponibile.id_for_label }}" style="font-size:.78rem">13ª: quota mensile in imponibile</label>
+                  </div>
+                  <div class="form-check form-check-inline">
+                    {{ form.quattordicesima_rateo_mensile_in_imponibile }}
+                    <label class="form-check-label" for="{{ form.quattordicesima_rateo_mensile_in_imponibile.id_for_label }}" style="font-size:.78rem">14ª: quota mensile in imponibile</label>
                   </div>
                 </div>
               </div>

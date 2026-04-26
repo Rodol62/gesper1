@@ -482,6 +482,24 @@
             </div>
           </div>
 
+          <p class="form-section-title">Ratei 13ª / 14ª e base imponibile</p>
+          <div class="mb-2" style="font-size:.68rem;line-height:1.35">
+            <p class="text-muted mb-1" style="font-size:.62rem">
+              Spunta solo se il contratto prevede la quota mensile <strong>in busta</strong> (concorre a INPS, INAIL e IRPEF del mese).
+              Altrimenti il motore mostra comunque il rateo teorico, ma <strong>fuori</strong> dall’imponibile mensile.
+            </p>
+            <div class="form-check form-check-sm mb-1">
+              <input class="form-check-input" type="checkbox" name="rateo_13_mensile_in_imponibile" value="1" id="r13imp"
+                     {% if form_data.rateo_13_mensile_in_imponibile == '1' %}checked{% endif %}>
+              <label class="form-check-label" for="r13imp" style="font-size:.68rem">13ª: quota 1/12 mensile in imponibile</label>
+            </div>
+            <div class="form-check form-check-sm">
+              <input class="form-check-input" type="checkbox" name="rateo_14_mensile_in_imponibile" value="1" id="r14imp"
+                     {% if form_data.rateo_14_mensile_in_imponibile == '1' %}checked{% endif %}>
+              <label class="form-check-label" for="r14imp" style="font-size:.68rem">14ª: quota 1/12 mensile in imponibile</label>
+            </div>
+          </div>
+
           <p class="form-section-title">Presenze / assenze</p>
 
           <div class="row g-1 mb-3">
@@ -592,6 +610,29 @@
       {% endif %}
     </div>
 
+    {% if risultato.schema_divisori %}
+    <div class="res-card mb-3">
+      <div class="res-card-head rh-teal"><i class="bi bi-sliders me-1"></i>Schema divisori contrattuali (ore mensili)</div>
+      <div class="res-card-body small">
+        <p class="text-muted mb-2" style="font-size:.72rem">
+          <strong>Divisore tabellare:</strong> divisore orario ÷ ore settimanali contrattuali = divisore fisso convenzionale (es. 172÷40 = 4,30).
+          <strong>Media contrattuale giornaliera</strong> = ore settimanali ÷ 6 gg: stesso valore usato per ore domenicali/festive suggerite e maggiorazioni (coerente con foglio INPS / 172).
+          Con <strong>divisore orario</strong> (172/173,33): <strong>retribuzione oraria di fatto</strong> = somma delle voci tabellari FT del mese (paga base, contingenza, EDR, indennità tabellare, scatto) ciascuna ÷ divisore; straordinari e maggiorazioni domenica/festivo si calcolano su quell’orario. Quota giornaliera convenzionale = lordo competenze ÷ 26.
+        </p>
+        <div class="row g-2">
+          <div class="col-md-4"><span class="text-muted">Divisore orario</span><div class="fw-bold">{{ risultato.schema_divisori.divisore_orario|floatformat:2 }}</div></div>
+          <div class="col-md-4"><span class="text-muted">Ore settimanali contr.</span><div class="fw-bold">{{ risultato.schema_divisori.ore_settimanali|floatformat:2 }}</div></div>
+          <div class="col-md-4"><span class="text-muted">Div. fisso conv. (÷ ore sett.)</span><div class="fw-bold">{{ risultato.schema_divisori.divisore_fisso_convenzionale|floatformat:4 }}</div></div>
+          <div class="col-md-4"><span class="text-muted">Gg lav. mese (conv.)</span><div class="fw-bold">{{ risultato.schema_divisori.giorni_lavorativi_mese|floatformat:0 }}</div></div>
+          <div class="col-md-4"><span class="text-muted">Gg lav. settimanali (conv.)</span><div class="fw-bold">{{ risultato.schema_divisori.giorni_lavorativi_settimanali|floatformat:0 }}</div></div>
+          <div class="col-md-4"><span class="text-muted">Media contrattuale h/gg (h/sett ÷ gg sett.)</span><div class="fw-bold">{{ risultato.schema_divisori.ore_lavorative_giornaliere|floatformat:4 }}</div></div>
+          <div class="col-md-4"><span class="text-muted">Ore mensili CCNL (motore)</span><div class="fw-bold">{{ risultato.ore_mensili|floatformat:2 }}</div></div>
+          <div class="col-md-4"><span class="text-muted">Ore/gg (h/sett ÷ 6, maggiorazioni)</span><div class="fw-bold">{{ risultato.ore_giornaliere|floatformat:2 }}</div></div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- ── Box 0: Calendario ──────────────────────────────────────────── -->
     <div class="res-card">
       <div class="res-card-head rh-gray"><i class="bi bi-calendar3 me-1"></i>Box 0 — Calendario lavorativo</div>
@@ -607,19 +648,36 @@
           {% if risultato.prorata %}<div class="col"><div class="stat-pill sp-red"><span class="sp-num">{{ risultato.giorni_lavorati }}</span><span class="sp-lbl">Gg dip.</span></div></div>{% endif %}
         </div>
 
-        <!-- Formula ore settimanali → giornaliere → mensili -->
+        <!-- Ore/gg = h settimanali contr. ÷ 6; paga/h = Σ (voce tabellare FT mese ÷ divisore) se divisore >30. -->
         <div class="mb-2 d-flex flex-wrap align-items-center gap-2">
-          <div class="ore-formula">
-            <span>{{ risultato.ore_settimanali_contr|ore_hm }}h/sett</span>
+          <div class="ore-formula flex-wrap">
+            <span class="text-muted" style="font-size:.62rem;text-transform:none;font-weight:600">Ore/gg (maggiorazioni)</span>
+            <span>{{ risultato.ore_settimanali_contr|floatformat:2 }} h/sett</span>
             <span class="of-sep">÷</span>
-            <span>{{ risultato.giorni_eff_settimana }} gg/sett</span>
+            <span>6</span>
             <span class="of-sep">=</span>
-            <span class="of-result">{{ risultato.ore_giornaliere|ore_hm }}h/gg</span>
-            <span class="of-sep">×</span>
-            <span>{{ risultato.cal_giorni_lavorativi }} gg lav.</span>
-            <span class="of-sep">=</span>
-            <span class="of-result">{{ risultato.ore_mensili|ore_hm }}h/mese</span>
+            <span class="of-result">{{ risultato.ore_giornaliere|floatformat:2 }} h/gg</span>
           </div>
+          {% if risultato.divisore > 30 %}
+          <div class="ore-formula flex-wrap">
+            <span class="text-muted" style="font-size:.62rem;text-transform:none;font-weight:600">Retrib. oraria di fatto</span>
+            <span>Σ voci tab.</span>
+            <span class="of-sep">÷</span>
+            <span>{{ risultato.divisore|floatformat:0 }}</span>
+            <span class="of-sep">=</span>
+            <span class="of-result">{{ risultato.paga_oraria|floatformat:5 }} €/h</span>
+          </div>
+          <div class="w-100 text-muted" style="font-size:.58rem;line-height:1.35">
+            base {{ risultato.oraria_tabellare_paga_base|num_it:4 }} + conting. {{ risultato.oraria_tabellare_contingenza|num_it:4 }} + EDR {{ risultato.oraria_tabellare_edr|num_it:4 }}{% if risultato.oraria_tabellare_indennita %} + ind. {{ risultato.oraria_tabellare_indennita|num_it:4 }}{% endif %}{% if risultato.oraria_tabellare_scatto %} + scatto {{ risultato.oraria_tabellare_scatto|num_it:4 }}{% endif %}
+          </div>
+          {% endif %}
+        </div>
+        <div class="mb-2 text-muted" style="font-size:.65rem;line-height:1.35">
+          <strong>Ore mensili CCNL</strong> (riferimento): {{ risultato.ore_mensili|floatformat:2 }} h/mese (tabella × part-time).
+          {% if risultato.giorni_eff_settimana %}
+            <span class="d-none d-md-inline">·</span>
+            <span class="d-block d-md-inline">Indicatore h/sett ÷ h/gg ≈ <strong>{{ risultato.giorni_eff_settimana }}</strong> gg.</span>
+          {% endif %}
         </div>
 
         <!-- Riepilogo domeniche / festivi per maggiorazioni -->
@@ -633,9 +691,9 @@
           <strong>{{ risultato.cal_festivi_lav_n }} festivi non domenicali</strong>
           <span class="text-muted">({{ risultato.cal_festivi }} festività totali)</span>
           &nbsp;&bull;&nbsp;
-          <span style="color:#0d6efd">ore/gg: <strong>{{ risultato.ore_giornaliere|ore_hm }}h</strong></span>
+          <span style="color:#0d6efd">ore/gg motore: <strong>{{ risultato.ore_giornaliere|floatformat:2 }} h</strong></span>
           &nbsp;&bull;&nbsp;
-          <span style="color:#166534">suggerito: dom <strong>{{ risultato.ore_dom_suggerite|ore_hm }}h</strong> · fest <strong>{{ risultato.ore_fest_suggerite|ore_hm }}h</strong></span>
+          <span style="color:#166534">suggerito: dom <strong>{{ risultato.ore_dom_suggerite|floatformat:2 }} h</strong> · fest <strong>{{ risultato.ore_fest_suggerite|floatformat:2 }} h</strong></span>
           <button type="button" id="btn_applica_cal"
                   class="btn btn-sm py-0 px-2 ms-2 float-end"
                   style="font-size:.65rem;background:#f59e0b;color:#fff;border:none"
@@ -719,7 +777,7 @@
                         title="Giorni presenti nel mese dal calendario">cal: {{ v.cal_hint }}</span>
                 {% endif %}
               </td>
-              <td>{% if v.ore %}{{ v.ore|ore_hm }}h{% endif %}{% if v.gg %}{{ v.gg }}gg{% endif %}</td>
+              <td>{% if v.ore %}{{ v.ore|floatformat:2 }} h{% endif %}{% if v.gg %}{{ v.gg }}gg{% endif %}</td>
               <td class="amt euro">{% if v.negativo %}−{% endif %} € {{ v.importo|euro_it }}</td>
               <td><span class="badge {% if v.inps %}badge-si{% else %}badge-no{% endif %}">{% if v.inps %}Sì{% else %}No{% endif %}</span></td>
               <td><span class="badge {% if v.irpef %}badge-si{% else %}badge-no{% endif %}">{% if v.irpef %}Sì{% else %}No{% endif %}</span></td>
@@ -731,9 +789,9 @@
               <td><strong>Rateo 13ª lordo (1/12)</strong></td>
               <td>—</td>
               <td class="amt">€ {{ risultato.rat13_m|euro_it }}</td>
-              <td><span class="badge badge-si">Sì</span></td>
-              <td><span class="badge badge-si">Sì</span></td>
-              <td class="text-muted">pagato mensilmente</td>
+              <td><span class="badge {% if risultato.rateo_13_mensile_in_imponibile %}badge-si{% else %}badge-no{% endif %}">{% if risultato.rateo_13_mensile_in_imponibile %}Sì{% else %}No{% endif %}</span></td>
+              <td><span class="badge {% if risultato.rateo_13_mensile_in_imponibile %}badge-si{% else %}badge-no{% endif %}">{% if risultato.rateo_13_mensile_in_imponibile %}Sì{% else %}No{% endif %}</span></td>
+              <td class="text-muted">{% if risultato.rateo_13_mensile_in_imponibile %}in busta mensile (imponibile){% else %}solo accantonamento / riferimento{% endif %}</td>
             </tr>
             {% endif %}
             {% if risultato.rat14_m %}
@@ -741,17 +799,27 @@
               <td><strong>Rateo 14ª lordo (1/12)</strong></td>
               <td>—</td>
               <td class="amt">€ {{ risultato.rat14_m|euro_it }}</td>
-              <td><span class="badge badge-si">Sì</span></td>
-              <td><span class="badge badge-si">Sì</span></td>
-              <td class="text-muted">pagato mensilmente</td>
+              <td><span class="badge {% if risultato.rateo_14_mensile_in_imponibile %}badge-si{% else %}badge-no{% endif %}">{% if risultato.rateo_14_mensile_in_imponibile %}Sì{% else %}No{% endif %}</span></td>
+              <td><span class="badge {% if risultato.rateo_14_mensile_in_imponibile %}badge-si{% else %}badge-no{% endif %}">{% if risultato.rateo_14_mensile_in_imponibile %}Sì{% else %}No{% endif %}</span></td>
+              <td class="text-muted">{% if risultato.rateo_14_mensile_in_imponibile %}in busta mensile (imponibile){% else %}solo accantonamento / riferimento{% endif %}</td>
             </tr>
             {% endif %}
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="2"><strong>Lordo mensile (incl. ratei 13ª/14ª)</strong></td>
+              <td colspan="2"><strong>Lordo competenze + ratei 13ª/14ª (totale cedolino)</strong></td>
               <td class="amt" style="color:var(--c-primary)">€ {{ risultato.lordo_con_1314|euro_it }}</td>
               <td colspan="3" class="text-muted">
+                Imponibile INPS mese: € {{ risultato.lordo_imponibile_inps_m|euro_it }}
+                {% if risultato.rat13_m and not risultato.rateo_13_mensile_in_imponibile or risultato.rat14_m and not risultato.rateo_14_mensile_in_imponibile %}
+                  <span class="d-block mt-1" style="font-size:.62rem">(esclusi dal totale imponibile i ratei non erogati mensilmente in busta)</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" class="text-muted" style="font-size:.65rem">Competenze mensili (lordo calendario)</td>
+              <td class="amt text-muted">€ {{ risultato.lordo_mensile|euro_it }}</td>
+              <td colspan="3" class="text-muted" style="font-size:.62rem">
                 Base: € {{ risultato.lordo_base|euro_it }}
                 {% if risultato.tot_straord %} + Straord.: € {{ risultato.tot_straord|euro_it }}{% endif %}
                 {% if risultato.tot_dom_fest %} + Dom./Fest.: € {{ risultato.tot_dom_fest|euro_it }}{% endif %}
@@ -761,11 +829,56 @@
             <tr>
               <td colspan="2" class="text-muted">Paga oraria / giornaliera (÷{{ risultato.divisore }})</td>
               <td class="amt text-muted">€ {{ risultato.paga_oraria|num_it:4 }} / € {{ risultato.paga_giornaliera|num_it:4 }}</td>
-              <td colspan="3" class="text-muted">Ore/mese: {{ risultato.ore_mensili|ore_hm }}h · Ore/gg: {{ risultato.ore_giornaliere|ore_hm }}h</td>
+              <td colspan="3" class="text-muted" style="font-size:.62rem">
+                Ore/mese: {{ risultato.ore_mensili|floatformat:2 }} h · Ore/gg: {{ risultato.ore_giornaliere|floatformat:2 }} h
+                {% if risultato.divisore > 30 and risultato.lordo_tabellare_ft_equiv %}
+                  <span class="d-block mt-1">Paga/h = somma delle orarie da ogni voce tabellare (paga base, contingenza, EDR, indennità tabellare, scatto): importo mensile della voce in busta ÷ {{ risultato.divisore|floatformat:0 }}; somma voci tabellari mese € {{ risultato.lordo_tabellare_ft_equiv|euro_it }}. Quota/gg: lordo competenze ÷ 26.</span>
+                {% endif %}
+              </td>
             </tr>
           </tfoot>
         </table>
         </div>
+        {% if risultato.voci_classificate %}
+        <div class="border-top px-2 py-2" style="background:#fafbfc">
+          <div class="fw-bold mb-1" style="font-size:.72rem;color:#1b3a5f">
+            <i class="bi bi-diagram-3 me-1"></i>Classificazione motore (INPS / INAIL / IRPEF — 13ª / 14ª / TFR)
+          </div>
+          <p class="text-muted mb-2" style="font-size:.65rem">
+            Ordine e flag «matura 13ª/14ª» e «TFR» da schema Gesper; INPS/INAIL/IRPEf da <code>VoceRetributiva</code> se la voce è censita in anagrafica motore.
+          </p>
+          <div class="table-responsive">
+            <table class="voce-tbl mb-0">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Codice</th>
+                  <th>Descrizione</th>
+                  <th class="amt">€</th>
+                  <th>INPS</th><th>INAIL</th><th>IRPEF</th>
+                  <th>13ª</th><th>14ª</th><th>TFR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for vc in risultato.voci_classificate %}
+                <tr>
+                  <td class="text-muted">{{ vc.ordine_schema }}</td>
+                  <td><code style="font-size:.62rem">{{ vc.codice }}</code></td>
+                  <td>{{ vc.descrizione }}</td>
+                  <td class="amt">€ {{ vc.importo|euro_it }}</td>
+                  <td><span class="badge {% if vc.imponibile_inps %}badge-si{% else %}badge-no{% endif %}">{% if vc.imponibile_inps %}Sì{% else %}No{% endif %}</span></td>
+                  <td><span class="badge {% if vc.imponibile_inail %}badge-si{% else %}badge-no{% endif %}">{% if vc.imponibile_inail %}Sì{% else %}No{% endif %}</span></td>
+                  <td><span class="badge {% if vc.imponibile_irpef %}badge-si{% else %}badge-no{% endif %}">{% if vc.imponibile_irpef %}Sì{% else %}No{% endif %}</span></td>
+                  <td><span class="badge {% if vc.matura_tredicesima %}badge-si{% else %}badge-no{% endif %}">{% if vc.matura_tredicesima %}Sì{% else %}No{% endif %}</span></td>
+                  <td><span class="badge {% if vc.matura_quattordicesima %}badge-si{% else %}badge-no{% endif %}">{% if vc.matura_quattordicesima %}Sì{% else %}No{% endif %}</span></td>
+                  <td><span class="badge {% if vc.concorre_tfr %}badge-si{% else %}badge-no{% endif %}">{% if vc.concorre_tfr %}Sì{% else %}No{% endif %}</span></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
       </div>
     </div>
 

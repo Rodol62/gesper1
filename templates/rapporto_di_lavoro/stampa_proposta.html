@@ -312,8 +312,11 @@
             {% if art5_edr and art5_edr > 0 %}
             <tr><td>E.D.R. (Elemento Distinto dalla Retribuzione — Prot. 31/07/1992)</td><td style="text-align:right" class="importo">{{ art5_edr|euro_full }}</td></tr>
             {% endif %}
+            {% if art5_superminimo and art5_superminimo > 0 %}
+            <tr><td>Superminimo (oltre minimo tabellare CCNL)</td><td style="text-align:right" class="importo">{{ art5_superminimo|euro_full }}</td></tr>
+            {% endif %}
             {% if art5_indennita and art5_indennita > 0 %}
-            <tr><td>Indennità contrattuale/superminimo</td><td style="text-align:right" class="importo">{{ art5_indennita|euro_full }}</td></tr>
+            <tr><td>Altre indennità (es. di funzione)</td><td style="text-align:right" class="importo">{{ art5_indennita|euro_full }}</td></tr>
             {% endif %}
             {% if tredicesima_attiva %}
             <tr style="background:#f4f9ff"><td>Rateo mensile 13ª in busta (1/12)</td><td style="text-align:right" class="importo"><strong>{{ rat13_mensile|euro_full }}</strong></td></tr>
