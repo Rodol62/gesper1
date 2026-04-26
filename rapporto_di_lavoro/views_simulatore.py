@@ -199,26 +199,32 @@ def simulatore_paga(request):
         )
 
         # ── Voci per tabella Box 1 (solo importo > 0) ────────────────────────
+        _div_orario = r['divisore'] > Decimal('30')
+
+        def _r_tab(nome, imp_field, note, oraria_field):
+            row = {'nome': nome, 'importo': r[imp_field], 'inps': True, 'irpef': True, 'note': note}
+            if _div_orario:
+                row['oraria_tab'] = r[oraria_field]
+            return row
+
         voci = [
-            {'nome': 'Paga base CCNL',    'importo': r['paga_base'],   'inps': True, 'irpef': True, 'note': 'Art. 74 CCNL FIPE'},
-            {'nome': 'Contingenza',        'importo': r['contingenza'], 'inps': True, 'irpef': True, 'note': 'Indennità contingenza'},
-            {'nome': 'EDR',                'importo': r['edr'],         'inps': True, 'irpef': True, 'note': 'Elemento Distorsivo Retrib.'},
+            _r_tab('Paga base CCNL', 'paga_base', 'Art. 74 CCNL FIPE', 'oraria_tabellare_paga_base'),
+            _r_tab('Contingenza', 'contingenza', 'Indennità contingenza', 'oraria_tabellare_contingenza'),
+            _r_tab('EDR', 'edr', 'Elemento Distorsivo Retrib.', 'oraria_tabellare_edr'),
         ]
         # Indennità CCNL solo se > 0
         if r['indennita']:
-            voci.append({'nome': 'Indennità CCNL', 'importo': r['indennita'], 'inps': True, 'irpef': True, 'note': 'Prevista da CCNL'})
+            voci.append(_r_tab('Indennità CCNL', 'indennita', 'Prevista da CCNL', 'oraria_tabellare_indennita'))
         if r['superminimo']:
             voci.append({'nome': 'Superminimo', 'importo': r['superminimo'], 'inps': True, 'irpef': True, 'note': 'Individuale/aziendale'})
         if r['indennita_turno']:
             voci.append({'nome': 'Indennità turno', 'importo': r['indennita_turno'], 'inps': True, 'irpef': True, 'note': 'Turni notturni/speciali'})
         if r.get('scatto') and r['scatto'] > 0:
-            voci.append({
-                'nome': 'Scatto anzianità',
-                'importo': r['scatto'],
-                'inps': True,
-                'irpef': True,
-                'note': 'Da parametro CCNL (tabella livello) se non diversamente indicato',
-            })
+            voci.append(_r_tab(
+                'Scatto anzianità', 'scatto',
+                'Da parametro CCNL (tabella livello) se non diversamente indicato',
+                'oraria_tabellare_scatto',
+            ))
         # Straordinari — solo se ore > 0
         if ore_sd:
             voci.append({'nome': f'Straord. diurno (+{r["magg_diur_pct"]}%)',   'importo': r['imp_sd'],  'ore': ore_sd,  'inps': True, 'irpef': True})
@@ -236,7 +242,7 @@ def simulatore_paga(request):
                 'ore': r['ore_domenicali'],
                 'cal_hint': r.get('cal_domeniche_lav_n', r['cal_domeniche_n']),
                 'inps': True, 'irpef': True,
-                'note': f'ore × paga/h × {r["magg_dom_pct"]}%',
+                'note': f'ore × retrib. oraria di fatto × {r["magg_dom_pct"]}%',
             })
         if r['ore_festivi']:
             voci.append({
@@ -245,10 +251,14 @@ def simulatore_paga(request):
                 'ore': r['ore_festivi'],
                 'cal_hint': r['cal_festivi_lav_n'],
                 'inps': True, 'irpef': True,
-                'note': f'ore × paga/h × {r["magg_fest_day_pct"]}%',
+                'note': f'ore × retrib. oraria di fatto × {r["magg_fest_day_pct"]}%',
             })
         if r['decurt_assenze']:
             voci.append({'nome': 'Assenze ingiustificate', 'importo': -r['decurt_assenze'], 'gg': r['giorni_assenza_ingiust'], 'inps': True, 'irpef': True, 'negativo': True})
+
+        if _div_orario:
+            for row in voci:
+                row.setdefault('oraria_tab', None)
 
         # Paga netta giornaliera (divisore convenzionale 26 FIPE)
         _div26 = r['divisore'] if r['divisore'] <= Decimal('30') else Decimal('26')

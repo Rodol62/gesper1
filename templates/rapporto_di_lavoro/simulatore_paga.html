@@ -762,7 +762,11 @@
         <table class="voce-tbl">
           <thead>
             <tr>
-              <th>Voce</th><th>Ore/Gg</th><th class="amt">Importo €</th>
+              <th>Voce</th><th>Ore/Gg</th>
+              {% if risultato.divisore > 30 %}
+              <th class="amt text-nowrap" title="Importo mensile della voce tabellare in busta ÷ divisore orario">€/h tab.</th>
+              {% endif %}
+              <th class="amt">Importo €</th>
               <th>INPS</th><th>IRPEF</th><th>Note</th>
             </tr>
           </thead>
@@ -778,6 +782,9 @@
                 {% endif %}
               </td>
               <td>{% if v.ore %}{{ v.ore|floatformat:2 }} h{% endif %}{% if v.gg %}{{ v.gg }}gg{% endif %}</td>
+              {% if risultato.divisore > 30 %}
+              <td class="amt text-muted" style="font-size:.72rem">{% if v.oraria_tab %}{{ v.oraria_tab|num_it:4 }}{% else %}—{% endif %}</td>
+              {% endif %}
               <td class="amt euro">{% if v.negativo %}−{% endif %} € {{ v.importo|euro_it }}</td>
               <td><span class="badge {% if v.inps %}badge-si{% else %}badge-no{% endif %}">{% if v.inps %}Sì{% else %}No{% endif %}</span></td>
               <td><span class="badge {% if v.irpef %}badge-si{% else %}badge-no{% endif %}">{% if v.irpef %}Sì{% else %}No{% endif %}</span></td>
@@ -788,6 +795,7 @@
             <tr>
               <td><strong>Rateo 13ª lordo (1/12)</strong></td>
               <td>—</td>
+              {% if risultato.divisore > 30 %}<td class="text-muted">—</td>{% endif %}
               <td class="amt">€ {{ risultato.rat13_m|euro_it }}</td>
               <td><span class="badge {% if risultato.rateo_13_mensile_in_imponibile %}badge-si{% else %}badge-no{% endif %}">{% if risultato.rateo_13_mensile_in_imponibile %}Sì{% else %}No{% endif %}</span></td>
               <td><span class="badge {% if risultato.rateo_13_mensile_in_imponibile %}badge-si{% else %}badge-no{% endif %}">{% if risultato.rateo_13_mensile_in_imponibile %}Sì{% else %}No{% endif %}</span></td>
@@ -798,6 +806,7 @@
             <tr>
               <td><strong>Rateo 14ª lordo (1/12)</strong></td>
               <td>—</td>
+              {% if risultato.divisore > 30 %}<td class="text-muted">—</td>{% endif %}
               <td class="amt">€ {{ risultato.rat14_m|euro_it }}</td>
               <td><span class="badge {% if risultato.rateo_14_mensile_in_imponibile %}badge-si{% else %}badge-no{% endif %}">{% if risultato.rateo_14_mensile_in_imponibile %}Sì{% else %}No{% endif %}</span></td>
               <td><span class="badge {% if risultato.rateo_14_mensile_in_imponibile %}badge-si{% else %}badge-no{% endif %}">{% if risultato.rateo_14_mensile_in_imponibile %}Sì{% else %}No{% endif %}</span></td>
@@ -808,6 +817,9 @@
           <tfoot>
             <tr>
               <td colspan="2"><strong>Lordo competenze + ratei 13ª/14ª (totale cedolino)</strong></td>
+              {% if risultato.divisore > 30 %}
+              <td class="amt text-muted" style="font-size:.72rem" title="Somma €/h tabellari = retribuzione oraria di fatto">{{ risultato.retribuzione_oraria_di_fatto|num_it:4 }}</td>
+              {% endif %}
               <td class="amt" style="color:var(--c-primary)">€ {{ risultato.lordo_con_1314|euro_it }}</td>
               <td colspan="3" class="text-muted">
                 Imponibile INPS mese: € {{ risultato.lordo_imponibile_inps_m|euro_it }}
@@ -818,6 +830,7 @@
             </tr>
             <tr>
               <td colspan="2" class="text-muted" style="font-size:.65rem">Competenze mensili (lordo calendario)</td>
+              {% if risultato.divisore > 30 %}<td class="text-muted">—</td>{% endif %}
               <td class="amt text-muted">€ {{ risultato.lordo_mensile|euro_it }}</td>
               <td colspan="3" class="text-muted" style="font-size:.62rem">
                 Base: € {{ risultato.lordo_base|euro_it }}
@@ -827,12 +840,13 @@
               </td>
             </tr>
             <tr>
-              <td colspan="2" class="text-muted">Paga oraria / giornaliera (÷{{ risultato.divisore }})</td>
+              <td colspan="2" class="text-muted">Retrib. oraria di fatto / giornaliera (÷{{ risultato.divisore }})</td>
+              {% if risultato.divisore > 30 %}<td class="amt text-muted" style="font-size:.72rem">{{ risultato.retribuzione_oraria_di_fatto|num_it:4 }}</td>{% endif %}
               <td class="amt text-muted">€ {{ risultato.paga_oraria|num_it:4 }} / € {{ risultato.paga_giornaliera|num_it:4 }}</td>
               <td colspan="3" class="text-muted" style="font-size:.62rem">
                 Ore/mese: {{ risultato.ore_mensili|floatformat:2 }} h · Ore/gg: {{ risultato.ore_giornaliere|floatformat:2 }} h
                 {% if risultato.divisore > 30 and risultato.lordo_tabellare_ft_equiv %}
-                  <span class="d-block mt-1">Paga/h = somma delle orarie da ogni voce tabellare (paga base, contingenza, EDR, indennità tabellare, scatto): importo mensile della voce in busta ÷ {{ risultato.divisore|floatformat:0 }}; somma voci tabellari mese € {{ risultato.lordo_tabellare_ft_equiv|euro_it }}. Quota/gg: lordo competenze ÷ 26.</span>
+                  <span class="d-block mt-1">Colonna €/h tab.: ogni voce tabellare (paga, contingenza, EDR, indennità, scatto) = importo in busta ÷ {{ risultato.divisore|floatformat:0 }}; la somma è la <strong>retribuzione oraria di fatto</strong> (uguale a paga/h per straord. e maggiorazioni). Con i tuoi importi può coincidere numericamente con un unico (somma voci ÷ divisore), ma il calcolo resta per voce. Somma voci tabellari mese € {{ risultato.lordo_tabellare_ft_equiv|euro_it }}. Quota/gg: lordo competenze ÷ 26.</span>
                 {% endif %}
               </td>
             </tr>
