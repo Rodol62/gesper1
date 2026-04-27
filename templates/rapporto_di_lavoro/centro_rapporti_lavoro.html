@@ -1,5 +1,4 @@
 {% extends 'base.html' %}
-{% load ruoli_tags %}
 {% block title %}Rapporti di lavoro — Centro gestione{% endblock %}
 {% block content %}
 <div class="container-fluid px-3 mt-3" style="max-width:1100px">
@@ -56,11 +55,19 @@
         <a href="{% url 'lista_dipendenti' %}?stato=attivo" class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-person-badge"></i> Vai ai dipendenti</a>
       </div>
 
-      {% if user|has_ruolo:'consulente' and recesso_prova_in_verifica_centro_count %}
-      <div class="alert alert-warning border-warning py-2 px-3 mt-3 mb-0" role="status" style="font-size:.8rem">
+      {% if is_consulente_centro %}
+      {% if recesso_prova_in_verifica_centro_count %}
+      <div class="alert alert-warning border-warning py-2 px-3 mt-3 mb-0" role="alert" style="font-size:.8rem">
         <strong><i class="bi bi-envelope-exclamation me-1"></i>In carico a te:</strong>
-        {{ recesso_prova_in_verifica_centro_count }} lettera/e in <em>verifica consulente</em> — sono in cima all’elenco (righe evidenziate).
+        {{ recesso_prova_in_verifica_centro_count }} lettera/e in <em>verifica consulente</em> — in cima all’elenco (righe evidenziate). Apri <strong>Apri workflow</strong> per confermare.
       </div>
+      {% else %}
+      <div class="alert alert-info border py-2 px-3 mt-3 mb-0" role="status" style="font-size:.8rem;border-color:#b6d4fe!important;background:#e7f1ff;color:#084298">
+        <strong><i class="bi bi-info-circle me-1"></i>Area consulente — recesso in prova.</strong>
+        Quando l’amministrazione invia una lettera alla tua verifica, comparirà qui (stato «In verifica consulente», riga evidenziata) e trovi lo stesso elenco in
+        <a href="{% url 'consulente_dashboard' %}#cons-recesso-prova" class="fw-semibold">dashboard consulente</a>.
+      </div>
+      {% endif %}
       {% endif %}
 
       {% if recesso_prova_recenti %}

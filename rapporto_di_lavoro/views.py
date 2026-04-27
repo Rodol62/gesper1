@@ -350,6 +350,9 @@ def centro_rapporti_lavoro(request):
 		recesso_prova_recenti = ComunicazioneRecessoProva.objects.none()
 		recesso_prova_in_verifica_centro_count = 0
 
+	# Flag esplicito: evita {% if user|has_ruolo:'consulente' and count %} (precedenze / filtri in template)
+	is_consulente_centro = u.has_ruolo('consulente')
+
 	return render(
 		request,
 		'rapporto_di_lavoro/centro_rapporti_lavoro.html',
@@ -357,6 +360,7 @@ def centro_rapporti_lavoro(request):
 			'azienda_operativa': azienda_operativa,
 			'recesso_prova_recenti': recesso_prova_recenti,
 			'recesso_prova_in_verifica_centro_count': recesso_prova_in_verifica_centro_count,
+			'is_consulente_centro': is_consulente_centro,
 		},
 	)
 
