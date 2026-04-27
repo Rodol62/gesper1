@@ -55,6 +55,13 @@
         <a href="{% url 'lista_dipendenti' %}?stato=attivo" class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-person-badge"></i> Vai ai dipendenti</a>
       </div>
 
+      {% if user|has_ruolo:'consulente' and recesso_prova_in_verifica_centro_count %}
+      <div class="alert alert-warning border-warning py-2 px-3 mt-3 mb-0" role="status" style="font-size:.8rem">
+        <strong><i class="bi bi-envelope-exclamation me-1"></i>In carico a te:</strong>
+        {{ recesso_prova_in_verifica_centro_count }} lettera/e in <em>verifica consulente</em> — sono in cima all’elenco (righe evidenziate).
+      </div>
+      {% endif %}
+
       {% if recesso_prova_recenti %}
       <div class="table-responsive mt-3 mb-0" style="font-size:.78rem">
         <table class="table table-sm table-hover align-middle mb-0 border-top">
@@ -69,10 +76,16 @@
           </thead>
           <tbody>
             {% for c in recesso_prova_recenti %}
-            <tr>
+            <tr class="{% if c.stato == 'in_verifica_consulente' %}table-warning{% endif %}">
               <td>{{ c.dipendente.cognome }} {{ c.dipendente.nome }}</td>
               <td class="text-nowrap">{{ c.rapporto.numero_contratto|default:"—" }}</td>
-              <td><span class="badge bg-secondary">{{ c.get_stato_display }}</span></td>
+              <td>
+                {% if c.stato == 'in_verifica_consulente' %}
+                <span class="badge bg-warning text-dark">{{ c.get_stato_display }}</span>
+                {% else %}
+                <span class="badge bg-secondary">{{ c.get_stato_display }}</span>
+                {% endif %}
+              </td>
               <td class="text-nowrap text-muted">{{ c.data_modifica|date:"d/m/Y H:i" }}</td>
               <td class="text-end">
                 <a href="{% url 'workflow_recesso_prova' c.dipendente_id c.rapporto_id %}" class="btn btn-sm btn-outline-primary py-0">Apri workflow</a>

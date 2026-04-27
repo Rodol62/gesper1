@@ -13,8 +13,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Q
-from django.db.models import Model
+from django.db.models import Case, IntegerField, Model, Q, Value, When
 from io import BytesIO
 from decimal import Decimal
 import os
@@ -317,21 +316,39 @@ def _puo_accedere_centro_rapporti(user):
 @user_passes_test(_puo_accedere_centro_rapporti)
 def centro_rapporti_lavoro(request):
 	u = request.user
-	if u.has_ruolo('admin') or u.is_superuser:
+	if u.has_ruolo('admin') or u.is_superuser or u.has_ruolo('hr'):
 		azienda_operativa = get_azienda_operativa(u, request.session)
 	else:
 		azienda_operativa = getattr(u, 'azienda', None)
 
+	# Le comunicazioni "in verifica consulente" devono restare in cima: altrimenti
+	# le prime 50 per sola data_modifica possono escludere la posta in carico al consulente.
 	base_qs = (
 		ComunicazioneRecessoProva.objects.select_related('dipendente', 'rapporto', 'azienda')
-		.order_by('-data_modifica')
+		.annotate(
+			_ord_recesso_centro=Case(
+				When(stato='in_verifica_consulente', then=Value(0)),
+				default=Value(1),
+				output_field=IntegerField(),
+			)
+		)
+		.order_by('_ord_recesso_centro', '-data_modifica')
 	)
+	centro_recesso_limit = 100
 	if azienda_operativa:
-		recesso_prova_recenti = base_qs.filter(azienda=azienda_operativa)[:50]
+		recesso_prova_recenti = base_qs.filter(azienda=azienda_operativa)[:centro_recesso_limit]
+		recesso_prova_in_verifica_centro_count = ComunicazioneRecessoProva.objects.filter(
+			azienda=azienda_operativa,
+			stato='in_verifica_consulente',
+		).count()
 	elif u.is_superuser:
-		recesso_prova_recenti = base_qs[:50]
+		recesso_prova_recenti = base_qs[:centro_recesso_limit]
+		recesso_prova_in_verifica_centro_count = ComunicazioneRecessoProva.objects.filter(
+			stato='in_verifica_consulente',
+		).count()
 	else:
 		recesso_prova_recenti = ComunicazioneRecessoProva.objects.none()
+		recesso_prova_in_verifica_centro_count = 0
 
 	return render(
 		request,
@@ -339,6 +356,7 @@ def centro_rapporti_lavoro(request):
 		{
 			'azienda_operativa': azienda_operativa,
 			'recesso_prova_recenti': recesso_prova_recenti,
+			'recesso_prova_in_verifica_centro_count': recesso_prova_in_verifica_centro_count,
 		},
 	)
 
