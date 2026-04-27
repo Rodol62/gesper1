@@ -498,7 +498,7 @@ window.__GESPER_PORTAL_BASE = "{{ gesper_portal_web_base|default:'/'|escapejs }}
         <!-- Consulente: raggruppamenti allineati a HR (Documenti / Gestione presenze) per ridurre ridondanza visiva -->
         <li><a href="{% if consulente_recesso_prova_nav_count %}{% url 'consulente_dashboard' %}#cons-recesso-prova{% else %}{% url 'consulente_dashboard' %}{% endif %}"><i class="bi bi-briefcase"></i> Dashboard{% if consulente_recesso_prova_nav_count %} <span class="badge rounded-pill bg-warning text-dark align-middle" style="font-size:.65rem">{{ consulente_recesso_prova_nav_count }}</span>{% endif %}</a></li>
         <li><a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo"><i class="bi bi-envelope-paper"></i> Recesso in prova (lettera)</a></li>
-        <li><a href="{% url 'consulente_candidati' %}"><i class="bi bi-person-lines-fill"></i> Anagrafiche</a></li>
+        <li><a href="{% if consulente_proposte_nav_count %}{% url 'consulente_candidati' %}?stato=firmata_candidato{% else %}{% url 'consulente_candidati' %}{% endif %}"><i class="bi bi-person-lines-fill"></i> Anagrafiche{% if consulente_proposte_nav_count %} <span class="badge rounded-pill bg-warning text-dark align-middle" style="font-size:.65rem">{{ consulente_proposte_nav_count }}</span>{% endif %}</a></li>
         <li class="nav-group">
           <button type="button" class="nav-group-btn" onclick="toggleDropdown(this)">
             <i class="bi bi-folder2-open"></i> Documenti <span class="caret">▼</span>

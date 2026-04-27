@@ -94,15 +94,15 @@
             </td>
             <td class="py-2 text-end">€ {{ p.stipendio_lordo_mensile|euro_it }}</td>
             <td class="py-2 text-center">
-              {% if p.stato == 'inviata_candidato' %}
+              {% if p.stato_canonico == 'inviata_candidato' %}
                 <span class="badge" style="background:#cff4fc;color:#055160;border:1px solid #9eeaf9;font-size:.74rem">
                   <i class="bi bi-send me-1"></i>Inviata
                 </span>
-              {% elif p.stato == 'firmata_candidato' %}
+              {% elif p.stato_canonico == 'firmata_candidato' %}
                 <span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;font-size:.74rem">
                   <i class="bi bi-pen me-1"></i>Firmata
                 </span>
-              {% elif p.stato == 'contratto_attivo' %}
+              {% elif p.stato_canonico == 'contratto_attivo' %}
                 <span class="badge" style="background:#d1e7dd;color:#0a3622;border:1px solid #a3cfbb;font-size:.74rem">
                   <i class="bi bi-check-circle me-1"></i>Attivo
                 </span>
@@ -113,7 +113,7 @@
             <td class="py-2 text-center">
               {% if p.data_firma_candidato %}
                 <small class="text-success"><i class="bi bi-check2 me-1"></i>{{ p.data_firma_candidato|date:"d/m/Y" }}</small>
-              {% elif p.stato == 'inviata_candidato' %}
+              {% elif p.stato_canonico == 'inviata_candidato' %}
                 <small class="text-info"><i class="bi bi-hourglass-split me-1"></i>In attesa</small>
               {% else %}
                 <small class="text-muted">—</small>
@@ -131,7 +131,7 @@
                    title="Scarica PDF proposta">
                   <i class="bi bi-file-earmark-pdf"></i>
                 </a>
-                {% if p.stato == 'firmata_candidato' %}
+                {% if p.stato_canonico == 'firmata_candidato' %}
                 <a href="{% url 'consulente_approva_proposta' p.id %}"
                    class="btn btn-sm btn-warning" style="font-size:.75rem;padding:.2rem .6rem"
                    title="Approva e converti in contratto">

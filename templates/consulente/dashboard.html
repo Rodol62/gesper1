@@ -91,6 +91,21 @@
   </div>
   {% endif %}
 
+  {% if proposte_da_approvare %}
+  <div class="alert alert-warning border-warning py-3 mb-3 shadow-sm" role="alert" style="border-radius:10px;font-size:.88rem">
+    <div class="d-flex flex-wrap align-items-start gap-2">
+      <i class="bi bi-check2-square fs-4 text-warning flex-shrink-0 mt-1"></i>
+      <div class="flex-grow-1">
+        <strong>Hai {{ proposte_da_approvare }} proposta/e di assunzione da approvare</strong> (firma candidato ricevuta).
+        Apri l’elenco filtrato e completa l’approvazione per emettere il contratto.
+        <div class="mt-2 d-flex flex-wrap gap-2">
+          <a class="btn btn-sm btn-dark" href="{% url 'consulente_candidati' %}?stato=firmata_candidato">Vai alle anagrafiche — da approvare</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="alert alert-light border py-2 small mb-3" role="status" style="border-radius:10px;border-color:var(--cd-border)!important">
     <div class="mb-1"><strong>Panoramica.</strong> Dati filtrati sull’azienda del profilo consulente.</div>
     <div class="d-flex flex-wrap gap-2 align-items-center" style="font-size:.86rem">

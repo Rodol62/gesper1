@@ -138,8 +138,9 @@ def consulente_dashboard(request):
             else:
                 candidati_posizione[did] = {'posizione': '', 'livello': ''}
 
+    _stati_firmata_equiv = PropostaAssunzione.stati_equivalenti('firmata_candidato')
     proposte_da_approvare = PropostaAssunzione.objects.filter(
-        azienda=azienda, stato='firmata_candidato'
+        azienda=azienda, stato__in=_stati_firmata_equiv
     ).count()
 
     # Documenti paghe/fisco: totali per azienda (stessi ambiti delle liste buste / F24 / CUD senza filtri),
@@ -290,7 +291,10 @@ def consulente_candidati(request):
     stato_filter = request.GET.get('stato', '')
     formato = request.GET.get('formato', '')
 
-    STATI_VISIBILI = ['inviata_candidato', 'firmata_candidato', 'contratto_attivo']
+    _inv = PropostaAssunzione.stati_equivalenti('inviata_candidato')
+    _firm = PropostaAssunzione.stati_equivalenti('firmata_candidato')
+    _att = PropostaAssunzione.stati_equivalenti('contratto_attivo')
+    STATI_VISIBILI = tuple(dict.fromkeys((*_inv, *_firm, *_att)))
 
     proposte_qs = PropostaAssunzione.objects.filter(
         azienda=azienda,
@@ -299,15 +303,16 @@ def consulente_candidati(request):
         'dipendente__cognome', 'dipendente__nome'
     )
 
-    if stato_filter in STATI_VISIBILI:
-        proposte_qs = proposte_qs.filter(stato=stato_filter)
+    if stato_filter == 'inviata_candidato':
+        proposte_qs = proposte_qs.filter(stato__in=_inv)
+    elif stato_filter == 'firmata_candidato':
+        proposte_qs = proposte_qs.filter(stato__in=_firm)
+    elif stato_filter == 'contratto_attivo':
+        proposte_qs = proposte_qs.filter(stato__in=_att)
 
-    # Conteggi per i badge dei filtri
-    from django.db.models import Count
-    conteggi = PropostaAssunzione.objects.filter(
-        azienda=azienda, stato__in=STATI_VISIBILI
-    ).values('stato').annotate(n=Count('id'))
-    cnt = {row['stato']: row['n'] for row in conteggi}
+    cnt_inviata = PropostaAssunzione.objects.filter(azienda=azienda, stato__in=_inv).count()
+    cnt_firmata = PropostaAssunzione.objects.filter(azienda=azienda, stato__in=_firm).count()
+    cnt_attivo = PropostaAssunzione.objects.filter(azienda=azienda, stato__in=_att).count()
 
     if formato == 'csv':
         return _export_candidati_csv(proposte_qs, azienda)
@@ -322,10 +327,10 @@ def consulente_candidati(request):
         'proposte': page_obj,
         'page_obj': page_obj,
         'stato_filter': stato_filter,
-        'totale': sum(cnt.values()),
-        'cnt_inviata': cnt.get('inviata_candidato', 0),
-        'cnt_firmata': cnt.get('firmata_candidato', 0),
-        'cnt_attivo': cnt.get('contratto_attivo', 0),
+        'totale': cnt_inviata + cnt_firmata + cnt_attivo,
+        'cnt_inviata': cnt_inviata,
+        'cnt_firmata': cnt_firmata,
+        'cnt_attivo': cnt_attivo,
     })
 
 
@@ -445,10 +450,10 @@ def consulente_approva_proposta(request, proposta_id):
     azienda = _get_azienda_consulente(request.user)
     proposta = get_object_or_404(PropostaAssunzione, id=proposta_id, azienda=azienda)
 
-    if proposta.stato != 'firmata_candidato':
+    if not proposta.is_firmata_da_candidato():
         messages.error(
             request,
-            f'La proposta deve essere in stato "Firmata dal candidato". '
+            f'La proposta deve essere in stato "Firmata dal candidato" (o equivalente legacy). '
             f"Stato attuale: {_safe_display(proposta, 'get_stato_display', 'stato')}."
         )
         return redirect('consulente_candidati')

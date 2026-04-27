@@ -27,7 +27,7 @@
          class="btn btn-danger btn-sm">
         <i class="bi bi-file-earmark-pdf me-1"></i>Scarica PDF
       </a>
-      {% if proposta.stato == 'firmata_candidato' %}
+      {% if proposta.stato_canonico == 'firmata_candidato' %}
       <a href="{% url 'consulente_approva_proposta' proposta.id %}"
          class="btn btn-warning btn-sm">
         <i class="bi bi-check-lg me-1"></i>Approva proposta
@@ -41,15 +41,15 @@
 
   <!-- Badge stato -->
   <div class="mb-3">
-    {% if proposta.stato == 'inviata_candidato' %}
+    {% if proposta.stato_canonico == 'inviata_candidato' %}
       <span class="badge" style="background:#cff4fc;color:#055160;border:1px solid #9eeaf9;font-size:.84rem;padding:.4rem .8rem">
         <i class="bi bi-send me-1"></i>Inviata al candidato
       </span>
-    {% elif proposta.stato == 'firmata_candidato' %}
+    {% elif proposta.stato_canonico == 'firmata_candidato' %}
       <span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;font-size:.84rem;padding:.4rem .8rem">
         <i class="bi bi-pen me-1"></i>Firmata dal candidato
       </span>
-    {% elif proposta.stato == 'contratto_attivo' %}
+    {% elif proposta.stato_canonico == 'contratto_attivo' %}
       <span class="badge" style="background:#d1e7dd;color:#0a3622;border:1px solid #a3cfbb;font-size:.84rem;padding:.4rem .8rem">
         <i class="bi bi-check-circle me-1"></i>Contratto attivo
       </span>

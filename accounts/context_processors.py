@@ -25,27 +25,37 @@ def gesper_browser_paths(request):
 
 def consulente_recesso_prova_nav(request):
     """
-    Conteggio comunicazioni recesso in prova in attesa di verifica consulente,
-    per badge nel menu globale (solo utenti con ruolo consulente e azienda).
+    Conteggi per menu globale consulente: recesso in prova in verifica,
+    proposte firmate (incl. stati legacy) da approvare.
     """
+    zero = {'consulente_recesso_prova_nav_count': 0, 'consulente_proposte_nav_count': 0}
     u = getattr(request, 'user', None)
     if u is None or not getattr(u, 'is_authenticated', False):
-        return {'consulente_recesso_prova_nav_count': 0}
+        return zero
     has_ruolo = getattr(u, 'has_ruolo', None)
     if not callable(has_ruolo) or not has_ruolo('consulente'):
-        return {'consulente_recesso_prova_nav_count': 0}
+        return zero
     azienda = getattr(u, 'azienda', None)
     if azienda is None:
-        return {'consulente_recesso_prova_nav_count': 0}
+        return zero
     from anagrafiche.models import ComunicazioneRecessoProva
+    from rapporto_di_lavoro.models import PropostaAssunzione
 
-    n = (
+    n_recesso = (
         ComunicazioneRecessoProva.objects.filter(
             azienda_id=azienda.pk,
             stato='in_verifica_consulente',
         ).count()
     )
-    return {'consulente_recesso_prova_nav_count': n}
+    firmati = PropostaAssunzione.stati_equivalenti('firmata_candidato')
+    n_proposte = PropostaAssunzione.objects.filter(
+        azienda_id=azienda.pk,
+        stato__in=firmati,
+    ).count()
+    return {
+        'consulente_recesso_prova_nav_count': n_recesso,
+        'consulente_proposte_nav_count': n_proposte,
+    }
 
 
 def gesper_pwa_embed(request):
