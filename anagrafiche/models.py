@@ -346,7 +346,9 @@ class ComunicazioneRecessoProva(models.Model):
         if azienda is None:
             return cls.objects.none()
         return cls.objects.filter(
-            Q(azienda_id=azienda.pk) | Q(dipendente__azienda_id=azienda.pk),
+            Q(azienda_id=azienda.pk)
+            | Q(dipendente__azienda_id=azienda.pk)
+            | Q(rapporto__azienda_id=azienda.pk),
         )
 
     def __str__(self):

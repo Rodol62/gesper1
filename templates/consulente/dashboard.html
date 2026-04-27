@@ -61,6 +61,38 @@
 {% block content %}
 <div class="cons-dash">
 
+  {% if recesso_prova_in_verifica_count or proposte_da_approvare %}
+  <div class="alert mb-3 shadow" role="alert" id="cons-azioni-urgenti" style="border-radius:12px;border:3px solid #664d03;background:linear-gradient(180deg,#fff3cd 0%,#ffe08a 100%);color:#422c02;font-size:.9rem">
+    <div class="d-flex flex-wrap align-items-start gap-3">
+      <i class="bi bi-exclamation-triangle-fill flex-shrink-0" style="font-size:1.75rem;color:#664d03"></i>
+      <div class="flex-grow-1" style="min-width:min(100%,220px)">
+        <div class="fw-bold mb-2" style="font-size:1.05rem;letter-spacing:.02em">Azioni richieste — controlla subito</div>
+        <ul class="mb-2 ps-3" style="margin-bottom:.5rem!important">
+          {% if recesso_prova_in_verifica_count %}
+          <li class="mb-1"><strong>Recesso in prova:</strong> {{ recesso_prova_in_verifica_count }} lettera/e in <em>verifica consulente</em>.
+            <a href="#cons-recesso-prova" class="fw-semibold text-dark text-decoration-underline">Elenco in pagina</a>
+            · <a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo" class="fw-semibold text-dark text-decoration-underline">Centro rapporti</a>
+          </li>
+          {% endif %}
+          {% if proposte_da_approvare %}
+          <li><strong>Proposte di assunzione:</strong> {{ proposte_da_approvare }} da approvare (firma candidato).
+            <a href="{% url 'consulente_candidati' %}?stato=firmata_candidato" class="fw-semibold text-dark text-decoration-underline">Vai alle anagrafiche</a>
+          </li>
+          {% endif %}
+        </ul>
+        <div class="d-flex flex-wrap gap-2">
+          {% if recesso_prova_in_verifica_count %}
+          <a class="btn btn-sm btn-dark" href="#cons-recesso-prova">Recesso: apri sotto</a>
+          {% endif %}
+          {% if proposte_da_approvare %}
+          <a class="btn btn-sm btn-dark" href="{% url 'consulente_candidati' %}?stato=firmata_candidato">Proposte: approva</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="cons-dash-hero">
     <h1><i class="bi bi-briefcase-fill me-2"></i>Area consulente del lavoro{% guida_link "modulo-consulente" %}</h1>
     <div class="sub">{{ azienda.nome }} · {{ mese_corrente }} {{ anno_corrente|anno_it }}</div>
@@ -75,21 +107,7 @@
     {% endfor %}
   {% endif %}
 
-  {% if recesso_prova_in_verifica_count %}
-  <div class="alert alert-warning border-warning py-3 mb-3 shadow-sm" role="alert" style="border-radius:10px;font-size:.88rem">
-    <div class="d-flex flex-wrap align-items-start gap-2">
-      <i class="bi bi-envelope-exclamation fs-4 text-warning flex-shrink-0 mt-1"></i>
-      <div class="flex-grow-1">
-        <strong>Hai {{ recesso_prova_in_verifica_count }} lettera/e di recesso in prova in attesa di verifica.</strong>
-        Apri il workflow per controllare il testo e confermare.
-        <div class="mt-2 d-flex flex-wrap gap-2">
-          <a class="btn btn-sm btn-dark" href="#cons-recesso-prova">Vai all’elenco sotto</a>
-          <a class="btn btn-sm btn-outline-secondary" href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo">Centro rapporti (tutte le comunicazioni)</a>
-        </div>
-      </div>
-    </div>
-  </div>
-  {% else %}
+  {% if not recesso_prova_in_verifica_count %}
   <div class="alert alert-info border py-2 px-3 mb-3" role="status" style="border-radius:10px;font-size:.86rem;border-color:#b6d4fe!important;background:#e7f1ff;color:#084298">
     <strong><i class="bi bi-envelope-paper me-1"></i>Recesso in periodo di prova.</strong>
     Quando l’amministrazione invia una lettera alla tua verifica, comparirà qui sotto e nel
@@ -98,20 +116,7 @@
   </div>
   {% endif %}
 
-  {% if proposte_da_approvare %}
-  <div class="alert alert-warning border-warning py-3 mb-3 shadow-sm" role="alert" style="border-radius:10px;font-size:.88rem">
-    <div class="d-flex flex-wrap align-items-start gap-2">
-      <i class="bi bi-check2-square fs-4 text-warning flex-shrink-0 mt-1"></i>
-      <div class="flex-grow-1">
-        <strong>Hai {{ proposte_da_approvare }} proposta/e di assunzione da approvare</strong> (firma candidato ricevuta).
-        Apri l’elenco filtrato e completa l’approvazione per emettere il contratto.
-        <div class="mt-2 d-flex flex-wrap gap-2">
-          <a class="btn btn-sm btn-dark" href="{% url 'consulente_candidati' %}?stato=firmata_candidato">Vai alle anagrafiche — da approvare</a>
-        </div>
-      </div>
-    </div>
-  </div>
-  {% else %}
+  {% if not proposte_da_approvare %}
   <div class="alert alert-light border py-2 px-3 mb-3" role="status" style="border-radius:10px;font-size:.84rem;border-color:var(--cd-border)!important;color:#3d4d5c">
     <strong><i class="bi bi-person-check me-1"></i>Proposte di assunzione.</strong>
     Le proposte con firma candidato da approvare sono nella card «Proposte / Da approvare» qui sotto o in
