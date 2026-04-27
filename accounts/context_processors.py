@@ -42,10 +42,9 @@ def consulente_recesso_prova_nav(request):
     from rapporto_di_lavoro.models import PropostaAssunzione
 
     n_recesso = (
-        ComunicazioneRecessoProva.objects.filter(
-            azienda_id=azienda.pk,
-            stato='in_verifica_consulente',
-        ).count()
+        ComunicazioneRecessoProva.per_azienda(azienda)
+        .filter(stato='in_verifica_consulente')
+        .count()
     )
     firmati = PropostaAssunzione.stati_equivalenti('firmata_candidato')
     n_proposte = PropostaAssunzione.objects.filter(

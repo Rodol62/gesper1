@@ -89,6 +89,13 @@
       </div>
     </div>
   </div>
+  {% else %}
+  <div class="alert alert-info border py-2 px-3 mb-3" role="status" style="border-radius:10px;font-size:.86rem;border-color:#b6d4fe!important;background:#e7f1ff;color:#084298">
+    <strong><i class="bi bi-envelope-paper me-1"></i>Recesso in periodo di prova.</strong>
+    Quando l’amministrazione invia una lettera alla tua verifica, comparirà qui sotto e nel
+    <a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo" class="fw-semibold">centro rapporti</a>.
+    Controlla anche il <span class="fw-semibold">badge</span> accanto a «Dashboard» nel menu in alto.
+  </div>
   {% endif %}
 
   {% if proposte_da_approvare %}
@@ -103,6 +110,12 @@
         </div>
       </div>
     </div>
+  </div>
+  {% else %}
+  <div class="alert alert-light border py-2 px-3 mb-3" role="status" style="border-radius:10px;font-size:.84rem;border-color:var(--cd-border)!important;color:#3d4d5c">
+    <strong><i class="bi bi-person-check me-1"></i>Proposte di assunzione.</strong>
+    Le proposte con firma candidato da approvare sono nella card «Proposte / Da approvare» qui sotto o in
+    <a href="{% url 'consulente_candidati' %}?stato=firmata_candidato">Anagrafiche (filtro firmata)</a>; con il badge su «Anagrafiche» nel menu se ce n’è almeno una.
   </div>
   {% endif %}
 

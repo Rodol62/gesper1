@@ -191,10 +191,8 @@ def consulente_dashboard(request):
     ).count()
 
     recesso_qs = (
-        ComunicazioneRecessoProva.objects.filter(
-            azienda=azienda,
-            stato='in_verifica_consulente',
-        )
+        ComunicazioneRecessoProva.per_azienda(azienda)
+        .filter(stato='in_verifica_consulente')
         .select_related('dipendente', 'rapporto')
         .order_by('-data_modifica')
     )

@@ -337,5 +337,17 @@ class ComunicazioneRecessoProva(models.Model):
         verbose_name_plural = 'Comunicazioni recesso periodo prova'
         ordering = ['-data_creazione']
 
+    @classmethod
+    def per_azienda(cls, azienda):
+        """
+        Comunicazioni riconducibili all'azienda: FK `azienda` oppure dipendente della stessa azienda.
+        (Allinea consulente/dashboard al caso in cui la FK sul record non coincida col dipendente.)
+        """
+        if azienda is None:
+            return cls.objects.none()
+        return cls.objects.filter(
+            Q(azienda_id=azienda.pk) | Q(dipendente__azienda_id=azienda.pk),
+        )
+
     def __str__(self):
         return f"Recesso prova {self.rapporto.numero_contratto} - {self.dipendente.cognome}"

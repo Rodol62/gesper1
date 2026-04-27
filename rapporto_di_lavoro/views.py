@@ -322,26 +322,39 @@ def centro_rapporti_lavoro(request):
 		azienda_operativa = getattr(u, 'azienda', None)
 
 	# Le comunicazioni "in verifica consulente" devono restare in cima: altrimenti
-	# le prime 50 per sola data_modifica possono escludere la posta in carico al consulente.
-	base_qs = (
-		ComunicazioneRecessoProva.objects.select_related('dipendente', 'rapporto', 'azienda')
-		.annotate(
-			_ord_recesso_centro=Case(
-				When(stato='in_verifica_consulente', then=Value(0)),
-				default=Value(1),
-				output_field=IntegerField(),
-			)
-		)
-		.order_by('_ord_recesso_centro', '-data_modifica')
-	)
+	# le prime N per sola data_modifica possono escludere la posta in carico al consulente.
 	centro_recesso_limit = 100
 	if azienda_operativa:
-		recesso_prova_recenti = base_qs.filter(azienda=azienda_operativa)[:centro_recesso_limit]
-		recesso_prova_in_verifica_centro_count = ComunicazioneRecessoProva.objects.filter(
-			azienda=azienda_operativa,
-			stato='in_verifica_consulente',
-		).count()
+		base_qs = (
+			ComunicazioneRecessoProva.per_azienda(azienda_operativa)
+			.select_related('dipendente', 'rapporto', 'azienda')
+			.annotate(
+				_ord_recesso_centro=Case(
+					When(stato='in_verifica_consulente', then=Value(0)),
+					default=Value(1),
+					output_field=IntegerField(),
+				)
+			)
+			.order_by('_ord_recesso_centro', '-data_modifica')
+		)
+		recesso_prova_recenti = base_qs[:centro_recesso_limit]
+		recesso_prova_in_verifica_centro_count = (
+			ComunicazioneRecessoProva.per_azienda(azienda_operativa)
+			.filter(stato='in_verifica_consulente')
+			.count()
+		)
 	elif u.is_superuser:
+		base_qs = (
+			ComunicazioneRecessoProva.objects.select_related('dipendente', 'rapporto', 'azienda')
+			.annotate(
+				_ord_recesso_centro=Case(
+					When(stato='in_verifica_consulente', then=Value(0)),
+					default=Value(1),
+					output_field=IntegerField(),
+				)
+			)
+			.order_by('_ord_recesso_centro', '-data_modifica')
+		)
 		recesso_prova_recenti = base_qs[:centro_recesso_limit]
 		recesso_prova_in_verifica_centro_count = ComunicazioneRecessoProva.objects.filter(
 			stato='in_verifica_consulente',
