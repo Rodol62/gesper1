@@ -81,6 +81,8 @@
       <th class="text-nowrap">Mat.</th>
       <th>Nominativo</th>
       <th>C.F.</th>
+      <th class="text-nowrap">Nascita</th>
+      <th>Residenza</th>
       <th class="text-nowrap">Data Assunzione</th>
       <th class="text-nowrap">Data Cessazione</th>
       <th>Stato</th>
@@ -96,6 +98,24 @@
       <td class="text-nowrap"><small class="font-monospace fw-semibold text-primary">{{ dip.matricola|default:'—' }}</small></td>
       <td class="fw-semibold">{{ dip.cognome }} {{ dip.nome }}</td>
       <td><small class="font-monospace">{{ dip.codice_fiscale|default:'—' }}</small></td>
+      <td class="text-nowrap">
+        {% if dip.data_nascita %}
+          <small>{{ dip.data_nascita|date:"d/m/Y" }}{% if dip.luogo_nascita %} · {{ dip.luogo_nascita }}{% endif %}</small>
+        {% else %}
+          <span class="text-muted small">—</span>
+        {% endif %}
+      </td>
+      <td>
+        <small>
+          {% if dip.citta or dip.provincia %}
+            {{ dip.citta|default:'—' }}{% if dip.provincia %} ({{ dip.provincia }}){% endif %}
+          {% elif dip.indirizzo %}
+            {{ dip.indirizzo|truncatechars:24 }}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </small>
+      </td>
       <td class="text-nowrap">
         {% if dip.data_assunzione %}
           <span class="text-success small"><i class="bi bi-calendar-check me-1"></i>{{ dip.data_assunzione|date:"d/m/Y" }}</span>

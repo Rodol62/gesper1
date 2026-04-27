@@ -35,6 +35,9 @@
     <strong>D.Lgs. 101/2018</strong> esclusivamente per finalità di selezione del personale.
     Potrai revocare il consenso in qualsiasi momento scrivendo a <em>privacy@gesper.it</em>.
   </div>
+  <div class="alert alert-secondary py-2 small mb-3" style="font-size:.74rem">
+    <strong>Fonte territori:</strong> ISTAT ufficiale (Italia + stati esteri).
+  </div>
 
   {# ── Stato completezza profilo ── #}
   {% if completezza and profilo and profilo.profilo_completato %}
@@ -116,6 +119,11 @@
         <div class="row g-2">
           <div class="col-md-4">
             <label class="form-label form-label-sm">{{ form.codice_fiscale.label }}</label>
+            <div class="form-text text-muted small mb-1" style="font-size:.7rem;line-height:1.35">
+              <i class="bi bi-info-circle"></i>
+              Con un CF valido a <strong>16 caratteri</strong>, uscendo dal campo si propongono data di nascita,
+              sesso e luogo di nascita (controllo formale MEF). Controlla sempre i dati prima di salvare.
+            </div>
             {{ form.codice_fiscale }}
             {% if form.codice_fiscale.errors %}<div class="text-danger small">{{ form.codice_fiscale.errors.0 }}</div>{% endif %}
           </div>
@@ -124,16 +132,29 @@
             {{ form.data_nascita }}
           </div>
           <div class="col-md-4">
-            <label class="form-label form-label-sm">{{ form.luogo_nascita.label }}</label>
-            {{ form.luogo_nascita }}
+            <label class="form-label form-label-sm">{{ form.nazionalita.label }}</label>
+            {{ form.nazionalita }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">{{ form.regione_nascita.label }}</label>
+            {{ form.regione_nascita }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">{{ form.provincia_nascita.label }}</label>
+            {{ form.provincia_nascita }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">{{ form.comune_nascita.label }}</label>
+            {{ form.comune_nascita }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">{{ form.comune_nascita_estero.label }}</label>
+            {{ form.comune_nascita_estero }}
+            {{ form.luogo_nascita.as_hidden }}
           </div>
           <div class="col-md-3">
             <label class="form-label form-label-sm">{{ form.sesso.label }}</label>
             {{ form.sesso }}
-          </div>
-          <div class="col-md-3">
-            <label class="form-label form-label-sm">{{ form.nazionalita.label }}</label>
-            {{ form.nazionalita }}
           </div>
           <div class="col-md-6">
             <label class="form-label form-label-sm">{{ form.telefono.label }}</label>
@@ -150,27 +171,31 @@
       </div>
       <div class="card-body py-3">
         <div class="row g-2">
-          <div class="col-md-6">
-            <label class="form-label form-label-sm">{{ form.indirizzo.label }}</label>
-            {{ form.indirizzo }}
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">{{ form.regione_residenza.label }}</label>
+            {{ form.regione_residenza }}
+            <div class="form-text" style="font-size:.65rem">Usata per calcolare l'addizionale IRPEF regionale</div>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">{{ form.provincia.label }}</label>
+            {{ form.provincia }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">{{ form.citta.label }}</label>
+            {{ form.citta }}
           </div>
           <div class="col-md-2">
             <label class="form-label form-label-sm">{{ form.cap.label }}</label>
             {{ form.cap }}
             {% if form.cap.errors %}<div class="text-danger small">{{ form.cap.errors.0 }}</div>{% endif %}
           </div>
-          <div class="col-md-3">
-            <label class="form-label form-label-sm">{{ form.citta.label }}</label>
-            {{ form.citta }}
+          <div class="col-md-12">
+            <label class="form-label form-label-sm">{{ form.indirizzo.label }}</label>
+            {{ form.indirizzo }}
           </div>
-          <div class="col-md-1">
-            <label class="form-label form-label-sm">{{ form.provincia.label }}</label>
-            {{ form.provincia }}
-          </div>
-          <div class="col-md-3">
-            <label class="form-label form-label-sm">{{ form.regione_residenza.label }}</label>
-            {{ form.regione_residenza }}
-            <div class="form-text" style="font-size:.65rem">Usata per calcolare l'addizionale IRPEF regionale</div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">{{ form.citta_residenza_estero.label }}</label>
+            {{ form.citta_residenza_estero }}
           </div>
         </div>
       </div>
@@ -517,5 +542,158 @@ function aggiornaCampiRichiestaProfilo() {
 }
 
 aggiornaCampiRichiestaProfilo();
+
+(function () {
+  function fillSelect(sel, items, valueKey, labelFn, placeholder) {
+    if (!sel) return;
+    var old = sel.value || '';
+    sel.innerHTML = '';
+    var opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = placeholder || '— Seleziona —';
+    sel.appendChild(opt0);
+    (items || []).forEach(function (it) {
+      var o = document.createElement('option');
+      o.value = it[valueKey] || '';
+      o.textContent = labelFn ? labelFn(it) : (it[valueKey] || '');
+      sel.appendChild(o);
+    });
+    if (old) sel.value = old;
+  }
+  async function getJson(url) {
+    var r = await fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+    if (!r.ok) return {items: []};
+    return await r.json();
+  }
+  function bindGeo(regId, provId, comId, capId) {
+    var reg = document.getElementById(regId);
+    var prov = document.getElementById(provId);
+    var com = document.getElementById(comId);
+    var cap = capId ? document.getElementById(capId) : null;
+    if (!reg || !prov || !com) return;
+    reg.addEventListener('change', async function () {
+      fillSelect(com, [], 'nome', function (x) { return x.nome; }, '— Seleziona provincia —');
+      if (reg.value === 'ESTERO') {
+        fillSelect(prov, [], 'sigla', function (x) { return x.nome; }, '— Non prevista per estero —');
+        fillSelect(com, [], 'nome', function (x) { return x.nome; }, '— Inserisci citta estera —');
+        return;
+      }
+      if (!reg.value) {
+        fillSelect(prov, [], 'sigla', function (x) { return x.nome; }, '— Seleziona regione —');
+        return;
+      }
+      var data = await getJson("{% url 'api_province_italia' %}?regione=" + encodeURIComponent(reg.value));
+      fillSelect(prov, data.items, 'sigla', function (x) { return x.nome + (x.sigla ? " (" + x.sigla + ")" : ""); }, '— Seleziona —');
+    });
+    prov.addEventListener('change', async function () {
+      if (!reg.value || !prov.value) {
+        fillSelect(com, [], 'nome', function (x) { return x.nome; }, '— Seleziona provincia —');
+        return;
+      }
+      var data = await getJson("{% url 'api_comuni_italia' %}?regione=" + encodeURIComponent(reg.value) + "&provincia=" + encodeURIComponent(prov.value));
+      fillSelect(com, data.items, 'nome', function (x) {
+        var n = x.nome || '';
+        var cc = x.codice_catastale || '';
+        return cc ? (n + ' (' + cc + ')') : n;
+      }, '— Seleziona —');
+      com._capMap = {};
+      (data.items || []).forEach(function (it) { com._capMap[it.nome] = it.cap || ''; });
+    });
+    com.addEventListener('change', function () {
+      if (cap && !cap.value && com._capMap && com.value) cap.value = com._capMap[com.value] || '';
+    });
+  }
+  function toggleEstero(regId, inputId, selectIds) {
+    var reg = document.getElementById(regId);
+    var txt = document.getElementById(inputId);
+    if (!reg || !txt) return;
+    function run() {
+      var estero = reg.value === 'ESTERO';
+      var wrap = txt.closest('.col-md-4, .col-md-3, .col-md-6, .mb-3');
+      if (wrap) wrap.style.display = estero ? '' : 'none';
+      txt.disabled = !estero;
+      (selectIds || []).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.disabled = estero;
+      });
+    }
+    reg.addEventListener('change', run);
+    run();
+  }
+  function setCfStatus(kind, text) {
+    var cfEl = document.getElementById('id_codice_fiscale');
+    if (!cfEl) return;
+    var box = document.getElementById('cf-feedback');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'cf-feedback';
+      box.className = 'small mt-1';
+      cfEl.insertAdjacentElement('afterend', box);
+    }
+    box.textContent = text || '';
+    box.style.display = text ? '' : 'none';
+    box.className = 'small mt-1 ' + (kind === 'ok' ? 'text-success' : (kind === 'warn' ? 'text-warning' : 'text-danger'));
+  }
+  async function prefillaAnagraficaDaCodiceFiscale() {
+    var cfEl = document.getElementById('id_codice_fiscale');
+    if (!cfEl) return;
+    var cf = (cfEl.value || '').trim().toUpperCase();
+    if (cf.length !== 16) {
+      setCfStatus('', '');
+      return;
+    }
+    var r = await fetch(
+      "{% url 'api_decodifica_cf' %}?cf=" + encodeURIComponent(cf),
+      {headers: {'X-Requested-With': 'XMLHttpRequest'}, credentials: 'same-origin'}
+    );
+    var data = await r.json();
+    if (!data.ok) {
+      setCfStatus('warn', data.error || 'Codice fiscale non decodificabile automaticamente.');
+      return;
+    }
+    var dn = document.getElementById('id_data_nascita');
+    if (dn && !dn.value && data.data_nascita) dn.value = data.data_nascita;
+    var se = document.getElementById('id_sesso');
+    if (se && !se.value && data.sesso) se.value = data.sesso;
+    var reg = document.getElementById('id_regione_nascita');
+    var prov = document.getElementById('id_provincia_nascita');
+    var com = document.getElementById('id_comune_nascita');
+    var ln = document.querySelector('input[name="luogo_nascita"]');
+    if (data.nascita && data.nascita.italia && reg && prov && com) {
+      reg.value = data.nascita.regione || '';
+      var pdata = await getJson("{% url 'api_province_italia' %}?regione=" + encodeURIComponent(reg.value));
+      fillSelect(prov, pdata.items, 'sigla', function (x) { return x.nome + (x.sigla ? " (" + x.sigla + ")" : ""); }, '— Seleziona —');
+      if (data.nascita.provincia) prov.value = data.nascita.provincia;
+      var cdata = await getJson(
+        "{% url 'api_comuni_italia' %}?regione=" + encodeURIComponent(reg.value) +
+        "&provincia=" + encodeURIComponent(prov.value)
+      );
+      fillSelect(com, cdata.items, 'nome', function (x) {
+        var n = x.nome || '';
+        var cc = x.codice_catastale || '';
+        return cc ? (n + ' (' + cc + ')') : n;
+      }, '— Seleziona —');
+      if (data.nascita.comune) com.value = data.nascita.comune;
+      if (ln && data.nascita.comune) ln.value = data.nascita.comune;
+      var naz = document.getElementById('id_nazionalita');
+      if (naz && !naz.value && data.nazionalita_suggerita) naz.value = data.nazionalita_suggerita;
+    } else if (data.nascita && !data.nascita.italia && reg) {
+      reg.value = 'ESTERO';
+      reg.dispatchEvent(new Event('change', {bubbles: true}));
+      var ce = document.getElementById('id_comune_nascita_estero');
+      if (ce && data.nascita.stato_estero) ce.value = data.nascita.stato_estero;
+      var naz2 = document.getElementById('id_nazionalita');
+      if (naz2 && !naz2.value && data.nazionalita_suggerita) naz2.value = data.nazionalita_suggerita;
+    }
+    setCfStatus('ok', 'Dati anagrafici precompilati dal codice fiscale.');
+  }
+  var cfInput = document.getElementById('id_codice_fiscale');
+  if (cfInput) cfInput.addEventListener('blur', function () { prefillaAnagraficaDaCodiceFiscale().catch(function () { setCfStatus('warn', 'Errore durante la decodifica del codice fiscale.'); }); });
+  bindGeo('id_regione_nascita', 'id_provincia_nascita', 'id_comune_nascita', null);
+  bindGeo('id_regione_residenza', 'id_provincia', 'id_citta', 'id_cap');
+  toggleEstero('id_regione_nascita', 'id_comune_nascita_estero', ['id_provincia_nascita', 'id_comune_nascita']);
+  toggleEstero('id_regione_residenza', 'id_citta_residenza_estero', ['id_provincia', 'id_citta']);
+})();
 </script>
 {% endblock %}

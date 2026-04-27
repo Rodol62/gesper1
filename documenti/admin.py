@@ -96,8 +96,19 @@ class CedolinoMotoreV4Admin(admin.ModelAdmin):
         "verifica_n_diff",
         "verifica_n_checks_formula_ko",
         "verifica_n_checks_formula_ko_bloccanti",
+        "confronto_motore_paga_canonico",
     )
-    inlines = [VoceCedolinoMotoreV4Inline, ValidazioneCedolinoMotoreV4Inline]
+
+    @admin.display(
+        description=(
+            "Riconciliazione motore paga canonico (calcola_busta_paga_mese vs voci cedolino, "
+            "tramite MappaturaVoceMotore)"
+        )
+    )
+    def confronto_motore_paga_canonico(self, obj: CedolinoMotoreV4):
+        from documenti.cedolino_conciliazione_motore_paga import confronto_cedolino_motore_paga_html
+
+        return confronto_cedolino_motore_paga_html(obj)
 
     def has_module_permission(self, request):
         return request.user.is_staff

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Dal Mac: rsync del progetto Django → /var/www/gesper sulla VPS, poi pip/migrate/collectstatic/restart gesper.
+# Per check + test + questo script in un colpo solo: ./deploy/deploy-gesper1-completo.sh
 # Non usa --delete (evita di cancellare file presenti solo sul server). Esclude venv, git, DB locale, media, .env.
 #
 #   GESPER_DEPLOY_HOST=root@gesper1.plazapretoria.it ./deploy/remote-rsync-django-gesper1.sh

@@ -67,6 +67,17 @@
             {% endif %}
             <tr><td style="color:#666">Ruolo</td>
                 <td>{{ dipendente.ruolo }}</td></tr>
+            {% if dipendente.sesso %}
+            <tr><td style="color:#666">Sesso</td>
+                <td>{{ dipendente.get_sesso_display }}</td></tr>
+            {% endif %}
+            {% if dipendente.data_nascita or dipendente.luogo_nascita %}
+            <tr><td style="color:#666">Nato/a</td>
+                <td>
+                  {% if dipendente.data_nascita %}{{ dipendente.data_nascita|date:"d/m/Y" }}{% endif %}
+                  {% if dipendente.luogo_nascita %}{% if dipendente.data_nascita %} · {% endif %}{{ dipendente.luogo_nascita }}{% endif %}
+                </td></tr>
+            {% endif %}
             {% if dipendente.livello %}
             <tr><td style="color:#666">Livello</td>
                 <td>{{ dipendente.livello }}</td></tr>
@@ -74,6 +85,18 @@
             {% if dipendente.mansione %}
             <tr><td style="color:#666">Mansione</td>
                 <td>{{ dipendente.get_mansione_display }}</td></tr>
+            {% endif %}
+            {% if dipendente.indirizzo or dipendente.cap or dipendente.citta or dipendente.provincia %}
+            <tr><td style="color:#666">Residenza</td>
+                <td>
+                  {{ dipendente.indirizzo|default:'—' }}
+                  {% if dipendente.cap or dipendente.citta or dipendente.provincia %}
+                    ·
+                    {{ dipendente.cap|default:'' }}
+                    {{ dipendente.citta|default:'' }}
+                    {% if dipendente.provincia %} ({{ dipendente.provincia }}){% endif %}
+                  {% endif %}
+                </td></tr>
             {% endif %}
             <tr><td style="color:#666">Azienda</td>
                 <td>{{ dipendente.azienda.nome }}</td></tr>

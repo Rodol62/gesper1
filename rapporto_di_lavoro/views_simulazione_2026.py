@@ -6,6 +6,7 @@ import logging
 import json
 from decimal import Decimal
 from datetime import date
+from django.conf import settings
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render, redirect
 from django.contrib import messages
@@ -32,6 +33,7 @@ from .utils_calcoli import (
 )
 from .services_simulazione import invoca_calcola_busta_paga_mese
 from .utils_calendario import get_giorni_lavorativi_mese as _get_gg_lav_mese
+from .risoluzione_contratto_motore import calcola_scatto_totale_maturato as _calcola_scatto_totale
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +59,16 @@ except Exception as _costo_lavoro_exc:
 
 
 def _is_admin_only(user):
-    return user.is_authenticated and (user.is_superuser or user.has_ruolo('admin'))
+    """True se admin o superuser. Protegge da errori DB durante ``.exists()`` sui ruoli (evita 500 sul decorator)."""
+    if not user.is_authenticated:
+        return False
+    if getattr(user, 'is_superuser', False):
+        return True
+    try:
+        return user.has_ruolo('admin')
+    except Exception:
+        logger.exception('_is_admin_only: errore verifica ruolo (DB o sessione utente)')
+        return False
 
 
 def _get_sim_params(request):
@@ -80,12 +91,30 @@ def _get_sim_params(request):
         return request.GET
     qs = request.session.get('sim2026_querystring', '')
     if qs:
-        return QueryDict(qs)
+        try:
+            if not isinstance(qs, str):
+                qs = str(qs)
+            return QueryDict(qs)
+        except Exception:
+            logger.exception('sim2026: session sim2026_querystring non leggibile (QueryDict)')
+            try:
+                del request.session['sim2026_querystring']
+            except Exception:
+                pass
+            return request.GET
     return request.GET
 
 
 def _get_azienda_operativa_per_utente(user, session):
-    if user.is_superuser or user.has_ruolo('admin'):
+    """Azienda da sessione (admin) o da profilo utente; ``has_ruolo`` in try per evitare 500 su DB."""
+    is_admin_like = bool(getattr(user, 'is_superuser', False))
+    if not is_admin_like:
+        try:
+            is_admin_like = user.has_ruolo('admin')
+        except Exception:
+            logger.exception('_get_azienda_operativa_per_utente: errore verifica ruolo admin')
+            is_admin_like = False
+    if is_admin_like:
         azienda_id = session.get('azienda_operativa_id')
         if azienda_id:
             return Azienda.objects.filter(id=azienda_id).first()
@@ -691,6 +720,54 @@ def _calcola_costo_azienda_ruolo_costo_lavoro(
         return None
 
 
+def _parse_quantita_ruolo_sim(raw) -> int:
+    """Quantità testate scenario: intero ≥ 0; stringa vuota o non numerica → 0 (evita 500 su GET/POST)."""
+    if raw is None:
+        return 0
+    if isinstance(raw, bool):
+        return int(raw)
+    if isinstance(raw, int):
+        return max(0, raw)
+    try:
+        from decimal import Decimal as _Dec
+
+        if isinstance(raw, _Dec):
+            return max(0, int(raw))
+    except Exception:
+        pass
+    s = str(raw).strip()
+    if not s:
+        return 0
+    try:
+        return max(0, int(s))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _safe_int_nonnegative(raw, default=0) -> int:
+    """Intero ≥ 0 per anni anzianità / campi simili; valori non numerici → default."""
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return default if not raw else 1
+    if isinstance(raw, int):
+        return max(0, raw)
+    try:
+        from decimal import Decimal as _Dec
+
+        if isinstance(raw, _Dec):
+            return max(0, int(raw))
+    except Exception:
+        pass
+    s = str(raw).strip()
+    if not s:
+        return default
+    try:
+        return max(0, int(s))
+    except (TypeError, ValueError):
+        return default
+
+
 def _build_ruoli_config(request):
     """Estrae configurazione ruoli da POST, GET o session."""
     params = _get_sim_params(request)
@@ -699,7 +776,7 @@ def _build_ruoli_config(request):
         if key.startswith('ruolo_'):
             ruolo_id = key.split('_')[1]
             nome = params.get(f'nome_{ruolo_id}', '')
-            quantita = int(params.get(f'qta_{ruolo_id}', 0))
+            quantita = _parse_quantita_ruolo_sim(params.get(f'qta_{ruolo_id}', ''))
             livello = (params.get(f'livello_{ruolo_id}', '') or '').strip()
             tipo_contratto_id = params.get(f'tipo_{ruolo_id}', '')
             data_inizio_str = params.get(f'data_inizio_{ruolo_id}', '2026-01-01')
@@ -871,10 +948,11 @@ def _normalizza_ruolo_per_motore(ruolo):
                 return fallback
         return fallback
 
+    _qty = max(1, _parse_quantita_ruolo_sim(ruolo.get('quantita')))
     base = {
         'id': ruolo.get('id'),
         'nome': (ruolo.get('nome') or '').strip(),
-        'quantita': int(ruolo.get('quantita') or 1),
+        'quantita': _qty,
         'livello': (ruolo.get('livello') or '').strip(),
         'tipo_contratto_id': str(ruolo.get('tipo_contratto_id') or ''),
         'data_inizio': _to_date(ruolo.get('data_inizio'), date(2026, 1, 1)),
@@ -883,7 +961,7 @@ def _normalizza_ruolo_per_motore(ruolo):
         'eta': ruolo.get('eta'),
         'percettore_naspi': ruolo.get('percettore_naspi'),
         'tipo_incentivo': (ruolo.get('tipo_incentivo') or None),
-        'anni_anzianita': int(ruolo.get('anni_anzianita') or 0),
+        'anni_anzianita': _safe_int_nonnegative(ruolo.get('anni_anzianita'), 0),
         'superminimo': _dec(ruolo.get('superminimo')),
         'indennita_turno': _dec(ruolo.get('indennita_turno')),
         'indennita_extra': _dec(ruolo.get('indennita_extra')),
@@ -930,7 +1008,12 @@ def _calcola_giorni_attivi_nel_mese(anno, mese_num, data_inizio, data_fine):
     primo_giorno_mese = date(anno, mese_num, 1)
     giorni_nel_mese = monthrange(anno, mese_num)[1]
     ultimo_giorno_mese = date(anno, mese_num, giorni_nel_mese)
-    
+
+    if data_inizio is None:
+        data_inizio = primo_giorno_mese
+    if data_fine is None:
+        data_fine = ultimo_giorno_mese
+
     # Calcola intersezione
     inizio_effettivo = max(primo_giorno_mese, data_inizio)
     fine_effettiva = min(ultimo_giorno_mese, data_fine)
@@ -957,6 +1040,10 @@ def _conta_mesi_ccnl(data_inizio, data_fine, ref_start, ref_end):
         - 14ª: ref = 01/07/(anno-1) – 30/06/anno  (CCNL FIPE)
     """
     from calendar import monthrange as _mr
+    if data_inizio is None:
+        data_inizio = ref_start
+    if data_fine is None:
+        data_fine = ref_end
     eff_start = max(data_inizio, ref_start)
     eff_end   = min(data_fine,   ref_end)
     if eff_start > eff_end:
@@ -998,27 +1085,6 @@ def _giorni_convenzionali_su_base_26(giorni_attivi_calendario, giorni_nel_mese):
     if giorni_conv > 26:
         return 26
     return giorni_conv
-
-
-def _livello_to_scatto_key(livello: str) -> str:
-    """Restituisce la chiave per ParametroScattiAnnuali.livello.
-    I valori nel DB ('1', 'Qa', '6S', ...) sono identici a ParametroCCNLTurismo.livello."""
-    return livello
-
-
-def _calcola_scatto_totale(livello: str, anni_anzianita: int, scatti_db: dict) -> Decimal:
-    """
-    Importo mensile cumulato degli scatti maturati.
-    FIPE: scatto ogni 3 anni (soglie 3, 6, 9, 12, 15). Per ogni soglia ≤ anni_anzianita
-    si aggiunge l'importo dello scatto corrispondente.
-    """
-    key = _livello_to_scatto_key(livello)
-    soglie = scatti_db.get(key, [])
-    totale = Decimal('0')
-    for (soglia, importo) in soglie:
-        if anni_anzianita >= soglia:
-            totale += importo
-    return totale
 
 
 def _calcola_simulazione_2026(request):
@@ -1231,11 +1297,16 @@ def _calcola_simulazione_2026(request):
             rap_sim = None
             _dip_pk = ruolo.get('dipendente_id')
             if _dip_pk and azienda_operativa:
-                dip_o = Dipendente.objects.filter(pk=int(_dip_pk), azienda=azienda_operativa).first()
-                if dip_o:
-                    rap_sim = rapporto_sottoscritto_attivo_nel_mese(
-                        dipendente=dip_o, azienda=azienda_operativa, anno=anno, mese=mese_num
-                    )
+                try:
+                    _dip_pk_int = int(_dip_pk)
+                except (TypeError, ValueError):
+                    _dip_pk_int = None
+                if _dip_pk_int:
+                    dip_o = Dipendente.objects.filter(pk=_dip_pk_int, azienda=azienda_operativa).first()
+                    if dip_o:
+                        rap_sim = rapporto_sottoscritto_attivo_nel_mese(
+                            dipendente=dip_o, azienda=azienda_operativa, anno=anno, mese=mese_num
+                        )
 
             livello_da_ruolo = (ruolo.get('livello') or '').strip() or _risolvi_livello_da_mansione(
                 ruolo.get('nome'), rule_engine
@@ -1243,8 +1314,17 @@ def _calcola_simulazione_2026(request):
             _lc_contr = (rap_sim.livello_ccnl or '').strip() if rap_sim else ''
             livello_effettivo = _lc_contr or livello_da_ruolo
 
-            data_inizio_motore = rap_sim.data_inizio_rapporto if rap_sim else ruolo['data_inizio']
-            data_fine_motore = rap_sim.data_fine_rapporto if rap_sim else ruolo['data_fine']
+            # Contratto sottoscritto: data_fine_rapporto può essere NULL (indeterminato) → non passare None a max/min sulle date.
+            if rap_sim:
+                data_inizio_motore = rap_sim.data_inizio_rapporto or ruolo.get('data_inizio') or date(anno, 1, 1)
+                data_fine_motore = (
+                    rap_sim.data_fine_rapporto
+                    or ruolo.get('data_fine')
+                    or date(anno, 12, 31)
+                )
+            else:
+                data_inizio_motore = ruolo.get('data_inizio') or date(anno, 1, 1)
+                data_fine_motore = ruolo.get('data_fine') or date(anno, 12, 31)
 
             parametro_ccnl_res, _fonte_pc_sim = risolvi_parametro_ccnl_per_mese(
                 rapporto=rap_sim,
@@ -1945,6 +2025,9 @@ def _salva_ruoli_nel_db(azienda, user, ruoli_config):
             str(m): {k: float(v) for k, v in mese_data.items()}
             for m, mese_data in cal_raw.items()
         }
+        _q_save = _parse_quantita_ruolo_sim(r.get('quantita'))
+        if _q_save < 1:
+            _q_save = 1
         create_kwargs = dict(
             azienda=azienda,
             ordinamento=idx,
@@ -1952,7 +2035,7 @@ def _salva_ruoli_nel_db(azienda, user, ruoli_config):
             stato_soggetto=(r.get('stato_soggetto') or ''),
             mansione_label=(r.get('mansione_label') or ''),
             nome=r.get('nome') or '',
-            quantita=int(r.get('quantita') or 1),
+            quantita=_q_save,
             livello=str(r.get('livello') or ''),
             tipo_contratto_id=str(r.get('tipo_contratto_id') or ''),
             tipo_rapporto=r.get('tipo_rapporto') or 'indeterminato',
@@ -1963,7 +2046,7 @@ def _salva_ruoli_nel_db(azienda, user, ruoli_config):
             categoria=r.get('categoria') or None,
             percettore_naspi=r.get('percettore_naspi'),
             tipo_incentivo=r.get('tipo_incentivo') or None,
-            anni_anzianita=int(r.get('anni_anzianita') or 0),
+            anni_anzianita=_safe_int_nonnegative(r.get('anni_anzianita'), 0),
             superminimo=r.get('superminimo') or Decimal('0'),
             indennita_turno=r.get('indennita_turno') or Decimal('0'),
             premio_risultato_annuo=r.get('premio_risultato_annuo') or Decimal('0'),
@@ -2061,15 +2144,8 @@ def simulazione_2026_config(request):
     )
 
 
-@login_required
-@user_passes_test(_is_admin_only)
-def simulazione_2026_risultato(request):
-    """Pagina risultato simulazione annua (12 tabelle mensili)."""
-    _sim_params = _get_sim_params(request)
-    if not _sim_params:
-        messages.warning(request, 'Configura prima ruoli e quantità nello scenario organico.')
-        return redirect('simulazione_2026_config')
-
+def _simulazione_2026_risultato_response(request, _sim_params):
+    """Corpo vista risultato (calcolo + render). Usata da ``simulazione_2026_risultato`` con try/except."""
     # Azienda con fallback robusto — non blocca il salvataggio se la sessione è invalida
     azienda = _get_azienda_con_fallback(request.user, request.session)
 
@@ -2119,9 +2195,12 @@ def simulazione_2026_risultato(request):
                     return obj.isoformat()
                 if isinstance(obj, dict):
                     return {k: _decimal_to_float(v) for k, v in obj.items()}
-                if isinstance(obj, list):
+                if isinstance(obj, (list, tuple)):
                     return [_decimal_to_float(i) for i in obj]
-                return obj
+                if obj is None or isinstance(obj, (str, int, float, bool)):
+                    return obj
+                # UUID, set, oggetti ORM residui in JSON da sessione/ruoli → stringa (evita TypeError su JSONField)
+                return str(obj)
 
             risultato_serializzabile = _decimal_to_float({
                 'totali_annui': context.get('totali_annui', {}),
@@ -2141,12 +2220,64 @@ def simulazione_2026_risultato(request):
                 querystring=context['querystring'],
             )
             context['simulazione_salvata_id'] = simulazione.pk
-            messages.success(request, f'Ruoli salvati — simulazione archiviata (ID: {simulazione.pk})')
+            _safe_message(
+                request,
+                'success',
+                f'Ruoli salvati — simulazione archiviata (ID: {simulazione.pk})',
+            )
         except Exception as e:
             logger.exception('Errore archiviazione SimulazioneOrganico')
-            messages.warning(request, f'Ruoli salvati, errore archivio: {e}')
+            _safe_message(
+                request,
+                'warning',
+                f'Ruoli salvati, errore archivio: {e}',
+            )
 
     return render(request, 'rapporto_di_lavoro/simulazione_2026_risultato.html', context)
+
+
+def _safe_message(request, level, text):
+    """Evita 500 se la sessione / framework messaggi non accetta il messaggio (es. sessione corrotta)."""
+    try:
+        if level == 'warning':
+            messages.warning(request, text)
+        elif level == 'error':
+            messages.error(request, text)
+        elif level == 'success':
+            messages.success(request, text)
+        else:
+            messages.info(request, text)
+    except Exception:
+        logger.warning('simulazione_2026: impossibile registrare messaggio utente', exc_info=True)
+
+
+@login_required
+@user_passes_test(_is_admin_only)
+def simulazione_2026_risultato(request):
+    """Pagina risultato simulazione annua (12 tabelle mensili)."""
+    try:
+        _sim_params = _get_sim_params(request)
+        if not _sim_params:
+            _safe_message(
+                request,
+                'warning',
+                'Configura prima ruoli e quantità nello scenario organico.',
+            )
+            return redirect('simulazione_2026_config')
+        return _simulazione_2026_risultato_response(request, _sim_params)
+    except Exception as e:
+        logger.exception('simulazione_2026_risultato: errore non gestito')
+        msg = (
+            'Errore nel calcolo o nella visualizzazione della simulazione annua. '
+            'Torna allo scenario, verifica ruoli e quantità, poi invia di nuovo il modulo.'
+        )
+        if getattr(request.user, 'is_superuser', False) or settings.DEBUG:
+            det = f'{type(e).__name__}: {e}'
+            if len(det) > 420:
+                det = det[:417] + '...'
+            msg = f'{msg} ({det})'
+        _safe_message(request, 'error', msg)
+        return redirect('simulazione_2026_config')
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -30,6 +30,12 @@ Procedura operativa HR/Admin:
 
 - `rapporto_di_lavoro/MAPPATURE_MANSIONI_OPERATIVO.md`
 
+## Checklist ISTAT pre-deploy
+
+Prima di ogni rilascio con aggiornamenti territoriali (regioni/province/comuni/stati esteri):
+
+- `CHECKLIST_ISTAT_PREDEPLOY.md`
+
 ## Cache Busting JS Proposta
 
 Per forzare il refresh automatico del file JS della pagina proposta (`crea_proposta`), usa la variabile ambiente:

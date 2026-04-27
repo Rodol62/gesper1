@@ -93,7 +93,8 @@
   <div class="alert alert-light border py-2 small mb-3" role="status">
     <div class="mb-1"><strong>Libro Unico del Lavoro.</strong> Questa pagina mostra il registro storico (<code>LibroPagaStorico</code>) popolabile con «Ricarica da buste» o <code>popolalibropaga</code>. Se usi come riferimento principale i <strong>dati estratti dalle buste</strong> (lettura cedolino, motore v4, conciliazione), puoi <strong>svuotare</strong> questo libro per evitare duplicazioni o dati obsoleti.</div>
     <div class="mb-1 text-muted" style="font-size:.9em;">
-      Analisi da PDF: <a href="{% url 'buste_paga_conciliazione_cedolino' %}">Conciliazione buste</a>
+      Verifica buste: <a href="{% url 'verifica_buste_paga' %}">Hub strumenti</a>
+      · <a href="{% url 'buste_paga_conciliazione_cedolino' %}">Conciliazione buste</a>
       · <a href="{% url 'buste_paga_lettura_cedolino' %}">Dettaglio lettura cedolino</a>
       · <a href="{% url 'buste_paga_estrazione_motore_v4' %}">Memorizza estrazione v4</a>
     </div>

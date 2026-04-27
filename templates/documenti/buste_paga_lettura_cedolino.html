@@ -68,6 +68,7 @@
 <nav aria-label="Percorso" class="mb-2">
   <ol class="breadcrumb mb-0" style="font-size:.8rem">
     <li class="breadcrumb-item"><a href="{% url 'lista_documenti' %}">Documenti</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'verifica_buste_paga' %}">Verifica buste paghe</a></li>
     <li class="breadcrumb-item active" aria-current="page">{% if buste_scheda == 'estrazione_v4' %}Estrazione motore v4{% elif buste_scheda == 'conciliazione' %}Conciliazione cedolino{% else %}Lettura cedolino{% endif %}</li>
   </ol>
 </nav>
@@ -97,7 +98,7 @@
 
 <p class="ced-note mb-3">
   {% if buste_scheda == 'estrazione_v4' %}
-  <strong>Passo 3 (menu Documenti):</strong> lettura PDF con <code>parse_bytes</code> e salvataggio in <code>CedolinoMotoreV4</code> (e voci).
+  <strong>Passo 3 (Verifica buste paghe):</strong> lettura PDF con <code>parse_bytes</code> e salvataggio in <code>CedolinoMotoreV4</code> (e voci).
   Dopo la memorizzazione, controlla l’esito in <a href="{% url 'buste_paga_conciliazione_cedolino' %}?{% if pagination_qs %}{{ pagination_qs }}&{% endif %}page={{ page_obj.number }}">passo 4 · Conciliazione</a> (badge OK / differenze).
   Pulsante <em>Memorizza / Aggiorna estrazione v4</em> sotto ogni busta (HR / consulente). Se il motore v4 è stato aggiornato, riesegui <em>Aggiorna</em> sulle buste già salvate per allineare colonne orarie (F1) e conciliazione.
   Dettaglio voci nel pannello espandibile.
@@ -105,7 +106,7 @@
   Scheda dedicata al <strong>controllo di coerenza</strong>: confronto tra la lettura cedolino odierna dal PDF e i totali salvati con l’estrazione v4 (stesso dipendente e periodo).
   Per popolare o aggiornare il dato di riferimento usa la voce di menu <strong>Buste — estrazione v4 (memorizza)</strong>.
   {% else %}
-  <strong>Passo 5 (menu Documenti):</strong> vista completa con <strong>voci</strong>, <strong>ferie/ROL</strong>, <strong>previdenziale</strong>, <strong>progressivi</strong> e blocco conciliazione v4.
+  <strong>Passo 5 (Verifica buste paghe):</strong> vista completa con <strong>voci</strong>, <strong>ferie/ROL</strong>, <strong>previdenziale</strong>, <strong>progressivi</strong> e blocco conciliazione v4.
   {% endif %}
   Criterio anno come lo ZIP cedolini. Lista <strong>paginata</strong> ({{ page_obj.paginator.per_page }} buste per pagina).
 </p>

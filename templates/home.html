@@ -112,10 +112,27 @@
       <span class="mc-title">Anagrafiche</span>
       <span class="mc-desc">Dipendenti, aziende e anagrafica generale</span>
     </a>
+    {% if azienda_operativa %}
+    <a href="{% url 'modifica_azienda' azienda_operativa.pk %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-building-gear"></i></span>
+      <span class="mc-title">Anagrafica azienda operativa</span>
+      <span class="mc-desc">{{ azienda_operativa.nome }} — indirizzo, P.IVA, CCNL predefiniti…</span>
+    </a>
+    <a href="{% url 'impostazioni_sistema' %}?tab=sito" class="module-card">
+      <span class="mc-icon"><i class="bi bi-person-badge"></i></span>
+      <span class="mc-title">Firmatario e impostazioni globali</span>
+      <span class="mc-desc">Nome e ruolo firmatario documenti, sede legale testuale, e-mail…</span>
+    </a>
+    {% endif %}
     <a href="{% url 'lista_documenti' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-file-earmark-text-fill"></i></span>
       <span class="mc-title">Documenti</span>
       <span class="mc-desc">Archivio documenti e allegati</span>
+    </a>
+    <a href="{% url 'verifica_buste_paga' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-shield-check"></i></span>
+      <span class="mc-title">Verifica buste paghe</span>
+      <span class="mc-desc">Conciliazione cedolino, scostamenti e export</span>
     </a>
     <a href="{% url 'lista_presenze' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-calendar-check-fill"></i></span>
@@ -127,10 +144,10 @@
       <span class="mc-title">Richieste</span>
       <span class="mc-desc">Ferie, permessi e richieste del personale</span>
     </a>
-    <a href="{% url 'lista_proposte_assunzione' %}" class="module-card">
+    <a href="{% url 'centro_rapporti_lavoro' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-briefcase-fill"></i></span>
-      <span class="mc-title">Proposte / Contratti</span>
-      <span class="mc-desc">Proposte di assunzione e contratti di lavoro</span>
+      <span class="mc-title">Rapporti di lavoro</span>
+      <span class="mc-desc">Centro unico: proposte, contratti, scadenze e workflow recesso</span>
     </a>
     <a href="{% url 'storico_home' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-clock-history"></i></span>
@@ -167,6 +184,18 @@
       <span class="mc-title">Dashboard</span>
       <span class="mc-desc">Panoramica e collegamenti rapidi</span>
     </a>
+    {% if user.azienda %}
+    <a href="{% url 'modifica_azienda' user.azienda.pk %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-building-gear"></i></span>
+      <span class="mc-title">Anagrafica azienda</span>
+      <span class="mc-desc">Ragione sociale, indirizzo, P.IVA e CCNL predefiniti</span>
+    </a>
+    {% endif %}
+    <a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo" class="module-card">
+      <span class="mc-icon"><i class="bi bi-envelope-paper"></i></span>
+      <span class="mc-title">Recesso in prova</span>
+      <span class="mc-desc">Lettera: istruzioni e link alle schede dipendente</span>
+    </a>
     <a href="{% url 'consulente_candidati' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-person-lines-fill"></i></span>
       <span class="mc-title">Anagrafiche</span>
@@ -202,6 +231,11 @@
       <span class="mc-title">Cedolino da riepilogo</span>
       <span class="mc-desc">Motore da presenze mensili</span>
     </a>
+    <a href="{% url 'verifica_buste_paga' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-shield-check"></i></span>
+      <span class="mc-title">Verifica buste paghe</span>
+      <span class="mc-desc">Lettura PDF, v4, conciliazione e scostamenti</span>
+    </a>
     <a href="{% url 'consulente_upload_buste_paga' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-file-earmark-arrow-up"></i></span>
       <span class="mc-title">Buste paga</span>
@@ -227,10 +261,10 @@
       <span class="mc-title">Import PDF unico</span>
       <span class="mc-desc">Import massivo da PDF</span>
     </a>
-    <a href="{% url 'lista_proposte_assunzione' %}" class="module-card">
+    <a href="{% url 'centro_rapporti_lavoro' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-briefcase-fill"></i></span>
-      <span class="mc-title">Proposte / Contratti</span>
-      <span class="mc-desc">Rapporti di lavoro</span>
+      <span class="mc-title">Rapporti di lavoro</span>
+      <span class="mc-desc">Centro unico: proposte, contratti, scadenze e workflow recesso</span>
     </a>
     <a href="{% url 'storico_home' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-clock-history"></i></span>
@@ -247,6 +281,13 @@
   {# ── HR / altri ruoli interni (senza fascia solo-admin) ─── #}
   {% else %}
   <div class="module-grid">
+    {% if user.azienda and user|has_ruolo:'hr' %}
+    <a href="{% url 'modifica_azienda' user.azienda.pk %}" class="module-card mc-prior">
+      <span class="mc-icon"><i class="bi bi-building-gear"></i></span>
+      <span class="mc-title">Anagrafica azienda</span>
+      <span class="mc-desc">Dati {{ user.azienda.nome }} e parametri CCNL; il firmatario nelle lettere è nelle Impostazioni globali (solo admin)</span>
+    </a>
+    {% endif %}
     <a href="{% url 'index_anagrafiche' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-people-fill"></i></span>
       <span class="mc-title">Anagrafiche</span>
@@ -256,6 +297,11 @@
       <span class="mc-icon"><i class="bi bi-file-earmark-text-fill"></i></span>
       <span class="mc-title">Documenti</span>
       <span class="mc-desc">Archivio documenti e allegati</span>
+    </a>
+    <a href="{% url 'verifica_buste_paga' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-shield-check"></i></span>
+      <span class="mc-title">Verifica buste paghe</span>
+      <span class="mc-desc">Conciliazione cedolino e strumenti collegati</span>
     </a>
     <a href="{% url 'lista_presenze' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-calendar-check-fill"></i></span>
@@ -267,10 +313,10 @@
       <span class="mc-title">Richieste</span>
       <span class="mc-desc">Ferie, permessi e richieste del personale</span>
     </a>
-    <a href="{% url 'lista_proposte_assunzione' %}" class="module-card">
+    <a href="{% url 'centro_rapporti_lavoro' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-briefcase-fill"></i></span>
-      <span class="mc-title">Proposte / Contratti</span>
-      <span class="mc-desc">Proposte di assunzione e contratti di lavoro</span>
+      <span class="mc-title">Rapporti di lavoro</span>
+      <span class="mc-desc">Centro unico: proposte, contratti, scadenze e workflow recesso</span>
     </a>
     <a href="{% url 'storico_home' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-clock-history"></i></span>

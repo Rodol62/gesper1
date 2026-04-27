@@ -12,6 +12,29 @@ Q4 = Decimal('0.0001')
 Q6 = Decimal('0.000001')
 
 
+def ccnl_fipe_edr_assorbito_in_contingenza(parametro_ccnl, ccnl_obj=None) -> bool:
+    """
+    CCNL FIPE (Pubblici esercizi / ristorazione, decorrenze 2024+): l'EDR storico è assorbito
+    nella contingenza tabellare — non va reintrodotto come voce distinta in busta né nel rateo €/h EDR.
+
+    ``ParametroCCNLTurismo.ccnl`` può essere vuoto o non contenere «FIPE»; in quel caso si considera
+    anche ``ccnl_obj`` (modello ``CCNL``) se la sigla è FIPE.
+
+    I parametri **Turismo Confcommercio** restano esclusi: lì l'EDR può restare voce distinta in tabella.
+    """
+    p = (getattr(parametro_ccnl, 'ccnl', None) or '')
+    pu = p.upper()
+    if 'CONFCOMMERCIO' in pu:
+        return False
+    if 'FIPE' in pu:
+        return True
+    if 'PUBBLICI ESERCIZI' in pu:
+        return True
+    if ccnl_obj is not None and 'FIPE' in (getattr(ccnl_obj, 'sigla', None) or '').upper():
+        return True
+    return False
+
+
 def anno_efficace_parametro_ratei(ccnl_obj, anno_riferimento: int, parametro_ccnl) -> int:
     """
     Anno da usare su `ParametroRatei` quando il rapporto ha data inizio «vecchia»
@@ -178,7 +201,7 @@ def calcola_busta_paga_mese(
     ore_festivi: Decimal = Decimal('0'),
     auto_ore_domenicali_da_calendario: bool = True,
     modalita_ore_effettive: bool = False,
-    domenicale_compenso_completo: bool = False,
+    domenicale_compenso_completo: bool = True,
     fiscale_modalita_cedolino: bool = False,
     l207_percentuale_imponibile: Decimal | None = None,
     ti_l207_non_cumulabili: bool = False,
@@ -192,6 +215,8 @@ def calcola_busta_paga_mese(
     ccnl_obj=None,             # CCNL model instance | None (for DB lookups)
     num_familiari_a_carico: int = 0,
     regione_residenza: str = 'Sicilia',  # usato per calcolo addizionale regionale
+    comune_residenza: str | None = None,   # addizionale comunale (default Palermo se None)
+    provincia_residenza: str | None = None,  # sigla provincia (default PA)
     mensilita_contrattuale_piena: bool = False,
     anno_parametro_ratei: int | None = None,
     contratto_esclude_tredicesima: bool = False,
@@ -212,9 +237,18 @@ def calcola_busta_paga_mese(
     comunque nei totali ratei / costo differito. Se il contratto esclude la mensilità (``contratto_esclude_*``),
     il coefficiente e quindi il rateo lordo sono zero.
 
+    **Domenicale lavorato:** default ``domenicale_compenso_completo=True`` → importo = ore × ROEL × (1 + magg. %).
+    Con ``False`` → solo maggiorazione: ore × ROEL × magg. % (base tabellare già nel lordo mensile).
+
     Returns full result dict with: voci, lordo, netto, contributi, ratei, f24, costo azienda.
     """
-    from .models import ParametroContributi, ParametroRatei, ParametroMaggiorazione, VoceRetributiva
+    from .models import (
+        ParametroCCNLTurismo,
+        ParametroContributi,
+        ParametroRatei,
+        ParametroMaggiorazione,
+        VoceRetributiva,
+    )
     from .utils_calcoli import (
         calcola_irpef_lorda, calcola_detrazioni,
         calcola_trattamento_integrativo, calcola_bonus_l207_2024,
@@ -224,8 +258,12 @@ def calcola_busta_paga_mese(
         get_giorni_lavorativi_mese,
         build_griglia_mese,
         get_calendario_motore_id,
+        count_giorni_ordinari_calendario,
     )
+    from .parametro_ccnl_voci_retributive import parametro_ccnl_motore_con_voci_retributive
 
+    if isinstance(parametro_ccnl, ParametroCCNLTurismo):
+        parametro_ccnl = parametro_ccnl_motore_con_voci_retributive(parametro_ccnl, anno)
     cp = parametro_ccnl
     coeff = Decimal(str(tipo_contratto.coefficiente_ore or 1)) if tipo_contratto else Decimal('1')
     giorni_nel_mese = _cal_mod.monthrange(anno, mese)[1]
@@ -234,6 +272,10 @@ def calcola_busta_paga_mese(
     # ── Calendario ────────────────────────────────────────────────────────────
     calendario_motore_id = get_calendario_motore_id()
     cal_data = get_giorni_lavorativi_mese(azienda, anno, mese)
+    _gls_sett = int(getattr(tipo_contratto, 'giorni_lavorativi_settimana', 6) or 6) if tipo_contratto else 6
+    cal_giorni_ordinari = count_giorni_ordinari_calendario(
+        anno, mese, cal_data, giorni_lavorativi_settimana=_gls_sett,
+    )
     cal_griglia = build_griglia_mese(anno, mese, azienda)
     # I festivi NON sono in _non_lav: per FIPE sono giorni lavorativi (con maggiorazione)
     _non_lav = (
@@ -303,16 +345,50 @@ def calcola_busta_paga_mese(
     # ── Voci base CCNL (pro-ratate per part-time e periodo) ───────────────────
     def _v(val): return (val * coeff * frazione).quantize(Q2)
 
-    _paga_tbl = Decimal(str(cp.paga_base_mensile or 0))
+    _paga_explicit = Decimal(str(cp.paga_base_mensile or 0))
+    _paga_tbl = _paga_explicit
     if _paga_tbl <= 0:
         _paga_tbl = Decimal(str(getattr(cp, 'minimo_tabellare', None) or 0))
+    # Numeratore FT per /172 (foglio INPS «minimo livello»): di norma ``minimo_tabellare`` se valorizzato.
+    # Se il minimo è **maggiore** della paga base dichiarata, in anagrafica è spesso un importo aggregato
+    # (paga + indennità / totale tabellare) copiato nel campo sbagliato: per la €/h «paga base» si usa allora
+    # ``paga_base_mensile`` (evita ROEL gonfia es. 6,5182 invece di 5,9389 €/h).
+    _min_ft = Decimal(str(getattr(cp, 'minimo_tabellare', None) or 0))
+    if _min_ft > 0:
+        if _paga_explicit > 0 and _min_ft > _paga_explicit:
+            _paga_ft_div = _paga_explicit
+        else:
+            _paga_ft_div = _min_ft
+    else:
+        _paga_ft_div = _paga_tbl
+    _rof_usa_minimo_tabellare = bool(
+        _min_ft > 0 and divisore_dec > Decimal('30') and not (_paga_explicit > 0 and _min_ft > _paga_explicit),
+    )
     _c_m = Decimal(str(cp.contingenza_mensile or 0))
     _e_m = Decimal(str(cp.edr_mensile or 0))
+    # FIPE (2024+): EDR assorbito in contingenza — non voce distinta in busta né €/h tab. EDR (anche se valorizzato in DB legacy).
+    if ccnl_fipe_edr_assorbito_in_contingenza(cp, ccnl_obj):
+        _e_m = Decimal('0')
     _i_m = Decimal(str(cp.indennita_mensile or 0))
 
-    paga_base       = _v(_paga_tbl)
+    # Numeratore FT «solo paga base» per /172 e per busta: se paga+ind sono entrambe in tabella ma la paga
+    # importata è (paga+indennità) e l’indennità è anche in colonna, il rapporto paga/cont supera il tipico ~2;
+    # togliendo l’indennità FT si rientra nel rapporto tabellare (~1,95 per molti livelli FIPE).
+    _paga_ft_tab_solo = _paga_ft_div
+    if (
+        ccnl_fipe_edr_assorbito_in_contingenza(cp, ccnl_obj)
+        and _i_m > 0
+        and _c_m > 0
+        and _paga_ft_div > _i_m
+    ):
+        r_bruta = (_paga_ft_div / _c_m).quantize(Q4)
+        r_netta = ((_paga_ft_div - _i_m) / _c_m).quantize(Q4)
+        if r_bruta > Decimal('2.02') and Decimal('1.82') <= r_netta <= Decimal('2.18'):
+            _paga_ft_tab_solo = (_paga_ft_div - _i_m).quantize(Q2)
+
+    paga_base       = _v(_paga_ft_tab_solo)
     contingenza     = _v(cp.contingenza_mensile)
-    edr             = _v(cp.edr_mensile)
+    edr             = _v(_e_m)
     indennita       = _v(cp.indennita_mensile)
     superminimo_r       = (superminimo       * coeff * frazione).quantize(Q2)
     indennita_turno_r   = (indennita_turno   * coeff * frazione).quantize(Q2)
@@ -320,29 +396,21 @@ def calcola_busta_paga_mese(
     _scatto_mens_ft = Decimal(str(scatto_anzianita or 0))
     if _scatto_mens_ft <= 0:
         _scatto_mens_ft = Decimal(str(getattr(cp, 'scatto_importo', None) or 0))
-    # Se ``totale_tabellare`` supera la somma delle voci distinte (paga, cont., EDR, ind., scatto),
-    # la differenza è il «resto» tabellare (es. scatti nel totale riga Excel ma non valorizzati in ``scatto_importo``).
-    _tab_ref = Decimal(str(getattr(cp, 'totale_tabellare', None) or 0))
-    accounted_ft = (_paga_tbl + _c_m + _e_m + _i_m + _scatto_mens_ft).quantize(Q2)
-    tabellare_gap_ft = Decimal('0')
-    if _tab_ref > accounted_ft + Decimal('0.005'):
-        tabellare_gap_ft = (_tab_ref - accounted_ft).quantize(Q2)
-    _scatto_mens_ft_tot = (_scatto_mens_ft + tabellare_gap_ft).quantize(Q2)
 
-    scatto_r            = (_scatto_mens_ft_tot * coeff * frazione).quantize(Q2)
+    scatto_r            = (_scatto_mens_ft * coeff * frazione).quantize(Q2)
     indennita_extra_r   = (indennita_extra   * coeff * frazione).quantize(Q2)
 
     lordo_base  = (paga_base + contingenza + edr + indennita
                    + superminimo_r + indennita_turno_r + scatto_r + indennita_extra_r).quantize(Q2)
 
     lordo_pieno = (
-        (_paga_tbl + _c_m + _e_m + _i_m) * coeff
+        (_paga_ft_tab_solo + _c_m + _e_m + _i_m) * coeff
     ).quantize(Q2)
 
-    # Riferimento tabellare mese (FT × pro-rata): preferisci totale da anagrafica CCNL se valorizzato.
-    lordo_tabellare_ft_equiv = (
-        (_tab_ref * frazione).quantize(Q2) if _tab_ref > 0 else ((_paga_tbl + _c_m + _e_m + _i_m + _scatto_mens_ft_tot) * frazione).quantize(Q2)
-    )
+    # Riferimento tabellare mese (FT × pro-rata giorni): somma delle stesse voci usate per le €/h tab. (/divisore).
+    _somma_tabellare_ft = (_paga_ft_tab_solo + _c_m + _e_m + _i_m + _scatto_mens_ft).quantize(Q2)
+    lordo_tabellare_ft_equiv = (_somma_tabellare_ft * frazione).quantize(Q2)
+    tabellare_gap_ft = Decimal('0')
 
     # Retribuzione oraria di fatto = Σ ((voce tabellare FT × frazione mese) ÷ divisore), come Excel (es. 1021,49/172).
     h_oraria_paga_base = Decimal('0')
@@ -354,20 +422,30 @@ def calcola_busta_paga_mese(
     if divisore_dec > Decimal('30'):
         div = divisore_dec
         fr = frazione
-        h_oraria_paga_base = ((_paga_tbl * fr) / div).quantize(Q4)
+        h_oraria_paga_base = ((_paga_ft_tab_solo * fr) / div).quantize(Q4)
         h_oraria_contingenza = ((_c_m * fr) / div).quantize(Q4)
         h_oraria_edr = ((_e_m * fr) / div).quantize(Q4)
         h_oraria_indennita = ((_i_m * fr) / div).quantize(Q4)
-        h_oraria_scatto = ((_scatto_mens_ft_tot * fr) / div).quantize(Q4) if _scatto_mens_ft_tot > 0 else Decimal('0')
+        h_oraria_scatto = ((_scatto_mens_ft * fr) / div).quantize(Q4) if _scatto_mens_ft > 0 else Decimal('0')
+        # ROEL (retribuzione oraria effettiva lorda «tabellare»): solo paga base + contingenza + scatto al divisore.
+        # EDR e indennità CCNL restano voci mensili in busta (h_oraria_* restano esposte per trasparenza), non entrano
+        # nella somma €/h usata per straordinari, domeniche/festivi e rubrica simulatore (allineamento foglio INPS / prassi).
         retribuzione_oraria_di_fatto = (
-            h_oraria_paga_base + h_oraria_contingenza + h_oraria_edr + h_oraria_indennita + h_oraria_scatto
+            h_oraria_paga_base + h_oraria_contingenza + h_oraria_scatto
         ).quantize(Q4)
 
     # ── Paga oraria / giornaliera ─────────────────────────────────────────────
     if modalita_ore_effettive:
-        # Modalità provvisoria cedolino: usa la base contrattuale completa (incl. super/scatti/ind.)
-        paga_oraria = (lordo_base / ore_mensili).quantize(Q4) if ore_mensili else Decimal('0')
-        paga_giornaliera = (paga_oraria * ore_giorn).quantize(Q4)
+        if divisore_dec > Decimal('30'):
+            # Divisore orario (172/173,33): ROF = Σ (voce tabellare FT × pro-rata ÷ divisore), come foglio INPS.
+            # Con ore da presenze non si sostituisce la ROF con lordo_base ÷ ore_mensili (part-time), altrimenti
+            # la colonna €/h tab. non coincide con FT÷divisore (es. 1021,49÷172 = 5,9389).
+            paga_oraria = retribuzione_oraria_di_fatto
+            paga_giornaliera = (lordo_base / Decimal('26')).quantize(Q4)
+        else:
+            # Divisore 26 o simile: media da cedolino su ore mensili contrattuali
+            paga_oraria = (lordo_base / ore_mensili).quantize(Q4) if ore_mensili else Decimal('0')
+            paga_giornaliera = (paga_oraria * ore_giorn).quantize(Q4)
     elif divisore_dec > Decimal('30'):
         # Divisore orario: paga oraria = retribuzione oraria di fatto (somma voci/172); non totale_tabellare unico.
         paga_oraria      = retribuzione_oraria_di_fatto
@@ -377,8 +455,8 @@ def calcola_busta_paga_mese(
         paga_giornaliera = (lordo_pieno / divisore_dec).quantize(Q4)
         paga_oraria      = (lordo_pieno / ore_mensili).quantize(Q4) if ore_mensili else Decimal('0')
 
-    # Fuori dal percorso «voci/172»: R coincide con paga_oraria (ore effettive o divisore 26).
-    if modalita_ore_effettive or divisore_dec <= Decimal('30'):
+    # Con divisore giornaliero: «retribuzione oraria di fatto» coincide con l’orario medio da cedolino.
+    if divisore_dec <= Decimal('30'):
         retribuzione_oraria_di_fatto = paga_oraria
 
     # ── Auto ore domenicali da calendario (se non fornite o impostate a zero) ─
@@ -441,8 +519,8 @@ def calcola_busta_paga_mese(
     tot_straord = (imp_sd + imp_sn + imp_sf + imp_snf + imp_sdom).quantize(Q2)
 
     # ── Domenicali / festivi lavorati ────────────────────────────────────────
-    # Default: solo maggiorazione (base già inclusa nel lordo mensile)
-    # Modalità provvisoria cedolino: compenso completo (base + maggiorazione)
+    # Default simulatore / prassi richiesta: **compenso domenicale completo** = ore × ROEL × (1 + magg.%).
+    # Con ``domenicale_compenso_completo=False``: solo maggiorazione (ore × ROEL × magg.%), base già nel lordo tabellare.
     if domenicale_compenso_completo:
         imp_dom_magg = (ore_domenicali * paga_oraria * (1 + magg_dom_p)).quantize(Q2)
     else:
@@ -461,9 +539,18 @@ def calcola_busta_paga_mese(
     # ── Lordo competenze mensili (rubrica; 13ª/14ª ratei si sommano sotto per base INPS)
     imp_ordinario_ore = (ore_ordinarie_retribuite * paga_oraria).quantize(Q2)
     if modalita_ore_effettive and ore_ordinarie_retribuite > 0:
-        # Base mensile su ore effettive: quota oraria lorda contrattuale * ore effettive
-        # + maggiorazioni del mese (straordinari, domenicali, festivi).
-        lordo_mensile = (imp_ordinario_ore + tot_straord + tot_dom_fest).quantize(Q2)
+        # Base su ore effettive: ROF × ore (tabellari FT) + voci non tabellari in busta + maggiorazioni.
+        if divisore_dec > Decimal('30'):
+            lordo_mensile = (
+                imp_ordinario_ore
+                + superminimo_r
+                + indennita_turno_r
+                + indennita_extra_r
+                + tot_straord
+                + tot_dom_fest
+            ).quantize(Q2)
+        else:
+            lordo_mensile = (imp_ordinario_ore + tot_straord + tot_dom_fest).quantize(Q2)
     else:
         lordo_mensile = (lordo_base + tot_straord + tot_dom_fest - decurt_assenze).quantize(Q2)
 
@@ -569,7 +656,11 @@ def calcola_busta_paga_mese(
 
     # ── Addizionali ───────────────────────────────────────────────────────────
     add_reg_ann = Decimal(str(calcola_addizionale_regionale_sicilia(imponibile_ann, anno=anno, regione=regione_residenza))).quantize(Q2)
-    add_com_ann = Decimal(str(calcola_addizionale_comunale_stima(imponibile_ann, anno=anno))).quantize(Q2)
+    _com_res = (comune_residenza or 'Palermo').strip() or 'Palermo'
+    _pr_res = ((provincia_residenza or 'PA').strip() or 'PA')[:2]
+    add_com_ann = Decimal(str(
+        calcola_addizionale_comunale_stima(imponibile_ann, anno=anno, comune=_com_res, provincia=_pr_res),
+    )).quantize(Q2)
     add_reg_m   = (add_reg_ann / 12).quantize(Q2)
     add_com_m   = (add_com_ann / 12).quantize(Q2)
 
@@ -673,6 +764,13 @@ def calcola_busta_paga_mese(
             ore_settimanali=ore_sett_r,
         )
 
+    # ROEL tabellare: un solo valore esposto = paga+cont+scatto al divisore (mai la vecchia ROF a 5 voci).
+    if divisore_dec > Decimal('30'):
+        retribuzione_oraria_di_fatto = (
+            h_oraria_paga_base + h_oraria_contingenza + h_oraria_scatto
+        ).quantize(Q4)
+        paga_oraria = retribuzione_oraria_di_fatto
+
     return {
         # ── Periodo ───────────────────────────────────────────────────────────
         'anno': anno, 'mese': mese,
@@ -681,6 +779,7 @@ def calcola_busta_paga_mese(
         # ── Calendario ────────────────────────────────────────────────────────
         'calendario_motore_id':      calendario_motore_id,
         'cal_giorni_lavorativi':    cal_data['giorni_lavorativi'],
+        'cal_giorni_ordinari':      cal_giorni_ordinari,
         'cal_chiusure_settimanali': cal_data['chiusure_settimanali'],
         'cal_festivi':              cal_data['festivi'],
         'cal_chiusure_extra':       cal_data['chiusure_extra'],
@@ -706,9 +805,12 @@ def calcola_busta_paga_mese(
         'oraria_tabellare_edr': h_oraria_edr,
         'oraria_tabellare_indennita': h_oraria_indennita,
         'oraria_tabellare_scatto': h_oraria_scatto,
-        # Somma voci tabellari FT nel mese (× frazione); supermin./turno/extra fuori.
+        # Somma voci tabellari FT nel mese (× frazione giorni); supermin./turno/extra fuori.
         'lordo_tabellare_ft_equiv': lordo_tabellare_ft_equiv,
-        'tabellare_gap_ft': tabellare_gap_ft,
+        'tabellare_gap_ft': tabellare_gap_ft,  # sempre 0: nessuna inferenza da ``totale_tabellare``
+        # Trasparenza foglio INPS (divisore orario): numeratore €/h paga base dopo pro-rata giorni
+        'importo_ft_paga_per_div': (_paga_ft_div * frazione).quantize(Q2) if divisore_dec > Decimal('30') else None,
+        'rof_usa_minimo_tabellare': _rof_usa_minimo_tabellare,
         # ── Voci base ─────────────────────────────────────────────────────────
         'paga_base': paga_base, 'contingenza': contingenza, 'edr': edr, 'indennita': indennita,
         'superminimo': superminimo_r, 'indennita_turno': indennita_turno_r,

@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block title %}Rapporti di lavoro — Centro gestione{% endblock %}
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:1100px">
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:8px;padding:.8rem 1rem;margin-bottom:1rem">
+    <h5 style="margin:0;font-size:.96rem;font-weight:800"><i class="bi bi-briefcase-fill"></i> Centro rapporti di lavoro</h5>
+    <div style="font-size:.76rem;opacity:.9">
+      Hub unico per proposta, contratto, scadenze e workflow di cessazione/recesso.
+      {% if azienda_operativa %}Azienda operativa: <strong>{{ azienda_operativa.nome }}</strong>.{% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div style="font-size:.78rem;color:#1b3a5f;font-weight:700"><i class="bi bi-file-earmark-text"></i> Proposte e contratti</div>
+          <p class="mb-2" style="font-size:.78rem;color:#555">Gestione completa del ciclo proposta/contratto.</p>
+          <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-sm btn-outline-primary">Apri lista proposte/contratti</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div style="font-size:.78rem;color:#1b3a5f;font-weight:700"><i class="bi bi-hourglass-split"></i> Scadenze contratti TD</div>
+          <p class="mb-2" style="font-size:.78rem;color:#555">Controllo rinnovi, proroghe e contratti in scadenza.</p>
+          <a href="{% url 'lista_contratti_scadenza' %}" class="btn btn-sm btn-outline-primary">Apri scadenze TD</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <div style="font-size:.78rem;color:#1b3a5f;font-weight:700"><i class="bi bi-person-badge"></i> Schede dipendenti</div>
+          <p class="mb-2" style="font-size:.78rem;color:#555">Da qui accedi ai contratti del dipendente e al workflow recesso in prova.</p>
+          <a href="{% url 'lista_dipendenti' %}?stato=attivo" class="btn btn-sm btn-outline-primary">Apri dipendenti attivi</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="recesso-prova-periodo" class="card border-0 shadow-sm mt-3" style="scroll-margin-top:4.5rem">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+        <div>
+          <div style="font-size:.82rem;color:#1b3a5f;font-weight:800"><i class="bi bi-envelope-paper"></i> Recesso durante il periodo di prova</div>
+          <p class="mb-0 mt-1" style="font-size:.78rem;color:#555;max-width:52rem">
+            Lettera al dipendente (bozza, verifica consulente, firma digitale amministratore, PDF e invio e-mail).
+            Per <strong>nuove</strong> comunicazioni: scheda dipendente → <em>Contratti e storico</em> → <strong>Workflow recesso prova</strong>.
+          </p>
+        </div>
+        <a href="{% url 'lista_dipendenti' %}?stato=attivo" class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-person-badge"></i> Vai ai dipendenti</a>
+      </div>
+
+      {% if recesso_prova_recenti %}
+      <div class="table-responsive mt-3 mb-0" style="font-size:.78rem">
+        <table class="table table-sm table-hover align-middle mb-0 border-top">
+          <thead class="table-light">
+            <tr>
+              <th>Dipendente</th>
+              <th>Contratto</th>
+              <th>Stato</th>
+              <th>Aggiornamento</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in recesso_prova_recenti %}
+            <tr>
+              <td>{{ c.dipendente.cognome }} {{ c.dipendente.nome }}</td>
+              <td class="text-nowrap">{{ c.rapporto.numero_contratto|default:"—" }}</td>
+              <td><span class="badge bg-secondary">{{ c.get_stato_display }}</span></td>
+              <td class="text-nowrap text-muted">{{ c.data_modifica|date:"d/m/Y H:i" }}</td>
+              <td class="text-end">
+                <a href="{% url 'workflow_recesso_prova' c.dipendente_id c.rapporto_id %}" class="btn btn-sm btn-outline-primary py-0">Apri workflow</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="mb-0 mt-3 small text-muted">Nessuna comunicazione recesso in prova registrata{% if azienda_operativa %} per <strong>{{ azienda_operativa.nome }}</strong>{% endif %}. Creane una dalla scheda dipendente (contratto in prova).</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="alert alert-light border mt-3 mb-0" style="font-size:.77rem">
+    <strong>Nota workflow recesso in prova:</strong>
+    apri la scheda dipendente, sezione <em>Contratti e storico</em>, pulsante <em>Workflow recesso prova</em>.
+    Da li trovi bozza, verifica consulente, firma amministratore e invio email con PDF.
+  </div>
+</div>
+{% endblock %}

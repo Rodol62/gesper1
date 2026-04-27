@@ -57,6 +57,9 @@
       ← Lista candidati
     </a>
   </div>
+  <div class="alert alert-secondary py-2 small mb-3">
+    <strong>Fonte territori:</strong> ISTAT ufficiale (Italia + stati esteri).
+  </div>
 
   <!-- ── TIMELINE ITER ────────────────────────────────────────── -->
   <div class="card border-0 shadow-sm mb-3">
@@ -416,8 +419,11 @@ Accedi al portale, aggiorna i dati e carica i documenti richiesti. Grazie per la
             <tr><td style="color:#666;padding:2px 0">Nazionalità</td><td>{{ profilo.nazionalita|default:"—" }}</td></tr>
             <tr><td style="color:#666;padding:2px 0">Telefono</td><td>{{ profilo.telefono|default:"—" }}</td></tr>
             <tr><td style="color:#666;padding:2px 0">Indirizzo</td><td>{{ profilo.indirizzo|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Regione residenza</td><td>{{ profilo.regione_residenza|default:"—" }}</td></tr>
             <tr><td style="color:#666;padding:2px 0">CAP / Città</td>
                 <td>{{ profilo.cap }} {{ profilo.citta }} {% if profilo.provincia %}({{ profilo.provincia }}){% endif %}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Tipologia residenza</td>
+                <td>{% if profilo.regione_residenza|upper == 'ESTERO' %}<span class="badge bg-info text-dark">Estero</span>{% else %}<span class="badge bg-light text-dark border">Italia</span>{% endif %}</td></tr>
             {% endif %}
           </table>
         </div>

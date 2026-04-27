@@ -29,6 +29,7 @@ urlpatterns = [
     path('cud/', views.lista_cud, name='lista_cud_documenti'),
     path('upload/', views.upload_documento, name='upload_documento'),
     path('upload-buste-massivo/', views.upload_buste_paga_massivo, name='upload_buste_paga_massivo'),
+    path('buste-paga/verifica/', views.verifica_buste_paga, name='verifica_buste_paga'),
     path('upload-cud-massivo/', views.upload_cud_massivo, name='upload_cud_massivo'),
     path('upload-personale/', views.upload_documento_personale, name='upload_documento_personale'),
     path('dipendente/<int:dipendente_id>/', views.documenti_dipendente_admin, name='documenti_dipendente_admin'),

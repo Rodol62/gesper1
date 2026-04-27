@@ -109,6 +109,7 @@ def simulazione_economica_proposta(request, proposta_id: int):
             azienda=proposta.azienda,
             data_inizio_rapporto=date(anno, mese, 1),  # mese intero
             divisore_str=divisore_str,
+            superminimo=Decimal(str(proposta.superminimo_mensile or 0)).quantize(Decimal('0.01')),
             auto_ore_domenicali_da_calendario=True,
             ccnl_obj=ccnl_obj,
             num_familiari_a_carico=num_familiari,
@@ -176,7 +177,10 @@ def simulazione_economica_proposta(request, proposta_id: int):
     voci_a = [
         ('Paga base mensile',          r.get('paga_base',    Decimal('0'))),
         ('Contingenza',                r.get('contingenza',  Decimal('0'))),
-        ('EDR',                        r.get('edr',          Decimal('0'))),
+    ]
+    if r.get('edr') and r['edr'] > 0:
+        voci_a.append(('EDR', r['edr']))
+    voci_a.extend([
         ('Superminimo',                r.get('superminimo',  Decimal('0'))),
         ('Indennità turno',            r.get('indennita_turno', Decimal('0'))),
         ('Scatto anzianità',           r.get('scatto_anzianita', Decimal('0'))),
@@ -194,7 +198,7 @@ def simulazione_economica_proposta(request, proposta_id: int):
         ('+ Trattamento integrativo',  r.get('ti',           Decimal('0'))),
         ('+ Bonus L207/2025',          r.get('l207',         Decimal('0'))),
         ('Netto mensile base',         netto),
-    ]
+    ])
     if rat13_m_v:
         voci_a.append(('+ Rateo 13ª mensile (lordo 1/12, netto stimato)', rat13_n_v))
     if rat14_m_v:

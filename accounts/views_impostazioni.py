@@ -1,8 +1,4 @@
 import logging
-import json
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
-from urllib.error import URLError
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -14,6 +10,7 @@ from django.urls import reverse
 from .models import ConfigurazioneSistema
 from .gestione_database import can_gestione_database
 from log_attivita.utils import registra_log
+from anagrafiche.nominatim_geocode import geocode_indirizzo_it, user_agent_gesper
 
 logger = logging.getLogger('django')
 
@@ -30,6 +27,7 @@ class ImpostazioniForm(forms.ModelForm):
         model = ConfigurazioneSistema
         fields = [
             'nome_sito', 'nome_azienda', 'indirizzo_sede', 'partita_iva',
+            'firmatario_amministratore_nome', 'firmatario_amministratore_ruolo',
             'presenze_geo_enabled', 'presenze_geo_require_gps', 'presenze_geo_enforce_geofence',
             'presenze_geo_center_lat', 'presenze_geo_center_lon', 'presenze_geo_radius_m',
             'presenze_geo_enforce_for_test',
@@ -111,43 +109,26 @@ def geocode_impostazioni(request):
     if len(indirizzo) < 5:
         return JsonResponse({'ok': False, 'error': 'Indirizzo troppo corto.'}, status=400)
 
-    query = urlencode({
-        'q': indirizzo,
-        'format': 'jsonv2',
-        'limit': 1,
-        'addressdetails': 0,
-        'countrycodes': 'it',
-    })
-    url = f'https://nominatim.openstreetmap.org/search?{query}'
+    cfg = ConfigurazioneSistema.get()
+    contact = (cfg.smtp_user or cfg.email_notifiche_hr or '').strip()
+    ua = user_agent_gesper(contact)
 
-    try:
-        req = Request(
-            url,
-            headers={
-                'User-Agent': 'GESPER/1.0 (impostazioni geolocalizzazione)',
-                'Accept': 'application/json',
-            },
+    result = geocode_indirizzo_it(indirizzo, user_agent=ua)
+    if result.get('ok'):
+        return JsonResponse(
+            {
+                'ok': True,
+                'lat': result['lat'],
+                'lon': result['lon'],
+                'display_name': result.get('display_name', ''),
+            }
         )
-        with urlopen(req, timeout=10) as resp:
-            payload = resp.read().decode('utf-8')
-        data = json.loads(payload)
-
-        if not data:
-            return JsonResponse({'ok': False, 'error': 'Nessun risultato trovato per questo indirizzo.'}, status=404)
-
-        item = data[0]
-        lat = float(item['lat'])
-        lon = float(item['lon'])
-        return JsonResponse({
-            'ok': True,
-            'lat': round(lat, 6),
-            'lon': round(lon, 6),
-            'display_name': item.get('display_name', ''),
-        })
-
-    except (URLError, ValueError, KeyError, json.JSONDecodeError) as exc:
-        logger.error('[GEOCODE IMPOSTAZIONI] Errore geocoding indirizzo "%s": %s', indirizzo, exc)
-        return JsonResponse({'ok': False, 'error': 'Servizio geocoding non disponibile al momento.'}, status=502)
+    err = result.get('error', 'Errore sconosciuto.')
+    if err == 'Indirizzo troppo corto.':
+        return JsonResponse({'ok': False, 'error': err}, status=400)
+    if err.startswith('Nessun risultato'):
+        return JsonResponse({'ok': False, 'error': err}, status=404)
+    return JsonResponse({'ok': False, 'error': err}, status=502)
 
 
 def _test_email(request, config):

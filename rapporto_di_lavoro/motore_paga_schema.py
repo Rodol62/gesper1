@@ -91,21 +91,22 @@ def calcola_schema_divisori(
     Catena convenzionale (simulatore):
 
     - **divisore orario** (172 o 173,33): ore mensili convenzionali a cui si divide il lordo tabellare.
-    - **divisore fisso convenzionale** = divisore_orario / ore_settimanali
-      (es. 172÷40 = 4,30; 173,33÷40 ≈ 4,3333 → arrotondato 4,33 in UI).
+    - **divisore fisso convenzionale** = divisore_orario / giorni_lavorativi_mese (default 26 gg conv. FIPE),
+      es. 172÷26 ≈ 6,6154 (non va diviso per le ore settimanali part-time).
     - **giorni lavorativi mese** e **settimanali** (default 26 e 6, configurabili).
     - **ore lavorative giornaliere** (qui): media ore_settimanali / giorni_lavorativi_settimanali (riferimento
       contrattuale). In ``calcola_busta_paga_mese`` la stessa logica (h/sett ÷ 6) alimenta ``ore_giornaliere``
-      per maggiorazioni; con divisore orario (172/173,33) la **retribuzione oraria di fatto** è la somma di
-      ``(importo tabellare CCNL della voce × pro-rata mese) ÷ divisore`` per ciascuna voce (paga, contingenza,
-      EDR, indennità tabellare, scatto), **senza** applicare prima il coefficiente part-time su quegli importi
-      (allineamento foglio Excel INPS / FIPE). Il part-time resta sulle ore mensili e sulle voci in busta.
+      per maggiorazioni; con divisore orario (172/173,33) la **retribuzione oraria di fatto** deriva dalla somma
+      delle voci tabellari FT del mese (inclusi gli scatti) ÷ divisore; straordinari e maggiorazioni si calcolano
+      a parte sulle ore indicate × quell’orario × la percentuale. **Senza** applicare prima il coefficiente
+      part-time su quegli importi tabellari (allineamento foglio Excel INPS / FIPE). Il part-time resta sulle ore
+      mensili e sulle voci in busta.
     """
     div = divisore_orario if divisore_orario > 0 else Decimal('173.33')
     ore_sett = ore_settimanali if ore_settimanali > 0 else Decimal('40')
     g_mese = giorni_lavorativi_mese if giorni_lavorativi_mese > 0 else Decimal('26')
     g_sett = giorni_lavorativi_settimanali if giorni_lavorativi_settimanali > 0 else Decimal('6')
-    divisore_fisso_conv = (div / ore_sett).quantize(Q4)
+    divisore_fisso_conv = (div / g_mese).quantize(Q4)
     ore_gg = (ore_sett / g_sett).quantize(Q4)
     return {
         'divisore_orario': div,

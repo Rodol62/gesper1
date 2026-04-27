@@ -55,7 +55,7 @@ from anagrafiche.models import Azienda, Dipendente
 from accounts.gestione_database import can_gestione_database
 from accounts.models import MovimentoImportPaghe, ProfiloCandidato
 from rapporto_di_lavoro.models import RapportoDiLavoro
-from anagrafiche.permissions import admin_required, hr_required
+from anagrafiche.permissions import admin_required, hr_required, is_admin
 from log_attivita.utils import registra_log
 from log_attivita.anomalie import build_anomalia_import_export, registra_evento_anomalia
 from accounts.tenant import get_azienda_operativa
@@ -4131,6 +4131,27 @@ def prova_lettura_busta_paga(request):
             return JsonResponse({"ok": False, "error": extraction_error}, status=422)
 
     return render(request, "documenti/prova_lettura_busta.html", ctx)
+
+
+@login_required
+def verifica_buste_paga(request):
+    """
+    Voce di menu «Verifica buste paghe»: elenco dei collegamenti a strumenti di
+    lettura cedolino, motore v4, conciliazione, scostamenti presenze/motore e export.
+    """
+    if not _is_admin_hr_or_consulente(request.user):
+        return HttpResponseForbidden(
+            "Accesso riservato a amministratori, HR o consulenti del lavoro."
+        )
+    return render(
+        request,
+        "documenti/verifica_buste_paga.html",
+        {
+            "show_upload_massivo": _is_admin_or_hr(request.user),
+            "show_estrazione_storico": is_admin(request.user),
+            "show_admin_voci_cedolino": is_admin(request.user),
+        },
+    )
 
 
 @login_required

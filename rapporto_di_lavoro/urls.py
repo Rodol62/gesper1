@@ -9,6 +9,7 @@ from . import views_simulazione_proposta
 
 urlpatterns = [
     path('', views.lista_proposte, name='lista_proposte_assunzione'),
+    path('centro/', views.centro_rapporti_lavoro, name='centro_rapporti_lavoro'),
     path('simulazione/', views.simulazione_organico, name='simulazione_organico'),
     path('simulazione/calendario/', views.simulazione_organico_calendario, name='simulazione_organico_calendario'),
     path('simulazione/risultato/', views.simulazione_organico_risultato, name='simulazione_organico_risultato'),
@@ -76,5 +77,6 @@ urlpatterns = [
     path('api/ccnl-levels/', views.api_ccnl_levels, name='api_ccnl_levels'),
     path('api/ccnl-parametri/', views.api_ccnl_parametri, name='api_ccnl_parametri'),
     path('api/presenze-simulatore/', views_simulatore.api_presenze_simulatore, name='api_presenze_simulatore'),
+    path('api/prefill-simulatore/', views_simulatore.api_prefill_simulatore_form, name='api_prefill_simulatore_form'),
     path('api/mansioni-per-livello/', views.api_mansioni_per_livello, name='api_mansioni_per_livello'),
 ]

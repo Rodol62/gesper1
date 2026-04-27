@@ -38,6 +38,16 @@
           </div>
           <div class="text-nowrap">
             <a class="btn btn-sm btn-outline-primary py-0" style="font-size:.72rem" href="{% url 'dettaglio_contratto' r.id %}">Scheda contratto</a>
+            {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
+            {% if r.stato == 'sottoscritto' or r.stato == 'sospeso' %}
+            <form method="post" action="{% url 'genera_comunicazione_recesso_prova' r.dipendente_id r.id %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-danger py-0" style="font-size:.72rem">
+                Workflow recesso prova
+              </button>
+            </form>
+            {% endif %}
+            {% endif %}
             {% if puo_registrare_addendum|default:False %}
             <a class="btn btn-sm btn-outline-secondary py-0" style="font-size:.72rem" href="{% url 'addendum_contratto_nuovo' r.id %}">Nuovo addendum</a>
             {% endif %}

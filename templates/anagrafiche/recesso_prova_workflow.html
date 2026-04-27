@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% load ruoli_tags %}
+{% block title %}Workflow recesso prova — {{ dipendente.cognome }} {{ dipendente.nome }}{% endblock %}
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:1100px">
+  <div style="background:linear-gradient(135deg,#7f1d1d,#b91c1c);color:#fff;border-radius:8px;padding:.7rem 1rem;margin-bottom:1rem">
+    <h5 style="margin:0;font-size:.95rem;font-weight:800">
+      <i class="bi bi-file-earmark-pdf"></i> Workflow comunicazione recesso in prova
+    </h5>
+    <div style="font-size:.76rem;opacity:.9">
+      Dipendente: {{ dipendente.cognome }} {{ dipendente.nome }} · Contratto {{ rapporto.numero_contratto }} · Stato: <strong>{{ comunicazione.get_stato_display }}</strong>
+    </div>
+  </div>
+
+  <div class="mb-2 d-flex gap-2 flex-wrap">
+    <a href="{% url 'dettaglio_dipendente' dipendente.id %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Torna alla scheda dipendente
+    </a>
+    {% if comunicazione.documento_pdf_id %}
+    <a href="{% url 'visualizza_documento' comunicazione.documento_pdf_id %}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-file-earmark-text"></i> Apri PDF firmato
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2" style="font-size:.82rem;font-weight:700;color:#1b3a5f;background:#f4f7fa">
+      Bozza comunicazione (modificabile da consulente/admin prima firma)
+    </div>
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <textarea name="testo_bozza" rows="18" class="form-control" style="font-size:.83rem">{{ comunicazione.testo_bozza }}</textarea>
+        {% if puo_modificare %}
+        <div class="mt-2">
+          <button type="submit" name="action" value="salva_bozza" class="btn btn-sm btn-primary">
+            <i class="bi bi-save"></i> Salva bozza
+          </button>
+        </div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header py-2" style="font-size:.8rem;font-weight:700;background:#f4f7fa;color:#1b3a5f">
+          Step 1 · Verifica consulente
+        </div>
+        <div class="card-body">
+          {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %}
+          <form method="post" class="mb-2">
+            {% csrf_token %}
+            <button type="submit" name="action" value="invia_consulente" class="btn btn-sm btn-outline-warning">
+              Invia al consulente per controllo
+            </button>
+          </form>
+          {% endif %}
+          {% if user|has_ruolo:'consulente' %}
+          <form method="post">
+            {% csrf_token %}
+            <label class="form-label" style="font-size:.78rem">Note verifica consulente</label>
+            <textarea name="note_consulente" rows="3" class="form-control form-control-sm">{{ comunicazione.note_consulente }}</textarea>
+            <button type="submit" name="action" value="verifica_consulente_ok" class="btn btn-sm btn-success mt-2">
+              Conferma verificato consulente
+            </button>
+          </form>
+          {% endif %}
+          {% if comunicazione.consulente_verificatore %}
+          <div class="mt-2 small text-muted">
+            Verificato da {{ comunicazione.consulente_verificatore }} il {{ comunicazione.data_verifica_consulente|date:"d/m/Y H:i" }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header py-2" style="font-size:.8rem;font-weight:700;background:#f4f7fa;color:#1b3a5f">
+          Step 2-3 · Firma amministratore e invio dipendente
+        </div>
+        <div class="card-body">
+          {% if user.is_superuser or user|has_ruolo:'admin' %}
+          <form method="post" class="mb-2">
+            {% csrf_token %}
+            <button type="submit" name="action" value="firma_admin" class="btn btn-sm btn-danger">
+              Firma digitale amministratore + genera PDF
+            </button>
+          </form>
+          {% endif %}
+          {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %}
+          <form method="post">
+            {% csrf_token %}
+            <button type="submit" name="action" value="invia_dipendente" class="btn btn-sm btn-outline-primary">
+              Invia e-mail al dipendente (con PDF)
+            </button>
+          </form>
+          {% endif %}
+          {% if comunicazione.firmato_da_admin %}
+          <div class="mt-2 small text-muted">
+            Firmato da {{ comunicazione.firmato_da_admin }} il {{ comunicazione.data_firma_admin|date:"d/m/Y H:i" }}<br>
+            Firmatario documento: {{ comunicazione.firmatario_nome }} · {{ comunicazione.firmatario_ruolo }}
+          </div>
+          {% endif %}
+          {% if comunicazione.inviata_email %}
+          <div class="mt-2 badge bg-success">Email inviata al dipendente il {{ comunicazione.data_invio_email|date:"d/m/Y H:i" }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -37,10 +37,10 @@ from django.db.models import Count, Q, Sum
 from gesper_next_url import sanitize_internal_next
 from django.db.models.functions import Coalesce
 
-from anagrafiche.models import Dipendente
+from anagrafiche.models import ComunicazioneRecessoProva, Dipendente
 from documenti.models import Documento
 from presenze.models import Presenza
-from rapporto_di_lavoro.models import PropostaAssunzione
+from rapporto_di_lavoro.models import AddendumContrattuale, PropostaAssunzione, RapportoDiLavoro
 from log_attivita.utils import registra_log
 from log_attivita.anomalie import registra_evento_anomalia
 from .models import MovimentoImportPaghe
@@ -170,6 +170,36 @@ def consulente_dashboard(request):
     td_in_scadenza = len(contratti_td_in_scadenza(azienda))
     td_scaduti_aperti = len(contratti_td_scaduti_non_chiusi(azienda))
 
+    contratti_sottoscritti_count = RapportoDiLavoro.objects.filter(
+        azienda=azienda, stato='sottoscritto'
+    ).count()
+    contratti_recenti = (
+        RapportoDiLavoro.objects.filter(azienda=azienda)
+        .exclude(stato='proposta')
+        .select_related('dipendente', 'tipo_contratto')
+        .order_by('-data_modifica', '-id')[:10]
+    )
+    addenda_recenti = (
+        AddendumContrattuale.objects.filter(rapporto__azienda=azienda)
+        .select_related('rapporto', 'rapporto__dipendente', 'creato_da')
+        .order_by('-data_creazione', '-id')[:10]
+    )
+    addendum_anno_count = AddendumContrattuale.objects.filter(
+        rapporto__azienda=azienda,
+        data_creazione__year=oggi.year,
+    ).count()
+
+    recesso_qs = (
+        ComunicazioneRecessoProva.objects.filter(
+            azienda=azienda,
+            stato='in_verifica_consulente',
+        )
+        .select_related('dipendente', 'rapporto')
+        .order_by('-data_modifica')
+    )
+    recesso_prova_in_verifica_count = recesso_qs.count()
+    recesso_prova_in_verifica = list(recesso_qs[:12])
+
     return render(request, 'consulente/dashboard.html', {
         'azienda': azienda,
         'dipendenti_attivi': dipendenti_attivi,
@@ -177,6 +207,8 @@ def consulente_dashboard(request):
         'candidati_recenti': candidati_recenti,
         'candidati_posizione': candidati_posizione,
         'proposte_da_approvare': proposte_da_approvare,
+        'recesso_prova_in_verifica_count': recesso_prova_in_verifica_count,
+        'recesso_prova_in_verifica': recesso_prova_in_verifica,
         'buste_paga_count': buste_paga_count,
         'f24_documenti_count': f24_documenti_count,
         'cud_certificati_count': cud_certificati_count,
@@ -187,6 +219,10 @@ def consulente_dashboard(request):
         'anno_corrente': oggi.year,
         'td_in_scadenza': td_in_scadenza,
         'td_scaduti_aperti': td_scaduti_aperti,
+        'contratti_sottoscritti_count': contratti_sottoscritti_count,
+        'contratti_recenti': contratti_recenti,
+        'addenda_recenti': addenda_recenti,
+        'addendum_anno_count': addendum_anno_count,
     })
 
 

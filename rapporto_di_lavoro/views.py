@@ -43,7 +43,7 @@ from accounts.tenant import get_azienda_operativa
 from gesper_next_url import sanitize_internal_next
 from accounts.pagination import pagination_window
 from accounts.formatting import euro_it_str, num_it_str
-from anagrafiche.models import Dipendente
+from anagrafiche.models import ComunicazioneRecessoProva, Dipendente
 from .forms import (
 	PropostaAssunzioneForm,
 	IstruttoriaAssunzioneForm,
@@ -72,7 +72,6 @@ from .models import (
 	ChiusuraAziendale,
 	CalendarioPresenzeDipendente,
 	SimulazioneVoceRetributivaOre,
-	ParametroVoceRetributiva,
 	VoceRetributiva,
 )
 from .utils_calcoli import (
@@ -81,6 +80,7 @@ from .utils_calcoli import (
 	calcola_trattamento_integrativo,
 )
 from .utils_motore_paga import calcola_busta_paga_mese
+from .parametro_ccnl_voci_retributive import carica_voci_retributive_da_tabella as _carica_voci_retributive_da_tabella
 from .services_simulazione import (
 	calcola_base_simulazione_motore_unico,
 	calcola_giorni_attivi_mese,
@@ -302,6 +302,45 @@ def _autocompleta_retribuzione_proposta(proposta, azienda_operativa, preserve_ma
 
 def _is_admin_like(user):
 	return user.is_authenticated and (user.is_superuser or getattr(user, 'ruolo', None) in ['admin', 'hr'])
+
+
+def _puo_accedere_centro_rapporti(user):
+	"""Admin/HR come prima; consulente con azienda collegata (link dal dashboard consulente)."""
+	if not user.is_authenticated:
+		return False
+	if user.is_superuser or user.has_ruolo('admin') or user.has_ruolo('hr'):
+		return True
+	return user.has_ruolo('consulente') and bool(getattr(user, 'azienda_id', None))
+
+
+@login_required
+@user_passes_test(_puo_accedere_centro_rapporti)
+def centro_rapporti_lavoro(request):
+	u = request.user
+	if u.has_ruolo('admin') or u.is_superuser:
+		azienda_operativa = get_azienda_operativa(u, request.session)
+	else:
+		azienda_operativa = getattr(u, 'azienda', None)
+
+	base_qs = (
+		ComunicazioneRecessoProva.objects.select_related('dipendente', 'rapporto', 'azienda')
+		.order_by('-data_modifica')
+	)
+	if azienda_operativa:
+		recesso_prova_recenti = base_qs.filter(azienda=azienda_operativa)[:50]
+	elif u.is_superuser:
+		recesso_prova_recenti = base_qs[:50]
+	else:
+		recesso_prova_recenti = ComunicazioneRecessoProva.objects.none()
+
+	return render(
+		request,
+		'rapporto_di_lavoro/centro_rapporti_lavoro.html',
+		{
+			'azienda_operativa': azienda_operativa,
+			'recesso_prova_recenti': recesso_prova_recenti,
+		},
+	)
 
 
 def _is_admin_only(user):
@@ -2634,67 +2673,6 @@ def _get_flags_imponibilita_voce(codice_voce):
 		}
 	except Exception:
 		return default
-
-
-def _carica_voci_retributive_da_tabella(parametro, anno=None):
-	"""Ritorna importi voci retributive da tabella dedicata (mensili/orarie) per livello/ccnl/versione/sezione."""
-	if not parametro:
-		return {}
-
-	try:
-		anno_rif = int(anno or (parametro.decorrenza_validita_da.year if parametro.decorrenza_validita_da else timezone.localdate().year))
-	except Exception:
-		anno_rif = timezone.localdate().year
-
-	qs = ParametroVoceRetributiva.objects.filter(
-		ccnl=getattr(parametro, 'ccnl', ''),
-		versione=getattr(parametro, 'versione', ''),
-		sezione=getattr(parametro, 'sezione', ''),
-		livello=str(getattr(parametro, 'livello', '') or ''),
-		attivo=True,
-		anno=anno_rif,
-	).select_related('voce')
-	# Fallback: se versione non corrisponde (es. PVR su '2025-06' con parametro su '2026-06'),
-	# prova senza filtro versione per usare i dati disponibili più recenti.
-	if not qs.exists():
-		qs = ParametroVoceRetributiva.objects.filter(
-			ccnl=getattr(parametro, 'ccnl', ''),
-			sezione=getattr(parametro, 'sezione', ''),
-			livello=str(getattr(parametro, 'livello', '') or ''),
-			attivo=True,
-		).select_related('voce').order_by('-anno')
-
-	voci = {
-		'minimo_tabellare': Decimal('0.00'),
-		'contingenza': Decimal('0.00'),
-		'scatto_anzianita': Decimal('0.00'),
-		'superminimo': Decimal('0.00'),
-		'el_dis_san': Decimal('0.00000'),
-		'el_dis_bil': Decimal('0.00000'),
-	}
-
-	map_codice = {
-		'PAGA_BASE': 'minimo_tabellare',
-		'MINIMO_TABELLARE': 'minimo_tabellare',
-		'CONTINGENZA': 'contingenza',
-		'SCATTO_ANZ': 'scatto_anzianita',
-		'SCATTO_ANZIANITA': 'scatto_anzianita',
-		'SUPERMINIMO': 'superminimo',
-		'EL_DIS_SAN': 'el_dis_san',
-		'EL_DIS_BIL': 'el_dis_bil',
-	}
-
-	for item in qs:
-		codice = str(getattr(getattr(item, 'voce', None), 'codice', '') or '').upper()
-		chiave = map_codice.get(codice)
-		if not chiave:
-			continue
-		if chiave in ('el_dis_san', 'el_dis_bil'):
-			voci[chiave] = _safe_decimal(item.importo_orario).quantize(Decimal('0.00001'))  # €/ora: 5 decimali
-		else:
-			voci[chiave] = _safe_decimal(item.importo_mensile).quantize(Decimal('0.01'))
-
-	return voci
 
 
 def _calcola_busta_paga_ore(

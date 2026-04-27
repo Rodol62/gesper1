@@ -16,7 +16,55 @@ class Azienda(models.Model):
         verbose_name_plural = 'Aziende'
     nome = models.CharField(max_length=255, verbose_name='Ragione sociale')
     partita_iva = models.CharField(max_length=20, unique=True, verbose_name='Partita IVA')
-    indirizzo = models.CharField(max_length=255, verbose_name='Indirizzo')
+    indirizzo = models.CharField(
+        max_length=255,
+        verbose_name='Indirizzo sede legale (riepilogo)',
+        help_text='Compilato automaticamente da via, CAP e comune; usato nei report che richiedono una sola riga.',
+    )
+    sede_legale_regione = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        verbose_name='Regione (sede legale)',
+    )
+    sede_legale_provincia = models.CharField(
+        max_length=10,
+        blank=True,
+        default='',
+        verbose_name='Provincia (sigla, sede legale)',
+    )
+    sede_legale_comune = models.CharField(
+        max_length=120,
+        blank=True,
+        default='',
+        verbose_name='Comune (sede legale)',
+    )
+    sede_legale_cap = models.CharField(
+        max_length=10,
+        blank=True,
+        default='',
+        verbose_name='CAP (sede legale)',
+    )
+    sede_legale_via = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Via e numero civico (sede legale)',
+        help_text='Es. Via Roma 12 — da affiancare a comune e CAP.',
+    )
+    amministratore_pro_tempore_nome = models.CharField(
+        max_length=200,
+        blank=True,
+        default='',
+        verbose_name='Amministratore pro tempore (nome e cognome)',
+    )
+    amministratore_pro_tempore_ruolo = models.CharField(
+        max_length=150,
+        blank=True,
+        default='',
+        verbose_name='Amministratore pro tempore (ruolo)',
+        help_text='Es. Amministratore delegato, Legale rappresentante.',
+    )
     email = models.EmailField(verbose_name='Email')
     telefono = models.CharField(max_length=30, blank=True, verbose_name='Telefono')
 
@@ -116,6 +164,12 @@ class Dipendente(models.Model):
         ('cessato', 'Cessato'),
         ('candidato', 'Candidato'),
     ]
+    SESSO_CHOICES = [
+        ('', '— Non specificato —'),
+        ('M', 'Maschile'),
+        ('F', 'Femminile'),
+        ('A', 'Preferisco non specificare'),
+    ]
 
     class Meta:
         verbose_name = 'Dipendente'
@@ -146,7 +200,26 @@ class Dipendente(models.Model):
     cognome = models.CharField(max_length=100, verbose_name='Cognome')
     codice_fiscale = models.CharField(max_length=16, unique=True, null=True, blank=True, verbose_name='Codice Fiscale')
     data_nascita = models.DateField(null=True, blank=True, verbose_name='Data di nascita')
+    cittadinanza = models.CharField(max_length=100, blank=True, default='ITALIANA', verbose_name='Cittadinanza')
+    luogo_nascita = models.CharField(max_length=100, blank=True, verbose_name='Luogo di nascita')
+    paese_nascita = models.CharField(max_length=100, blank=True, default='ITALIA', verbose_name='Paese di nascita')
+    regione_nascita = models.CharField(max_length=100, blank=True, verbose_name='Regione di nascita')
+    provincia_nascita = models.CharField(max_length=100, blank=True, verbose_name='Provincia di nascita')
+    comune_nascita = models.CharField(max_length=100, blank=True, verbose_name='Comune di nascita')
+    sesso = models.CharField(max_length=1, blank=True, choices=SESSO_CHOICES, default='', verbose_name='Sesso')
     indirizzo = models.CharField(max_length=255, blank=True, verbose_name='Indirizzo')
+    cap = models.CharField(max_length=10, blank=True, verbose_name='CAP')
+    citta = models.CharField(max_length=100, blank=True, verbose_name='Citta')
+    provincia = models.CharField(max_length=2, blank=True, verbose_name='Provincia')
+    paese_residenza = models.CharField(max_length=100, blank=True, default='ITALIA', verbose_name='Paese di residenza')
+    regione_residenza = models.CharField(max_length=100, blank=True, verbose_name='Regione di residenza')
+    domicilio_uguale_residenza = models.BooleanField(default=True, verbose_name='Domicilio uguale a residenza')
+    domicilio_indirizzo = models.CharField(max_length=255, blank=True, verbose_name='Domicilio - indirizzo')
+    domicilio_cap = models.CharField(max_length=10, blank=True, verbose_name='Domicilio - CAP')
+    domicilio_comune = models.CharField(max_length=100, blank=True, verbose_name='Domicilio - Comune')
+    domicilio_provincia = models.CharField(max_length=2, blank=True, verbose_name='Domicilio - Provincia')
+    paese_domicilio = models.CharField(max_length=100, blank=True, default='ITALIA', verbose_name='Domicilio - Paese')
+    domicilio_regione = models.CharField(max_length=100, blank=True, verbose_name='Domicilio - Regione')
     email = models.EmailField(blank=True, verbose_name='Email')
     telefono = models.CharField(max_length=30, blank=True, verbose_name='Telefono')
     data_assunzione = models.DateField(null=True, blank=True, verbose_name='Data assunzione')
@@ -166,7 +239,14 @@ class Dipendente(models.Model):
 
     def _normalizza_testi_maiuscolo(self):
         """Uniformità dati: testi anagrafici salvati in maiuscolo (email esclusa)."""
-        for attr in ('nome', 'cognome', 'indirizzo', 'ruolo', 'livello'):
+        for attr in (
+            'nome', 'cognome', 'cittadinanza', 'luogo_nascita',
+            'paese_nascita',
+            'regione_nascita', 'provincia_nascita', 'comune_nascita',
+            'indirizzo', 'cap', 'citta', 'provincia', 'paese_residenza', 'regione_residenza',
+            'domicilio_indirizzo', 'domicilio_cap', 'domicilio_comune', 'domicilio_provincia', 'paese_domicilio', 'domicilio_regione',
+            'ruolo', 'livello',
+        ):
             v = getattr(self, attr, None)
             if v and isinstance(v, str):
                 setattr(self, attr, v.strip().upper())
@@ -187,3 +267,75 @@ class Dipendente(models.Model):
 
     def __str__(self):
         return f"{self.nome} {self.cognome} ({self.azienda.nome if hasattr(self, 'azienda') and self.azienda else ''})"
+
+
+class ComunicazioneRecessoProva(models.Model):
+    STATO_CHOICES = [
+        ('bozza', 'Bozza'),
+        ('in_verifica_consulente', 'In verifica consulente'),
+        ('verificata_consulente', 'Verificata consulente'),
+        ('firmata_admin', 'Firmata amministratore'),
+        ('inviata_dipendente', 'Inviata al dipendente'),
+    ]
+
+    azienda = models.ForeignKey(Azienda, on_delete=models.CASCADE, related_name='comunicazioni_recesso_prova')
+    dipendente = models.ForeignKey(Dipendente, on_delete=models.CASCADE, related_name='comunicazioni_recesso_prova')
+    rapporto = models.ForeignKey(
+        'rapporto_di_lavoro.RapportoDiLavoro',
+        on_delete=models.CASCADE,
+        related_name='comunicazioni_recesso_prova',
+    )
+    stato = models.CharField(max_length=40, choices=STATO_CHOICES, default='bozza')
+    testo_bozza = models.TextField(blank=True, default='')
+    note_consulente = models.TextField(blank=True, default='')
+    consulente_verificatore = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='recessi_prova_verificati',
+    )
+    data_verifica_consulente = models.DateTimeField(null=True, blank=True)
+    firmato_da_admin = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='recessi_prova_firmati',
+    )
+    firmatario_nome = models.CharField(max_length=150, blank=True, default='')
+    firmatario_ruolo = models.CharField(max_length=150, blank=True, default='')
+    data_firma_admin = models.DateTimeField(null=True, blank=True)
+    documento_pdf = models.ForeignKey(
+        'documenti.Documento',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='comunicazioni_recesso_prova_pdf',
+    )
+    inviata_email = models.BooleanField(default=False)
+    data_invio_email = models.DateTimeField(null=True, blank=True)
+    creato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='recessi_prova_creati',
+    )
+    modificato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='recessi_prova_modificati',
+    )
+    data_creazione = models.DateTimeField(auto_now_add=True)
+    data_modifica = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Comunicazione recesso periodo prova'
+        verbose_name_plural = 'Comunicazioni recesso periodo prova'
+        ordering = ['-data_creazione']
+
+    def __str__(self):
+        return f"Recesso prova {self.rapporto.numero_contratto} - {self.dipendente.cognome}"

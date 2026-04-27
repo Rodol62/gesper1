@@ -36,13 +36,14 @@ details.conc-det[open] > summary { margin-bottom: 0; }
 <nav aria-label="Percorso" class="mb-2">
   <ol class="breadcrumb mb-0" style="font-size:.8rem">
     <li class="breadcrumb-item"><a href="{% url 'lista_documenti' %}">Documenti</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'verifica_buste_paga' %}">Verifica buste paghe</a></li>
     <li class="breadcrumb-item active" aria-current="page">Conciliazione buste</li>
   </ol>
 </nav>
 
 <h1 class="h5 mb-2 conc-h1"><i class="bi bi-check2-square me-1"></i> Conciliazione buste paga</h1>
 <p class="conc-lead mb-3">
-  <strong>Passo 4 del flusso menu Documenti:</strong> qui vedi solo le buste dell’anno, con esito sintetico
+  <strong>Passo 4 (Verifica buste paghe):</strong> qui vedi solo le buste dell’anno, con esito sintetico
   <span class="badge bg-success">OK</span> (tutti i controlli ok),
   <span class="badge bg-danger">Δ</span> (da verificare o memorizzare di nuovo),
   <span class="badge bg-secondary">Senza v4</span> (eseguire prima il passo 3 — memorizza estrazione).

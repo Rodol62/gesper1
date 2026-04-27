@@ -1,42 +1,438 @@
 {% extends 'base.html' %}
 {% block title %}{{ titolo }}{% endblock %}
 {% block content %}
-<div class="container mt-4">
+<div class="container mt-4" style="max-width:920px">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="mb-0">{{ titolo }}</h2>
     <a href="{% url 'lista_aziende' %}" class="btn btn-outline-secondary">Torna alle aziende</a>
   </div>
 
-  <div class="card">
-    <div class="card-body">
-      <form method="post">
-        {% csrf_token %}
+  {% if territorio_dataset_info %}
+  <div class="alert alert-secondary py-2 small mb-3">
+    <strong>Fonte territori:</strong> ISTAT (comuni/province/regioni aggiornati al {{ territorio_dataset_info.comuni_updated_at|default:'n.d.' }}).
+  </div>
+  {% endif %}
 
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+  <form method="post" id="form-azienda">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="card mb-3">
+      <div class="card-header fw-semibold"><i class="bi bi-building me-1"></i> Dati principali</div>
+      <div class="card-body row g-3">
+        <div class="col-md-8">
+          <label class="form-label" for="{{ form.nome.id_for_label }}">{{ form.nome.label }}</label>
+          {{ form.nome }}{% if form.nome.errors %}<div class="text-danger small">{{ form.nome.errors }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="{{ form.partita_iva.id_for_label }}">{{ form.partita_iva.label }}</label>
+          {{ form.partita_iva }}{% if form.partita_iva.errors %}<div class="text-danger small">{{ form.partita_iva.errors }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+          {{ form.email }}{% if form.email.errors %}<div class="text-danger small">{{ form.email.errors }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.telefono.id_for_label }}">{{ form.telefono.label }}</label>
+          {{ form.telefono }}{% if form.telefono.errors %}<div class="text-danger small">{{ form.telefono.errors }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header fw-semibold"><i class="bi bi-geo-alt me-1"></i> Sede legale (Italia)</div>
+      <div class="card-body">
+        <p class="small text-muted mb-3">Seleziona regione, provincia e comune (elenchi ISTAT). Il campo <strong>Indirizzo su una riga</strong> in anagrafica e nei documenti viene composto automaticamente da via, CAP e comune.</p>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label" for="{{ form.sede_legale_regione.id_for_label }}">{{ form.sede_legale_regione.label }}</label>
+            {{ form.sede_legale_regione }}{% if form.sede_legale_regione.errors %}<div class="text-danger small">{{ form.sede_legale_regione.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="{{ form.sede_legale_provincia.id_for_label }}">{{ form.sede_legale_provincia.label }}</label>
+            {{ form.sede_legale_provincia }}{% if form.sede_legale_provincia.errors %}<div class="text-danger small">{{ form.sede_legale_provincia.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="{{ form.sede_legale_comune.id_for_label }}">{{ form.sede_legale_comune.label }}</label>
+            {{ form.sede_legale_comune }}{% if form.sede_legale_comune.errors %}<div class="text-danger small">{{ form.sede_legale_comune.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="{{ form.sede_legale_cap.id_for_label }}">{{ form.sede_legale_cap.label }}</label>
+            {{ form.sede_legale_cap }}{% if form.sede_legale_cap.errors %}<div class="text-danger small">{{ form.sede_legale_cap.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-9">
+            <label class="form-label" for="{{ form.sede_legale_via.id_for_label }}">{{ form.sede_legale_via.label }}</label>
+            {{ form.sede_legale_via }}{% if form.sede_legale_via.errors %}<div class="text-danger small">{{ form.sede_legale_via.errors }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="mt-2 small text-muted" id="preview-indirizzo-composto">
+          {% if form.instance.pk %}<strong>Indirizzo composto:</strong> {{ form.instance.indirizzo|default:"—" }}{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header fw-semibold"><i class="bi bi-person-badge me-1"></i> Amministratore pro tempore</div>
+      <div class="card-body row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.amministratore_pro_tempore_nome.id_for_label }}">{{ form.amministratore_pro_tempore_nome.label }}</label>
+          {{ form.amministratore_pro_tempore_nome }}
+          {% if form.amministratore_pro_tempore_nome.help_text %}<div class="form-text">{{ form.amministratore_pro_tempore_nome.help_text }}</div>{% endif %}
+          {% if form.amministratore_pro_tempore_nome.errors %}<div class="text-danger small">{{ form.amministratore_pro_tempore_nome.errors }}</div>{% endif %}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="{{ form.amministratore_pro_tempore_ruolo.id_for_label }}">{{ form.amministratore_pro_tempore_ruolo.label }}</label>
+          {{ form.amministratore_pro_tempore_ruolo }}
+          {% if form.amministratore_pro_tempore_ruolo.help_text %}<div class="form-text">{{ form.amministratore_pro_tempore_ruolo.help_text }}</div>{% endif %}
+          {% if form.amministratore_pro_tempore_ruolo.errors %}<div class="text-danger small">{{ form.amministratore_pro_tempore_ruolo.errors }}</div>{% endif %}
+        </div>
+        <p class="small text-muted mb-0">Per l’azienda operativa (o unica in archivio), nome e ruolo si allineano anche al <strong>firmatario</strong> nelle <a href="{% url 'impostazioni_sistema' %}?tab=sito">Impostazioni di sistema</a> (documenti, comunicazioni).</p>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header fw-semibold"><i class="bi bi-crosshair2 me-1"></i> Sede lavorativa e geofence presenze</div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label" for="{{ form.sede_lavorativa_indirizzo.id_for_label }}">{{ form.sede_lavorativa_indirizzo.label }}</label>
+            {{ form.sede_lavorativa_indirizzo }}
+            {% if form.sede_lavorativa_indirizzo.help_text %}<div class="form-text">{{ form.sede_lavorativa_indirizzo.help_text }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="{{ form.sede_lavorativa_lat.id_for_label }}">{{ form.sede_lavorativa_lat.label }}</label>
+            {{ form.sede_lavorativa_lat }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="{{ form.sede_lavorativa_lon.id_for_label }}">{{ form.sede_lavorativa_lon.label }}</label>
+            {{ form.sede_lavorativa_lon }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="{{ form.sede_lavorativa_raggio_m.id_for_label }}">{{ form.sede_lavorativa_raggio_m.label }}</label>
+            {{ form.sede_lavorativa_raggio_m }}
+          </div>
+        </div>
+        {% if form.sede_lavorativa_lat.errors or form.sede_lavorativa_lon.errors or form.sede_lavorativa_raggio_m.errors %}
+        <div class="text-danger small mt-2">
+          {{ form.sede_lavorativa_lat.errors }}{{ form.sede_lavorativa_lon.errors }}{{ form.sede_lavorativa_raggio_m.errors }}
+        </div>
         {% endif %}
 
-        <div class="row">
-          {% for field in form %}
-            <div class="col-md-6 mb-3">
-              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-              {{ field }}
-              {% if field.help_text %}
-                <small class="text-muted d-block">{{ field.help_text }}</small>
-              {% endif %}
-              {% if field.errors %}
-                <div class="text-danger small">{{ field.errors }}</div>
-              {% endif %}
-            </div>
-          {% endfor %}
+        <div class="border rounded p-3 mt-3" style="background:#f8fbff;">
+          <div class="fw-semibold small mb-2">Coordinate (OpenStreetMap / Nominatim — come in Impostazioni)</div>
+          <div class="d-flex flex-wrap gap-2 mb-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="btnGeoAziendaNominatim"><i class="bi bi-signpost-2"></i> Trova coordinate da indirizzo</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnGeoAziendaMaps"><i class="bi bi-map"></i> Estrai da Google Maps</button>
+            <button type="button" class="btn btn-outline-dark btn-sm" id="btnGeoAziendaGps"><i class="bi bi-geo"></i> Posizione attuale</button>
+          </div>
+          <div class="input-group input-group-sm mb-2">
+            <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+            <input type="text" id="geoAziendaMapsInput" class="form-control" placeholder="Link Google Maps o coordinate (es. 38.115690, 13.361267)">
+          </div>
+          <div id="geoAziendaStatus" class="form-text"></div>
         </div>
-
-        <div class="mt-2 d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Salva</button>
-          <a href="{% url 'lista_aziende' %}" class="btn btn-outline-secondary">Annulla</a>
-        </div>
-      </form>
+      </div>
     </div>
-  </div>
+
+    <div class="card mb-3">
+      <div class="card-header fw-semibold"><i class="bi bi-file-earmark-text me-1"></i> Profilo contrattuale</div>
+      <div class="card-body row g-3">
+        <div class="col-md-4">
+          <label class="form-label" for="{{ form.tipologia_dimensionale.id_for_label }}">{{ form.tipologia_dimensionale.label }}</label>
+          {{ form.tipologia_dimensionale }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="{{ form.ccnl_predefinito.id_for_label }}">{{ form.ccnl_predefinito.label }}</label>
+          {{ form.ccnl_predefinito }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="{{ form.tipo_contratto_predefinito.id_for_label }}">{{ form.tipo_contratto_predefinito.label }}</label>
+          {{ form.tipo_contratto_predefinito }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="{{ form.ore_settimanali_standard.id_for_label }}">{{ form.ore_settimanali_standard.label }}</label>
+          {{ form.ore_settimanali_standard }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="{{ form.ore_giornaliere_standard.id_for_label }}">{{ form.ore_giornaliere_standard.label }}</label>
+          {{ form.ore_giornaliere_standard }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="{{ form.data_attivazione_contratto.id_for_label }}">{{ form.data_attivazione_contratto.label }}</label>
+          {{ form.data_attivazione_contratto }}
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="{{ form.note_contrattuali.id_for_label }}">{{ form.note_contrattuali.label }}</label>
+          {{ form.note_contrattuali }}
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Salva</button>
+      <a href="{% url 'lista_aziende' %}" class="btn btn-outline-secondary">Annulla</a>
+    </div>
+  </form>
 </div>
+
+<script>
+(function () {
+  var formRoot = document.getElementById('form-azienda');
+  function qs(name) {
+    return formRoot ? formRoot.querySelector('[name="' + name + '"]') : null;
+  }
+
+  function fillSelect(sel, items, valueKey, labelFn, emptyLabel) {
+    if (!sel) return;
+    var old = sel.value;
+    sel.innerHTML = '';
+    var opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = emptyLabel || '—';
+    sel.appendChild(opt0);
+    (items || []).forEach(function (it) {
+      var o = document.createElement('option');
+      o.value = it[valueKey] || '';
+      o.textContent = labelFn ? labelFn(it) : (it[valueKey] || '');
+      sel.appendChild(o);
+    });
+    if (old) sel.value = old;
+  }
+  async function getJson(url) {
+    var r = await fetch(url, {
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+      credentials: 'same-origin',
+    });
+    if (!r.ok) return {items: []};
+    return await r.json();
+  }
+
+  function isPlaceholderGeoLabel(txt) {
+    if (!txt) return true;
+    return /seleziona/i.test(txt) || /^[—\-–]/.test(String(txt).trim());
+  }
+
+  function bindGeoSedeLegale() {
+    var reg = qs('sede_legale_regione');
+    var prov = qs('sede_legale_provincia');
+    var com = qs('sede_legale_comune');
+    var cap = qs('sede_legale_cap');
+    var via = qs('sede_legale_via');
+    if (!reg || !prov || !com) return;
+
+    reg.addEventListener('change', async function () {
+      try {
+        fillSelect(com, [], 'nome', function (x) { return x.nome; }, '— Seleziona provincia —');
+        if (!reg.value) {
+          fillSelect(prov, [], 'sigla', function (x) { return x.nome; }, '— Seleziona regione —');
+          updatePreview();
+          return;
+        }
+        var data = await getJson("{% url 'api_province_italia' %}?regione=" + encodeURIComponent(reg.value));
+        fillSelect(prov, data.items, 'sigla', function (x) { return x.nome + (x.sigla ? " (" + x.sigla + ")" : ""); }, '— Seleziona —');
+        updatePreview();
+      } catch (e) {
+        updatePreview();
+      }
+    });
+    prov.addEventListener('change', async function () {
+      try {
+        if (!reg.value || !prov.value) {
+          fillSelect(com, [], 'nome', function (x) { return x.nome; }, '— Seleziona provincia —');
+          updatePreview();
+          return;
+        }
+        var data = await getJson("{% url 'api_comuni_italia' %}?regione=" + encodeURIComponent(reg.value) + "&provincia=" + encodeURIComponent(prov.value));
+        fillSelect(com, data.items, 'nome', function (x) { return x.nome + (x.codice_catastale ? " (" + x.codice_catastale + ")" : ""); }, '— Seleziona —');
+        com._capMap = {};
+        (data.items || []).forEach(function (it) { com._capMap[it.nome] = it.cap || ''; });
+        updatePreview();
+      } catch (e) {
+        updatePreview();
+      }
+    });
+    com.addEventListener('change', function () {
+      if (cap && !cap.value && com._capMap && com.value) cap.value = com._capMap[com.value] || '';
+      updatePreview();
+    });
+    if (cap) cap.addEventListener('input', updatePreview);
+    if (via) via.addEventListener('input', updatePreview);
+  }
+
+  function updatePreview() {
+    var box = document.getElementById('preview-indirizzo-composto');
+    if (!box) return;
+    var viaEl = qs('sede_legale_via');
+    var capEl = qs('sede_legale_cap');
+    var comSel = qs('sede_legale_comune');
+    var provSel = qs('sede_legale_provincia');
+    var via = (viaEl && viaEl.value) ? viaEl.value.trim() : '';
+    var cap = (capEl && capEl.value) ? capEl.value.trim() : '';
+    var com = '';
+    if (comSel && comSel.value) {
+      var opt = comSel.options[comSel.selectedIndex];
+      var raw = opt ? (opt.textContent || opt.text || '').replace(/\s*\([^)]*\)\s*$/, '').trim() : '';
+      if (!isPlaceholderGeoLabel(raw)) com = raw;
+    }
+    var prov = (provSel && provSel.value) ? provSel.value.trim() : '';
+    var parts = [];
+    if (via) parts.push(via);
+    var tail = [cap, com].filter(Boolean).join(' ');
+    if (prov && tail) tail += ' (' + prov + ')';
+    else if (prov) tail = '(' + prov + ')';
+    if (tail) parts.push(tail);
+    var line = parts.join(', ');
+    var emptyHint = "<span class=\"text-muted\">Compila via, CAP e comune (dopo regione, provincia e comune) per l anteprima.</span>";
+    box.innerHTML = line ? '<strong>Anteprima indirizzo composto:</strong> ' + line : emptyHint;
+  }
+
+  var latIn = qs('sede_lavorativa_lat');
+  var lonIn = qs('sede_lavorativa_lon');
+  var sedeLavInd = qs('sede_lavorativa_indirizzo');
+  var viaLeg = qs('sede_legale_via');
+  var capLeg = qs('sede_legale_cap');
+  var comLeg = qs('sede_legale_comune');
+  var provLeg = qs('sede_legale_provincia');
+
+  function initGeo() {
+    bindGeoSedeLegale();
+    updatePreview();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initGeo);
+  } else {
+    initGeo();
+  }
+
+  var mapsInput = document.getElementById('geoAziendaMapsInput');
+  var statusBox = document.getElementById('geoAziendaStatus');
+  var csrf = document.querySelector('#form-azienda input[name="csrfmiddlewaretoken"]');
+  var csrfToken = csrf ? csrf.value : '';
+
+  function setStatus(msg, type) {
+    if (!statusBox) return;
+    statusBox.style.color = type === 'ok' ? '#0f5132' : (type === 'err' ? '#842029' : '#5c6770');
+    statusBox.textContent = msg || '';
+  }
+
+  function setCoords(lat, lon, source) {
+    if (!latIn || !lonIn) return;
+    latIn.value = Number(lat).toFixed(6);
+    lonIn.value = Number(lon).toFixed(6);
+    setStatus('Coordinate aggiornate da ' + source + ': ' + latIn.value + ', ' + lonIn.value, 'ok');
+  }
+
+  function parseCoords(text) {
+    if (!text) return null;
+    var raw = String(text).trim();
+    var m = raw.match(/@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/);
+    if (m) return [parseFloat(m[1]), parseFloat(m[2])];
+    m = raw.match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+    if (m) return [parseFloat(m[1]), parseFloat(m[2])];
+    try {
+      var u = new URL(raw);
+      var candidates = ['q', 'll', 'query', 'daddr', 'destination'];
+      for (var i = 0; i < candidates.length; i++) {
+        var val = u.searchParams.get(candidates[i]);
+        if (!val) continue;
+        var mm = val.match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+        if (mm) return [parseFloat(mm[1]), parseFloat(mm[2])];
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function validRange(lat, lon) {
+    return Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+  }
+
+  function buildGeocodeQuery() {
+    var lav = sedeLavInd ? sedeLavInd.value.trim() : '';
+    if (lav.length >= 5) {
+      if (/,\s*(italia|italy)\s*$/i.test(lav)) return lav;
+      return lav + ', Italia';
+    }
+    var bits = [];
+    var via = viaLeg ? viaLeg.value.trim() : '';
+    if (via) bits.push(via);
+    var cap = capLeg ? capLeg.value.trim() : '';
+    if (cap) bits.push(cap);
+    if (comLeg && comLeg.value) {
+      var opt = comLeg.options[comLeg.selectedIndex];
+      var t = opt ? (opt.textContent || opt.text || '').replace(/\s*\([^)]*\)\s*$/, '').trim() : '';
+      if (t && !isPlaceholderGeoLabel(t)) bits.push(t);
+    }
+    if (provLeg && provLeg.value) bits.push(provLeg.value);
+    bits.push('Italia');
+    return bits.filter(Boolean).join(', ');
+  }
+
+  var btnMaps = document.getElementById('btnGeoAziendaMaps');
+  if (btnMaps) btnMaps.addEventListener('click', function () {
+    var value = mapsInput ? mapsInput.value : '';
+    var coords = parseCoords(value);
+    if (!coords) {
+      setStatus('Coordinate non riconosciute. Incolla un link Google Maps o "lat, lon".', 'err');
+      return;
+    }
+    if (!validRange(coords[0], coords[1])) {
+      setStatus('Coordinate fuori range.', 'err');
+      return;
+    }
+    setCoords(coords[0], coords[1], 'Google Maps');
+  });
+
+  var btnNom = document.getElementById('btnGeoAziendaNominatim');
+  if (btnNom) btnNom.addEventListener('click', async function () {
+    var q = buildGeocodeQuery();
+    if (q.length < 8) {
+      setStatus('Indica almeno sede lavorativa o via/CAP/comune per la ricerca.', 'err');
+      return;
+    }
+    setStatus('Ricerca coordinate…', 'info');
+    try {
+      var body = new URLSearchParams({ indirizzo: q });
+      var res = await fetch('{% url "api_geocode_indirizzo_anagrafiche" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'X-CSRFToken': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: body.toString(),
+      });
+      var data = await res.json();
+      if (!res.ok || !data.ok) {
+        setStatus(data.error || 'Geocoding non riuscito.', 'err');
+        return;
+      }
+      setCoords(data.lat, data.lon, 'indirizzo (Nominatim)');
+    } catch (e) {
+      setStatus('Errore di rete durante il geocoding.', 'err');
+    }
+  });
+
+  var btnGps = document.getElementById('btnGeoAziendaGps');
+  if (btnGps) btnGps.addEventListener('click', function () {
+    if (!navigator.geolocation) {
+      setStatus('Geolocalizzazione non supportata.', 'err');
+      return;
+    }
+    setStatus('Recupero posizione…', 'info');
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        var la = pos.coords.latitude;
+        var lo = pos.coords.longitude;
+        if (!validRange(la, lo)) { setStatus('Coordinate GPS non valide.', 'err'); return; }
+        setCoords(la, lo, 'GPS');
+      },
+      function () { setStatus('Impossibile ottenere la posizione (permesso negato o timeout).', 'err'); },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
+})();
+</script>
 {% endblock %}

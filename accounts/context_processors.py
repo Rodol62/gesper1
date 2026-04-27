@@ -23,6 +23,31 @@ def gesper_browser_paths(request):
     }
 
 
+def consulente_recesso_prova_nav(request):
+    """
+    Conteggio comunicazioni recesso in prova in attesa di verifica consulente,
+    per badge nel menu globale (solo utenti con ruolo consulente e azienda).
+    """
+    u = getattr(request, 'user', None)
+    if u is None or not getattr(u, 'is_authenticated', False):
+        return {'consulente_recesso_prova_nav_count': 0}
+    has_ruolo = getattr(u, 'has_ruolo', None)
+    if not callable(has_ruolo) or not has_ruolo('consulente'):
+        return {'consulente_recesso_prova_nav_count': 0}
+    azienda = getattr(u, 'azienda', None)
+    if azienda is None:
+        return {'consulente_recesso_prova_nav_count': 0}
+    from anagrafiche.models import ComunicazioneRecessoProva
+
+    n = (
+        ComunicazioneRecessoProva.objects.filter(
+            azienda_id=azienda.pk,
+            stato='in_verifica_consulente',
+        ).count()
+    )
+    return {'consulente_recesso_prova_nav_count': n}
+
+
 def gesper_pwa_embed(request):
     """
     PWA: pagine aperte in iframe con ?pwa=1 — layout compattato, senza navbar/footer sito.

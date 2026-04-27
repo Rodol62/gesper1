@@ -1079,14 +1079,17 @@ class TestMotorePagaAdmin(admin.ModelAdmin):
 				def _v(val): return (val * coeff * frazione).quantize(Q2)
 				paga_base   = _v(cp.paga_base_mensile)
 				contingenza = _v(cp.contingenza_mensile)
-				edr         = _v(cp.edr_mensile)
+				_edr_src = Decimal(str(cp.edr_mensile or 0))
+				if 'FIPE' in (cp.ccnl or '').upper():
+					_edr_src = Decimal('0')
+				edr         = _v(_edr_src)
 				indennita   = _v(cp.indennita_mensile)
 				superminimo     = Decimal(request.POST.get('superminimo',     '0') or '0').quantize(Q2)
 				indennita_turno = Decimal(request.POST.get('indennita_turno', '0') or '0').quantize(Q2)
 				lordo_base = (paga_base + contingenza + edr + indennita + superminimo + indennita_turno).quantize(Q2)
 
 				# Paga oraria e giornaliera calcolate sul lordo pieno (senza pro-rata)
-				lordo_pieno = ((cp.paga_base_mensile + cp.contingenza_mensile + cp.edr_mensile + cp.indennita_mensile) * coeff).quantize(Q2)
+				lordo_pieno = ((cp.paga_base_mensile + cp.contingenza_mensile + _edr_src + cp.indennita_mensile) * coeff).quantize(Q2)
 				paga_oraria      = (lordo_pieno / ore_mensili).quantize(Decimal('0.0001'))  if ore_mensili else Decimal('0')
 				paga_giornaliera = (lordo_pieno / Decimal(str(divisore))).quantize(Decimal('0.0001'))
 
@@ -1251,10 +1254,13 @@ class TestMotorePagaAdmin(admin.ModelAdmin):
 					'divisore': divisore,
 					'paga_oraria': paga_oraria, 'paga_giornaliera': paga_giornaliera,
 					# Voci base (tabella con flag imponibilità)
-					'voci': [
-						{'nome': 'Paga base CCNL',     'importo': paga_base,       'inps': True,  'irpef': True,  'note': 'Art. 74 CCNL FIPE'},
-						{'nome': 'Contingenza',         'importo': contingenza,     'inps': True,  'irpef': True,  'note': 'Indennità di contingenza'},
-						{'nome': 'EDR',                 'importo': edr,             'inps': True,  'irpef': True,  'note': 'Elemento Distorsivo Retrib.'},
+					'voci': (
+						[
+							{'nome': 'Paga base CCNL',     'importo': paga_base,       'inps': True,  'irpef': True,  'note': 'Art. 74 CCNL FIPE'},
+							{'nome': 'Contingenza',         'importo': contingenza,     'inps': True,  'irpef': True,  'note': 'Indennità di contingenza'},
+						]
+						+ ([{'nome': 'EDR', 'importo': edr, 'inps': True, 'irpef': True, 'note': 'Elemento Distorsivo Retrib.'}] if edr > 0 else [])
+						+ [
 						{'nome': 'Indennità CCNL',      'importo': indennita,       'inps': True,  'irpef': True,  'note': 'Se prevista dal livello'},
 						{'nome': 'Superminimo',         'importo': superminimo,     'inps': True,  'irpef': True,  'note': 'Individuale/aziendale'},
 						{'nome': 'Indennità turno',     'importo': indennita_turno, 'inps': True,  'irpef': True,  'note': 'Turni notturni/speciali'},
@@ -1263,7 +1269,7 @@ class TestMotorePagaAdmin(admin.ModelAdmin):
 						{'nome': 'Straord. festivo',    'importo': imp_sf,  'ore': ore_sf,  'magg': int(magg_fest*100),  'inps': True, 'irpef': True, 'note': f'+{int(magg_fest*100)}%'},
 						{'nome': 'Straord. nott-fest',  'importo': imp_snf, 'ore': ore_snf, 'magg': int(magg_nf*100),    'inps': True, 'irpef': True, 'note': f'+{int(magg_nf*100)}%'},
 						{'nome': 'Assenze ingiustif.',  'importo': -decurt_assenze, 'gg': gg_assenza, 'inps': True, 'irpef': True, 'note': 'Decurtazione lordo', 'negativo': True},
-					],
+					]),
 					'lordo_base': lordo_base,
 					'tot_straord': tot_straord,
 					'decurt_assenze': decurt_assenze,

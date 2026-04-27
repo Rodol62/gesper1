@@ -127,6 +127,17 @@
 .ore-formula .of-sep { color: #6b84c0; font-weight: 400; }
 .ore-formula .of-result { color: var(--c-green); font-weight: 900; }
 
+/* ── Dettaglio cedolino (details) ─────────────────────────────────────── */
+details.sim-cedolino-details { border: 1px solid var(--c-border); border-radius: .375rem; overflow: hidden; margin-bottom: .75rem; }
+details.sim-cedolino-details > summary {
+  list-style: none; cursor: pointer; padding: .4rem .75rem;
+  font-size: var(--sz-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  background: #555; color: #fff;
+}
+details.sim-cedolino-details > summary::-webkit-details-marker { display: none; }
+details.sim-cedolino-details > summary::after { content: ' +'; opacity: .75; font-weight: 400; float: right; }
+details.sim-cedolino-details[open] > summary::after { content: ' −'; }
+
 /* ── Stampa PDF ───────────────────────────────────────────────────────── */
 @media print {
   @page { size: A4 landscape; margin: 8mm 10mm; }
@@ -162,6 +173,14 @@
   .res-card-head { padding: 1.5mm 3mm !important; font-size: 7pt !important; }
   .res-card-body { padding: 2mm 3mm !important; }
 
+  details.sim-cedolino-details { break-inside: avoid; margin-bottom: 4mm !important; border: 1px solid #bbb !important; }
+  details.sim-cedolino-details > summary {
+    background: #eee !important; color: #222 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  details.sim-cedolino-details > div { display: block !important; }
+
   /* ── Banda periodo ──────────────────────────────────────────────────── */
   .periodo-bar {
     font-size: 8.5pt !important;
@@ -172,7 +191,7 @@
     print-color-adjust: exact;
   }
 
-  /* ── Tabella voci (Box 1) ───────────────────────────────────────────── */
+  /* ── Tabella voci dettaglio cedolino ─────────────────────────────────── */
   .voce-tbl, .voce-tbl th, .voce-tbl td { font-size: 7pt !important; padding: 1mm 2mm !important; }
   .voce-tbl th {
     background: #eee !important;
@@ -180,12 +199,12 @@
     print-color-adjust: exact;
   }
 
-  /* ── Colonne Box 2+3 e Box 6 ────────────────────────────────────────── */
+  /* ── Colonne contributi / IRPEF / costo ─────────────────────────────── */
   .col-md-6 { width: calc(50% - 3mm) !important; float: left; padding: 0 1.5mm !important; }
   .col-md-4 { width: calc(33.3% - 2mm) !important; float: left; padding: 0 1mm !important; }
   .row.g-3 { margin: 0 !important; }
 
-  /* ── Stat pills Box 0 ───────────────────────────────────────────────── */
+  /* ── Stat pills calendario ───────────────────────────────────────────── */
   .stat-pill { padding: 1mm 2mm !important; }
   .stat-pill .sp-num { font-size: 9pt !important; }
   .stat-pill .sp-lbl { font-size: 5.5pt !important; }
@@ -221,7 +240,7 @@
   <div class="d-flex align-items-center justify-content-between mb-3">
     <div>
       <h4 class="mb-0"><i class="bi bi-calculator me-2"></i>Simulatore Motore Paga Mensile</h4>
-      <small class="text-muted">Calcolo completo: voci CCNL, contributi, IRPEF, ratei, F24, costo azienda</small>
+      <small class="text-muted">Flusso: calendario → ROEL e rubrica competenze → contributi / IRPEF → netto, ratei e costo azienda</small>
     </div>
     <div class="d-flex gap-2">
       {% if ha_scenario %}
@@ -280,11 +299,11 @@
                    value="{{ form_data.nome_test|default:'' }}">
           </div>
 
-          <!-- ── Importa da presenze ──────────────────────────────── -->
+          <!-- ── Dipendente: presenze + opz. contratto attivo ───────────────── -->
           <div class="mb-2">
-            <label class="form-label-xs">Dipendente (importa presenze)</label>
-            <select id="sim_dipendente_id" class="form-select form-select-sm">
-              <option value="">— Nessuno (inserimento manuale) —</option>
+            <label class="form-label-xs">Dipendente (presenze / contratto)</label>
+            <select id="sim_dipendente_id" name="dipendente_id" class="form-select form-select-sm">
+              <option value="">— Nessuno (solo parametri CCNL / posizione ipotetica) —</option>
               {% for dip in dipendenti %}
               <option value="{{ dip.pk }}"
                 {% if form_data.dipendente_id == dip.pk|stringformat:"s" %}selected{% endif %}>
@@ -292,8 +311,32 @@
               </option>
               {% endfor %}
             </select>
-            <small class="text-muted" style="font-size:.6rem">Seleziona per caricare automaticamente straordinari, assenze e ore dom./festive dal registro presenze</small>
+            <div class="form-check mt-1 mb-1" style="font-size:.68rem">
+              <input class="form-check-input" type="checkbox" name="usa_dati_contratto" value="1" id="chk_usa_contratto"
+                {% if form_data.usa_dati_contratto == '1' %}checked{% endif %}>
+              <label class="form-check-label" for="chk_usa_contratto">
+                <strong>Dati da contratto attivo</strong> (livello, part-time, date rapporto, superminimo, 13ª/14ª in busta, <strong>scatti maturati</strong> da anzianità di servizio)
+              </label>
+            </div>
+            <small class="text-muted" style="font-size:.6rem">
+              Scegli un dipendente: i campi sotto si <strong>compilano da soli</strong> dal contratto sottoscritto nel mese/anno indicati (puoi poi ricalcolare). Senza dipendente: simulazione da <strong>tabelle CCNL</strong> (posizione ipotetica).
+              Con spunta «Dati da contratto»: al calcolo il motore usa anche scatti maturati e voci non presenti nel form (es. premio obiettivi).
+              «Carica presenze» resta separato (ore straord., ferie, …).
+            </small>
+            <div id="sim_prefill_info" class="mt-1" style="font-size:.62rem;color:#0a58ca"></div>
           </div>
+          {% if proposte_prefill %}
+          <div class="mb-2">
+            <label class="form-label-xs">Proposta (candidato / bozza)</label>
+            <select id="sim_proposta_prefill" class="form-select form-select-sm">
+              <option value="">— Nessuna —</option>
+              {% for pr in proposte_prefill %}
+              <option value="{{ pr.pk }}">{{ pr.numero_proposta }}{% if pr.dipendente %} — {{ pr.dipendente.cognome }} {{ pr.dipendente.nome }}{% endif %} ({{ pr.get_stato_display }})</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted" style="font-size:.6rem">Applica i dati economici della proposta al form (non è il contratto definitivo: non spuntare «Dati da contratto» salvo dopo la firma).</small>
+          </div>
+          {% endif %}
           <div id="btn_carica_presenze_wrap" style="display:none" class="mb-2">
             <button type="button" id="btn_carica_presenze"
                     class="btn btn-sm w-100"
@@ -405,6 +448,14 @@
               </option>
               {% endfor %}
             </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label-xs">Ore lav. ordinarie (h)</label>
+            <input type="number" name="ore_ordinarie_retribuite" min="0" step="0.5" class="form-control form-control-sm"
+                   value="{{ form_data.ore_ordinarie_retribuite|default:'0' }}">
+            <small class="text-muted d-block" style="font-size:.58rem">
+              Se &gt; 0 e divisore orario (172/173,33): competenze tabellari = €/h tab. × queste ore (foglio INPS); ROF resta Σ FT÷divisore.
+            </small>
           </div>
 
           <p class="form-section-title">Voci aggiuntive</p>
@@ -610,32 +661,26 @@
       {% endif %}
     </div>
 
-    {% if risultato.schema_divisori %}
-    <div class="res-card mb-3">
-      <div class="res-card-head rh-teal"><i class="bi bi-sliders me-1"></i>Schema divisori contrattuali (ore mensili)</div>
-      <div class="res-card-body small">
-        <p class="text-muted mb-2" style="font-size:.72rem">
-          <strong>Divisore tabellare:</strong> divisore orario ÷ ore settimanali contrattuali = divisore fisso convenzionale (es. 172÷40 = 4,30).
-          <strong>Media contrattuale giornaliera</strong> = ore settimanali ÷ 6 gg: stesso valore usato per ore domenicali/festive suggerite e maggiorazioni (coerente con foglio INPS / 172).
-          Con <strong>divisore orario</strong> (172/173,33): <strong>retribuzione oraria di fatto</strong> = somma delle voci tabellari FT del mese (paga base, contingenza, EDR, indennità tabellare, scatto) ciascuna ÷ divisore; straordinari e maggiorazioni domenica/festivo si calcolano su quell’orario. Quota giornaliera convenzionale = lordo competenze ÷ 26.
-        </p>
-        <div class="row g-2">
-          <div class="col-md-4"><span class="text-muted">Divisore orario</span><div class="fw-bold">{{ risultato.schema_divisori.divisore_orario|floatformat:2 }}</div></div>
-          <div class="col-md-4"><span class="text-muted">Ore settimanali contr.</span><div class="fw-bold">{{ risultato.schema_divisori.ore_settimanali|floatformat:2 }}</div></div>
-          <div class="col-md-4"><span class="text-muted">Div. fisso conv. (÷ ore sett.)</span><div class="fw-bold">{{ risultato.schema_divisori.divisore_fisso_convenzionale|floatformat:4 }}</div></div>
-          <div class="col-md-4"><span class="text-muted">Gg lav. mese (conv.)</span><div class="fw-bold">{{ risultato.schema_divisori.giorni_lavorativi_mese|floatformat:0 }}</div></div>
-          <div class="col-md-4"><span class="text-muted">Gg lav. settimanali (conv.)</span><div class="fw-bold">{{ risultato.schema_divisori.giorni_lavorativi_settimanali|floatformat:0 }}</div></div>
-          <div class="col-md-4"><span class="text-muted">Media contrattuale h/gg (h/sett ÷ gg sett.)</span><div class="fw-bold">{{ risultato.schema_divisori.ore_lavorative_giornaliere|floatformat:4 }}</div></div>
-          <div class="col-md-4"><span class="text-muted">Ore mensili CCNL (motore)</span><div class="fw-bold">{{ risultato.ore_mensili|floatformat:2 }}</div></div>
-          <div class="col-md-4"><span class="text-muted">Ore/gg (h/sett ÷ 6, maggiorazioni)</span><div class="fw-bold">{{ risultato.ore_giornaliere|floatformat:2 }}</div></div>
-        </div>
-      </div>
+    {% if risultato.sim_fonte_dati == 'contratto_attivo' %}
+    <div class="alert alert-info py-2 mb-3" style="font-size:.75rem">
+      <i class="bi bi-file-earmark-text me-1"></i>
+      Scenario calcolato con <strong>dati del contratto sottoscritto</strong> nel mese (tipo orario, date, superminimo, ratei in busta) e
+      <strong>scatti di anzianità</strong> da tabella Parametri scatti / anni di servizio dal contratto.
+      Proposte di assunzione e simulazioni economiche collegate restano nella vista dedicata alla singola proposta.
     </div>
     {% endif %}
 
-    <!-- ── Box 0: Calendario ──────────────────────────────────────────── -->
-    <div class="res-card">
-      <div class="res-card-head rh-gray"><i class="bi bi-calendar3 me-1"></i>Box 0 — Calendario lavorativo</div>
+    <div class="alert alert-secondary border-0 py-2 px-3 mb-3 small no-print" role="region">
+      <strong class="text-dark">Ordine lettura:</strong>
+      <span class="text-muted ms-1">① Calendario</span>
+      <span class="text-muted">· ② ROEL e rubrica competenze</span>
+      <span class="text-muted">· (dettaglio righe cedolino: sezione apribile sotto)</span>
+      <span class="text-muted">· ③–⑦ Contributi, IRPEF, ratei, netto, costo azienda</span>
+    </div>
+
+    <!-- ── 1 Calendario ─────────────────────────────────────────────────── -->
+    <div class="res-card mb-3">
+      <div class="res-card-head rh-gray"><i class="bi bi-calendar3 me-1"></i>1 — Calendario e presenze (gg lav., domeniche, festivi)</div>
       <div class="res-card-body">
         <div class="row g-2 mb-2">
           <div class="col"><div class="stat-pill sp-green"><span class="sp-num">{{ risultato.cal_giorni_lavorativi }}</span><span class="sp-lbl">Gg lav. mese</span></div></div>
@@ -646,38 +691,6 @@
           <div class="col"><div class="stat-pill"><span class="sp-num">{{ risultato.giorni_nel_mese }}</span><span class="sp-lbl">Gg calendario</span></div></div>
           <div class="col"><div class="stat-pill sp-blue"><span class="sp-num">{{ risultato.cal_giorni_conv_26 }}</span><span class="sp-lbl">Conv. base 26</span></div></div>
           {% if risultato.prorata %}<div class="col"><div class="stat-pill sp-red"><span class="sp-num">{{ risultato.giorni_lavorati }}</span><span class="sp-lbl">Gg dip.</span></div></div>{% endif %}
-        </div>
-
-        <!-- Ore/gg = h settimanali contr. ÷ 6; paga/h = Σ (voce tabellare FT mese ÷ divisore) se divisore >30. -->
-        <div class="mb-2 d-flex flex-wrap align-items-center gap-2">
-          <div class="ore-formula flex-wrap">
-            <span class="text-muted" style="font-size:.62rem;text-transform:none;font-weight:600">Ore/gg (maggiorazioni)</span>
-            <span>{{ risultato.ore_settimanali_contr|floatformat:2 }} h/sett</span>
-            <span class="of-sep">÷</span>
-            <span>6</span>
-            <span class="of-sep">=</span>
-            <span class="of-result">{{ risultato.ore_giornaliere|floatformat:2 }} h/gg</span>
-          </div>
-          {% if risultato.divisore > 30 %}
-          <div class="ore-formula flex-wrap">
-            <span class="text-muted" style="font-size:.62rem;text-transform:none;font-weight:600">Retrib. oraria di fatto</span>
-            <span>Σ voci tab.</span>
-            <span class="of-sep">÷</span>
-            <span>{{ risultato.divisore|floatformat:0 }}</span>
-            <span class="of-sep">=</span>
-            <span class="of-result">{{ risultato.paga_oraria|floatformat:5 }} €/h</span>
-          </div>
-          <div class="w-100 text-muted" style="font-size:.58rem;line-height:1.35">
-            base {{ risultato.oraria_tabellare_paga_base|num_it:4 }} + conting. {{ risultato.oraria_tabellare_contingenza|num_it:4 }} + EDR {{ risultato.oraria_tabellare_edr|num_it:4 }}{% if risultato.oraria_tabellare_indennita %} + ind. {{ risultato.oraria_tabellare_indennita|num_it:4 }}{% endif %}{% if risultato.oraria_tabellare_scatto %} + scatto {{ risultato.oraria_tabellare_scatto|num_it:4 }}{% endif %}
-          </div>
-          {% endif %}
-        </div>
-        <div class="mb-2 text-muted" style="font-size:.65rem;line-height:1.35">
-          <strong>Ore mensili CCNL</strong> (riferimento): {{ risultato.ore_mensili|floatformat:2 }} h/mese (tabella × part-time).
-          {% if risultato.giorni_eff_settimana %}
-            <span class="d-none d-md-inline">·</span>
-            <span class="d-block d-md-inline">Indicatore h/sett ÷ h/gg ≈ <strong>{{ risultato.giorni_eff_settimana }}</strong> gg.</span>
-          {% endif %}
         </div>
 
         <!-- Riepilogo domeniche / festivi per maggiorazioni -->
@@ -754,17 +767,71 @@
       </div>
     </div>
 
-    <!-- ── Box 1: Voci retributive ────────────────────────────────────── -->
-    <div class="res-card">
-      <div class="res-card-head rh-gray"><i class="bi bi-list-ul me-1"></i>Box 1 — Voci retributive e imponibilità</div>
-      <div class="res-card-body p-0">
+    {% if risultato.competenze_logica_v1 %}
+    <div class="res-card mb-3">
+      <div class="res-card-head rh-green"><i class="bi bi-diagram-3 me-1"></i>2 — Divisore, ROEL e rubrica competenze</div>
+      <div class="res-card-body small">
+        {% if risultato.schema_divisori %}
+        <div class="row g-2 row-cols-2 row-cols-lg-4 mb-3 pb-3 border-bottom">
+          <div class="col"><span class="text-muted d-block" style="font-size:.65rem">Divisore orario</span><span class="fw-bold">{{ risultato.schema_divisori.divisore_orario|floatformat:2 }}</span></div>
+          <div class="col"><span class="text-muted d-block" style="font-size:.65rem">Gg lav. mese (conv.)</span><span class="fw-bold">{{ risultato.schema_divisori.giorni_lavorativi_mese|floatformat:0 }}</span></div>
+          <div class="col"><span class="text-muted d-block" style="font-size:.65rem">Div. fisso conv.</span><span class="fw-bold">{{ risultato.schema_divisori.divisore_fisso_convenzionale|floatformat:4 }}</span></div>
+          <div class="col"><span class="text-muted d-block" style="font-size:.65rem">Ore sett. contr.</span><span class="fw-bold">{{ risultato.schema_divisori.ore_settimanali|floatformat:2 }}</span></div>
+          <div class="col"><span class="text-muted d-block" style="font-size:.65rem">Gg lav. sett. (conv.)</span><span class="fw-bold">{{ risultato.schema_divisori.giorni_lavorativi_settimanali|floatformat:0 }}</span></div>
+          <div class="col"><span class="text-muted d-block" style="font-size:.65rem">Media h/gg</span><span class="fw-bold">{{ risultato.schema_divisori.ore_lavorative_giornaliere|floatformat:4 }}</span></div>
+          <div class="col"><span class="text-muted d-block" style="font-size:.65rem">Ore mensili CCNL</span><span class="fw-bold">{{ risultato.ore_mensili|floatformat:2 }}</span></div>
+          <div class="col"><span class="text-muted d-block" style="font-size:.65rem">Ore/gg (h/sett÷6)</span><span class="fw-bold">{{ risultato.ore_giornaliere|floatformat:2 }}</span></div>
+        </div>
+        {% endif %}
+        <p class="text-muted mb-2" style="font-size:.72rem">
+          <strong>ROEL</strong> = solo paga base + contingenza + scatto (ciascuna al divisore 172 o 173,33; pro-rata se attiva). EDR e indennità CCNL restano in busta come importi mensili, non entrano nella ROEL. L’ordinario in rubrica usa i <strong>gg ordinari</strong> (calendario: no domenica, no festivi; sabato solo con contratto 6 o 7 gg/sett.) × h/gg × ROEL, salvo modalità «ore effettive»; straordinari e domeniche/festivi moltiplicano la ROEL sulle rispettive ore.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th style="width:3.5rem">Cod.</th>
+                <th>Descrizione</th>
+                <th style="width:7rem">Ore / giorni</th>
+                <th class="text-end" style="width:7rem">Base</th>
+                <th class="text-end" style="width:7rem">Competenze</th>
+                <th class="text-end" style="width:7rem">Trattenute</th>
+                <th class="text-muted" style="min-width:10rem">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in risultato.competenze_logica_v1 %}
+              <tr{% if row.cod == 'Σ' %} class="table-secondary fw-semibold"{% endif %}>
+                <td>{{ row.cod }}</td>
+                <td>{{ row.descrizione }}</td>
+                <td>{{ row.ore_o_gg }}</td>
+                <td class="text-end">{% if row.base is not None %}{% if row.cod == 'ROEL' or row.cod == '1' or row.cod == '4' or row.cod == '4b' or row.cod == 'S' %}{{ row.base|num_it:4 }} <span class="text-muted" style="font-size:.65rem">€/h</span>{% else %}€ {{ row.base|euro_it }}{% endif %}{% else %}—{% endif %}</td>
+                <td class="text-end">{% if row.competenze is not None %}€ {{ row.competenze|euro_it }}{% else %}—{% endif %}</td>
+                <td class="text-end">{% if row.trattenute is not None %}€ {{ row.trattenute|euro_it }}{% else %}—{% endif %}</td>
+                <td class="text-muted" style="font-size:.68rem">{{ row.nota }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-light border py-2 px-3 mb-3 small text-muted">
+      <i class="bi bi-info-circle me-1"></i>La rubrica <strong>ROEL / competenze</strong> è mostrata con divisore orario <strong>172</strong> o <strong>173,33</strong>. Con divisore a giorni (es. FIPE ÷26) il calcolo resta su base mensile senza tabella oraria unificata.
+    </div>
+    {% endif %}
+
+    <details class="sim-cedolino-details mb-3">
+      <summary><i class="bi bi-list-columns-reverse me-1"></i>Dettaglio analitico cedolino (righe voci, €/h tab., INPS/IRPEF) — apri se serve</summary>
+      <div>
         <div class="table-responsive">
         <table class="voce-tbl">
           <thead>
             <tr>
-              <th>Voce</th><th>Ore/Gg</th>
+              <th>Voce</th><th>Ore / gg</th>
               {% if risultato.divisore > 30 %}
-              <th class="amt text-nowrap" title="Importo mensile della voce tabellare in busta ÷ divisore orario">€/h tab.</th>
+              <th class="amt text-nowrap" title="Voci CCNL: importo tabellare FT (parametro CCNL, × pro-rata giorni se applicabile) ÷ divisore orario. Con «ore lav. ord.» compilate: colonna Importo = €/h tab. × quelle ore. Domenica/festivo: €/h della sola maggiorazione (ROF × %).">€/h tab.</th>
               {% endif %}
               <th class="amt">Importo €</th>
               <th>INPS</th><th>IRPEF</th><th>Note</th>
@@ -772,22 +839,27 @@
           </thead>
           <tbody>
             {% for v in risultato.voci %}
-            <tr class="{% if v.negativo %}voce-neg{% elif v.zero %}voce-zero{% endif %}"
+            <tr class="{% if v.row_kind == 'subtotal_rof' %}table-secondary fw-semibold border-top border-dark{% elif v.negativo %}voce-neg{% elif v.zero %}voce-zero{% endif %}"
                 style="{% if v.zero %}opacity:.55{% endif %}">
               <td>
                 {{ v.nome }}
                 {% if v.cal_hint %}
                   <span style="font-size:.6rem;background:#e2e8f0;color:#475569;border-radius:3px;padding:.05rem .3rem;margin-left:.3rem"
-                        title="Giorni presenti nel mese dal calendario">cal: {{ v.cal_hint }}</span>
+                        title="Solo riferimento calendario del mese. L’importo usa le ore nella colonna Ore (presenze o valore inserito).">
+                    rif. cal.: {{ v.cal_hint }}{% if v.cal_hint_kind == 'fest' %} fest.{% else %} dom.{% endif %}
+                  </span>
                 {% endif %}
               </td>
-              <td>{% if v.ore %}{{ v.ore|floatformat:2 }} h{% endif %}{% if v.gg %}{{ v.gg }}gg{% endif %}</td>
+              <td>{% if v.ore_lav_ord %}{{ v.ore_lav_ord|floatformat:2 }} h ord.{% elif v.ore %}{{ v.ore|floatformat:2 }} h{% endif %}{% if v.gg %}{{ v.gg }}gg{% endif %}{% if v.row_kind == 'subtotal_rof' and not v.ore_lav_ord %}—{% endif %}</td>
               {% if risultato.divisore > 30 %}
-              <td class="amt text-muted" style="font-size:.72rem">{% if v.oraria_tab %}{{ v.oraria_tab|num_it:4 }}{% else %}—{% endif %}</td>
+              <td class="amt text-muted" style="font-size:.72rem"
+                  {% if v.oraria_tab_titolo %}title="{{ v.oraria_tab_titolo }}"{% endif %}>
+                {% if v.oraria_tab is not None %}{{ v.oraria_tab|num_it:4 }}{% else %}—{% endif %}
+              </td>
               {% endif %}
               <td class="amt euro">{% if v.negativo %}−{% endif %} € {{ v.importo|euro_it }}</td>
-              <td><span class="badge {% if v.inps %}badge-si{% else %}badge-no{% endif %}">{% if v.inps %}Sì{% else %}No{% endif %}</span></td>
-              <td><span class="badge {% if v.irpef %}badge-si{% else %}badge-no{% endif %}">{% if v.irpef %}Sì{% else %}No{% endif %}</span></td>
+              <td>{% if v.row_kind == 'subtotal_rof' %}—{% else %}<span class="badge {% if v.inps %}badge-si{% else %}badge-no{% endif %}">{% if v.inps %}Sì{% else %}No{% endif %}</span>{% endif %}</td>
+              <td>{% if v.row_kind == 'subtotal_rof' %}—{% else %}<span class="badge {% if v.irpef %}badge-si{% else %}badge-no{% endif %}">{% if v.irpef %}Sì{% else %}No{% endif %}</span>{% endif %}</td>
               <td class="text-muted">{{ v.note|default:'' }}</td>
             </tr>
             {% endfor %}
@@ -816,40 +888,38 @@
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="2"><strong>Lordo competenze + ratei 13ª/14ª (totale cedolino)</strong></td>
+              <td colspan="2"><strong>Lordo competenze del mese (senza ratei 13ª/14ª)</strong></td>
               {% if risultato.divisore > 30 %}
               <td class="text-muted">—</td>
               {% endif %}
-              <td class="amt" style="color:var(--c-primary)">€ {{ risultato.lordo_con_1314|euro_it }}</td>
+              <td class="amt" style="color:var(--c-primary)">€ {{ risultato.lordo_mensile|euro_it }}</td>
               <td colspan="3" class="text-muted">
                 Imponibile INPS mese: € {{ risultato.lordo_imponibile_inps_m|euro_it }}
-                {% if risultato.rat13_m and not risultato.rateo_13_mensile_in_imponibile or risultato.rat14_m and not risultato.rateo_14_mensile_in_imponibile %}
-                  <span class="d-block mt-1" style="font-size:.62rem">(esclusi dal totale imponibile i ratei non erogati mensilmente in busta)</span>
+                <span class="d-block mt-1" style="font-size:.62rem">
+                  Base contrattuale: € {{ risultato.lordo_base|euro_it }}
+                  {% if risultato.tot_straord %} + Straord.: € {{ risultato.tot_straord|euro_it }}{% endif %}
+                  {% if risultato.tot_dom_fest %} + Dom./Fest.: € {{ risultato.tot_dom_fest|euro_it }}{% endif %}
+                  {% if risultato.decurt_assenze %} − Assenze: € {{ risultato.decurt_assenze|euro_it }}{% endif %}
+                </span>
+                {% if risultato.rat13_m or risultato.rat14_m %}
+                  <span class="d-block mt-1" style="font-size:.62rem">
+                    {% if risultato.rateo_13_mensile_in_imponibile and risultato.rat13_m or risultato.rateo_14_mensile_in_imponibile and risultato.rat14_m %}
+                      L’imponibile include le quote 13ª/14ª erogate in busta (se attive).
+                    {% else %}
+                      I ratei 13ª/14ª in accantonamento non sommano al lordo competenze del mese; restano nelle righe rateo sopra.
+                    {% endif %}
+                  </span>
                 {% endif %}
               </td>
             </tr>
+            {% if risultato.rat13_m or risultato.rat14_m %}
             <tr>
-              <td colspan="2" class="text-muted" style="font-size:.65rem">Competenze mensili (lordo calendario)</td>
+              <td colspan="2" class="text-muted" style="font-size:.72rem"><strong>Totale lordo con ratei 13ª/14ª lordi</strong> (competenze + accantonamenti tabellari)</td>
               {% if risultato.divisore > 30 %}<td class="text-muted">—</td>{% endif %}
-              <td class="amt text-muted">€ {{ risultato.lordo_mensile|euro_it }}</td>
-              <td colspan="3" class="text-muted" style="font-size:.62rem">
-                Base: € {{ risultato.lordo_base|euro_it }}
-                {% if risultato.tot_straord %} + Straord.: € {{ risultato.tot_straord|euro_it }}{% endif %}
-                {% if risultato.tot_dom_fest %} + Dom./Fest.: € {{ risultato.tot_dom_fest|euro_it }}{% endif %}
-                {% if risultato.decurt_assenze %} − Assenze: € {{ risultato.decurt_assenze|euro_it }}{% endif %}
-              </td>
+              <td class="amt text-muted">€ {{ risultato.lordo_con_1314|euro_it }}</td>
+              <td colspan="3" class="text-muted" style="font-size:.62rem">Somma «Lordo competenze del mese» e ratei 13ª/14ª della tabella.</td>
             </tr>
-            <tr>
-              <td colspan="2" class="text-muted">Retrib. oraria di fatto / giornaliera (÷{{ risultato.divisore }})</td>
-              {% if risultato.divisore > 30 %}<td class="amt text-muted" style="font-size:.72rem">{{ risultato.retribuzione_oraria_di_fatto|num_it:4 }}</td>{% endif %}
-              <td class="amt text-muted">€ {{ risultato.paga_oraria|num_it:4 }} / € {{ risultato.paga_giornaliera|num_it:4 }}</td>
-              <td colspan="3" class="text-muted" style="font-size:.62rem">
-                Ore/mese: {{ risultato.ore_mensili|floatformat:2 }} h · Ore/gg: {{ risultato.ore_giornaliere|floatformat:2 }} h
-                {% if risultato.divisore > 30 and risultato.lordo_tabellare_ft_equiv %}
-                  <span class="d-block mt-1">Colonna €/h tab.: importo <strong>tabellare CCNL</strong> della voce (tempo pieno) × pro-rata giorni ÷ {{ risultato.divisore|floatformat:0 }}; la somma è la retribuzione oraria di fatto (straord. e maggiorazioni).{% if risultato.tabellare_gap_ft %} Se il parametro ha <strong>totale tabellare</strong> maggiore della somma delle voci distinte, la differenza (€ {{ risultato.tabellare_gap_ft|euro_it }} FT) concorre allo scatto / orario come nel foglio Excel.{% endif %} Riferimento tabellare mese € {{ risultato.lordo_tabellare_ft_equiv|euro_it }}. Quota/gg: lordo competenze ÷ 26.</span>
-                {% endif %}
-              </td>
-            </tr>
+            {% endif %}
           </tfoot>
         </table>
         </div>
@@ -894,13 +964,13 @@
         </div>
         {% endif %}
       </div>
-    </div>
+    </details>
 
-    <!-- ── Box 2 + 3: Contributi e IRPEF su 2 colonne ───────────────── -->
+    <!-- ── Contributi e IRPEF ─────────────────────────────────────────── -->
     <div class="row g-3 mb-0">
       <div class="col-md-6">
       <div class="res-card h-100">
-        <div class="res-card-head rh-red"><i class="bi bi-percent me-1"></i>Box 2 — Contributi INPS / INAIL</div>
+        <div class="res-card-head rh-red"><i class="bi bi-percent me-1"></i>3 — Contributi INPS / INAIL</div>
         <div class="res-card-body">
           <div class="small fw-bold text-danger mb-1">c/Dipendente</div>
           <div class="rline neg">
@@ -928,7 +998,7 @@
 
       <div class="col-md-6">
       <div class="res-card h-100">
-        <div class="res-card-head rh-amber"><i class="bi bi-receipt me-1"></i>Box 3 — IRPEF e bonus fiscali</div>
+        <div class="res-card-head rh-amber"><i class="bi bi-receipt me-1"></i>4 — IRPEF, addizionali e crediti</div>
         <div class="res-card-body">
           <div class="rline"><span class="lbl">Imponibile /mese</span><span class="val">€ {{ risultato.imponibile_m|euro_it }}</span></div>
           <div class="rline"><span class="lbl">Imponibile /anno (×12)</span><span class="val">€ {{ risultato.imponibile_ann|euro_it }}</span></div>
@@ -948,9 +1018,9 @@
       </div>
     </div>
 
-    <!-- ── Box 4: Ratei e TFR ─────────────────────────────────────────── -->
+    <!-- ── Ratei e TFR ─────────────────────────────────────────────────── -->
     <div class="res-card mt-3" id="box-ratei">
-      <div class="res-card-head rh-teal"><i class="bi bi-piggy-bank me-1"></i>Box 4 — Ratei e TFR (lordi e netti)</div>
+      <div class="res-card-head rh-teal"><i class="bi bi-piggy-bank me-1"></i>5 — Ratei e TFR (lordi e netti)</div>
       <div class="res-card-body p-0">
         <div class="table-responsive">
         <table class="voce-tbl">
@@ -974,9 +1044,9 @@
       </div>
     </div>
 
-    <!-- ── Box 5: Riepilogo busta paga ───────────────────────────────── -->
+    <!-- ── Netto e valore globale ─────────────────────────────────────── -->
     <div class="res-card">
-      <div class="res-card-head rh-green"><i class="bi bi-cash-stack me-1"></i>Box 5 — Riepilogo busta paga dipendente</div>
+      <div class="res-card-head rh-green"><i class="bi bi-cash-stack me-1"></i>6 — Netto in busta e valore globale</div>
       <div class="res-card-body">
         <div class="row g-3">
           <div class="col-md-6">
@@ -1030,9 +1100,9 @@
       </div>
     </div>
 
-    <!-- ── Box 6: Costo azienda e F24 ────────────────────────────────── -->
+    <!-- ── Costo azienda e F24 ────────────────────────────────────────── -->
     <div class="res-card" id="box-costo">
-      <div class="res-card-head rh-blue"><i class="bi bi-building me-1"></i>Box 6 — Costo azienda e sviluppo F24</div>
+      <div class="res-card-head rh-blue"><i class="bi bi-building me-1"></i>7 — Costo azienda e F24</div>
       <div class="res-card-body">
         <div class="row g-3">
 
@@ -1161,6 +1231,9 @@
         _set('giorni_assenza_ingiust', d.giorni_assenza_ingiust);
         _set('giorni_ferie_godute',    d.giorni_ferie_godute);
         _set('ore_permessi_goduti',    d.ore_permessi_goduti);
+        if (d.ore_ordinarie_retribuite != null && d.ore_ordinarie_retribuite !== undefined) {
+          _set('ore_ordinarie_retribuite', d.ore_ordinarie_retribuite);
+        }
         infoEl.innerHTML = '<span style="color:green"><i class="bi bi-check2"></i> Dati caricati dal registro presenze</span>';
       } catch (err) {
         infoEl.textContent = 'Errore di rete: ' + err.message;
@@ -1170,6 +1243,112 @@
       }
     });
   }
+})();
+
+/* ── Prefill form da contratto (dipendente) o da proposta (candidato) ─ */
+(function () {
+  const PREFILL_URL = '{% url "api_prefill_simulatore_form" %}';
+  const selDip = document.getElementById('sim_dipendente_id');
+  const selProp = document.getElementById('sim_proposta_prefill');
+  const selMese = document.querySelector('[name=mese]');
+  const selAnno = document.querySelector('[name=anno]');
+  const infoEl = document.getElementById('sim_prefill_info');
+  const chkContr = document.getElementById('chk_usa_contratto');
+
+  function _setVal(name, val) {
+    const el = document.querySelector(`[name="${name}"]`);
+    if (el && val != null && val !== '') el.value = val;
+  }
+  function _ensureCcnlOptionVisible(sel, val) {
+    if (!sel || !val) return;
+    const opt = Array.from(sel.options).find(o => o.value === String(val));
+    if (opt) { opt.hidden = false; opt.disabled = false; }
+    sel.value = String(val);
+  }
+  function _applyPrefill(d) {
+    const selCcnl = document.getElementById('sel_ccnl');
+    if (d.parametro_ccnl) _ensureCcnlOptionVisible(selCcnl, d.parametro_ccnl);
+    if (d.tipo_contratto) _setVal('tipo_contratto', d.tipo_contratto);
+    if (d.azienda) _setVal('azienda', d.azienda);
+    if (d.data_inizio_rapporto) _setVal('data_inizio_rapporto', d.data_inizio_rapporto);
+    _setVal('data_fine_rapporto', d.data_fine_rapporto || '');
+    if (d.superminimo != null) _setVal('superminimo', d.superminimo);
+    if (d.divisore) _setVal('divisore', d.divisore);
+    if (d.dipendente_id) _setVal('dipendente_id', d.dipendente_id);
+    const r13 = document.getElementById('r13imp');
+    const r14 = document.getElementById('r14imp');
+    if (r13) r13.checked = d.rateo_13_mensile_in_imponibile === '1';
+    if (r14) r14.checked = d.rateo_14_mensile_in_imponibile === '1';
+    if (chkContr) chkContr.checked = (d.usa_dati_contratto === '1');
+    if (selProp && d.fonte === 'contratto') selProp.value = '';
+    if (selDip && d.fonte === 'proposta' && d.dipendente_id) selDip.value = d.dipendente_id;
+  }
+
+  async function _fetchPrefill(params, silent) {
+    const anno = selAnno && selAnno.value;
+    const mese = selMese && selMese.value;
+    if (!anno || !mese) {
+      if (!silent && infoEl) infoEl.textContent = 'Seleziona mese e anno per caricare contratto o proposta.';
+      return;
+    }
+    params.set('anno', anno);
+    params.set('mese', mese);
+    if (!silent && infoEl) infoEl.innerHTML = '<span class="text-muted">Caricamento dati…</span>';
+    try {
+      const resp = await fetch(`${PREFILL_URL}?${params}`);
+      const d = await resp.json();
+      if (!d.ok) {
+        if (infoEl) infoEl.innerHTML = '<span class="text-danger">' + (d.errore || 'Errore prefill') + '</span>';
+        return;
+      }
+      _applyPrefill(d);
+      if (infoEl && !silent) {
+        let extra = d.scatto_maturato_mese_hint ? ' · Scatti maturati (€/mese): ' + d.scatto_maturato_mese_hint : '';
+        infoEl.innerHTML = '<span class="text-success"><i class="bi bi-check2"></i> ' + (d.messaggio || 'Dati applicati') + extra + '</span>';
+      }
+    } catch (e) {
+      if (infoEl) infoEl.textContent = 'Errore di rete: ' + e.message;
+    }
+  }
+
+  if (selDip) {
+    selDip.addEventListener('change', () => {
+      if (selProp) selProp.value = '';
+      if (!selDip.value) {
+        if (chkContr) chkContr.checked = false;
+        if (infoEl) infoEl.textContent = '';
+        return;
+      }
+      const p = new URLSearchParams({ dipendente_id: selDip.value });
+      _fetchPrefill(p, false);
+      if (chkContr) chkContr.checked = true;
+    });
+  }
+  if (selProp) {
+    selProp.addEventListener('change', () => {
+      if (!selProp.value) {
+        if (infoEl) infoEl.textContent = '';
+        return;
+      }
+      const p = new URLSearchParams({ proposta_id: selProp.value });
+      _fetchPrefill(p, false);
+    });
+  }
+  [selMese, selAnno].forEach(el => el && el.addEventListener('change', () => {
+    if (selDip && selDip.value) {
+      const p = new URLSearchParams({ dipendente_id: selDip.value });
+      _fetchPrefill(p, true);
+    }
+  }));
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      if (selDip && selDip.value && chkContr && chkContr.checked) {
+        const p = new URLSearchParams({ dipendente_id: selDip.value });
+        _fetchPrefill(p, true);
+      }
+    }, 400);
+  });
 })();
 
 /* ── Filtro CCNL per data mese/anno selezionato ─────────────────────── */

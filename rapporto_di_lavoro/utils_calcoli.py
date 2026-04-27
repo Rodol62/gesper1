@@ -12,10 +12,10 @@ Riferimenti normativi 2024-2026:
     €28.001-€50.000: decrescente a €0    | >€50.000: €0
 - Trattamento Integrativo: art. 1 L. 21/2020 (provvedimento permanente),
   €100/mese per imponibile ≤€15.000; decrescente fino a €28.000; confermato 2026.
-- Bonus art. 1 c. 4 L. 207/2024: misura TEMPORANEA 2025, €70,82/mese per
-  imponibile €8.500-€20.000. Per il 2026 richiede esplicito rinnovo (LdB 2026).
-  Il calcolo usa il record BonusFiscale con verifica date di validità:
-  senza record valido per l'anno richiesto restituisce €0 (nessun fallback).
+- Bonus art. 1 c. 4 L. 207/2024: dal 2025 importo tabellare mensile (es. € 70,82) in fascia
+  se record ``BonusFiscale`` valido. Dal **2026** stima a **fasce percentuali** sul reddito
+  annuo (5,3% / 4,8% oltre € 8.500 fino a € 20.000), coerente con cedolini commerciali;
+  prevale ``formula_calcolo`` su ``BonusFiscale`` se valorizzata.
 - INPS CCNL FIPE: Circ. INPS n. 15/2025 — aliquota dipendente 9,36%
   (IVS 9,19% + EBT/FSBT 0,17%); azienda ~29,31% totale oneri previdenziali.
 """
@@ -388,6 +388,24 @@ def calcola_trattamento_integrativo(imponibile_annuo, anno=2025):
 # BONUS ART. 1 COMMA 4 L. 207/2024
 # ============================================================
 
+def _l207_mensile_cuneo_percentuale_2026(reddito_annuo: Decimal) -> Decimal:
+    """
+    Dal 2026 il beneficio in busta (cuneo art. 1 c.4 L.207/2024) segue fasce sul reddito
+    annuo di lavoro dipendente (stima coerente con cedolini tipo TeamSystem / Zucchetti).
+
+    - fino a € 8.500 inclusi: nessun accredito mensile in questa stima
+    - oltre € 8.500 fino a € 15.000: 5,3% dell'anno ÷ 12
+    - oltre € 15.000 fino a € 20.000: 4,8% dell'anno ÷ 12
+    - oltre € 20.000: € 0
+    """
+    R = Decimal(str(reddito_annuo))
+    if R <= Decimal('8500') or R > Decimal('20000'):
+        return Decimal('0')
+    if R <= Decimal('15000'):
+        return (R * Decimal('0.053') / Decimal('12')).quantize(Decimal('0.01'))
+    return (R * Decimal('0.048') / Decimal('12')).quantize(Decimal('0.01'))
+
+
 def calcola_bonus_l207_2024(imponibile_annuo, anno=2025):
     """
     Calcola il Bonus Art. 1 comma 4 Legge 207/2024 ("ulteriore detrazione temporanea").
@@ -399,19 +417,14 @@ def calcola_bonus_l207_2024(imponibile_annuo, anno=2025):
     - Viene aggiunto direttamente al netto in busta paga
     - L'azienda lo anticipa e lo recupera tramite F24 (nessun costo netto)
 
-    VALIDITÀ: misura TEMPORANEA introdotta per il 2025 da L.207/2024 art. 1 c. 4.
-    Per il 2026 richiede esplicito rinnovo (Legge di Bilancio 2026).
-    Il calcolo usa il record BonusFiscale (codice='BONUS_L207_2024') con verifica
-    delle date di validità per l'anno richiesto: se non esiste un record valido
-    per quell'anno, restituisce €0 senza fallback hardcoded.
+    Dal **2026** (con record ``BonusFiscale`` attivo e valido in data, senza ``formula_calcolo``):
+    importo mensile = fasce percentuali sul reddito annuo (vedi ``_l207_mensile_cuneo_percentuale_2026``),
+    allineato ai cedolini che non usano più il solo importo fisso € 70,82.
 
-    Logica soglie (default se record DB presente):
-    - Imponibile annuo < soglia_min (default €8.500): €0
-    - Imponibile annuo €8.500 – €20.000: importo pieno (default €70,82/mese)
-    - Imponibile annuo > €20.000: €0
+    Se su ``BonusFiscale`` è valorizzata ``formula_calcolo``, prevale ``calcola_importo`` del modello.
 
     Args:
-        imponibile_annuo (Decimal | float): Imponibile fiscale annualizzato
+        imponibile_annuo (Decimal | float): Imponibile fiscale annualizzato (stima reddito annuo)
         anno (int): Anno di riferimento
 
     Returns:
@@ -420,37 +433,49 @@ def calcola_bonus_l207_2024(imponibile_annuo, anno=2025):
     from datetime import date as _date
     from django.db.models import Q as _Q
 
-    imponibile_annuo = Decimal(str(imponibile_annuo))
+    R = Decimal(str(imponibile_annuo))
+    check_date = _date(int(anno), 6, 1)
 
-    # --- Recupera parametri dal DB con verifica validità per l'anno ---
-    importo_mensile_pieno = None  # None = nessun record trovato
-    soglia_min = None
-    soglia_max = None
     try:
         from .models import BonusFiscale  # noqa: PLC0415
-        check_date = _date(anno, 6, 1)
-        bonus = BonusFiscale.objects.filter(
-            codice='BONUS_L207_2024',
-            attivo=True,
-            data_validita_da__lte=check_date,
-        ).filter(
-            _Q(data_validita_a__isnull=True) | _Q(data_validita_a__gte=check_date)
-        ).first()
-        if bonus:
-            importo_mensile_pieno = Decimal(str(bonus.importo_mensile)) if bonus.importo_mensile else Decimal('70.82')
-            soglia_min = Decimal(str(bonus.soglia_reddito_min)) if bonus.soglia_reddito_min else Decimal('8500')
-            soglia_max = Decimal(str(bonus.soglia_reddito_max)) if bonus.soglia_reddito_max else Decimal('20000')
+
+        bonus = (
+            BonusFiscale.objects.filter(
+                codice='BONUS_L207_2024',
+                attivo=True,
+                data_validita_da__lte=check_date,
+            )
+            .filter(
+                _Q(data_validita_a__isnull=True) | _Q(data_validita_a__gte=check_date)
+            )
+            .order_by('-anno')
+            .first()
+        )
     except Exception:
-        pass
+        bonus = None
 
-    # Nessun record valido per l'anno: misura non applicabile (era temporanea)
-    if importo_mensile_pieno is None:
+    if not bonus:
         return Decimal('0')
 
-    # --- Calcolo ---
-    if soglia_min and imponibile_annuo < soglia_min:
+    if (bonus.formula_calcolo or '').strip():
+        try:
+            return bonus.calcola_importo(R).quantize(Decimal('0.01'))
+        except Exception:
+            return Decimal('0')
+
+    if int(anno) >= 2026:
+        return _l207_mensile_cuneo_percentuale_2026(R)
+
+    # --- Anni fino al 2025: importo mensile fisso da tabella se in fascia ---
+    importo_mensile_pieno = (
+        Decimal(str(bonus.importo_mensile)) if bonus.importo_mensile else Decimal('70.82')
+    )
+    soglia_min = Decimal(str(bonus.soglia_reddito_min)) if bonus.soglia_reddito_min else Decimal('8500')
+    soglia_max = Decimal(str(bonus.soglia_reddito_max)) if bonus.soglia_reddito_max else Decimal('20000')
+
+    if soglia_min and R < soglia_min:
         return Decimal('0')
-    if soglia_max and imponibile_annuo > soglia_max:
+    if soglia_max and R > soglia_max:
         return Decimal('0')
 
     return importo_mensile_pieno

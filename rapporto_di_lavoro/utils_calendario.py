@@ -217,6 +217,44 @@ def get_giorni_lavorativi_mese(azienda, anno: int, mese: int) -> dict:
     }
 
 
+def count_giorni_ordinari_calendario(
+    anno: int,
+    mese: int,
+    cal_data: dict,
+    *,
+    giorni_lavorativi_settimana: int = 6,
+) -> int:
+    """
+    Giorni del mese che concorrono alle **ore di lavoro ordinario** su calendario (solo lettura di ``cal_data``):
+
+    - esclusi chiusura settimanale ed eventuali chiusure extra aziendali;
+    - esclusi i **festivi** (nazionali/aziendali), retribuiti sulla riga festivo/domenicale;
+    - esclusa la **domenica** (sempre fuori dall’ordinario calendario);
+    - il **sabato** entra solo con contratto a 6 o 7 giorni/settimana; con 5 gg/sett. restano solo lun–ven.
+
+    ``giorni_lavorativi_settimana`` è il valore da ``TipoContratto`` (5 / 6 / 7).
+    """
+    _, giorni_totali = calendar.monthrange(anno, mese)
+    gls = max(1, min(int(giorni_lavorativi_settimana or 6), 7))
+    # 5→lun-ven (max wd 4); 6/7→lun-sab (max 5); la domenica (6) non è mai ordinario.
+    max_weekday = min(gls - 1, 5)
+    festivita = set(cal_data.get('dates_festivita') or [])
+    dates_sett = set(cal_data.get('dates_chiusure_sett') or [])
+    dates_extra = set(cal_data.get('dates_chiusure_extra') or [])
+    n = 0
+    for giorno in range(1, giorni_totali + 1):
+        d = date(anno, mese, giorno)
+        if d in dates_sett or d in dates_extra:
+            continue
+        wd = d.weekday()
+        if wd > max_weekday:
+            continue
+        if d in festivita:
+            continue
+        n += 1
+    return n
+
+
 def build_griglia_mese(
     anno: int,
     mese: int,

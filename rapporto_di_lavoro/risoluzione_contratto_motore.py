@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 
 from django.db.models import Q
 
-from .models import AddendumContrattuale, ParametroCCNLTurismo, RapportoDiLavoro
+from .models import AddendumContrattuale, ParametroCCNLTurismo, ParametroScattiAnnuali, RapportoDiLavoro
 
 
 def rapporto_sottoscritto_attivo_nel_mese(
@@ -113,6 +113,45 @@ def divisore_str_da_parametro_get(raw: Optional[str]) -> str:
     if s == '26':
         return '26'
     return '173.33'
+
+
+def anni_di_servizio(data_inizio: date, ref: date) -> int:
+    """Anni completi di servizio da ``data_inizio`` alla data di riferimento (es. primo giorno del mese simulato)."""
+    if not data_inizio or data_inizio > ref:
+        return 0
+    y = ref.year - data_inizio.year
+    if (ref.month, ref.day) < (data_inizio.month, data_inizio.day):
+        y -= 1
+    return max(0, y)
+
+
+def build_scatti_db(ccnl, anno: int) -> dict:
+    """
+    Mappa livello → [(soglia_anni, importo_mensile), ...] ordinata per soglia.
+    Usata con :func:`calcola_scatto_totale_maturato` (stessa logica organico / presenze).
+    """
+    scatti_db: dict = {}
+    if ccnl is None:
+        return scatti_db
+    for s in ParametroScattiAnnuali.objects.filter(ccnl=ccnl, anno=anno, attivo=True):
+        scatti_db.setdefault(s.livello, []).append((int(s.anni_anzianita or 0), Decimal(str(s.importo_scatto or 0))))
+    for k in scatti_db:
+        scatti_db[k].sort(key=lambda x: x[0])
+    return scatti_db
+
+
+def calcola_scatto_totale_maturato(livello: str, anni_anzianita: int, scatti_db: dict) -> Decimal:
+    """
+    Importo mensile cumulato degli scatti maturati (soglie anni ≤ anzianità).
+    Allineato a FIPE: ogni soglia in tabella concorre con il relativo importo mensile.
+    """
+    key = (livello or '').strip()
+    soglie = scatti_db.get(key, [])
+    totale = Decimal('0')
+    for (soglia, importo) in soglie:
+        if anni_anzianita >= soglia:
+            totale += importo
+    return totale
 
 
 def kwargs_percorso_fiscale_sim(percorso: Optional[str]) -> dict:

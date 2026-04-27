@@ -11,6 +11,7 @@ from django.shortcuts import render
 from django.utils import timezone as _tz
 
 Q2 = Decimal('0.01')
+Q4 = Decimal('0.0001')
 
 SESSION_KEY = 'simulatore_paga_form'
 MESI_NOMI = [
@@ -24,9 +25,213 @@ DIVISORI = [
 ]
 
 
+def _divisore_tabellare_da_parametro_ccnl(cp) -> str | None:
+    """Divisore orario da ``ore_mensili`` del parametro (≥160), altrimenti None."""
+    if not cp or not getattr(cp, 'ore_mensili', None):
+        return None
+    try:
+        om_dec = Decimal(str(cp.ore_mensili))
+    except Exception:
+        return None
+    if om_dec < Decimal('160'):
+        return None
+    om = float(cp.ore_mensili)
+    if abs(om - 173.33) < 0.06:
+        return '173.33'
+    return str(int(round(om)))
+
+
+def _utente_puo_vedere_dipendente_sim(request, dip) -> bool:
+    u = request.user
+    if not u.is_authenticated:
+        return False
+    if u.is_superuser:
+        return True
+    try:
+        if u.has_ruolo('admin') or u.has_ruolo('hr'):
+            from accounts.tenant import get_azienda_operativa
+            az = get_azienda_operativa(u, request.session)
+            return az is None or dip.azienda_id == az.id
+        if u.has_ruolo('consulente') and getattr(u, 'azienda_id', None):
+            return dip.azienda_id == u.azienda_id
+        if getattr(dip, 'utente_id', None) == u.id:
+            return True
+        profilo = getattr(u, 'profilo_candidato', None)
+        if profilo and getattr(profilo, 'dipendente_id', None) == dip.id:
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def _elenco_proposte_prefill_simulatore(request):
+    """Proposte recenti (non convertite) per prefill candidati / bozze."""
+    from .models import PropostaAssunzione
+    from accounts.tenant import get_azienda_operativa
+
+    u = request.user
+    if not u.is_authenticated:
+        return []
+    finiti = (
+        'contratto_attivo', 'convertita_in_contratto', 'rifiutata_candidato',
+        'rifiutata_admin', 'rifiutata_dipendente',
+    )
+    qs = (
+        PropostaAssunzione.objects.select_related('dipendente', 'azienda')
+        .exclude(stato__in=finiti)
+        .order_by('-data_modifica')[:40]
+    )
+    if u.is_superuser:
+        return list(qs)
+    az = get_azienda_operativa(u, request.session)
+    if az:
+        return list(qs.filter(azienda=az))
+    if getattr(u, 'has_ruolo', lambda _c: False)('candidato') or u.has_ruolo('dipendente'):
+        return list(
+            PropostaAssunzione.objects.select_related('dipendente', 'azienda')
+            .filter(dipendente__utente=u)
+            .exclude(stato__in=finiti)
+            .order_by('-data_modifica')[:25]
+        )
+    return []
+
+
+def _json_prefill_da_contratto_dipendente(request, dip_id: int, anno: int, mese: int) -> dict:
+    from anagrafiche.models import Dipendente
+    from .risoluzione_contratto_motore import (
+        anni_di_servizio,
+        build_scatti_db,
+        calcola_scatto_totale_maturato,
+        rapporto_sottoscritto_attivo_nel_mese,
+        risolvi_parametro_ccnl_per_mese,
+        superminimo_da_rapporto_o_ruolo,
+    )
+
+    try:
+        dip = Dipendente.objects.get(pk=dip_id)
+    except Dipendente.DoesNotExist:
+        return {'ok': False, 'errore': 'Dipendente non trovato'}
+    if not _utente_puo_vedere_dipendente_sim(request, dip):
+        return {'ok': False, 'errore': 'Non autorizzato a consultare questo dipendente'}
+    rapporto = rapporto_sottoscritto_attivo_nel_mese(
+        dipendente=dip, azienda=dip.azienda, anno=anno, mese=mese,
+    )
+    if not rapporto:
+        return {
+            'ok': False,
+            'errore': (
+                'Nessun contratto sottoscritto attivo nel mese selezionato per questo dipendente '
+                '(verifica date rapporto o stato contratto).'
+            ),
+        }
+    primo_m = date(anno, mese, 1)
+    cp, _f = risolvi_parametro_ccnl_per_mese(
+        rapporto=rapporto,
+        data_primo_giorno_mese=primo_m,
+        livello_fallback=(dip.livello or '').strip(),
+    )
+    if not cp:
+        return {
+            'ok': False,
+            'errore': f'Parametro CCNL non trovato per livello «{(rapporto.livello_ccnl or "").strip() or "?"}».',
+        }
+    tc = rapporto.tipo_contratto
+    sm = superminimo_da_rapporto_o_ruolo(rapporto=rapporto, ruolo_superminimo=Decimal('0'))
+    div = _divisore_tabellare_da_parametro_ccnl(cp)
+    if not div:
+        div = '172'
+    from .parametro_ccnl_voci_retributive import risolvi_ccnl_modello_da_parametro
+
+    _ccnl_obj = risolvi_ccnl_modello_da_parametro(cp)
+    anni_srv = anni_di_servizio(rapporto.data_inizio_rapporto, primo_m)
+    livello_eff = (rapporto.livello_ccnl or dip.livello or '').strip()
+    scatti_db = build_scatti_db(_ccnl_obj, anno) if _ccnl_obj else {}
+    scatto_m = calcola_scatto_totale_maturato(livello_eff, anni_srv, scatti_db).quantize(Q2)
+
+    return {
+        'ok': True,
+        'fonte': 'contratto',
+        'messaggio': f'Contratto {rapporto.numero_contratto} — livello {rapporto.livello_ccnl}',
+        'parametro_ccnl': str(cp.pk),
+        'tipo_contratto': str(tc.pk),
+        'azienda': str(dip.azienda_id),
+        'dipendente_id': str(dip.pk),
+        'data_inizio_rapporto': rapporto.data_inizio_rapporto.isoformat(),
+        'data_fine_rapporto': rapporto.data_fine_rapporto.isoformat() if rapporto.data_fine_rapporto else '',
+        'superminimo': str(sm),
+        'divisore': div,
+        'usa_dati_contratto': '1',
+        'rateo_13_mensile_in_imponibile': '1' if rapporto.tredicesima_rateo_mensile_in_imponibile else '0',
+        'rateo_14_mensile_in_imponibile': '1' if rapporto.quattordicesima_rateo_mensile_in_imponibile else '0',
+        'scatto_maturato_mese_hint': str(scatto_m),
+    }
+
+
+def _json_prefill_da_proposta(request, proposta_id: int, anno: int, mese: int) -> dict:
+    from rapporto_di_lavoro.views import _get_proposta_con_permesso
+
+    prop = _get_proposta_con_permesso(request, proposta_id)
+    if prop is None:
+        return {'ok': False, 'errore': 'Proposta non trovata o accesso negato'}
+    cp = prop.parametro_ccnl_risolto
+    if not cp:
+        return {'ok': False, 'errore': 'Nessun parametro CCNL risolvibile per questa proposta'}
+    div = _divisore_tabellare_da_parametro_ccnl(cp) or '172'
+    sm = Decimal(str(prop.superminimo_mensile or 0)).quantize(Q2)
+    return {
+        'ok': True,
+        'fonte': 'proposta',
+        'messaggio': f'Proposta {prop.numero_proposta} ({prop.get_stato_display()})',
+        'parametro_ccnl': str(cp.pk),
+        'tipo_contratto': str(prop.tipo_contratto_id),
+        'azienda': str(prop.azienda_id),
+        'dipendente_id': str(prop.dipendente_id) if prop.dipendente_id else '',
+        'data_inizio_rapporto': prop.data_inizio_rapporto.isoformat(),
+        'data_fine_rapporto': prop.data_fine_rapporto.isoformat() if prop.data_fine_rapporto else '',
+        'superminimo': str(sm),
+        'divisore': div,
+        'usa_dati_contratto': '',
+        'rateo_13_mensile_in_imponibile': '1' if prop.tredicesima_rateo_mensile_in_imponibile else '0',
+        'rateo_14_mensile_in_imponibile': '1' if prop.quattordicesima_rateo_mensile_in_imponibile else '0',
+    }
+
+
+@login_required
+def api_prefill_simulatore_form(request):
+    """
+    GET ?dipendente_id=&anno=&mese=  → campi da RapportoDiLavoro sottoscritto.
+    GET ?proposta_id=&anno=&mese=    → campi da PropostaAssunzione (candidato / bozza).
+    """
+    from django.http import JsonResponse
+
+    try:
+        anno = int(request.GET.get('anno', ''))
+        mese = int(request.GET.get('mese', ''))
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'errore': 'anno e mese numerici obbligatori'}, status=400)
+    if not (1 <= mese <= 12 and 2000 <= anno <= 2100):
+        return JsonResponse({'ok': False, 'errore': 'mese o anno non validi'}, status=400)
+
+    prop_raw = (request.GET.get('proposta_id') or '').strip()
+    dip_raw = (request.GET.get('dipendente_id') or '').strip()
+    if prop_raw:
+        try:
+            pid = int(prop_raw)
+        except ValueError:
+            return JsonResponse({'ok': False, 'errore': 'proposta_id non valido'}, status=400)
+        return JsonResponse(_json_prefill_da_proposta(request, pid, anno, mese))
+    if dip_raw:
+        try:
+            did = int(dip_raw)
+        except ValueError:
+            return JsonResponse({'ok': False, 'errore': 'dipendente_id non valido'}, status=400)
+        return JsonResponse(_json_prefill_da_contratto_dipendente(request, did, anno, mese))
+    return JsonResponse({'ok': False, 'errore': 'Specificare dipendente_id o proposta_id'}, status=400)
+
+
 @login_required
 def simulatore_paga(request):
-    from .models import ParametroCCNLTurismo, TipoContratto, CCNL
+    from .models import ParametroCCNLTurismo, TipoContratto
     from anagrafiche.models import Azienda
 
     oggi = _tz.localdate()
@@ -85,6 +290,7 @@ def simulatore_paga(request):
     # ── Calcolo ───────────────────────────────────────────────────────────────
     try:
         from .utils_motore_paga import calcola_busta_paga_mese
+        from .motore_paga_roel import costruisci_competenze_logica_v1
 
         def _get(key, default=''):
             v = form_flat.get(key, default)
@@ -123,13 +329,23 @@ def simulatore_paga(request):
         data_inizio = _to_date(_get('data_inizio_rapporto'))
         data_fine   = _to_date(_get('data_fine_rapporto'))
 
-        # CCNL obj
-        _ccnl_obj = CCNL.objects.filter(sigla__icontains='FIPE').first()
+        # Parametri CCNL e contratto (base: form; sovrascritti se «Dati da contratto attivo»)
+        from .parametro_ccnl_voci_retributive import risolvi_ccnl_modello_da_parametro
 
-        # Parametri CCNL e contratto
         cp = ParametroCCNLTurismo.objects.get(pk=_get('parametro_ccnl'))
+        _ccnl_obj = risolvi_ccnl_modello_da_parametro(cp)
         tc = TipoContratto.objects.get(pk=_get('tipo_contratto'))
         coeff = Decimal(str(tc.coefficiente_ore or 1))
+        scatto_anzianita = Decimal('0')
+        sim_fonte_dati = 'parametri_ccnl'
+        indennita_extra = Decimal('0')
+        contratto_esclude_13 = False
+        contratto_esclude_14 = False
+        dip_ctx_merge = None
+        num_fam_fisc = 0
+        regione_fisc = 'Sicilia'
+        comune_fisc = None
+        prov_fisc = None
 
         # Divisore
         div_raw = _get('divisore', '26').replace(',', '.')
@@ -146,6 +362,7 @@ def simulatore_paga(request):
         ore_snf = _ore('ore_straord_nott_fest')
 
         def _gg(key): return Decimal(_get(key, '0') or '0').quantize(Q2)
+        ore_ord_ret = _ore('ore_ordinarie_retribuite')
         ore_dom     = _ore('ore_domenicali')
         ore_fest    = _ore('ore_festivi_lavorati')
         gg_assenza  = _gg('giorni_assenza_ingiust')
@@ -155,6 +372,87 @@ def simulatore_paga(request):
         # Ratei 13ª/14ª nella base INPS/IRPEF/INAIL solo se erogati mensilmente in busta (contratto / simulazione).
         r13_imp_m = _get('rateo_13_mensile_in_imponibile', '0') == '1'
         r14_imp_m = _get('rateo_14_mensile_in_imponibile', '0') == '1'
+
+        # ── Fonte «dipendente in carico»: contratto sottoscritto + scatti da anzianità di servizio ──
+        usa_contr = _get('usa_dati_contratto', '') == '1'
+        dip_id_raw = (_get('dipendente_id', '') or '').strip()
+        if usa_contr:
+            if not dip_id_raw:
+                raise ValueError(
+                    'Per applicare il contratto attivo seleziona un dipendente nel campo sottostante.'
+                )
+            from anagrafiche.models import Dipendente
+            from .risoluzione_contratto_motore import (
+                anni_di_servizio,
+                build_scatti_db,
+                calcola_scatto_totale_maturato,
+                rapporto_sottoscritto_attivo_nel_mese,
+                risolvi_parametro_ccnl_per_mese,
+                superminimo_da_rapporto_o_ruolo,
+            )
+            try:
+                dip_ctx = Dipendente.objects.get(pk=int(dip_id_raw))
+            except (ValueError, Dipendente.DoesNotExist) as exc:
+                raise ValueError('Dipendente non valido per l\'importazione contrattuale.') from exc
+            dip_ctx_merge = dip_ctx
+            # Il rapporto è sempre legato all'azienda del dipendente: non usare l'azienda del calendario
+            # (se diversa, prima non si trovava alcun contratto).
+            rapporto = rapporto_sottoscritto_attivo_nel_mese(
+                dipendente=dip_ctx, azienda=dip_ctx.azienda, anno=anno, mese=mese,
+            )
+            # Calendario (chiusure / festività) allineato alla sede contrattuale
+            azienda = dip_ctx.azienda
+            if not rapporto:
+                raise ValueError(
+                    'Nessun contratto sottoscritto attivo nel mese selezionato per questo dipendente '
+                    '(verifica azienda e arco data inizio / fine rapporto), oppure deseleziona «Dati da contratto».'
+                )
+            primo_m = date(anno, mese, 1)
+            cp_c, _fonte_pc = risolvi_parametro_ccnl_per_mese(
+                rapporto=rapporto,
+                data_primo_giorno_mese=primo_m,
+                livello_fallback=(dip_ctx.livello or '').strip(),
+            )
+            if not cp_c:
+                raise ValueError(
+                    f'Impossibile risolvere il parametro CCNL tabellare per il livello contrattuale '
+                    f'«{(rapporto.livello_ccnl or "").strip() or "?"}» nel mese {anno}-{mese:02d}.'
+                )
+            cp = cp_c
+            _ccnl_obj = risolvi_ccnl_modello_da_parametro(cp)
+            tc = rapporto.tipo_contratto
+            coeff = Decimal(str(tc.coefficiente_ore or 1))
+            data_inizio = rapporto.data_inizio_rapporto
+            data_fine = rapporto.data_fine_rapporto
+            superminimo = superminimo_da_rapporto_o_ruolo(rapporto=rapporto, ruolo_superminimo=Decimal('0'))
+            r13_imp_m = bool(rapporto.tredicesima_rateo_mensile_in_imponibile)
+            r14_imp_m = bool(rapporto.quattordicesima_rateo_mensile_in_imponibile)
+            anni_srv = anni_di_servizio(rapporto.data_inizio_rapporto, primo_m)
+            scatti_db = build_scatti_db(_ccnl_obj, anno)
+            livello_eff = (rapporto.livello_ccnl or dip_ctx.livello or '').strip()
+            scatto_anzianita = calcola_scatto_totale_maturato(livello_eff, anni_srv, scatti_db).quantize(Q2)
+            sim_fonte_dati = 'contratto_attivo'
+            indennita_extra = Decimal(str(rapporto.premio_obiettivi or 0)).quantize(Q2)
+            contratto_esclude_13 = not bool(rapporto.tredicesima)
+            contratto_esclude_14 = not bool(rapporto.quattordicesima)
+            try:
+                _pf = dip_ctx.profilocandidato
+                num_fam_fisc = int(_pf.num_familiari_a_carico or 0)
+                if (_pf.regione_residenza or '').strip():
+                    regione_fisc = _pf.regione_residenza.strip()
+                if (_pf.citta or '').strip():
+                    comune_fisc = _pf.citta.strip()
+                if (_pf.provincia or '').strip():
+                    prov_fisc = (_pf.provincia or '').strip()[:2]
+            except Exception:
+                pass
+            # Divisore orario tabellare (solo se il parametro espone ore «divisore» ≥ 160)
+            if cp.ore_mensili and Decimal(str(cp.ore_mensili)) >= Decimal('160'):
+                om = float(cp.ore_mensili)
+                if abs(om - 173.33) < 0.06:
+                    div_raw = '173.33'
+                else:
+                    div_raw = str(int(round(om)))
 
         # ── Auto-calcolo dal calendario se ore non inserite ───────────────────
         # Domenicali: delegate al motore (usa calendario + chiusure aziendali).
@@ -182,7 +480,11 @@ def simulatore_paga(request):
             data_fine_rapporto=data_fine,
             divisore_str=div_raw,
             superminimo=superminimo,
+            scatto_anzianita=scatto_anzianita,
+            indennita_extra=indennita_extra,
             indennita_turno=indennita_turno,
+            contratto_esclude_tredicesima=contratto_esclude_13,
+            contratto_esclude_quattordicesima=contratto_esclude_14,
             ore_straord_diurno=ore_sd,
             ore_straord_notturno=ore_sn,
             ore_straord_festivo=ore_sf,
@@ -196,40 +498,74 @@ def simulatore_paga(request):
             ccnl_obj=_ccnl_obj,
             rateo_13_mensile_in_imponibile=r13_imp_m,
             rateo_14_mensile_in_imponibile=r14_imp_m,
+            ore_ordinarie_retribuite=ore_ord_ret,
+            modalita_ore_effettive=(ore_ord_ret > 0),
+            mensilita_contrattuale_piena=True,
+            num_familiari_a_carico=num_fam_fisc,
+            regione_residenza=regione_fisc,
+            comune_residenza=comune_fisc,
+            provincia_residenza=prov_fisc,
         )
 
         # ── Voci per tabella Box 1 (solo importo > 0) ────────────────────────
         _div_orario = r['divisore'] > Decimal('30')
+        from .motore_paga_roel import roel_tabellare_euro_oraria
+
+        _roel_tab = roel_tabellare_euro_oraria(r) if _div_orario else r['retribuzione_oraria_di_fatto']
+
+        # Importo righe tabellari (paga/cont/scatto/...) allineato alla stessa base ore
+        # della riga ordinario in rubrica (es. 120 h = 20 gg ord. × 6 h/gg).
+        if ore_ord_ret and ore_ord_ret > 0:
+            _ore_base_tab = ore_ord_ret.quantize(Q2)
+        else:
+            _ore_base_tab = (
+                Decimal(str(r.get('cal_giorni_ordinari') or 0)) *
+                Decimal(str(r.get('ore_giornaliere') or 0))
+            ).quantize(Q2)
 
         def _r_tab(nome, imp_field, note, oraria_field):
             row = {'nome': nome, 'importo': r[imp_field], 'inps': True, 'irpef': True, 'note': note}
             if _div_orario:
-                row['oraria_tab'] = r[oraria_field]
+                _oraria = Decimal(str(r.get(oraria_field) or 0)).quantize(Q4)
+                row['oraria_tab'] = _oraria
+                if _ore_base_tab > 0:
+                    row['ore'] = _ore_base_tab
+                    row['importo'] = (_oraria * _ore_base_tab).quantize(Q2)
             return row
 
         voci = [
             _r_tab('Paga base CCNL', 'paga_base', 'Art. 74 CCNL FIPE', 'oraria_tabellare_paga_base'),
             _r_tab('Contingenza', 'contingenza', 'Indennità contingenza', 'oraria_tabellare_contingenza'),
-            _r_tab('EDR', 'edr', 'Elemento Distorsivo Retrib.', 'oraria_tabellare_edr'),
         ]
+        if r.get('edr') and r['edr'] > 0:
+            voci.append(_r_tab('EDR', 'edr', 'Elemento Distorsivo Retrib.', 'oraria_tabellare_edr'))
         # Indennità CCNL solo se > 0
         if r['indennita']:
             voci.append(_r_tab('Indennità CCNL', 'indennita', 'Prevista da CCNL', 'oraria_tabellare_indennita'))
+        if r.get('scatto') and r['scatto'] > 0:
+            voci.append(_r_tab(
+                'Scatto anzianità', 'scatto',
+                'Da parametro CCNL (tabella livello) se non diversamente indicato',
+                'oraria_tabellare_scatto',
+            ))
+        # Subtotale ROEL (solo paga+cont+scatto ÷ divisore) — stesso valore straord./domeniche; prima di superminimo/turno
+        if _div_orario:
+            voci.append({
+                'nome': 'ROEL tabellare (paga base + contingenza + scatto €/h)',
+                'oraria_tab': _roel_tab,
+                'importo': None,
+                'inps': False,
+                'irpef': False,
+                'note': (
+                    'Formula: (paga tab. × fraz. ÷ divisore) + (contingenza × fraz. ÷ divisore) + (scatto × fraz. ÷ divisore). '
+                    'Esclude EDR, indennità CCNL, superminimo, turno, straord. e maggiorazioni.'
+                ),
+                'row_kind': 'subtotal_rof',
+            })
         if r['superminimo']:
             voci.append({'nome': 'Superminimo', 'importo': r['superminimo'], 'inps': True, 'irpef': True, 'note': 'Individuale/aziendale'})
         if r['indennita_turno']:
             voci.append({'nome': 'Indennità turno', 'importo': r['indennita_turno'], 'inps': True, 'irpef': True, 'note': 'Turni notturni/speciali'})
-        if r.get('scatto') and r['scatto'] > 0:
-            _sc_note = 'Da parametro CCNL (tabella livello) se non diversamente indicato'
-            if r.get('tabellare_gap_ft') and r['tabellare_gap_ft'] > 0:
-                _sc_note += (
-                    f' — incluso € {r["tabellare_gap_ft"]} FT da (totale tabellare − somma voci distinte)'
-                )
-            voci.append(_r_tab(
-                'Scatto anzianità', 'scatto',
-                _sc_note,
-                'oraria_tabellare_scatto',
-            ))
         # Straordinari — solo se ore > 0
         if ore_sd:
             voci.append({'nome': f'Straord. diurno (+{r["magg_diur_pct"]}%)',   'importo': r['imp_sd'],  'ore': ore_sd,  'inps': True, 'irpef': True})
@@ -241,22 +577,60 @@ def simulatore_paga(request):
             voci.append({'nome': f'Straord. nott-fest (+{r["magg_nf_pct"]}%)',  'importo': r['imp_snf'], 'ore': ore_snf, 'inps': True, 'irpef': True})
         # Maggiorazioni domenicali/festive — solo se ore > 0
         if r['ore_domenicali']:
+            _pct_dom = Decimal(str(r['magg_dom_pct'])) / Decimal('100')
+            _dom_completo = bool(r.get('domenicale_compenso_completo'))
+            if _div_orario:
+                if _dom_completo:
+                    _or_dom_magg = (r['paga_oraria'] * (Decimal('1') + _pct_dom)).quantize(Q4)
+                else:
+                    _or_dom_magg = (r['paga_oraria'] * _pct_dom).quantize(Q4)
+            else:
+                _or_dom_magg = None
+            _nome_dom = (
+                f'Lavoro domenicale (completo: ROF×(1+{r["magg_dom_pct"]}%))'
+                if _dom_completo
+                else f'Lavoro domenicale +{r["magg_dom_pct"]}% (solo magg.)'
+            )
+            _tit_dom = (
+                f'€/h: ROF × (1 + {r["magg_dom_pct"]}%)'
+                if _dom_completo
+                else f'€/h magg.: ROF × {r["magg_dom_pct"]}%'
+            )
+            _nota_dom = (
+                f'Ore × ROEL × (1 + {r["magg_dom_pct"]}%) — compenso domenicale completo.'
+                if _dom_completo
+                else (
+                    f'Importo = ore × retrib. oraria di fatto × {r["magg_dom_pct"]}% '
+                    '(base ordinaria già inclusa nel lordo tabellare).'
+                )
+            )
             voci.append({
-                'nome': f'Lavoro domenicale +{r["magg_dom_pct"]}%',
+                'nome': _nome_dom,
                 'importo': r['imp_dom_magg'],
                 'ore': r['ore_domenicali'],
+                'oraria_tab': _or_dom_magg,
+                'oraria_tab_titolo': _tit_dom,
                 'cal_hint': r.get('cal_domeniche_lav_n', r['cal_domeniche_n']),
+                'cal_hint_kind': 'dom',
                 'inps': True, 'irpef': True,
-                'note': f'ore × retrib. oraria di fatto × {r["magg_dom_pct"]}%',
+                'note': _nota_dom,
             })
         if r['ore_festivi']:
+            _pct_fest = Decimal(str(r['magg_fest_day_pct'])) / Decimal('100')
+            _or_fest_magg = (r['paga_oraria'] * _pct_fest).quantize(Q4) if _div_orario else None
             voci.append({
                 'nome': f'Lavoro festivo +{r["magg_fest_day_pct"]}%',
                 'importo': r['imp_fest_magg'],
                 'ore': r['ore_festivi'],
+                'oraria_tab': _or_fest_magg,
+                'oraria_tab_titolo': f'€/h magg.: ROF × {r["magg_fest_day_pct"]}%',
                 'cal_hint': r['cal_festivi_lav_n'],
+                'cal_hint_kind': 'fest',
                 'inps': True, 'irpef': True,
-                'note': f'ore × retrib. oraria di fatto × {r["magg_fest_day_pct"]}%',
+                'note': (
+                    f'Importo = ore nella colonna Ore (da presenze o valore inserito) '
+                    f'× retrib. oraria di fatto × {r["magg_fest_day_pct"]}%'
+                ),
             })
         if r['decurt_assenze']:
             voci.append({'nome': 'Assenze ingiustificate', 'importo': -r['decurt_assenze'], 'gg': r['giorni_assenza_ingiust'], 'inps': True, 'irpef': True, 'negativo': True})
@@ -264,6 +638,33 @@ def simulatore_paga(request):
         if _div_orario:
             for row in voci:
                 row.setdefault('oraria_tab', None)
+
+        # Allineamento foglio INPS: con ore ordinarie, importo riga = €/h tab. × ore lav. ord.
+        if _div_orario and r.get('modalita_ore_effettive') and ore_ord_ret > 0:
+            _imp_o = r['imp_ordinario_ore']
+            for row in voci:
+                if row.get('row_kind') == 'subtotal_rof':
+                    row['importo'] = _imp_o
+                    row['ore_lav_ord'] = ore_ord_ret
+                    row['note'] = (
+                        f'Somma €/h tab. × {ore_ord_ret} h ord. = importo tabellare su ore lavorate '
+                        f'(ROEL {_roel_tab} €/h). Esclude superminimo, turno, straord. e maggiorazioni.'
+                    )
+                    break
+            for row in voci:
+                ot = row.get('oraria_tab')
+                if ot is None or row.get('row_kind') == 'subtotal_rof':
+                    continue
+                if row.get('oraria_tab_titolo'):
+                    continue
+                row['importo'] = (ot * ore_ord_ret).quantize(Q2)
+                row['ore_lav_ord'] = ore_ord_ret
+                _prev = (row.get('note') or '').strip()
+                row['note'] = (
+                    f'{_prev} — importo = €/h tab. × {ore_ord_ret} h ord.'.strip(' —')
+                    if _prev
+                    else f'Importo = €/h tab. × {ore_ord_ret} h ord.'
+                )
 
         # Paga netta giornaliera (divisore convenzionale 26 FIPE)
         _div26 = r['divisore'] if r['divisore'] <= Decimal('30') else Decimal('26')
@@ -281,6 +682,7 @@ def simulatore_paga(request):
 
         risultato = {
             'nome_test': _get('nome_test', ''),
+            'sim_fonte_dati': sim_fonte_dati,
             'azienda_nome': azienda.nome if azienda else '(festività nazionali + domenica)',
             'ccnl_nome': cp.ccnl, 'ccnl_livello': cp.livello, 'ccnl_qualifica': cp.qualifica,
             'ccnl_decorrenza_da': cp.decorrenza_validita_da,
@@ -298,6 +700,22 @@ def simulatore_paga(request):
             'ore_fest_suggerite': ore_fest_sug,
             **r,  # spread all fields from calcola_busta_paga_mese result
         }
+        risultato['competenze_logica_v1'] = costruisci_competenze_logica_v1(risultato)
+
+        # Dopo «Dati da contratto»: aggiorna sessione con i valori effettivi (dropdown e campi = contratto)
+        if request.method == 'POST' and sim_fonte_dati == 'contratto_attivo' and dip_ctx_merge is not None:
+            form_flat['parametro_ccnl'] = str(cp.pk)
+            form_flat['tipo_contratto'] = str(tc.pk)
+            form_flat['superminimo'] = str(superminimo)
+            form_flat['divisore'] = div_raw
+            form_flat['data_inizio_rapporto'] = data_inizio.isoformat() if data_inizio else ''
+            form_flat['data_fine_rapporto'] = data_fine.isoformat() if data_fine else ''
+            form_flat['rateo_13_mensile_in_imponibile'] = '1' if r13_imp_m else '0'
+            form_flat['rateo_14_mensile_in_imponibile'] = '1' if r14_imp_m else '0'
+            form_flat['azienda'] = str(dip_ctx_merge.azienda_id)
+            form_flat['dipendente_id'] = str(dip_ctx_merge.pk)
+            form_flat['usa_dati_contratto'] = '1'
+            request.session[SESSION_KEY] = form_flat
 
         # ── Salvataggio persistente scenario ──────────────────────────────────
         if request.method == 'POST':
@@ -352,6 +770,7 @@ def _render(request, parametri_ccnl, tipi_contratto, aziende, form_data, risulta
         'tipi_contratto': tipi_contratto,
         'aziende': aziende,
         'dipendenti': Dipendente.objects.exclude(stato='cessato').order_by('cognome', 'nome'),
+        'proposte_prefill': _elenco_proposte_prefill_simulatore(request),
         'divisori': DIVISORI,
         'mesi_nomi': MESI_NOMI[1:],
         'anni_range': list(range(2024, oggi.year + 3)),

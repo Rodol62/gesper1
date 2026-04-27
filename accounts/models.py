@@ -224,7 +224,7 @@ class ProfiloCandidato(models.Model):
         max_length=255, blank=True, verbose_name='Indirizzo di residenza',
     )
     cap = models.CharField(
-        max_length=5, blank=True, verbose_name='CAP',
+        max_length=10, blank=True, verbose_name='CAP',
     )
     citta = models.CharField(
         max_length=100, blank=True, verbose_name='Città',
@@ -514,6 +514,20 @@ class ConfigurazioneSistema(models.Model):
     partita_iva = models.CharField(
         max_length=20, blank=True, default='',
         verbose_name='Partita IVA',
+    )
+    firmatario_amministratore_nome = models.CharField(
+        max_length=150,
+        blank=True,
+        default='',
+        verbose_name='Nome firmatario amministratore',
+        help_text='Nome e cognome del titolare/legale rappresentante da usare nei documenti firmati.',
+    )
+    firmatario_amministratore_ruolo = models.CharField(
+        max_length=150,
+        blank=True,
+        default='',
+        verbose_name='Ruolo firmatario amministratore',
+        help_text='Es. Amministratore unico, Legale rappresentante.',
     )
 
     # ── E-mail / SMTP ────────────────────────────────────────────

@@ -254,7 +254,7 @@ def _calcola_retributivi(lordo_mensile, ore_mensili, ore_giornaliere,
 
     # Soglie di eleggibilità bonus (per spiegazione in template)
     _ti_eligible  = imponibile_annuo <= 28000
-    _l207_eligible = 8500 < imponibile_annuo <= 20000
+    _l207_eligible = Decimal('8500') < Decimal(str(imponibile_annuo)) <= Decimal('20000')
 
     return {
         # ── Retribuzione base ─────────────────────────────────────────────

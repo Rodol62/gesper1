@@ -331,6 +331,7 @@ TEMPLATES = [
 				'accounts.context_processors.config_sistema',
 				'accounts.context_processors.gesper_browser_paths',
 				'accounts.context_processors.gesper_pwa_embed',
+				'accounts.context_processors.consulente_recesso_prova_nav',
 			],
 		},
 	},

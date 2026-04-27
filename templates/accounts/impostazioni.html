@@ -53,6 +53,11 @@
             <div class="col-md-6">
               <label class="form-label">{{ form.nome_azienda.label }}</label>
               {{ form.nome_azienda }}
+              <div class="form-text">
+                Se l’installazione ha una sola azienda in elenco oppure stai curando l’<strong>azienda operativa</strong>,
+                salvando l’<a href="{% url 'lista_aziende' %}">anagrafica azienda</a> si aggiornano anche qui nome, P.IVA,
+                indirizzo sede, firmatario e coordinate predefinite per le presenze.
+              </div>
             </div>
             <div class="col-md-8">
               <label class="form-label">{{ form.indirizzo_sede.label }}</label>
@@ -61,6 +66,16 @@
             <div class="col-md-4">
               <label class="form-label">{{ form.partita_iva.label }}</label>
               {{ form.partita_iva }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.firmatario_amministratore_nome.label }}</label>
+              {{ form.firmatario_amministratore_nome }}
+              {% if form.firmatario_amministratore_nome.help_text %}<div class="form-text">{{ form.firmatario_amministratore_nome.help_text }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ form.firmatario_amministratore_ruolo.label }}</label>
+              {{ form.firmatario_amministratore_ruolo }}
+              {% if form.firmatario_amministratore_ruolo.help_text %}<div class="form-text">{{ form.firmatario_amministratore_ruolo.help_text }}</div>{% endif %}
             </div>
           </div>
         </div>

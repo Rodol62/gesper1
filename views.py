@@ -14,7 +14,13 @@ def root_redirect(request):
 
 @login_required
 def home(request):
-    return render(request, 'home.html')
+    from accounts.tenant import get_azienda_operativa
+
+    return render(
+        request,
+        'home.html',
+        {'azienda_operativa': get_azienda_operativa(request.user, request.session)},
+    )
 
 
 def csrf_failure(request, reason=""):

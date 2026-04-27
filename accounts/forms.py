@@ -5,6 +5,13 @@ from django.core.validators import RegexValidator
 from django.utils import timezone
 from .models import User, ProfiloCandidato
 from .validators import CodiceFiscalePasswordValidator
+from anagrafiche.codice_fiscale_it import valida_cf as _valida_cf
+from anagrafiche.territorio_it import (
+    regioni as regioni_it,
+    province_per_regione,
+    comuni_per_regione_provincia,
+    paesi_istat,
+)
 
 # ── Costanti validazione ─────────────────────────────────────────
 _REGIONI_ITALIANE = {
@@ -14,31 +21,6 @@ _REGIONI_ITALIANE = {
     'SICILIA', 'TOSCANA', 'TRENTINO-ALTO ADIGE', 'TRENTINO ALTO ADIGE',
     'UMBRIA', "VALLE D'AOSTA", 'VALLE D AOSTA', 'VENETO',
 }
-
-# Tabella posizioni dispari (0-indexed) per checksum Codice Fiscale
-_CF_ODD = {
-    '0': 1,  '1': 0,  '2': 5,  '3': 7,  '4': 9,  '5': 13, '6': 15,
-    '7': 17, '8': 19, '9': 21,
-    'A': 1,  'B': 0,  'C': 5,  'D': 7,  'E': 9,  'F': 13, 'G': 15,
-    'H': 17, 'I': 19, 'J': 21, 'K': 2,  'L': 4,  'M': 18, 'N': 20,
-    'O': 11, 'P': 3,  'Q': 6,  'R': 8,  'S': 12, 'T': 14, 'U': 16,
-    'V': 10, 'W': 22, 'X': 25, 'Y': 24, 'Z': 23,
-}
-
-def _valida_cf(cf: str) -> bool:
-    """Verifica checksum Codice Fiscale italiano (16 caratteri, algoritmo MEF)."""
-    import re
-    if not re.fullmatch(r'[A-Z]{6}[0-9]{2}[A-EHLMPRST][0-9]{2}[A-Z][0-9]{3}[A-Z]', cf):
-        return False
-    totale = 0
-    for i, c in enumerate(cf[:15]):
-        if i % 2 == 0:            # posizione dispari (0-indexed pari = dispari)
-            totale += _CF_ODD[c]
-        else:                      # posizione pari (0-indexed dispari = pari)
-            totale += ord(c) - ord('A') if c.isalpha() else int(c)
-    atteso = chr(ord('A') + totale % 26)
-    return cf[15] == atteso
-
 
 # ── Form esistente (HR / admin) ──────────────────────────────────
 class CustomUserCreationForm(UserCreationForm):
@@ -309,15 +291,29 @@ class CandidatoRegistrazioneOtpConfermaForm(forms.Form):
 # ── Completamento profilo candidato ─────────────────────────────
 class ProfiloCandidatoForm(forms.ModelForm):
     """Seconda fase: il candidato inserisce i dati anagrafici completi."""
+    regione_nascita = forms.ChoiceField(required=False, choices=(), label='Regione nascita')
+    provincia_nascita = forms.ChoiceField(required=False, choices=(), label='Provincia nascita')
+    comune_nascita = forms.ChoiceField(required=False, choices=(), label='Comune nascita')
+    comune_nascita_estero = forms.CharField(
+        required=False,
+        label='Citta estera di nascita',
+        widget=forms.TextInput(attrs={'class': 'form-control form-control-sm text-uppercase'}),
+    )
+    citta_residenza_estero = forms.CharField(
+        required=False,
+        label='Citta estera di residenza',
+        widget=forms.TextInput(attrs={'class': 'form-control form-control-sm text-uppercase'}),
+    )
 
     class Meta:
         model = ProfiloCandidato
         fields = [
-            # Anagrafici
-            'codice_fiscale', 'data_nascita', 'luogo_nascita',
-            'sesso', 'nazionalita',
-            'indirizzo', 'cap', 'citta', 'provincia', 'regione_residenza',
-            'telefono',
+            # Anagrafici (flusso allineato a Dipendente: nascita → recapito)
+            'codice_fiscale', 'data_nascita',
+            'nazionalita',
+            'regione_nascita', 'provincia_nascita', 'comune_nascita', 'luogo_nascita',
+            'sesso', 'telefono',
+            'regione_residenza', 'provincia', 'citta', 'cap', 'indirizzo',
             # Documento
             'tipo_documento', 'numero_documento',
             'data_emissione_documento', 'scadenza_documento',
@@ -345,23 +341,17 @@ class ProfiloCandidatoForm(forms.ModelForm):
                 'class': 'form-control form-control-sm',
                 'type': 'date',
             }),
-            'luogo_nascita': forms.TextInput(attrs={
-                'class': 'form-control form-control-sm text-uppercase',
-                'placeholder': 'CITTÀ, PROVINCIA',
-            }),
+            'luogo_nascita': forms.HiddenInput(),
             'sesso': forms.Select(attrs={'class': 'form-select form-select-sm'}),
-            'nazionalita': forms.TextInput(attrs={
-                'class': 'form-control form-control-sm text-uppercase',
-                'placeholder': 'ITALIANA',
-            }),
+            'nazionalita': forms.Select(attrs={'class': 'form-select form-select-sm'}),
             'indirizzo': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm text-uppercase',
                 'placeholder': 'VIA/PIAZZA, N°',
             }),
             'cap': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm',
-                'maxlength': 5,
-                'placeholder': '00000',
+                'maxlength': 10,
+                'placeholder': '00000 / estero',
             }),
             'citta': forms.TextInput(attrs={
                 'class': 'form-control form-control-sm text-uppercase',
@@ -485,22 +475,174 @@ class ProfiloCandidatoForm(forms.ModelForm):
             'paga_giornaliera_attesa': 'Paga giornaliera netta attesa (€)',
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        def _set_choices(field_name, choices):
+            self.fields[field_name].choices = choices
+            if hasattr(self.fields[field_name].widget, 'choices'):
+                self.fields[field_name].widget.choices = choices
+
+        regioni = [('ESTERO', 'ESTERO')] + [(r, r.title()) for r in regioni_it()]
+        paesi_list = paesi_istat()
+
+        def _label_paese(p):
+            nome = (p.get('nome') or '').strip()
+            at = (p.get('codice_at') or '').strip()
+            if not nome:
+                return nome
+            return f"{nome.title()} ({at})" if at else nome.title()
+
+        paesi = []
+        seen_it = False
+        for p in paesi_list:
+            nome = (p.get('nome') or '').strip()
+            if nome.upper() == 'ITALIA':
+                seen_it = True
+            paesi.append((nome, _label_paese(p)))
+        if not seen_it:
+            paesi.insert(0, ('ITALIA', 'Italia'))
+
+        self.fields['regione_nascita'].widget.attrs.update({'class': 'form-select form-select-sm'})
+        self.fields['provincia_nascita'].widget.attrs.update({'class': 'form-select form-select-sm'})
+        self.fields['comune_nascita'].widget.attrs.update({'class': 'form-select form-select-sm'})
+        self.fields['regione_residenza'].widget = forms.Select(attrs={'class': 'form-select form-select-sm'})
+        self.fields['citta'].widget = forms.Select(attrs={'class': 'form-select form-select-sm'})
+        self.fields['provincia'].widget = forms.Select(attrs={'class': 'form-select form-select-sm'})
+
+        _set_choices('regione_nascita', [('', '— Seleziona —')] + regioni)
+        _set_choices('regione_residenza', [('', '— Seleziona —')] + regioni)
+        _set_choices('nazionalita', paesi)
+        self.fields['nazionalita'].help_text = (
+            'Elenco ufficiale ISTAT unità territoriali estere (allineato codici AT / Agenzia Entrate).'
+        )
+
+        _set_choices('provincia_nascita', [('', '— Seleziona regione —')])
+        _set_choices('comune_nascita', [('', '— Seleziona provincia —')])
+        _set_choices('provincia', [('', '— Seleziona regione —')])
+        _set_choices('citta', [('', '— Seleziona provincia —')])
+
+        if not self.is_bound:
+            inst = getattr(self, 'instance', None)
+            no_birth_geo = (not inst.pk) or not (inst.luogo_nascita or '').strip()
+            if no_birth_geo:
+                self.initial.setdefault('regione_nascita', 'SICILIA')
+                self.initial.setdefault('provincia_nascita', 'PA')
+                self.initial.setdefault('comune_nascita', 'PALERMO')
+
+        self._populate_geo_initial_choices()
+
+    def _populate_geo_initial_choices(self):
+        def _set_choices(field_name, choices):
+            self.fields[field_name].choices = choices
+            if hasattr(self.fields[field_name].widget, 'choices'):
+                self.fields[field_name].widget.choices = choices
+
+        data = self.data if self.is_bound else None
+        instance = self.instance if getattr(self, 'instance', None) and self.instance.pk else None
+
+        reg_n = (data.get('regione_nascita') or '').strip() if data else ''
+        prov_n = (data.get('provincia_nascita') or '').strip() if data else ''
+        com_n = (data.get('comune_nascita') or '').strip() if data else ''
+        if not reg_n and instance and instance.luogo_nascita:
+            luogo_raw = (instance.luogo_nascita or '').strip().upper()
+            luogo = luogo_raw.split('(')[0].strip()
+            if 'ESTERO' in luogo_raw:
+                reg_n = 'ESTERO'
+            else:
+                for r in regioni_it():
+                    provs = province_per_regione(r)
+                    for p in provs:
+                        comuni = comuni_per_regione_provincia(r, p.get('sigla') or p.get('nome'))
+                        hit = next(
+                            (x for x in comuni if (x.get('nome') or '').strip().upper() == luogo),
+                            None,
+                        )
+                        if hit:
+                            reg_n = r
+                            prov_n = p.get('sigla') or p.get('nome')
+                            com_n = (hit.get('nome') or '').strip().upper()
+                            break
+                    if reg_n:
+                        break
+        if not reg_n and not data:
+            reg_n = (self.initial.get('regione_nascita') or '').strip()
+            prov_n = prov_n or (self.initial.get('provincia_nascita') or '').strip()
+            com_n = com_n or (self.initial.get('comune_nascita') or '').strip()
+        if reg_n and reg_n != 'ESTERO':
+            provs = province_per_regione(reg_n)
+            _set_choices('provincia_nascita', [('', '— Seleziona —')] + [
+                (p.get('sigla') or p.get('nome'), f"{p.get('nome')} ({p.get('sigla')})" if p.get('sigla') else p.get('nome'))
+                for p in provs
+            ])
+            if prov_n:
+                comuni = comuni_per_regione_provincia(reg_n, prov_n)
+                _set_choices('comune_nascita', [('', '— Seleziona —')] + [
+                    (
+                        c['nome'],
+                        f"{(c.get('nome') or '').strip().title()} ({c['codice_catastale']})"
+                        if (c.get('codice_catastale') or '').strip()
+                        else (c.get('nome') or '').strip().title(),
+                    )
+                    for c in comuni
+                ])
+        elif reg_n == 'ESTERO':
+            _set_choices('provincia_nascita', [('', '— Non prevista per estero —')])
+            _set_choices('comune_nascita', [('', '— Inserisci citta estera —')])
+        if reg_n:
+            self.initial['regione_nascita'] = reg_n
+        if prov_n:
+            self.initial['provincia_nascita'] = prov_n
+        if com_n:
+            self.initial['comune_nascita'] = com_n
+
+        reg_r = ((data.get('regione_residenza') or '') if data else getattr(instance, 'regione_residenza', '')).strip().upper() if (data or instance) else ''
+        prov_r = ((data.get('provincia') or '') if data else getattr(instance, 'provincia', '')).strip().upper() if (data or instance) else ''
+        cit_r = ((data.get('citta') or '') if data else getattr(instance, 'citta', '')).strip().upper() if (data or instance) else ''
+        if reg_r and reg_r != 'ESTERO':
+            provs = province_per_regione(reg_r)
+            _set_choices('provincia', [('', '— Seleziona —')] + [
+                (p.get('sigla') or p.get('nome'), f"{p.get('nome')} ({p.get('sigla')})" if p.get('sigla') else p.get('nome'))
+                for p in provs
+            ])
+            if prov_r:
+                comuni = comuni_per_regione_provincia(reg_r, prov_r)
+                _set_choices('citta', [('', '— Seleziona —')] + [
+                    (
+                        c['nome'],
+                        f"{(c.get('nome') or '').strip().title()} ({c['codice_catastale']})"
+                        if (c.get('codice_catastale') or '').strip()
+                        else (c.get('nome') or '').strip().title(),
+                    )
+                    for c in comuni
+                ])
+        elif reg_r == 'ESTERO':
+            _set_choices('provincia', [('', '— Non prevista per estero —')])
+            _set_choices('citta', [('', '— Inserisci citta estera —')])
+        if cit_r:
+            self.initial['citta'] = cit_r
+
     # ── Uppercase: campi testo libero ────────────────────────────────────────
 
     def clean_luogo_nascita(self):
-        return self.cleaned_data.get('luogo_nascita', '').upper().strip()
+        return (self.cleaned_data.get('luogo_nascita') or '').upper().strip()
 
     def clean_nazionalita(self):
-        return self.cleaned_data.get('nazionalita', '').upper().strip()
+        return (self.cleaned_data.get('nazionalita') or '').upper().strip()
 
     def clean_indirizzo(self):
         return self.cleaned_data.get('indirizzo', '').upper().strip()
 
     def clean_citta(self):
-        return self.cleaned_data.get('citta', '').upper().strip()
+        return (self.cleaned_data.get('citta') or '').upper().strip()
 
     def clean_provincia(self):
-        prov = self.cleaned_data.get('provincia', '').upper().strip()
+        prov = (self.cleaned_data.get('provincia') or '').upper().strip()
+        regione = (
+            (self.cleaned_data.get('regione_residenza') or '')
+            or (self.data.get('regione_residenza') if getattr(self, 'data', None) else '')
+        ).upper().strip()
+        if regione == 'ESTERO':
+            return ''
         if prov and len(prov) != 2:
             raise forms.ValidationError("La provincia deve essere la sigla di 2 lettere (es. PA, MI, RM).")
         return prov
@@ -525,7 +667,13 @@ class ProfiloCandidatoForm(forms.ModelForm):
     # ── Validazione CAP ──────────────────────────────────────────────────────
 
     def clean_cap(self):
-        cap = self.cleaned_data.get('cap', '').strip()
+        cap = (self.cleaned_data.get('cap') or '').strip()
+        regione = (
+            (self.cleaned_data.get('regione_residenza') or '')
+            or (self.data.get('regione_residenza') if getattr(self, 'data', None) else '')
+        ).upper().strip()
+        if regione == 'ESTERO':
+            return cap.upper()
         if cap and (not cap.isdigit() or len(cap) != 5):
             raise forms.ValidationError("Il CAP deve essere composto da 5 cifre numeriche.")
         return cap
@@ -533,16 +681,18 @@ class ProfiloCandidatoForm(forms.ModelForm):
     # ── Validazione regione ──────────────────────────────────────────────────
 
     def clean_regione_residenza(self):
-        regione = self.cleaned_data.get('regione_residenza', '').strip()
+        regione = (self.cleaned_data.get('regione_residenza') or '').strip()
         if not regione:
             return regione
         regione_up = regione.upper()
-        if regione_up not in _REGIONI_ITALIANE:
+        if regione_up == 'ESTERO':
+            return 'ESTERO'
+        regioni_upper = {r.upper() for r in regioni_it()}
+        if regione_up not in regioni_upper:
             raise forms.ValidationError(
                 "Regione non riconosciuta. Inserire una regione italiana (es. Sicilia, Lombardia)."
             )
-        # Salva in Title Case (es. "Sicilia", "Emilia-Romagna")
-        return regione.title()
+        return regione_up
 
     # ── Validazione telefono ─────────────────────────────────────────────────
 
@@ -611,6 +761,55 @@ class ProfiloCandidatoForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        from anagrafiche.codice_fiscale_it import merge_profilo_candidato_da_codice_fiscale
+
+        merge_profilo_candidato_da_codice_fiscale(cleaned)
+        dn = cleaned.get('data_nascita')
+        if dn:
+            oggi = timezone.localdate()
+            if dn >= oggi:
+                self.add_error('data_nascita', 'La data di nascita non può essere futura.')
+            else:
+                eta = (oggi - dn).days // 365
+                if eta < 16:
+                    self.add_error('data_nascita', 'Il candidato deve avere almeno 16 anni.')
+                elif eta > 100:
+                    self.add_error('data_nascita', 'Data di nascita non plausibile.')
+
+        reg_n = (cleaned.get('regione_nascita') or '').strip().upper()
+        prov_n = (cleaned.get('provincia_nascita') or '').strip().upper()
+        com_n = (cleaned.get('comune_nascita') or '').strip().upper()
+        com_estero = (cleaned.get('comune_nascita_estero') or '').strip().upper()
+        if reg_n == 'ESTERO':
+            if not com_estero:
+                self.add_error('comune_nascita_estero', 'Inserisci la citta estera di nascita.')
+            cleaned['luogo_nascita'] = com_estero
+        elif reg_n:
+            if not prov_n:
+                self.add_error('provincia_nascita', 'Seleziona la provincia di nascita.')
+            if not com_n:
+                self.add_error('comune_nascita', 'Seleziona il comune di nascita.')
+            cleaned['luogo_nascita'] = com_n
+
+        reg_r = (cleaned.get('regione_residenza') or '').strip().upper()
+        citta_estero = (cleaned.get('citta_residenza_estero') or '').strip().upper()
+        if reg_r == 'ESTERO':
+            if not citta_estero:
+                self.add_error('citta_residenza_estero', 'Inserisci la citta estera di residenza.')
+            cleaned['provincia'] = ''
+            cleaned['citta'] = citta_estero
+        elif reg_r:
+            if not (cleaned.get('provincia') or '').strip():
+                self.add_error('provincia', 'Seleziona la provincia di residenza.')
+            if not (cleaned.get('citta') or '').strip():
+                self.add_error('citta', 'Seleziona il comune di residenza.')
+            prov_rr = (cleaned.get('provincia') or '').strip().upper()
+            com_rr = (cleaned.get('citta') or '').strip().upper()
+            if prov_rr and com_rr and not (cleaned.get('cap') or '').strip():
+                for item in comuni_per_regione_provincia(reg_r, prov_rr):
+                    if (item.get('nome') or '').strip().upper() == com_rr and item.get('cap'):
+                        cleaned['cap'] = item['cap']
+                        break
 
         emissione = cleaned.get('data_emissione_documento')
         scadenza  = cleaned.get('scadenza_documento')

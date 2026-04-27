@@ -2404,7 +2404,7 @@ def _build_rows_scostamento_fiscale(
         superminimo_da_rapporto_o_ruolo,
     )
     from rapporto_di_lavoro.services_simulazione import invoca_calcola_busta_paga_mese
-    from rapporto_di_lavoro.views_simulazione_2026 import _calcola_scatto_totale
+    from rapporto_di_lavoro.risoluzione_contratto_motore import calcola_scatto_totale_maturato as _calcola_scatto_totale
 
     q2 = Decimal('0.01')
     mesi = [mese] if mese else list(range(1, 13))

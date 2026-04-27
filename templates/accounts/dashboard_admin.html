@@ -99,12 +99,19 @@
 {% if azienda_operativa %}
 <div class="azienda-bar has-az">
   <span><i class="bi bi-building text-primary"></i> Azienda operativa: <span class="az-name">{{ azienda_operativa.nome }}</span></span>
-  <a href="{% url 'lista_aziende' %}" class="btn btn-sm btn-outline-primary" style="font-size:var(--sz-xs)"><i class="bi bi-arrow-repeat"></i> Cambia</a>
+  <span class="d-flex flex-wrap gap-1 justify-content-end">
+    <a href="{% url 'modifica_azienda' azienda_operativa.pk %}" class="btn btn-sm btn-primary" style="font-size:var(--sz-xs)" title="Ragione sociale, indirizzo, P.IVA, CCNL…"><i class="bi bi-building-gear"></i> Anagrafica azienda</a>
+    <a href="{% url 'impostazioni_sistema' %}?tab=sito" class="btn btn-sm btn-outline-primary" style="font-size:var(--sz-xs)" title="Firmatario documenti, sede legale testuale, nome sito…"><i class="bi bi-person-badge"></i> Firmatario / impostazioni globali</a>
+    <a href="{% url 'lista_aziende' %}" class="btn btn-sm btn-outline-secondary" style="font-size:var(--sz-xs)"><i class="bi bi-arrow-repeat"></i> Cambia azienda</a>
+  </span>
 </div>
 {% else %}
 <div class="azienda-bar no-az">
   <span><i class="bi bi-exclamation-triangle text-warning"></i> Nessuna azienda operativa selezionata</span>
-  <a href="{% url 'lista_aziende' %}" class="btn btn-sm btn-warning" style="font-size:var(--sz-xs)"><i class="bi bi-plus-circle"></i> Seleziona</a>
+  <span class="d-flex flex-wrap gap-1 justify-content-end">
+    <a href="{% url 'lista_aziende' %}" class="btn btn-sm btn-warning" style="font-size:var(--sz-xs)"><i class="bi bi-plus-circle"></i> Seleziona azienda</a>
+    <a href="{% url 'impostazioni_sistema' %}?tab=sito" class="btn btn-sm btn-outline-primary" style="font-size:var(--sz-xs)"><i class="bi bi-person-badge"></i> Firmatario / impostazioni globali</a>
+  </span>
 </div>
 {% endif %}
 
@@ -182,13 +189,21 @@
     </div>
   </div>
   <div class="ql-card">
+    <h6>Verifica buste paghe</h6>
+    <div class="quick-links">
+      <a href="{% url 'verifica_buste_paga' %}"><i class="bi bi-shield-check"></i> Hub strumenti (riconciliazione)</a>
+      <a href="{% url 'buste_paga_conciliazione_cedolino' %}"><i class="bi bi-check2-square"></i> Conciliazione PDF / DB</a>
+      <a href="{% url 'riepilogo_scostamento_fiscale_cedolino' %}"><i class="bi bi-calculator"></i> Scostamento fiscale vs cedolino</a>
+    </div>
+  </div>
+  <div class="ql-card">
     <h6>Contratti &amp; paghe</h6>
     <div class="quick-links">
+      <a href="{% url 'centro_rapporti_lavoro' %}"><i class="bi bi-grid-3x3-gap"></i> Centro rapporti di lavoro</a>
+      <a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo"><i class="bi bi-envelope-paper"></i> Recesso in periodo di prova (lettera)</a>
       <a href="{% url 'lista_contratti_scadenza' %}"><i class="bi bi-hourglass-split"></i> Scadenze contratti TD</a>
       <a href="{% url 'lista_proposte_assunzione' %}"><i class="bi bi-briefcase"></i> Proposte assunzione</a>
       <a href="{% url 'libro_paga_lista' %}"><i class="bi bi-journal-richtext"></i> Libro paga</a>
-      <a href="{% url 'estrazione_dati_buste_paga' %}"><i class="bi bi-file-earmark-pdf"></i> Estrazione dati da buste paghe</a>
-      <a href="{% url 'admin_voci_cedolino_motore_v4' %}"><i class="bi bi-list-columns-reverse"></i> Voci cedolino (motore v4)</a>
     </div>
   </div>
   <div class="ql-card">

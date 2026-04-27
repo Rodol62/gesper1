@@ -878,7 +878,10 @@ class SimulazioneOrganico(models.Model):
 	"""Storico cronologico delle simulazioni organico."""
 	azienda = models.ForeignKey(Azienda, on_delete=models.CASCADE, related_name='simulazioni_organico')
 	utente = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='simulazioni_organico')
-	mese_riferimento = models.CharField(max_length=7)
+	mese_riferimento = models.CharField(
+		max_length=32,
+		help_text='Es. YYYY-MM (simulatore tabella) oppure etichetta annua (es. 2026-annuale).',
+	)
 	parametri_json = models.JSONField(default=dict, blank=True)
 	risultato_json = models.JSONField(default=dict, blank=True)
 	querystring = models.TextField(blank=True)
