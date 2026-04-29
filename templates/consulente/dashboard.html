@@ -356,6 +356,21 @@
       </div>
     </div>
     <div class="col-md-6 col-lg-4">
+      <div class="card h-100 border-primary border-opacity-25" style="border-width:2px">
+        <div class="card-body py-3">
+          <div class="fw-semibold mb-2" style="font-size:.88rem;color:var(--cd-primary)"><i class="bi bi-calculator me-1"></i>Posizione contabile consulente</div>
+          <p class="small text-muted mb-2 mb-lg-1">Contabilità verso l’azienda: proforma, bonifici, estratto Excel, libro.</p>
+          <div class="d-flex flex-column gap-1">
+            <a href="{% url 'consulente_posizione_contabile' %}"><strong>Panoramica</strong></a>
+            <a href="{% url 'consulente_posizione_proforma' %}">Proforma / parcelle (PDF)</a>
+            <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti (bonifici)</a>
+            <a href="{% url 'consulente_posizione_estratto' %}">Estratto conto (Excel)</a>
+            <a href="{% url 'consulente_posizione_libro' %}">Libro movimenti</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-lg-4">
       <div class="card h-100">
         <div class="card-body py-3">
           <div class="fw-semibold mb-2" style="font-size:.88rem;color:var(--cd-primary)"><i class="bi bi-receipt-cutoff me-1"></i>Paghe, F24, CUD</div>
@@ -386,6 +401,7 @@
                 <th>Contratto</th>
                 <th>Dipendente</th>
                 <th>Stato</th>
+                <th class="text-nowrap">File</th>
                 <th class="text-end">Aggiornato</th>
               </tr>
             </thead>
@@ -412,6 +428,12 @@
                     <span class="cons-dash-badge" style="background:#eef3f9;color:var(--cd-primary)">{{ c.get_stato_display }}</span>
                   {% endif %}
                 </td>
+                <td class="text-nowrap" style="font-size:.72rem">
+                  <a href="{% url 'contratto_pdf' c.id %}?ui=1&amp;next={{ request.path|urlencode }}%23cons-contratti"
+                     class="text-decoration-none"><i class="bi bi-file-earmark-pdf text-danger"></i> PDF</a>
+                  <span class="text-muted">·</span>
+                  <a href="{% url 'contratto_pdf' c.id %}?download=1" class="text-decoration-none text-muted" title="Scarica">↓</a>
+                </td>
                 <td class="text-end text-muted" style="font-size:.76rem;white-space:nowrap">{{ c.data_modifica|date:"d/m/Y H:i" }}</td>
               </tr>
               {% endfor %}
@@ -437,6 +459,7 @@
                 <th>Tipo</th>
                 <th>Contratto / dipendente</th>
                 <th>Decorrenza</th>
+                <th class="text-nowrap">Allegato</th>
                 <th class="text-end">Registrato</th>
               </tr>
             </thead>
@@ -454,6 +477,13 @@
                   {% endif %}
                 </td>
                 <td class="text-nowrap">{{ a.data_decorrenza|date:"d/m/Y" }}</td>
+                <td class="text-nowrap" style="font-size:.72rem">
+                  {% if a.file_allegato %}
+                    <a href="{% url 'addendum_allegato_file' a.id %}?ui=1&amp;next={{ request.path|urlencode }}%23cons-addenda"><i class="bi bi-file-earmark-pdf text-danger"></i> PDF</a>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
                 <td class="text-end text-muted" style="font-size:.74rem;white-space:nowrap">{{ a.data_creazione|date:"d/m/Y H:i" }}</td>
               </tr>
               {% endfor %}

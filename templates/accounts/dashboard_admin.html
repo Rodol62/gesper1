@@ -197,6 +197,13 @@
     </div>
   </div>
   <div class="ql-card">
+    <h6>Studio / consulente</h6>
+    <div class="quick-links">
+      <a href="{% url 'consulente_posizione_contabile' %}"><i class="bi bi-calculator"></i> Posizione contabile consulente</a>
+    </div>
+    <p class="text-muted mb-0 mt-1" style="font-size:.58rem;line-height:1.35">Solo admin/consulente. Serve l’azienda operativa (barra in alto o profilo).</p>
+  </div>
+  <div class="ql-card">
     <h6>Contratti &amp; paghe</h6>
     <div class="quick-links">
       <a href="{% url 'centro_rapporti_lavoro' %}"><i class="bi bi-grid-3x3-gap"></i> Centro rapporti di lavoro</a>
@@ -210,6 +217,7 @@
     <h6>Sistema</h6>
     <div class="quick-links">
       <a href="{% url 'profile' %}"><i class="bi bi-person-gear"></i> Profilo &amp; azienda operativa</a>
+      <a href="{% url 'inbox_email_dipendenti' %}"><i class="bi bi-inbox-fill"></i> Email in arrivo dipendenti</a>
       <a href="{% url 'admin_data_overview' %}"><i class="bi bi-database-fill"></i> Gestione database</a>
       <a href="{% url 'admin_agenda_scadenze' %}"><i class="bi bi-calendar2-check"></i> Agenda scadenze (F24, contratti)</a>
     </div>

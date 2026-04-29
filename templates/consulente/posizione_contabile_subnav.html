@@ -1,0 +1,18 @@
+{# Richiede: posizione_nav in ('hub','proforma','pagamenti','estratto','libro') #}
+<ul class="nav nav-pills flex-wrap gap-1 mb-3 small border-bottom pb-2">
+  <li class="nav-item">
+    <a class="nav-link py-1 px-2 {% if posizione_nav == 'hub' %}active{% endif %}" href="{% url 'consulente_posizione_contabile' %}"><i class="bi bi-grid-1x2"></i> Panoramica</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link py-1 px-2 {% if posizione_nav == 'proforma' %}active{% endif %}" href="{% url 'consulente_posizione_proforma' %}"><i class="bi bi-file-earmark-pdf"></i> Proforma / parcelle</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link py-1 px-2 {% if posizione_nav == 'pagamenti' %}active{% endif %}" href="{% url 'consulente_posizione_pagamenti' %}"><i class="bi bi-bank"></i> Pagamenti</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link py-1 px-2 {% if posizione_nav == 'estratto' %}active{% endif %}" href="{% url 'consulente_posizione_estratto' %}"><i class="bi bi-file-earmark-spreadsheet"></i> Estratto conto</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link py-1 px-2 {% if posizione_nav == 'libro' %}active{% endif %}" href="{% url 'consulente_posizione_libro' %}"><i class="bi bi-journal-text"></i> Libro movimenti</a>
+  </li>
+</ul>

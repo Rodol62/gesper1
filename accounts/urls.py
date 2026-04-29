@@ -1,4 +1,5 @@
 from django.urls import path, reverse_lazy
+from django.views.generic import RedirectView
 from django.contrib.auth import views as auth_views
 from .views import (
     CustomLoginView, CustomPasswordResetView, login_email_otp, login_totp_web,
@@ -65,6 +66,12 @@ from .views_consulente import (
     consulente_partitario_paghe,
     consulente_riepilogo_f24_annuale,
     consulente_import_pdf_unico,
+    consulente_registro_studio,
+    consulente_posizione_contabile,
+    consulente_posizione_estratto,
+    consulente_posizione_libro,
+    consulente_posizione_pagamenti,
+    consulente_posizione_proforma,
 )
 
 urlpatterns = [
@@ -184,4 +191,19 @@ urlpatterns = [
     path('consulente/riepilogo-f24/', consulente_riepilogo_f24_annuale, name='consulente_riepilogo_f24_annuale'),
     path('consulente/cud/', consulente_upload_cud, name='consulente_upload_cud'),
     path('consulente/import-pdf/', consulente_import_pdf_unico, name='consulente_import_pdf_unico'),
+    path('consulente/posizione-contabile/', consulente_posizione_contabile, name='consulente_posizione_contabile'),
+    path('consulente/posizione-contabile/proforma/', consulente_posizione_proforma, name='consulente_posizione_proforma'),
+    path('consulente/posizione-contabile/pagamenti/', consulente_posizione_pagamenti, name='consulente_posizione_pagamenti'),
+    path('consulente/posizione-contabile/estratto-conto/', consulente_posizione_estratto, name='consulente_posizione_estratto'),
+    path('consulente/posizione-contabile/libro/', consulente_posizione_libro, name='consulente_posizione_libro'),
+    path(
+        'consulente/partitario-consulente/',
+        consulente_registro_studio,
+        name='consulente_partitario_consulente',
+    ),
+    path(
+        'consulente/registro-studio/',
+        RedirectView.as_view(pattern_name='consulente_posizione_contabile', permanent=False),
+        name='consulente_registro_studio',
+    ),
 ]

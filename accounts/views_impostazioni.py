@@ -28,6 +28,7 @@ class ImpostazioniForm(forms.ModelForm):
         fields = [
             'nome_sito', 'nome_azienda', 'indirizzo_sede', 'partita_iva',
             'firmatario_amministratore_nome', 'firmatario_amministratore_ruolo',
+            'simulatore_paga_riepilogo_cedolino_canonico',
             'presenze_geo_enabled', 'presenze_geo_require_gps', 'presenze_geo_enforce_geofence',
             'presenze_geo_center_lat', 'presenze_geo_center_lon', 'presenze_geo_radius_m',
             'presenze_geo_enforce_for_test',
@@ -52,6 +53,9 @@ class ImpostazioniForm(forms.ModelForm):
         prev = ConfigurazioneSistema.objects.get(pk=1)
         if not self.cleaned_data.get('smtp_password'):
             obj.smtp_password = prev.smtp_password
+        # Checkbox assente nel POST se si salva da un tab che non include il campo
+        if 'simulatore_paga_riepilogo_cedolino_canonico' not in self.data:
+            obj.simulatore_paga_riepilogo_cedolino_canonico = prev.simulatore_paga_riepilogo_cedolino_canonico
         if commit:
             obj.save()
         return obj

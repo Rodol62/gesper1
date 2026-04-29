@@ -1,6 +1,7 @@
 import secrets
 from decimal import Decimal
 from datetime import timedelta
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.db import models
 from django.utils import timezone
@@ -722,6 +723,16 @@ class ConfigurazioneSistema(models.Model):
         help_text='Se attivo, anche gli utenti in whitelist test devono rispettare GPS/perimetro.',
     )
 
+    simulatore_paga_riepilogo_cedolino_canonico = models.BooleanField(
+        default=True,
+        verbose_name='Simulatore paga: riepilogo come schema cedolino',
+        help_text=(
+            'Se attivo, nella colonna risultati del simulatore mensile viene mostrato un blocco '
+            'allineato al layout canonico busta paga (intestazione, totali ore, rubrica voci, INPS/IRPEF/INAIL, netto). '
+            'Disattivalo per tornare solo alle schede numerate tradizionali.'
+        ),
+    )
+
     @classmethod
     def get(cls):
         """Restituisce l'unica istanza, creandola se non esiste."""
@@ -909,3 +920,195 @@ class MovimentoImportPagheF24Dettaglio(models.Model):
     def __str__(self):
         movimento_pk = getattr(self.movimento, 'pk', None)
         return f"{movimento_pk or '-'} {self.sezione} {self.codice_tributo} {self.importo_debito or 0}/{self.importo_credito or 0}"
+
+
+class MovimentoRegistroStudioConsulente(models.Model):
+    """
+    Partitario consulente ↔ azienda: documenti (proforma/parcelle) in dare con PDF allegato;
+    bonifici e altri pagamenti in avere con riferimenti bancari; saldo progressivo dare/avere.
+    """
+
+    TIPO_RIGA = [
+        ('documento', 'Documento (proforma / parcella)'),
+        ('bonifico', 'Bonifico / pagamento'),
+        ('rettifica', 'Rettifica manuale'),
+    ]
+    TIPO_DOC = [
+        ('proforma', 'Proforma'),
+        ('parcella', 'Parcella'),
+        ('sconosciuto', 'Non classificato'),
+    ]
+
+    azienda = models.ForeignKey(
+        Azienda,
+        on_delete=models.CASCADE,
+        related_name='movimenti_registro_studio',
+        verbose_name='Azienda',
+    )
+    tipo_riga = models.CharField(
+        max_length=20,
+        choices=TIPO_RIGA,
+        default='documento',
+        verbose_name='Tipo movimento',
+        help_text='Documento inviato dal consulente, bonifico registrato dall’azienda/consulente, o rettifica.',
+    )
+    tipo_documento = models.CharField(max_length=20, choices=TIPO_DOC, default='sconosciuto', verbose_name='Tipo')
+    numero_documento = models.CharField(max_length=80, blank=True, default='', verbose_name='Numero documento')
+    data_documento = models.DateField(null=True, blank=True, verbose_name='Data documento')
+    totale_da_pagare = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='Totale da pagare (letto)',
+    )
+    dare = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'), verbose_name='Dare')
+    avere = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0'), verbose_name='Avere')
+    saldo_progressivo = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal('0'),
+        verbose_name='Saldo progressivo',
+    )
+    nome_file = models.CharField(max_length=280, verbose_name='Nome file origine')
+    file = models.FileField(
+        upload_to='registro_studio_consulente/%Y/%m/',
+        blank=True,
+        null=True,
+        verbose_name='PDF archiviato',
+    )
+    testo_estratto = models.TextField(blank=True, default='', verbose_name='Testo estratto / OCR')
+    metodo_estrazione = models.CharField(max_length=20, blank=True, default='', verbose_name='Metodo estrazione')
+    note = models.CharField(max_length=500, blank=True, default='', verbose_name='Note / avvisi import')
+    riferimento_pagamento = models.CharField(
+        max_length=160,
+        blank=True,
+        default='',
+        verbose_name='Riferimento pagamento',
+        help_text='Es. CRO, TRN, ordinativo banca, data valuta bonifico.',
+    )
+    causale_pagamento = models.CharField(
+        max_length=220,
+        blank=True,
+        default='',
+        verbose_name='Causale / descrizione pagamento',
+    )
+    importato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='import_registro_studio',
+        verbose_name='Importato da',
+    )
+    importato_il = models.DateTimeField(auto_now_add=True, verbose_name='Importato il')
+
+    class Meta:
+        verbose_name = 'Movimento partitario consulente–azienda'
+        verbose_name_plural = 'Movimenti partitario consulente–azienda'
+        ordering = ['data_documento', 'importato_il', 'id']
+        indexes = [
+            # Nomi ≤30 caratteri (E034); 0033 rinomina da nomi lunghi creati in 0031/0032.
+            models.Index(
+                fields=['azienda', 'tipo_riga', 'data_documento'],
+                name='acc_mrsc_az_tpdt_idx',
+            ),
+            models.Index(
+                fields=['azienda', '-importato_il'],
+                name='accounts_mo_azienda_3a4c05_idx',
+            ),
+        ]
+
+    def __str__(self):
+        if self.tipo_riga == 'bonifico':
+            return f"Bonifico {self.riferimento_pagamento or self.nome_file} ({self.data_documento or '—'})"
+        return f"{self.get_tipo_documento_display()} {self.numero_documento or self.nome_file} ({self.data_documento or '—'})"
+
+
+class ImportEstrattoContoStudio(models.Model):
+    """Caricamento file Excel estratto conto banca / gestionale, righe collegate ai movimenti partitario."""
+
+    azienda = models.ForeignKey(
+        Azienda,
+        on_delete=models.CASCADE,
+        related_name='import_estratti_studio',
+        verbose_name='Azienda',
+    )
+    nome_file = models.CharField(max_length=280, verbose_name='Nome file')
+    file = models.FileField(
+        upload_to='registro_studio_estratto/%Y/%m/',
+        blank=True,
+        null=True,
+        verbose_name='File Excel',
+    )
+    importato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='import_estratti_studio',
+        verbose_name='Importato da',
+    )
+    importato_il = models.DateTimeField(auto_now_add=True, verbose_name='Importato il')
+    righe_lette = models.PositiveIntegerField(default=0, verbose_name='Righe lette')
+    righe_agganciate = models.PositiveIntegerField(default=0, verbose_name='Righe agganciate')
+
+    class Meta:
+        verbose_name = 'Import estratto conto studio'
+        verbose_name_plural = 'Import estratti conto studio'
+        ordering = ['-importato_il']
+
+    def __str__(self):
+        return f"{self.nome_file} ({self.importato_il:%Y-%m-%d})"
+
+
+class RigaEstrattoContoStudio(models.Model):
+    """Singola riga Excel con esito aggancio a movimento proforma/parcella o bonifico."""
+
+    ESITO = [
+        ('agganciato', 'Agganciato'),
+        ('non_trovato', 'Non trovato'),
+        ('saltato', 'Saltato (vuoto)'),
+    ]
+
+    importazione = models.ForeignKey(
+        ImportEstrattoContoStudio,
+        on_delete=models.CASCADE,
+        related_name='righe',
+        verbose_name='Import',
+    )
+    indice_riga = models.PositiveIntegerField(verbose_name='Riga foglio (1-based)')
+    descrizione = models.CharField(max_length=600, blank=True, default='', verbose_name='Descrizione')
+    importo_excel = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name='Importo (Excel)',
+    )
+    data_excel = models.DateField(null=True, blank=True, verbose_name='Data (Excel)')
+    riferimento_excel = models.CharField(max_length=200, blank=True, default='', verbose_name='Riferimento / CRO')
+    celle_raw = models.JSONField(default=dict, blank=True, verbose_name='Valori colonne (debug)')
+    movimento = models.ForeignKey(
+        MovimentoRegistroStudioConsulente,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='righe_estratto_importate',
+        verbose_name='Movimento agganciato',
+    )
+    esito_match = models.CharField(max_length=20, choices=ESITO, default='non_trovato', verbose_name='Esito')
+
+    class Meta:
+        verbose_name = 'Riga estratto conto importata'
+        verbose_name_plural = 'Righe estratto conto importate'
+        ordering = ['importazione_id', 'indice_riga']
+        indexes = [
+            models.Index(
+                fields=['importazione', 'esito_match'],
+                name='acc_rgest_im_es_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f"R{self.indice_riga} {self.esito_match} {self.descrizione[:40]}"

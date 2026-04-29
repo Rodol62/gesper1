@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load format_it_tags %}
+{% block title %}Proforma / parcelle — {{ azienda.nome }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:1150px;margin:0 auto">
+  <nav aria-label="breadcrumb" class="small mb-2">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url partitario_back.url_name %}">{{ partitario_back.label }}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_posizione_contabile' %}">Posizione contabile</a></li>
+      <li class="breadcrumb-item active">Proforma / parcelle</li>
+    </ol>
+  </nav>
+
+  <h1 class="h4 mb-2" style="color:#1b3a5f;font-weight:700"><i class="bi bi-file-earmark-pdf me-2"></i>Proforma e parcelle (PDF)</h1>
+  <p class="text-muted small">Carica tutti i PDF delle proforma e delle parcelle in un solo invio (multiplo). Sono esclusi i file il cui nome inizia con <code>riepilogo</code>. Da terminale: <code class="small">python manage.py import_proforma_parcelle_studio --path «cartella» --username {{ request.user.username }}</code></p>
+
+  {% include "consulente/posizione_contabile_subnav.html" %}
+
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header py-2 bg-light small fw-semibold">Upload PDF</div>
+    <div class="card-body py-3">
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <div class="col-12 col-md-8">
+          <label class="form-label small text-muted mb-1">Allega uno o più PDF</label>
+          <input type="file" name="pdf" class="form-control form-control-sm" accept="application/pdf,.pdf" multiple required>
+        </div>
+        <div class="col-12 col-md-4">
+          <button type="submit" class="btn btn-primary btn-sm w-100">Importa e ricalcola saldi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="table-responsive border rounded shadow-sm">
+    <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.8rem">
+      <thead class="table-light">
+        <tr>
+          <th>File</th>
+          <th>Data</th>
+          <th>Tipo</th>
+          <th>Numero</th>
+          <th class="text-end">Importo da pagare</th>
+          <th class="text-end">Dare (contabile)</th>
+          <th>PDF</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in righe %}
+        <tr>
+          <td class="small text-break" style="max-width:14rem" title="{{ r.nome_file }}">{{ r.nome_file|truncatechars:42 }}</td>
+          <td class="text-nowrap">{% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+          <td>{{ r.get_tipo_documento_display }}</td>
+          <td><span class="font-monospace">{{ r.numero_documento|default:"—" }}</span></td>
+          <td class="text-end font-monospace fw-semibold text-nowrap">
+            {% if r.totale_da_pagare is not None %}
+              € {{ r.totale_da_pagare|num_it:2 }}
+            {% elif r.dare %}
+              € {{ r.dare|num_it:2 }} <span class="badge rounded-pill bg-secondary small ms-1" title="Totale non estratto dal PDF: mostrato l'importo in dare.">dare</span>
+            {% else %}
+              <span class="text-muted fw-normal">—</span>
+            {% endif %}
+          </td>
+          <td class="text-end font-monospace">€ {{ r.dare|num_it:2 }}</td>
+          <td>{% if r.file %}<a href="{{ r.file.url }}" target="_blank" rel="noopener">Apri</a>{% else %}—{% endif %}</td>
+        </tr>
+        {% if r.note %}<tr class="border-0"><td colspan="7" class="pt-0 pb-2 small text-muted">{{ r.note }}</td></tr>{% endif %}
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Nessun documento. Carica i PDF sopra.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

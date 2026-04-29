@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load format_it_tags %}
+{% block title %}Estratto conto — {{ azienda.nome }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:1150px;margin:0 auto">
+  <nav aria-label="breadcrumb" class="small mb-2">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url partitario_back.url_name %}">{{ partitario_back.label }}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_posizione_contabile' %}">Posizione contabile</a></li>
+      <li class="breadcrumb-item active">Estratto conto</li>
+    </ol>
+  </nav>
+
+  <h1 class="h4 mb-2" style="color:#1b3a5f;font-weight:700"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Estratto conto (Excel)</h1>
+  <p class="text-muted small mb-2">
+    Prima importa le <a href="{% url 'consulente_posizione_proforma' %}">proforma/parcelle</a> e i <a href="{% url 'consulente_posizione_pagamenti' %}">bonifici</a>.
+    Il file Excel deve avere una <strong>prima riga di intestazione</strong> con colonne riconoscibili, ad esempio:
+    <em>descrizione</em> / <em>causale</em>, <em>importo</em>, <em>data</em>, <em>CRO</em> o <em>riferimento</em>.
+    Le righe con riferimento bancario lungo o parole chiave (bonifico, CRO…) vengono agganciate solo ai <strong>bonifici</strong> già registrati; le altre alle <strong>proforma/parcelle</strong> per corrispondenza sul numero documento o sul testo.
+  </p>
+
+  {% include "consulente/posizione_contabile_subnav.html" %}
+
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header py-2 bg-light small fw-semibold">Carica .xlsx</div>
+    <div class="card-body py-3">
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <div class="col-md-8">
+          <input type="file" name="excel" class="form-control form-control-sm" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+        </div>
+        <div class="col-md-4">
+          <button type="submit" class="btn btn-warning btn-sm text-dark w-100">Importa e aggancia</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <h2 class="h6 text-primary mb-2">Import recenti</h2>
+  {% for imp in imports_recenti %}
+  <div class="card border shadow-sm mb-3">
+    <div class="card-header py-2 d-flex justify-content-between flex-wrap gap-1 small">
+      <span><strong>{{ imp.nome_file }}</strong> — {{ imp.importato_il|date:"d/m/Y H:i" }}</span>
+      <span class="text-muted">Lette {{ imp.righe_lette }} · Agganciate {{ imp.righe_agganciate }}</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive" style="max-height:320px;overflow:auto">
+        <table class="table table-sm mb-0 align-middle" style="font-size:.72rem">
+          <thead class="table-light sticky-top"><tr><th>#</th><th>Descrizione</th><th>Rif.</th><th class="text-end">Importo</th><th>Esito</th><th>Movimento</th></tr></thead>
+          <tbody>
+            {% for row in imp.righe.all %}
+            {% if forloop.counter <= 120 %}
+            <tr>
+              <td>{{ row.indice_riga }}</td>
+              <td>{{ row.descrizione|truncatechars:56 }}</td>
+              <td class="font-monospace">{{ row.riferimento_excel|truncatechars:24 }}</td>
+              <td class="text-end">{% if row.importo_excel %}€ {{ row.importo_excel|num_it:2 }}{% else %}—{% endif %}</td>
+              <td><span class="badge {% if row.esito_match == 'agganciato' %}bg-success{% elif row.esito_match == 'saltato' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">{{ row.get_esito_match_display }}</span></td>
+              <td class="small">{% if row.movimento %}#{{ row.movimento.pk }} {{ row.movimento.get_tipo_riga_display|truncatechars:20 }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endif %}
+            {% empty %}
+            <tr><td colspan="6" class="text-muted p-3">Nessuna riga salvata.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% with n=imp.righe.count %}
+      {% if n > 120 %}<p class="small text-muted mb-0 p-2">Mostrate le prime 120 righe su {{ n }}.</p>{% endif %}
+      {% endwith %}
+    </div>
+  </div>
+  {% empty %}
+  <p class="text-muted small">Nessun import ancora.</p>
+  {% endfor %}
+</div>
+{% endblock %}

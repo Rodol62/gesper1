@@ -4,6 +4,8 @@ Schema divisori contrattuali e classificazione voci per il motore paga mensile u
 Documenta la catena richiesta in simulatore (÷172 vs ÷173,33 con ore settimanali)
 e fornisce i trattamenti predefiniti INPS / INAIL / IRPEF / 13ª / 14ª / TFR
 per riconciliazione con buste e cedolini (override da `MappaturaVoceMotore` e imponibili da `VoceRetributiva`).
+
+Layout cedolino (sezioni e campi UI): ``busta_paga_layout_canonico``.
 """
 from __future__ import annotations
 
@@ -29,12 +31,15 @@ class TrattamentoVoceMotore:
 
 
 # Codici allineati a utils_motore_paga.voci_input (MAGG_DOM_FEST = magg. domenica/festivo non straord.)
+# EL_DIS_* = codici ``VoceRetributiva`` / ParametroVoceRetributiva (migrazione 0016).
 DEFAULT_TRATTAMENTI: Dict[str, TrattamentoVoceMotore] = {
     'MINIMO_TABELLARE': TrattamentoVoceMotore(
         1, True, True, True, True, True, True, 'Paga base / minimo tabellare',
     ),
     'CONTINGENZA': TrattamentoVoceMotore(
-        2, True, True, True, True, True, True, 'Contingenza + EDR (aggregato in busta)',
+        2, True, True, True, True, True, True,
+        'Contingenza tabellare; con EDR distinto (altri CCNL / pre-2024 FIPE) il motore aggrega EDR nella stessa riga voce. '
+        'Con FIPE da 2024 l’EDR è incluso nella contingenza di tabella — non sommare EDR a parte.',
     ),
     'IND_FUNZIONE': TrattamentoVoceMotore(
         3, True, True, True, True, True, True, 'Indennità contrattuali / funzione',
@@ -47,6 +52,12 @@ DEFAULT_TRATTAMENTI: Dict[str, TrattamentoVoceMotore] = {
     ),
     'IND_TURNO': TrattamentoVoceMotore(
         6, True, True, True, True, True, True, 'Indennità di turno',
+    ),
+    'EL_DIS_SAN': TrattamentoVoceMotore(
+        7, True, True, True, True, True, True, 'Elemento distinto sanità',
+    ),
+    'EL_DIS_BIL': TrattamentoVoceMotore(
+        8, True, True, True, True, True, True, 'Elemento distinto bilateralità',
     ),
     'STRAORD_DIURNO': TrattamentoVoceMotore(
         10, True, True, True, False, False, False, 'Straordinario — non matura 13ª/14ª/TFR',
@@ -96,11 +107,12 @@ def calcola_schema_divisori(
     - **giorni lavorativi mese** e **settimanali** (default 26 e 6, configurabili).
     - **ore lavorative giornaliere** (qui): media ore_settimanali / giorni_lavorativi_settimanali (riferimento
       contrattuale). In ``calcola_busta_paga_mese`` la stessa logica (h/sett ÷ 6) alimenta ``ore_giornaliere``
-      per maggiorazioni; con divisore orario (172/173,33) la **retribuzione oraria di fatto** deriva dalla somma
-      delle voci tabellari FT del mese (inclusi gli scatti) ÷ divisore; straordinari e maggiorazioni si calcolano
-      a parte sulle ore indicate × quell’orario × la percentuale. **Senza** applicare prima il coefficiente
-      part-time su quegli importi tabellari (allineamento foglio Excel INPS / FIPE). Il part-time resta sulle ore
-      mensili e sulle voci in busta.
+      per maggiorazioni; con divisore orario (172/173,33) la **retribuzione oraria di fatto** è la somma delle
+      componenti tabellari (paga base, contingenza, EDR se distinto, scatti, superminimo, EL.DIS.SAN, EL.DIS.BIL),
+      ciascuna come importo FT (× pro-rata giorni mese) ÷ ore contrattuali; straordinari e maggiorazioni usano
+      quell’orario × le ore × la percentuale. **Senza** moltiplicare il numeratore tabellare per il coefficiente
+      part-time prima del divisore (allineamento foglio Excel INPS / FIPE). Il part-time resta sulle ore mensili
+      e sulle voci in busta.
     """
     div = divisore_orario if divisore_orario > 0 else Decimal('173.33')
     ore_sett = ore_settimanali if ore_settimanali > 0 else Decimal('40')

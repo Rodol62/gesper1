@@ -342,6 +342,7 @@ def simulatore_paga(request):
         contratto_esclude_13 = False
         contratto_esclude_14 = False
         dip_ctx_merge = None
+        dip_scheda_anagrafica = None
         num_fam_fisc = 0
         regione_fisc = 'Sicilia'
         comune_fisc = None
@@ -453,6 +454,15 @@ def simulatore_paga(request):
                     div_raw = '173.33'
                 else:
                     div_raw = str(int(round(om)))
+
+        elif dip_id_raw:
+            try:
+                from anagrafiche.models import Dipendente
+                dip_scheda_anagrafica = Dipendente.objects.exclude(stato='cessato').filter(
+                    pk=int(dip_id_raw),
+                ).first()
+            except (ValueError, TypeError):
+                dip_scheda_anagrafica = None
 
         # ── Auto-calcolo dal calendario se ore non inserite ───────────────────
         # Domenicali: delegate al motore (usa calendario + chiusure aziendali).
@@ -701,6 +711,34 @@ def simulatore_paga(request):
             **r,  # spread all fields from calcola_busta_paga_mese result
         }
         risultato['competenze_logica_v1'] = costruisci_competenze_logica_v1(risultato)
+        if dip_ctx_merge is not None:
+            risultato['dipendente_label'] = f'{dip_ctx_merge.cognome} {dip_ctx_merge.nome}'.strip()
+            if data_inizio:
+                risultato['data_assunzione_display'] = data_inizio.strftime('%d/%m/%Y')
+            _d = dip_ctx_merge
+            _cf = (_d.codice_fiscale or '').strip().upper()
+            if _cf:
+                risultato['cedolino_codice_fiscale'] = _cf
+            _cm = (_d.citta or '').strip()
+            _pr = (_d.provincia or '').strip()
+            if _cm or _pr:
+                risultato['cedolino_comune_residenza'] = ', '.join(x for x in (_cm, _pr) if x)
+            if _d.data_nascita:
+                risultato['cedolino_data_nascita'] = _d.data_nascita.strftime('%d/%m/%Y')
+        elif dip_scheda_anagrafica is not None:
+            d = dip_scheda_anagrafica
+            risultato['dipendente_label'] = f'{d.cognome} {d.nome}'.strip()
+            cf = (d.codice_fiscale or '').strip().upper()
+            if cf:
+                risultato['cedolino_codice_fiscale'] = cf
+            cm = (d.citta or '').strip()
+            pr = (d.provincia or '').strip()
+            if cm or pr:
+                risultato['cedolino_comune_residenza'] = ', '.join(x for x in (cm, pr) if x)
+            if d.data_nascita:
+                risultato['cedolino_data_nascita'] = d.data_nascita.strftime('%d/%m/%Y')
+            if d.data_assunzione and not risultato.get('data_assunzione_display'):
+                risultato['data_assunzione_display'] = d.data_assunzione.strftime('%d/%m/%Y')
 
         # Dopo «Dati da contratto»: aggiorna sessione con i valori effettivi (dropdown e campi = contratto)
         if request.method == 'POST' and sim_fonte_dati == 'contratto_attivo' and dip_ctx_merge is not None:
@@ -758,13 +796,18 @@ def _salva_scenario(request, form_flat, risultato, anno, mese, cp, tc):
 
 def _render(request, parametri_ccnl, tipi_contratto, aziende, form_data, risultato, errore, oggi):
     from django.shortcuts import render as _r
+    from accounts.models import ConfigurazioneSistema
     from anagrafiche.models import Dipendente
+    from .busta_paga_layout_canonico import costruisci_riepilogo_simulatore_da_risultato
     from .models import SimulazionePagaSalvata
     ha_scenario = bool(request.session.get(SESSION_KEY))
     utente = request.user if request.user.is_authenticated else None
     scenari_salvati = SimulazionePagaSalvata.objects.filter(
         utente=utente
     ).order_by('-data_modifica')[:20]
+    cfg = ConfigurazioneSistema.get()
+    use_ced = bool(getattr(cfg, 'simulatore_paga_riepilogo_cedolino_canonico', True))
+    ced_riepilogo = costruisci_riepilogo_simulatore_da_risultato(risultato) if (risultato and use_ced) else None
     return _r(request, 'rapporto_di_lavoro/simulatore_paga.html', {
         'parametri_ccnl': parametri_ccnl,
         'tipi_contratto': tipi_contratto,
@@ -779,6 +822,8 @@ def _render(request, parametri_ccnl, tipi_contratto, aziende, form_data, risulta
         'form_data': form_data,
         'ha_scenario': ha_scenario,
         'scenari_salvati': scenari_salvati,
+        'simulatore_riepilogo_cedolino_canonico': use_ced,
+        'cedolino_riepilogo': ced_riepilogo,
     })
 
 

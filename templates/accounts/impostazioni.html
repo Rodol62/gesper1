@@ -33,6 +33,10 @@
       <a class="nav-link {% if tab == 'aspetto' %}active{% endif %}"
          href="?tab=aspetto"><i class="bi bi-palette"></i> Aspetto</a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link {% if tab == 'paghe' %}active{% endif %}"
+         href="?tab=paghe"><i class="bi bi-cash-stack"></i> Paghe / simulatore</a>
+    </li>
   </ul>
 
   <form method="post" id="formImpostazioni">
@@ -453,6 +457,25 @@
           <i class="bi bi-arrow-counterclockwise"></i> Ripristina default
         </a>
       </div>
+    </div>
+
+    <!-- ═══ TAB PAGHE / SIMULATORE ═════════════════════════════ -->
+    <div {% if tab != 'paghe' %}style="display:none"{% endif %}>
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header"><i class="bi bi-calculator"></i> Simulatore paga mensile</div>
+        <div class="card-body">
+          <div class="form-check mb-2">
+            {{ form.simulatore_paga_riepilogo_cedolino_canonico }}
+            <label class="form-check-label" for="{{ form.simulatore_paga_riepilogo_cedolino_canonico.id_for_label }}">
+              {{ form.simulatore_paga_riepilogo_cedolino_canonico.label }}
+            </label>
+          </div>
+          {% if form.simulatore_paga_riepilogo_cedolino_canonico.help_text %}
+          <div class="form-text mb-0" style="max-width:42rem">{{ form.simulatore_paga_riepilogo_cedolino_canonico.help_text }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check2"></i> Salva impostazioni paghe</button>
     </div>
 
   </form>

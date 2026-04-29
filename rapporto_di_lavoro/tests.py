@@ -35,7 +35,8 @@ def _parametro_ccnl_test(**overrides):
 
 
 class MotorePagaRetribuzioneOrariaTests(TestCase):
-    """ROEL = paga base + contingenza + scatto (ciascuna FT × frazione ÷ divisore); EDR e indennità fuori dalla somma €/h."""
+    """Retribuzione oraria di fatto = Σ voci tabellari FT ÷ ore contrattuali (172/173,33), incl. EDR se distinto,
+    scatti, superminimo, EL.DIS.SAN/BIL; indennità di funzione resta fuori."""
 
     def test_somma_voci_tabellari_div_172_tempo_pieno(self):
         cp = _parametro_ccnl_test()
@@ -55,9 +56,12 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
         self.assertEqual(r['oraria_tabellare_paga_base'], Decimal('10.0000'))
         self.assertEqual(r['oraria_tabellare_contingenza'], Decimal('2.0000'))
         self.assertEqual(r['oraria_tabellare_edr'], Decimal('0.5000'))
-        self.assertEqual(r['retribuzione_oraria_di_fatto'], Decimal('12.0000'))
-        self.assertEqual(r['paga_oraria'], Decimal('12.0000'))
+        self.assertEqual(r['retribuzione_oraria_di_fatto'], Decimal('12.5000'))
+        self.assertEqual(r['paga_oraria'], Decimal('12.5000'))
         self.assertEqual(r['lordo_tabellare_ft_equiv'], Decimal('2150.00'))
+        cont = next(v for v in r['voci_classificate'] if v['codice'] == 'CONTINGENZA')
+        self.assertEqual(cont['descrizione'], 'Contingenza + EDR')
+        self.assertEqual(cont['importo'], (r['contingenza'] + r['edr']).quantize(Decimal('0.01')))
 
     def test_fipe_non_include_edr_in_busta(self):
         """FIPE: EDR non è voce di cedolino — il motore azzera ``edr_mensile`` anche se valorizzato in tabella."""
@@ -78,6 +82,9 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
         self.assertEqual(r['edr'], Decimal('0'))
         self.assertEqual(r['oraria_tabellare_edr'], Decimal('0'))
         self.assertEqual(r['retribuzione_oraria_di_fatto'], Decimal('12.0000'))
+        cont = next(v for v in r['voci_classificate'] if v['codice'] == 'CONTINGENZA')
+        self.assertEqual(cont['descrizione'], 'Contingenza')
+        self.assertEqual(cont['importo'], r['contingenza'])
 
     def test_part_time_orarie_tabellari_come_ft_excel_non_scalano_coeff(self):
         """Excel FIPE: ogni voce tabellare FT ÷ 172; il part-time non moltiplica l'importo prima del divisore."""
@@ -99,8 +106,8 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
         self.assertEqual(r['oraria_tabellare_paga_base'], Decimal('10.0000'))
         self.assertEqual(r['oraria_tabellare_contingenza'], Decimal('2.0000'))
         self.assertEqual(r['oraria_tabellare_edr'], Decimal('0.5000'))
-        self.assertEqual(r['retribuzione_oraria_di_fatto'], Decimal('12.0000'))
-        self.assertEqual(r['paga_oraria'], Decimal('12.0000'))
+        self.assertEqual(r['retribuzione_oraria_di_fatto'], Decimal('12.5000'))
+        self.assertEqual(r['paga_oraria'], Decimal('12.5000'))
         self.assertEqual(r['paga_base'], Decimal('860.00'))
 
     def test_allineamento_excel_1021_49_522_37_scatto_90_percento(self):
@@ -310,6 +317,7 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
             ccnl_obj=None,
         )
         self.assertEqual(r['oraria_tabellare_paga_base'], Decimal('6.5182'))
+        self.assertEqual(r['retribuzione_oraria_di_fatto'], Decimal('9.7444'))
 
     def test_modalita_ore_divisore_172_mantiene_rof_ft_su_presenze(self):
         """Con ore ordinarie da presenze e divisore 172: ROF = Σ FT÷172, imp. ord. = ore × ROF (non lordo_base÷ore_mensili)."""
@@ -361,9 +369,34 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
             indennita_extra=Decimal('0'),
             ccnl_obj=None,
         )
-        # 2 h × 12,00 €/h ROEL (paga+cont+scatto, senza EDR) × (1 + 15% magg. CCNL diurno)
-        self.assertEqual(r['paga_oraria'], Decimal('12.0000'))
-        self.assertEqual(r['imp_sd'], Decimal('27.60'))
+        # 2 h × 12,50 €/h (paga+cont+EDR+scatti a 0) × (1 + 15% magg. CCNL diurno)
+        self.assertEqual(r['paga_oraria'], Decimal('12.5000'))
+        self.assertEqual(r['imp_sd'], Decimal('28.75'))
+
+    def test_voci_classificate_include_el_dis_san_e_bil(self):
+        """Le righe audit ``voci_classificate`` espongono EL.DIS.SAN / EL.DIS.BIL con importi mensili da parametro."""
+        cp = _parametro_ccnl_test()
+        cp.elemento_distinto_sanita = Decimal('0.10')
+        cp.elemento_distinto_bilateralita = Decimal('0.05')
+        r = calcola_busta_paga_mese(
+            parametro_ccnl=cp,
+            tipo_contratto=None,
+            anno=2026,
+            mese=1,
+            divisore_str='172',
+            mensilita_contrattuale_piena=True,
+            superminimo=Decimal('0'),
+            scatto_anzianita=Decimal('0'),
+            indennita_turno=Decimal('0'),
+            indennita_extra=Decimal('0'),
+            ccnl_obj=None,
+        )
+        by_cod = {v['codice']: v for v in r['voci_classificate']}
+        self.assertIn('EL_DIS_SAN', by_cod)
+        self.assertIn('EL_DIS_BIL', by_cod)
+        # 0,10 €/h × 172 h × coeff 1 × frazione 1
+        self.assertEqual(by_cod['EL_DIS_SAN']['importo'], Decimal('17.20'))
+        self.assertEqual(by_cod['EL_DIS_BIL']['importo'], Decimal('8.60'))
 
 
 class PropostaStatoPolicyTests(TestCase):
@@ -663,3 +696,141 @@ class Simulazione2026RisultatoViewTests(TestCase):
             '?ruolo_1=1&nome_1=Test&qta_1=xyz&livello_1=1'
         )
         self.assertEqual(r.status_code, 200)
+
+
+class BustaPagaLayoutCanonicoTests(TestCase):
+    """Contratto sezioni/campi cedolino (allineamento motore → presentazione)."""
+
+    def test_elenco_sezioni_e_griglia_ore(self):
+        from .busta_paga_layout_canonico import (
+            elenco_sezioni_con_campi,
+            ids_campi_intestazione,
+        )
+
+        self.assertEqual(len(ids_campi_intestazione()), 18)
+        sez = elenco_sezioni_con_campi()
+        self.assertEqual(len(sez), 7)
+        ore = next(x for x in sez if x[0].value == 'ore_lavorate')
+        self.assertEqual(len(ore[1]), 31 + 6)
+
+    def test_costruisci_riepilogo_simulatore_sezioni(self):
+        from .busta_paga_layout_canonico import costruisci_riepilogo_simulatore_da_risultato
+
+        r = {
+            'anno': 2026,
+            'mese': 3,
+            'mese_nome': 'Marzo',
+            'nome_test': 'Test scenario',
+            'ccnl_qualifica': 'Impiegato',
+            'ccnl_livello': '3',
+            'coeff_ore': Decimal('1'),
+            'cal_giorni_lavorativi': 22,
+            'cal_giorni_ordinari': 21,
+            'ore_mensili': Decimal('173.33'),
+            'ore_giornaliere': Decimal('6.6667'),
+            'giorni_nel_mese': 31,
+            'paga_base': Decimal('100'),
+            'contingenza': Decimal('20'),
+            'scatto': Decimal('0'),
+            'retribuzione_oraria_di_fatto': Decimal('12'),
+            'paga_giornaliera': Decimal('80'),
+            'lordo_mensile': Decimal('1500'),
+            'lordo_imponibile_inps_m': Decimal('1400'),
+            'inps_dip': Decimal('100'),
+            'tot_contrib_dip': Decimal('100'),
+            'imponibile_m': Decimal('1300'),
+            'irpef_lorda': Decimal('200'),
+            'detrazioni': Decimal('50'),
+            'irpef_netta': Decimal('100'),
+            'add_reg_m': Decimal('0'),
+            'add_com_m': Decimal('0'),
+            'netto_totale': Decimal('1100'),
+            'rat13_n': Decimal('0'),
+            'rat14_n': Decimal('0'),
+            'rat13_m': Decimal('0'),
+            'rat14_m': Decimal('0'),
+            'lordo_con_1314': Decimal('1500'),
+            'netto_mensile_con_1314': Decimal('1100'),
+            'competenze_logica_v1': [
+                {
+                    'cod': '1',
+                    'descrizione': 'Ordinario',
+                    'ore_o_gg': '120 h',
+                    'base': Decimal('12'),
+                    'competenze': Decimal('1440'),
+                    'trattenute': None,
+                    'nota': '',
+                },
+            ],
+            'voci': [],
+            'cedolino_codice_fiscale': 'RSSMRA80A01H501U',
+            'cedolino_comune_residenza': 'Palermo, PA',
+            'cedolino_data_nascita': '15/03/1980',
+            'cal_griglia': [
+                [
+                    None,
+                    None,
+                    None,
+                    {
+                        'giorno': 1,
+                        'is_chiusura_extra': False,
+                        'is_festivo': False,
+                        'is_chiusura_sett': False,
+                        'is_lavorativo': True,
+                        'festivo_nome': '',
+                    },
+                    {
+                        'giorno': 2,
+                        'is_chiusura_extra': False,
+                        'is_festivo': True,
+                        'is_chiusura_sett': False,
+                        'is_lavorativo': False,
+                        'festivo_nome': 'Pasqua',
+                    },
+                ],
+            ],
+        }
+        out = costruisci_riepilogo_simulatore_da_risultato(r)
+        self.assertIn('intestazione_valori', out)
+        self.assertEqual(out['intestazione_valori']['mese_riferimento'], 'Marzo 2026')
+        self.assertEqual(out['intestazione_valori']['codice_fiscale'], 'RSSMRA80A01H501U')
+        self.assertEqual(out['intestazione_valori']['comune_residenza'], 'Palermo, PA')
+        self.assertEqual(out['intestazione_valori']['data_nascita'], '15/03/1980')
+        self.assertEqual(len(out['righe_voce']), 1)
+        self.assertEqual(out['righe_voce'][0]['codice'], '1')
+        grid = out['ore_griglia_giorni']
+        self.assertEqual(grid[0]['valore'], 'L')
+        self.assertEqual(grid[1]['valore'], 'F')
+        self.assertEqual(grid[1]['titolo'], 'Pasqua')
+
+        r_feb = {**r, 'giorni_nel_mese': 28}
+        out_f = costruisci_riepilogo_simulatore_da_risultato(r_feb)
+        self.assertEqual(out_f['ore_griglia_giorni'][28]['valore'], '·')
+        self.assertEqual(out_f['ore_griglia_giorni'][28]['giorno'], 29)
+
+    def test_intestazione_voci_tabellari_in_euro_ora_con_divisore_orario(self):
+        from .busta_paga_layout_canonico import costruisci_riepilogo_simulatore_da_risultato
+
+        r = {
+            'anno': 2026,
+            'mese_nome': 'Aprile',
+            'nome_test': 'PT 90%',
+            'coeff_ore': Decimal('0.9'),
+            'divisore': Decimal('172'),
+            'ore_mensili': Decimal('155.70'),
+            'cal_giorni_lavorativi': 22,
+            'ccnl_qualifica': 'Impiegato',
+            'ccnl_livello': '4',
+            'oraria_tabellare_paga_base': Decimal('5.9389'),
+            'oraria_tabellare_contingenza': Decimal('3.0369'),
+            'oraria_tabellare_scatto': Decimal('0.2500'),
+            'retribuzione_oraria_di_fatto': Decimal('9.7444'),
+            'paga_giornaliera': Decimal('58.00'),
+            'competenze_logica_v1': [],
+            'voci': [],
+        }
+        out = costruisci_riepilogo_simulatore_da_risultato(r)
+        self.assertEqual(out['intestazione_valori']['paga_base'], '5.9389 €/h')
+        self.assertEqual(out['intestazione_valori']['contingenza'], '3.0369 €/h')
+        self.assertEqual(out['intestazione_valori']['scatti_anzianita'], '0.2500 €/h')
+        self.assertEqual(out['intestazione_valori']['ore_contrattuali'], '172.00')

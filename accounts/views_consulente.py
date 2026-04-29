@@ -56,6 +56,30 @@ def _is_consulente(user):
     return user.is_authenticated and user.has_ruolo('consulente')
 
 
+def _is_admin_o_consulente_partitario(user):
+    """Partitario studio consulente ↔ azienda: solo superuser, ruolo admin o consulente (non HR né altri)."""
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    has_ruolo = getattr(user, 'has_ruolo', None)
+    if not callable(has_ruolo):
+        return False
+    return has_ruolo('admin') or has_ruolo('consulente')
+
+
+def _get_azienda_partitario(request):
+    """Azienda di contesto: sessione operativa per admin/superuser, FK consulente per consulente."""
+    u = request.user
+    if u.is_superuser or u.has_ruolo('admin'):
+        from accounts.tenant import get_azienda_operativa
+
+        return get_azienda_operativa(u, request.session)
+    if u.has_ruolo('consulente'):
+        return _get_azienda_consulente(u)
+    return None
+
+
 def _get_azienda_consulente(user):
     """Restituisce l'azienda associata al consulente (FK su User)."""
     return getattr(user, 'azienda', None)
@@ -502,6 +526,7 @@ def consulente_documenti(request):
     TIPI_PERSONALI = [
         'documento_identita', 'permesso_soggiorno', 'codice_fiscale_doc',
         'attestato', 'abilitazione', 'titolo_studio', 'certificazione', 'curriculum',
+        'contratto',
     ]
     docs_count = {}
     for d in Documento.objects.filter(
@@ -534,6 +559,7 @@ def consulente_documenti_dipendente(request, dipendente_id):
     TIPI_VISIBILI = [
         'documento_identita', 'permesso_soggiorno', 'codice_fiscale_doc',
         'attestato', 'abilitazione', 'titolo_studio', 'certificazione', 'curriculum',
+        'contratto',
     ]
     documenti = Documento.objects.filter(
         dipendente=dip,
@@ -1060,3 +1086,282 @@ def consulente_import_pdf_unico(request):
         'azienda': azienda,
         'risultati': risultati,
     })
+
+
+# ── Posizione contabile consulente (proforma / pagamenti / estratto / libro) ─
+
+
+def _partitario_azienda_o_redirect(request):
+    azienda = _get_azienda_partitario(request)
+    if azienda:
+        return azienda, None
+    if request.user.is_superuser or request.user.has_ruolo('admin'):
+        messages.warning(
+            request,
+            "Seleziona un'azienda operativa (profilo o elenco aziende) per la posizione contabile consulente.",
+        )
+        return None, redirect('lista_aziende')
+    messages.error(request, "Nessuna azienda associata al tuo account consulente.")
+    return None, redirect('home')
+
+
+def _partitario_back(request):
+    u = request.user
+    if u.is_superuser or u.has_ruolo('admin'):
+        return {'url_name': 'dashboard_admin', 'label': 'Dashboard admin'}
+    return {'url_name': 'consulente_dashboard', 'label': 'Consulente'}
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_posizione_contabile(request):
+    """Hub: Proforma, Pagamenti, Estratto conto, Libro movimenti."""
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+    from django.db.models import F
+
+    from .models import MovimentoRegistroStudioConsulente
+
+    n_doc = MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda, tipo_riga='documento').count()
+    n_bon = MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda, tipo_riga='bonifico').count()
+    ultimo = (
+        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda)
+        .order_by(F('data_documento').desc(nulls_last=True), '-importato_il')
+        .first()
+    )
+    return render(
+        request,
+        'consulente/posizione_contabile_hub.html',
+        {
+            'azienda': azienda,
+            'partitario_back': _partitario_back(request),
+            'n_documenti': n_doc,
+            'n_bonifici': n_bon,
+            'ultimo_movimento': ultimo,
+            'posizione_nav': 'hub',
+        },
+    )
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_posizione_proforma(request):
+    from django.db.models import F
+
+    from .consulente_registro_studio import applica_upload_proforma_parcelle_pdf
+    from .models import MovimentoRegistroStudioConsulente
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+    if request.method == 'POST':
+        uploads = request.FILES.getlist('pdf')
+        if uploads:
+            for msg in applica_upload_proforma_parcelle_pdf(azienda, request.user, uploads):
+                low = msg.lower()
+                if msg.startswith('Importati'):
+                    messages.success(request, msg)
+                elif ' file con errori' in low:
+                    messages.warning(request, msg)
+                elif 'ignorato' in low or 'già presente' in low:
+                    messages.warning(request, msg)
+                elif ':' in msg and not msg.startswith('Importati'):
+                    messages.error(request, msg)
+                else:
+                    messages.info(request, msg)
+        return redirect('consulente_posizione_proforma')
+    righe = (
+        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda, tipo_riga='documento')
+        .select_related('importato_da')
+        .order_by(F('data_documento').desc(nulls_last=True), '-importato_il')
+    )
+    return render(
+        request,
+        'consulente/posizione_contabile_proforma.html',
+        {
+            'azienda': azienda,
+            'righe': righe,
+            'partitario_back': _partitario_back(request),
+            'posizione_nav': 'proforma',
+        },
+    )
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_posizione_pagamenti(request):
+    import uuid
+    from datetime import datetime as dt_mod
+    from decimal import Decimal
+
+    from django.db.models import F
+
+    from .consulente_registro_studio import applica_upload_bonifici_pdf, parse_importo_form, ricalcola_saldi_progressivi
+    from .models import MovimentoRegistroStudioConsulente
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+    if request.method == 'POST':
+        action = (request.POST.get('action') or '').strip()
+        if action == 'aggiungi_bonifico':
+            data_raw = (request.POST.get('data_valuta') or '').strip()
+            rif = (request.POST.get('riferimento_pagamento') or '').strip()
+            caus = (request.POST.get('causale_pagamento') or '').strip()
+            imp_raw = (request.POST.get('importo_avere') or '').strip()
+            data_doc = None
+            try:
+                data_doc = dt_mod.strptime(data_raw, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+            imp = parse_importo_form(imp_raw)
+            pdf = request.FILES.get('pdf_bonifico')
+            if not data_doc:
+                messages.error(request, 'Indicare una data valuta valida.')
+            elif not rif or len(rif) < 3:
+                messages.error(request, 'Indicare un riferimento pagamento (es. CRO, TRN, ordinativo).')
+            elif imp is None or imp <= 0:
+                messages.error(request, 'Indicare un importo in avere maggiore di zero.')
+            else:
+                nome_sint = (pdf.name if pdf else None) or f"bonifico-{data_doc.isoformat()}-{uuid.uuid4().hex[:10]}"
+                nome_sint = nome_sint[:280]
+                obj = MovimentoRegistroStudioConsulente(
+                    azienda=azienda,
+                    tipo_riga='bonifico',
+                    tipo_documento='sconosciuto',
+                    numero_documento=rif[:80],
+                    data_documento=data_doc,
+                    totale_da_pagare=None,
+                    dare=Decimal('0'),
+                    avere=imp,
+                    nome_file=nome_sint,
+                    riferimento_pagamento=rif[:160],
+                    causale_pagamento=caus[:220],
+                    importato_da=request.user,
+                )
+                obj.save()
+                if pdf:
+                    from django.core.files import File
+
+                    if hasattr(pdf, 'seek'):
+                        pdf.seek(0)
+                    obj.file.save(pdf.name[:200], File(pdf), save=True)
+                ricalcola_saldi_progressivi(azienda.id)
+                messages.success(request, 'Bonifico registrato in avere.')
+            return redirect('consulente_posizione_pagamenti')
+        uploads = request.FILES.getlist('pdf')
+        if uploads:
+            for msg in applica_upload_bonifici_pdf(azienda, request.user, uploads):
+                if 'non importati' in msg or 'non rilevato' in msg.lower() or 'assente' in msg.lower():
+                    messages.warning(request, msg)
+                else:
+                    messages.success(request, msg)
+            return redirect('consulente_posizione_pagamenti')
+    righe = (
+        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda, tipo_riga='bonifico')
+        .select_related('importato_da')
+        .order_by(F('data_documento').desc(nulls_last=True), '-importato_il')
+    )
+    return render(
+        request,
+        'consulente/posizione_contabile_pagamenti.html',
+        {
+            'azienda': azienda,
+            'righe': righe,
+            'partitario_back': _partitario_back(request),
+            'posizione_nav': 'pagamenti',
+        },
+    )
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_posizione_estratto(request):
+    from django.db.models import Prefetch
+
+    from .consulente_registro_studio import import_estratto_excel
+    from .models import ImportEstrattoContoStudio, RigaEstrattoContoStudio
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+    if request.method == 'POST':
+        f = request.FILES.get('excel')
+        if not f:
+            messages.error(request, 'Selezionare un file Excel (.xlsx).')
+        else:
+            nome = (f.name or 'estratto.xlsx')[:280]
+            try:
+                imp_obj, extra = import_estratto_excel(f, nome, azienda, request.user)
+                for msg in extra:
+                    messages.success(request, msg)
+            except Exception as exc:
+                messages.error(request, str(exc))
+        return redirect('consulente_posizione_estratto')
+    imports_recenti = (
+        ImportEstrattoContoStudio.objects.filter(azienda=azienda)
+        .prefetch_related(
+            Prefetch(
+                'righe',
+                queryset=RigaEstrattoContoStudio.objects.select_related('movimento').order_by('indice_riga'),
+            )
+        )
+        .order_by('-importato_il')[:8]
+    )
+    return render(
+        request,
+        'consulente/posizione_contabile_estratto.html',
+        {
+            'azienda': azienda,
+            'imports_recenti': imports_recenti,
+            'partitario_back': _partitario_back(request),
+            'posizione_nav': 'estratto',
+        },
+    )
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_posizione_libro(request):
+    from django.db.models import F
+
+    from .consulente_registro_studio import ricalcola_saldi_progressivi
+    from .models import MovimentoRegistroStudioConsulente
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+    if request.method == 'POST':
+        action = (request.POST.get('action') or '').strip()
+        if action == 'ricalcola_saldi':
+            ricalcola_saldi_progressivi(azienda.id)
+            messages.success(request, 'Saldi progressivi ricalcolati.')
+        elif action == 'rileggi_totali_pdf':
+            from .consulente_registro_studio import ricalcola_totali_documenti_da_testo_estratto
+
+            res = ricalcola_totali_documenti_da_testo_estratto(azienda.id)
+            messages.success(request, res['message'])
+        return redirect('consulente_posizione_libro')
+    righe = (
+        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda)
+        .select_related('importato_da')
+        .order_by(F('data_documento').asc(nulls_last=True), 'importato_il', 'id')
+    )
+    return render(
+        request,
+        'consulente/posizione_contabile_libro.html',
+        {
+            'azienda': azienda,
+            'righe': righe,
+            'partitario_back': _partitario_back(request),
+            'posizione_nav': 'libro',
+        },
+    )
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_registro_studio(request):
+    """Compat URL: reindirizza all'hub posizione contabile."""
+    return redirect('consulente_posizione_contabile')

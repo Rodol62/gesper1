@@ -45,7 +45,6 @@
 }
 .res-card-body { padding: .65rem .75rem; }
 
-.rh-gray   { background: #555; color: #fff; }
 .rh-green  { background: var(--c-green); color: #fff; }
 .rh-blue   { background: var(--c-primary); color: #fff; }
 .rh-red    { background: var(--c-red); color: #fff; }
@@ -82,8 +81,9 @@
 .rline.hilite    { background: var(--c-alt); padding: .3rem .5rem; border-radius: 3px;
                    border-bottom: none; margin: .2rem 0; }
 
-/* ── Mini calendario ─────────────────────────────────────────────────── */
-.cal-mini { width: 100%; border-collapse: collapse; font-size: var(--sz-xs); }
+/* ── Mini calendario (solo blocco stampa `.sim-print-cal`) ───────────── */
+.sim-print-cal { display: none !important; }
+.cal-mini { width: 100%; max-width: 220mm; border-collapse: collapse; font-size: var(--sz-xs); }
 .cal-mini th { padding: .2rem; text-align: center; font-weight: 700;
                border-bottom: 1px solid var(--c-border); color: var(--c-muted); }
 .cal-mini td { text-align: center; padding: .18rem .2rem; border: 1px solid #f0f0f0; }
@@ -92,20 +92,6 @@
 .cal-fest  { background: #fff3cd; color: #856404; font-weight: 700; }
 .cal-extra { background: #fdf0f0; color: var(--c-red); font-weight: 700; }
 .cal-empty { background: #fafafa; }
-
-/* ── Stat pills ──────────────────────────────────────────────────────── */
-.stat-pill { display: flex; flex-direction: column; align-items: center;
-             background: var(--c-alt); border: 1px solid var(--c-border);
-             border-radius: .375rem; padding: .4rem .5rem; }
-.stat-pill .sp-num { font-size: 1.25rem; font-weight: 900; line-height: 1; }
-.stat-pill .sp-lbl { font-size: .62rem; font-weight: 600; color: var(--c-muted);
-                     text-transform: uppercase; text-align: center; margin-top: .1rem; }
-.stat-pill.sp-green { background: #e8f5ee; border-color: var(--c-green); }
-.stat-pill.sp-green .sp-num { color: var(--c-green); }
-.stat-pill.sp-blue  { background: #e8edf5; border-color: var(--c-primary); }
-.stat-pill.sp-blue  .sp-num { color: var(--c-primary); }
-.stat-pill.sp-red   { background: #fdf0f0; border-color: #e88; }
-.stat-pill.sp-red   .sp-num { color: var(--c-red); }
 
 /* ── Banda periodo ───────────────────────────────────────────────────── */
 .periodo-bar {
@@ -204,12 +190,14 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
   .col-md-4 { width: calc(33.3% - 2mm) !important; float: left; padding: 0 1mm !important; }
   .row.g-3 { margin: 0 !important; }
 
-  /* ── Stat pills calendario ───────────────────────────────────────────── */
-  .stat-pill { padding: 1mm 2mm !important; }
-  .stat-pill .sp-num { font-size: 9pt !important; }
-  .stat-pill .sp-lbl { font-size: 5.5pt !important; }
-
-  /* ── Calendario mini ────────────────────────────────────────────────── */
+  /* ── Calendario mese: solo stampa ───────────────────────────────────── */
+  .sim-print-cal {
+    display: block !important;
+    margin-bottom: 3mm !important;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .cal-mini, .cal-mini td, .cal-mini th { font-size: 6pt !important; padding: .4mm !important; }
   .overflow-auto { max-height: none !important; }
 
@@ -217,7 +205,7 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
   .rline { font-size: 7.5pt !important; padding: .4mm 0 !important; }
 
   /* ── Forza colori header box ────────────────────────────────────────── */
-  .rh-gray, .rh-green, .rh-blue, .rh-red,
+  .rh-green, .rh-blue, .rh-red,
   .rh-amber, .rh-teal, .rh-purple,
   .badge-si, .badge-no {
     -webkit-print-color-adjust: exact;
@@ -240,7 +228,7 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
   <div class="d-flex align-items-center justify-content-between mb-3">
     <div>
       <h4 class="mb-0"><i class="bi bi-calculator me-2"></i>Simulatore Motore Paga Mensile</h4>
-      <small class="text-muted">Flusso: calendario → ROEL e rubrica competenze → contributi / IRPEF → netto, ratei e costo azienda</small>
+      <small class="text-muted">Flusso: retribuzione oraria e rubrica competenze → contributi / IRPEF → netto, ratei e costo azienda (calendario e griglia giorni nel cedolino)</small>
     </div>
     <div class="d-flex gap-2">
       {% if ha_scenario %}
@@ -661,6 +649,57 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
       {% endif %}
     </div>
 
+    <!-- Griglia calendario: visibile solo in stampa/PDF (schermo: barra compatta sotto) -->
+    <div class="sim-print-cal">
+      <div style="font-size:7pt;font-weight:700;margin-bottom:1.5mm;color:#333">
+        <i class="bi bi-calendar3"></i> Calendario lavorativo del mese
+      </div>
+      <div class="overflow-auto">
+        <table class="cal-mini">
+          <thead>
+            <tr>
+              <th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th>
+              <th style="color:#666">Sab</th>
+              <th style="color:#a00">Dom</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for settimana in risultato.cal_griglia %}
+            <tr>
+              {% for g in settimana %}
+              {% if g %}
+                {% if g.is_chiusura_sett %}<td class="cal-chius">{{ g.giorno }}</td>
+                {% elif g.is_festivo %}<td class="cal-fest" title="{{ g.festivo_nome }}">{{ g.giorno }}</td>
+                {% elif g.is_chiusura_extra %}<td class="cal-extra" title="Chiusura aziendale">{{ g.giorno }}</td>
+                {% else %}<td class="cal-lav">{{ g.giorno }}</td>
+                {% endif %}
+              {% else %}<td class="cal-empty"></td>{% endif %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="d-flex flex-wrap gap-2" style="font-size:5.5pt;margin-top:1mm;color:#444">
+        <span><span class="badge" style="background:#e8f5ee;border:1px solid #198754">■</span> Lav.</span>
+        <span><span class="badge" style="background:#eee;border:1px solid #ccc">■</span> Chius. sett.</span>
+        <span><span class="badge" style="background:#fff3cd;border:1px solid #856404">■</span> Festivo</span>
+        <span><span class="badge" style="background:#fdf0f0;border:1px solid #e88">■</span> Chius. extra</span>
+      </div>
+      {% if risultato.cal_festivita %}
+      <div style="font-size:5.5pt;margin-top:1mm">
+        Festività:
+        {% for d in risultato.cal_festivita %}
+          <strong>{{ d|date:"j N" }}</strong>{% if not forloop.last %}, {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div style="font-size:5.5pt;margin-top:1mm;color:#666">
+        {{ risultato.azienda_nome }} — Gg lav. {{ risultato.cal_giorni_lavorativi }}, domeniche {{ risultato.cal_domeniche_n }}, festivi lav. {{ risultato.cal_festivi_lav_n }}
+        {% if risultato.prorata %} — Pro-rata {{ risultato.giorni_lavorati }}/{{ risultato.cal_giorni_lavorativi }} gg{% endif %}
+      </div>
+    </div>
+
     {% if risultato.sim_fonte_dati == 'contratto_attivo' %}
     <div class="alert alert-info py-2 mb-3" style="font-size:.75rem">
       <i class="bi bi-file-earmark-text me-1"></i>
@@ -670,106 +709,55 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
     </div>
     {% endif %}
 
-    <div class="alert alert-secondary border-0 py-2 px-3 mb-3 small no-print" role="region">
-      <strong class="text-dark">Ordine lettura:</strong>
-      <span class="text-muted ms-1">① Calendario</span>
-      <span class="text-muted">· ② ROEL e rubrica competenze</span>
-      <span class="text-muted">· (dettaglio righe cedolino: sezione apribile sotto)</span>
+    {% if simulatore_riepilogo_cedolino_canonico and cedolino_riepilogo %}
+    {% include 'rapporto_di_lavoro/_simulatore_riepilogo_cedolino_canonico.html' %}
+    {% endif %}
+
+    <div class="alert alert-secondary border-0 py-2 px-3 mb-2 small no-print" role="region">
+      <strong class="text-dark">Ordine lettura risultati:</strong>
+      {% if simulatore_riepilogo_cedolino_canonico and cedolino_riepilogo %}
+      <span class="text-muted ms-1">① Riepilogo schema cedolino (sopra)</span>
+      <span class="text-muted">· ② Dettaglio analitico cedolino (apri se serve)</span>
       <span class="text-muted">· ③–⑦ Contributi, IRPEF, ratei, netto, costo azienda</span>
+      <span class="text-muted d-block mt-1" style="font-size:.85em">Con il riepilogo canonico la rubrica «1 — Divisore…» è incorporata nel blocco cedolino; restano i totali rapidi nel form a sinistra.</span>
+      {% else %}
+      <span class="text-muted ms-1">① Retribuzione oraria di fatto e rubrica competenze</span>
+      <span class="text-muted">· ② Dettaglio analitico cedolino (apri se serve)</span>
+      <span class="text-muted">· ③–⑦ Contributi, IRPEF, ratei, netto, costo azienda</span>
+      <span class="text-muted d-block mt-1" style="font-size:.85em">Il calendario del mese e la griglia ore per giorno rientrano nello schema busta paga / cedolino; qui restano solo i totali utili al form.</span>
+      {% endif %}
     </div>
 
-    <!-- ── 1 Calendario ─────────────────────────────────────────────────── -->
-    <div class="res-card mb-3">
-      <div class="res-card-head rh-gray"><i class="bi bi-calendar3 me-1"></i>1 — Calendario e presenze (gg lav., domeniche, festivi)</div>
-      <div class="res-card-body">
-        <div class="row g-2 mb-2">
-          <div class="col"><div class="stat-pill sp-green"><span class="sp-num">{{ risultato.cal_giorni_lavorativi }}</span><span class="sp-lbl">Gg lav. mese</span></div></div>
-          <div class="col"><div class="stat-pill"><span class="sp-num">{{ risultato.cal_chiusure_settimanali }}</span><span class="sp-lbl">Chiusure sett.</span></div></div>
-          <div class="col"><div class="stat-pill" style="background:#fff8e1;border-color:#f59e0b"><span class="sp-num" style="color:#b45309">{{ risultato.cal_domeniche_n }}</span><span class="sp-lbl">Domeniche</span></div></div>
-          <div class="col"><div class="stat-pill"><span class="sp-num">{{ risultato.cal_festivi }}</span><span class="sp-lbl">Festività</span></div></div>
-          <div class="col"><div class="stat-pill"><span class="sp-num">{{ risultato.cal_chiusure_extra }}</span><span class="sp-lbl">Chius. extra</span></div></div>
-          <div class="col"><div class="stat-pill"><span class="sp-num">{{ risultato.giorni_nel_mese }}</span><span class="sp-lbl">Gg calendario</span></div></div>
-          <div class="col"><div class="stat-pill sp-blue"><span class="sp-num">{{ risultato.cal_giorni_conv_26 }}</span><span class="sp-lbl">Conv. base 26</span></div></div>
-          {% if risultato.prorata %}<div class="col"><div class="stat-pill sp-red"><span class="sp-num">{{ risultato.giorni_lavorati }}</span><span class="sp-lbl">Gg dip.</span></div></div>{% endif %}
+    <!-- Riferimento calendario compatto (griglia mensile nel cedolino) + applica ore suggerite -->
+    <div class="rounded border bg-light px-2 py-2 mb-3 small no-print" style="font-size:.72rem">
+      <div class="d-flex flex-wrap align-items-center gap-2 justify-content-between">
+        <div class="text-muted flex-grow-1" style="min-width:12rem">
+          <i class="bi bi-calendar3 me-1"></i>
+          <strong>{{ risultato.cal_giorni_lavorativi }}</strong> gg lav.
+          · <strong>{{ risultato.cal_domeniche_n }}</strong> dom.
+          · <strong>{{ risultato.cal_festivi_lav_n }}</strong> fest. lav.
+          · h/gg <strong>{{ risultato.ore_giornaliere|floatformat:2 }}</strong>
+          {% if risultato.prorata %}· pro-rata <strong>{{ risultato.giorni_lavorati }}</strong>/{{ risultato.cal_giorni_lavorativi }} gg{% endif %}
+          <span class="d-none d-md-inline text-muted"> — {{ risultato.azienda_nome }}</span>
         </div>
-
-        <!-- Riepilogo domeniche / festivi per maggiorazioni -->
-        <div class="alert py-1 px-2 mb-2" style="font-size:.7rem;background:#fffbeb;border:1px solid #f59e0b;border-radius:4px">
-          <i class="bi bi-sun me-1" style="color:#b45309"></i>
-          <strong>{{ risultato.cal_domeniche_n }} domeniche</strong>
-          {% if risultato.cal_dom_fest_n %}
-            <span class="text-muted">(di cui <strong>{{ risultato.cal_dom_fest_n }}</strong> coincide con festività)</span>
-          {% endif %}
-          &nbsp;&bull;&nbsp;
-          <strong>{{ risultato.cal_festivi_lav_n }} festivi non domenicali</strong>
-          <span class="text-muted">({{ risultato.cal_festivi }} festività totali)</span>
-          &nbsp;&bull;&nbsp;
-          <span style="color:#0d6efd">ore/gg motore: <strong>{{ risultato.ore_giornaliere|floatformat:2 }} h</strong></span>
-          &nbsp;&bull;&nbsp;
-          <span style="color:#166534">suggerito: dom <strong>{{ risultato.ore_dom_suggerite|floatformat:2 }} h</strong> · fest <strong>{{ risultato.ore_fest_suggerite|floatformat:2 }} h</strong></span>
+        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+          <span class="text-nowrap" style="color:#166534;font-size:.68rem">sugg. dom {{ risultato.ore_dom_suggerite|floatformat:2 }}h · fest {{ risultato.ore_fest_suggerite|floatformat:2 }}h</span>
           <button type="button" id="btn_applica_cal"
-                  class="btn btn-sm py-0 px-2 ms-2 float-end"
+                  class="btn btn-sm py-0 px-2"
                   style="font-size:.65rem;background:#f59e0b;color:#fff;border:none"
                   data-ore-dom="{{ risultato.ore_dom_suggerite }}"
-                  data-ore-fest="{{ risultato.ore_fest_suggerite }}">
-            ↺ Forza valori calendario
+                  data-ore-fest="{{ risultato.ore_fest_suggerite }}"
+                  title="Copia nel form le ore domenicali e festive suggerite dal calendario, poi ricalcola">
+            ↺ Applica ore suggerite
           </button>
-        </div>
-
-        <div class="overflow-auto mb-2">
-          <table class="cal-mini">
-            <thead>
-              <tr>
-                <th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th>
-                <th style="color:var(--c-muted)">Sab</th>
-                <th style="color:var(--c-red)">Dom</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for settimana in risultato.cal_griglia %}
-              <tr>
-                {% for g in settimana %}
-                {% if g %}
-                  {% if g.is_chiusura_sett %}<td class="cal-chius">{{ g.giorno }}</td>
-                  {% elif g.is_festivo %}<td class="cal-fest" title="{{ g.festivo_nome }}">{{ g.giorno }}<br><small>🎉</small></td>
-                  {% elif g.is_chiusura_extra %}<td class="cal-extra" title="Chiusura az.">{{ g.giorno }}<br><small>🔒</small></td>
-                  {% else %}<td class="cal-lav">{{ g.giorno }}</td>
-                  {% endif %}
-                {% else %}<td class="cal-empty"></td>{% endif %}
-                {% endfor %}
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-
-        <div class="d-flex gap-3 flex-wrap" style="font-size:.7rem">
-          <span><span class="badge" style="background:#e8f5ee;color:var(--c-green);border:1px solid var(--c-green)">■</span> Lavorativo</span>
-          <span><span class="badge" style="background:var(--c-alt);color:#bbb;border:1px solid #ccc">■</span> Chiusura sett.</span>
-          <span><span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #856404">■</span> Festività</span>
-          <span><span class="badge" style="background:#fdf0f0;color:var(--c-red);border:1px solid #e88">■</span> Chiusura extra</span>
-        </div>
-
-        {% if risultato.cal_festivita %}
-        <div class="alert alert-warning py-1 px-2 mt-2 mb-1" style="font-size:.72rem">
-          🎉 Festività del mese:
-          {% for d in risultato.cal_festivita %}
-            <strong>{{ d|date:"j N" }}</strong>{% if d.weekday == 6 %} <span class="badge" style="background:#f59e0b;color:#fff;font-size:.6rem">dom</span>{% endif %}{% if not forloop.last %}, {% endif %}
-          {% endfor %}
-        </div>
-        {% endif %}
-
-        <div class="text-muted mt-2" style="font-size:.72rem">
-          <i class="bi bi-building me-1"></i>{{ risultato.azienda_nome }}
-          &nbsp;·&nbsp;
-          Pro-rata: {% if risultato.prorata %}<strong>Sì</strong> ({{ risultato.giorni_lavorati }} gg lav. / {{ risultato.cal_giorni_lavorativi }}){% else %}<strong>No</strong> — mese intero{% endif %}
         </div>
       </div>
     </div>
 
     {% if risultato.competenze_logica_v1 %}
+    {% if not simulatore_riepilogo_cedolino_canonico or not cedolino_riepilogo %}
     <div class="res-card mb-3">
-      <div class="res-card-head rh-green"><i class="bi bi-diagram-3 me-1"></i>2 — Divisore, ROEL e rubrica competenze</div>
+      <div class="res-card-head rh-green"><i class="bi bi-diagram-3 me-1"></i>1 — Divisore, retribuzione oraria di fatto e rubrica competenze</div>
       <div class="res-card-body small">
         {% if risultato.schema_divisori %}
         <div class="row g-2 row-cols-2 row-cols-lg-4 mb-3 pb-3 border-bottom">
@@ -784,7 +772,7 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
         </div>
         {% endif %}
         <p class="text-muted mb-2" style="font-size:.72rem">
-          <strong>ROEL</strong> = solo paga base + contingenza + scatto (ciascuna al divisore 172 o 173,33; pro-rata se attiva). EDR e indennità CCNL restano in busta come importi mensili, non entrano nella ROEL. L’ordinario in rubrica usa i <strong>gg ordinari</strong> (calendario: no domenica, no festivi; sabato solo con contratto 6 o 7 gg/sett.) × h/gg × ROEL, salvo modalità «ore effettive»; straordinari e domeniche/festivi moltiplicano la ROEL sulle rispettive ore.
+          <strong>Retribuzione oraria di fatto</strong> (ROEL in rubrica) = somma delle voci tabellari al divisore orario <strong>172</strong> o <strong>173,33</strong> (paga base, contingenza, EDR se distinto, scatti, superminimo, EL.DIS.SAN/BIL; pro-rata se attiva). L’indennità di funzione resta voce mensile fuori da quella somma. Con FIPE dal 2024 l’EDR è nella contingenza di tabella. L’ordinario usa i <strong>gg ordinari</strong> del calendario × h/gg × ROEL, salvo «ore effettive»; straordinari e domeniche/festivi usano la stessa base oraria sulle ore indicate.
         </p>
         <div class="table-responsive">
           <table class="table table-sm table-bordered mb-0 align-middle">
@@ -816,14 +804,17 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
         </div>
       </div>
     </div>
+    {% endif %}
     {% else %}
+    {% if not simulatore_riepilogo_cedolino_canonico or not cedolino_riepilogo %}
     <div class="alert alert-light border py-2 px-3 mb-3 small text-muted">
       <i class="bi bi-info-circle me-1"></i>La rubrica <strong>ROEL / competenze</strong> è mostrata con divisore orario <strong>172</strong> o <strong>173,33</strong>. Con divisore a giorni (es. FIPE ÷26) il calcolo resta su base mensile senza tabella oraria unificata.
     </div>
     {% endif %}
+    {% endif %}
 
     <details class="sim-cedolino-details mb-3">
-      <summary><i class="bi bi-list-columns-reverse me-1"></i>Dettaglio analitico cedolino (righe voci, €/h tab., INPS/IRPEF) — apri se serve</summary>
+      <summary><i class="bi bi-list-columns-reverse me-1"></i>2 — Dettaglio analitico cedolino (righe voci, €/h tab., INPS/IRPEF) — apri se serve</summary>
       <div>
         <div class="table-responsive">
         <table class="voce-tbl">
