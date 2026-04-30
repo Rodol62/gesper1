@@ -5,14 +5,35 @@
 
 {% block extra_head %}
 <style>
-.cons-dash { --cd-primary:#1b3a5f; --cd-accent:#2d6199; --cd-muted:#5c6b7d; --cd-border:#d8e0ea; --cd-surface:#f4f7fb; --cd-success:#0a6640; --cd-warning:#b8860b; --cd-danger:#a8232d; max-width:1180px;margin:0 auto;padding:1.25rem 1rem 2rem; }
-.cons-dash-hero {
-  background: linear-gradient(135deg, var(--cd-primary) 0%, var(--cd-accent) 100%);
-  color: #fff; border-radius: 12px; padding: 1.25rem 1.35rem 1.1rem;
-  margin-bottom: 1.25rem; box-shadow: 0 8px 24px rgba(27,58,95,.18);
+/* Palette allineata alla Django admin (header #205067, bordi #417690, link #79aec8) */
+.cons-dash {
+  --cd-admin-bg: #205067;
+  --cd-admin-border: #417690;
+  --cd-admin-link: #79aec8;
+  --cd-admin-muted: #c4dce8;
+  --cd-primary: #205067;
+  --cd-accent: #417690;
+  --cd-muted: #4b5563;
+  --cd-border: #c7d7e4;
+  --cd-surface: #e8eef3;
+  --cd-success: #0a6640;
+  --cd-warning: #9a7b0a;
+  --cd-danger: #a8232d;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2rem;
 }
-.cons-dash-hero h1 { font-size: 1.35rem; font-weight: 700; margin: 0 0 .35rem; letter-spacing: -.02em; }
-.cons-dash-hero .sub { opacity: .9; font-size: .86rem; }
+.cons-dash-hero {
+  background: linear-gradient(135deg, var(--cd-admin-bg) 0%, #2a5f7c 52%, var(--cd-admin-border) 100%);
+  color: #fff;
+  border-radius: 12px;
+  padding: 1.35rem 1.4rem 1.15rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--cd-admin-border);
+  box-shadow: 0 8px 26px rgba(32, 80, 103, 0.22);
+}
+.cons-dash-hero h1 { font-size: 1.38rem; font-weight: 700; margin: 0 0 .4rem; letter-spacing: -.02em; }
+.cons-dash-hero .sub { color: var(--cd-admin-muted); font-size: .9rem; font-weight: 500; }
 .cons-dash-kpi { --cd-kpi-minh: 124px; }
 .cons-dash-kpi > .col { display: flex; align-items: stretch; }
 .cons-dash-kpi .cons-dash-kpi-link {
@@ -48,7 +69,38 @@
 .cons-dash-panel { border-radius: 10px; border: 1px solid var(--cd-border); overflow: hidden; background: #fff; box-shadow: 0 2px 10px rgba(27,58,95,.06); }
 .cons-dash-panel .ph { padding: .65rem 1rem; background: var(--cd-surface); border-bottom: 1px solid var(--cd-border); font-size: .82rem; font-weight: 700; color: var(--cd-primary); display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
 .cons-dash-panel .table { font-size: .82rem; margin-bottom: 0; }
-.cons-dash-panel .table thead th { background: #eef3f9; color: var(--cd-primary); font-weight: 700; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; border-color: var(--cd-border); white-space: nowrap; }
+.cons-dash-panel .table thead th { background: var(--cd-surface); color: var(--cd-primary); font-weight: 700; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; border-color: var(--cd-border); white-space: nowrap; }
+.cons-dash-context {
+  border: 1px solid var(--cd-border) !important;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(32, 80, 103, 0.06);
+}
+.cons-dash-context .cons-dash-context-head {
+  background: var(--cd-surface);
+  border-bottom: 1px solid var(--cd-border);
+  padding: .5rem 1rem;
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--cd-primary);
+}
+.cons-dash-context .cons-dash-context-body { font-size: .86rem; color: #2c3b49; }
+.cons-dash-context a { color: #205067; font-weight: 600; }
+.cons-dash-context a:hover { color: var(--cd-admin-border); }
+.cons-dash-toolbar {
+  border: 1px solid var(--cd-border);
+  border-radius: 10px;
+  background: #fafcfd;
+  padding: .55rem .85rem;
+  font-size: .84rem;
+  color: #374151;
+}
+.cons-dash-toolbar a { color: #205067; font-weight: 600; text-decoration: none; }
+.cons-dash-toolbar a:hover { text-decoration: underline; color: var(--cd-admin-border); }
+.cons-dash-toolbar .sep { color: #94a3b8; margin: 0 .35rem; }
 .cons-dash-panel .table td { border-color: #e8edf3; vertical-align: middle; }
 .cons-dash-badge { font-size: .68rem; font-weight: 600; padding: .2rem .45rem; border-radius: 4px; }
 .cons-dash-quick .card { border-radius: 10px; border: 1px solid var(--cd-border); box-shadow: 0 2px 8px rgba(27,58,95,.05); }
@@ -62,7 +114,7 @@
 <div class="cons-dash">
 
   {% if recesso_prova_in_verifica_count or proposte_da_approvare %}
-  <div class="alert mb-3 shadow" role="alert" id="cons-azioni-urgenti" style="border-radius:12px;border:3px solid #664d03;background:linear-gradient(180deg,#fff3cd 0%,#ffe08a 100%);color:#422c02;font-size:.9rem">
+  <div class="alert mb-3 shadow-sm" role="alert" id="cons-azioni-urgenti" style="border-radius:10px;border:2px solid #8a6d1b;background:linear-gradient(180deg,#fdf6e3 0%,#f5e6b0 100%);color:#3d2f06;font-size:.9rem">
     <div class="d-flex flex-wrap align-items-start gap-3">
       <i class="bi bi-exclamation-triangle-fill flex-shrink-0" style="font-size:1.75rem;color:#664d03"></i>
       <div class="flex-grow-1" style="min-width:min(100%,220px)">
@@ -107,38 +159,45 @@
     {% endfor %}
   {% endif %}
 
-  {% if not recesso_prova_in_verifica_count %}
-  <div class="alert alert-info border py-2 px-3 mb-3" role="status" style="border-radius:10px;font-size:.86rem;border-color:#b6d4fe!important;background:#e7f1ff;color:#084298">
-    <strong><i class="bi bi-envelope-paper me-1"></i>Recesso in periodo di prova.</strong>
-    Quando l’amministrazione invia una lettera alla tua verifica, comparirà qui sotto e nel
-    <a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo" class="fw-semibold">centro rapporti</a>.
-    Controlla anche il <span class="fw-semibold">badge</span> accanto a «Dashboard» nel menu in alto.
-  </div>
-  {% endif %}
-
-  {% if not proposte_da_approvare %}
-  <div class="alert alert-light border py-2 px-3 mb-3" role="status" style="border-radius:10px;font-size:.84rem;border-color:var(--cd-border)!important;color:#3d4d5c">
-    <strong><i class="bi bi-person-check me-1"></i>Proposte di assunzione.</strong>
-    Le proposte con firma candidato da approvare sono nella card «Proposte / Da approvare» qui sotto o in
-    <a href="{% url 'consulente_candidati' %}?stato=firmata_candidato">Anagrafiche (filtro firmata)</a>; con il badge su «Anagrafiche» nel menu se ce n’è almeno una.
-  </div>
-  {% endif %}
-
-  <div class="alert alert-light border py-2 small mb-3" role="status" style="border-radius:10px;border-color:var(--cd-border)!important">
-    <div class="mb-1"><strong>Panoramica.</strong> Dati filtrati sull’azienda del profilo consulente.</div>
-    <div class="d-flex flex-wrap gap-2 align-items-center" style="font-size:.86rem">
-      <a href="{% url 'guida_modulo' 'modulo-consulente' %}">Guida modulo</a>
-      <span class="text-muted">·</span>
-      <a href="{% url 'modifica_azienda' azienda.pk %}">Anagrafica azienda</a>
-      <span class="text-muted">·</span>
-      <a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo">Recesso in prova (lettera)</a>
-      <span class="text-muted">·</span>
-      <a href="{% url 'consulente_carica_documento' %}">Carica documenti paghe</a>
-      <span class="text-muted">·</span>
-      <a href="{% url 'libro_paga_lista' %}">Libro paga</a>
-      <span class="text-muted">·</span>
-      <a href="{% url 'consulente_import_pdf_unico' %}">Import PDF unico</a>
+  {% if not recesso_prova_in_verifica_count or not proposte_da_approvare %}
+  <div class="cons-dash-context mb-3" role="region" aria-label="Stato operativo">
+    <div class="cons-dash-context-head">Stato operativo</div>
+    <div class="cons-dash-context-body">
+      {% if not recesso_prova_in_verifica_count %}
+      <div class="p-3 {% if not proposte_da_approvare %}border-bottom border-light{% endif %}">
+        <div class="fw-semibold mb-1" style="color:var(--cd-primary);font-size:.88rem"><i class="bi bi-envelope-paper me-1"></i>Recesso in periodo di prova</div>
+        <p class="mb-0 small" style="line-height:1.5">Quando l’amministrazione invia una lettera alla tua verifica, comparirà nella tabella sotto e nel
+          <a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo">centro rapporti</a>.
+          Controlla il <strong>badge</strong> accanto a «Dashboard» nel menu.</p>
+      </div>
+      {% endif %}
+      {% if not proposte_da_approvare %}
+      <div class="p-3">
+        <div class="fw-semibold mb-1" style="color:var(--cd-primary);font-size:.88rem"><i class="bi bi-person-check me-1"></i>Proposte di assunzione</div>
+        <p class="mb-0 small" style="line-height:1.5">Le proposte con firma candidato da approvare sono nella KPI «Proposte / Da approvare» o in
+          <a href="{% url 'consulente_candidati' %}?stato=firmata_candidato">Anagrafiche (firmata)</a>; il menu mostra un badge quando ce n’è almeno una.</p>
+      </div>
+      {% endif %}
     </div>
+  </div>
+  {% endif %}
+
+  <div class="cons-dash-toolbar mb-3" role="navigation" aria-label="Collegamenti rapidi">
+    <span class="text-muted fw-semibold me-1">Panoramica</span>
+    <span class="sep">·</span>
+    <span class="small">Dati sull’azienda del profilo.</span>
+    <span class="sep d-none d-sm-inline">|</span>
+    <a href="{% url 'guida_modulo' 'modulo-consulente' %}">Guida</a>
+    <span class="sep">·</span>
+    <a href="{% url 'modifica_azienda' azienda.pk %}">Anagrafica azienda</a>
+    <span class="sep">·</span>
+    <a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo">Recesso (lettera)</a>
+    <span class="sep">·</span>
+    <a href="{% url 'consulente_carica_documento' %}">Carica paghe</a>
+    <span class="sep">·</span>
+    <a href="{% url 'libro_paga_lista' %}">Libro paga</a>
+    <span class="sep">·</span>
+    <a href="{% url 'consulente_import_pdf_unico' %}">Import PDF</a>
   </div>
 
   <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-2 g-md-3 mb-3 cons-dash-kpi">
