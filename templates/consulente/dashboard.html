@@ -420,7 +420,8 @@
           <div class="fw-semibold mb-2" style="font-size:.88rem;color:var(--cd-primary)"><i class="bi bi-calculator me-1"></i>Posizione contabile consulente</div>
           <p class="small text-muted mb-2 mb-lg-1">Contabilità verso l’azienda: proforma, bonifici, estratto Excel, libro.</p>
           <div class="d-flex flex-column gap-1">
-            <a href="{% url 'consulente_posizione_contabile' %}"><strong>Panoramica</strong></a>
+            <a href="{% url 'consulente_partitario_consulente' %}"><strong>Situazione contabile consulente</strong></a>
+            <a href="{% url 'consulente_posizione_contabile' %}">Panoramica contabile</a>
             <a href="{% url 'consulente_posizione_proforma' %}">Proforma / parcelle (PDF)</a>
             <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti (bonifici)</a>
             <a href="{% url 'consulente_posizione_estratto' %}">Excel bonifici (estratto)</a>
