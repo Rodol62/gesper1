@@ -295,6 +295,56 @@
       <span class="mc-title">Import PDF unico</span>
       <span class="mc-desc">Import massivo da PDF</span>
     </a>
+    <a href="{% url 'consulente_posizione_contabile' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-journal-bookmark-fill"></i></span>
+      <span class="mc-title">Posizione contabile</span>
+      <span class="mc-desc">Proforma, bonifici, estratto Excel e libro movimenti</span>
+    </a>
+    <a href="{% url 'libro_paga_lista' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-book-half"></i></span>
+      <span class="mc-title">Libro paga</span>
+      <span class="mc-desc">Registro buste e riferimenti INPS / contributi</span>
+    </a>
+    <a href="{% url 'lista_dipendenti' %}?stato=attivo" class="module-card">
+      <span class="mc-icon"><i class="bi bi-people-fill"></i></span>
+      <span class="mc-title">Dipendenti attivi</span>
+      <span class="mc-desc">Elenco anagrafiche in forza</span>
+    </a>
+    <a href="{% url 'lista_contratti_scadenza' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calendar-event"></i></span>
+      <span class="mc-title">Scadenze contratti</span>
+      <span class="mc-desc">Contratti a termine e TD in scadenza</span>
+    </a>
+    <a href="{% url 'lista_documenti' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-folder2-open"></i></span>
+      <span class="mc-title">Archivio documenti</span>
+      <span class="mc-desc">Filtri su tipo, anno e dipendente</span>
+    </a>
+    <a href="{% url 'lista_richieste' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-chat-dots-fill"></i></span>
+      <span class="mc-title">Richieste</span>
+      <span class="mc-desc">Ferie, permessi e richieste del personale</span>
+    </a>
+    <a href="{% url 'lista_presenze' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calendar-check"></i></span>
+      <span class="mc-title">Registro presenze</span>
+      <span class="mc-desc">Timbrature e gestione giornaliera</span>
+    </a>
+    <a href="{% url 'riepilogo_scostamento_cedolino' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-arrow-left-right"></i></span>
+      <span class="mc-title">Scostamento vs cedolino</span>
+      <span class="mc-desc">Calendario lavorato rispetto al cedolino</span>
+    </a>
+    <a href="{% url 'calendario_aziendale' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calendar3"></i></span>
+      <span class="mc-title">Calendario aziendale</span>
+      <span class="mc-desc">Festività, chiusure e giorni lavorativi</span>
+    </a>
+    <a href="{% url 'guida_modulo' 'modulo-consulente' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-question-circle-fill"></i></span>
+      <span class="mc-title">Guida modulo consulente</span>
+      <span class="mc-desc">Istruzioni e flussi dell’area consulente</span>
+    </a>
     <a href="{% url 'centro_rapporti_lavoro' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-briefcase-fill"></i></span>
       <span class="mc-title">Rapporti di lavoro</span>
