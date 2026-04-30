@@ -88,6 +88,35 @@ Esegui quando il **codice**, **Nginx/HTTPS** e **Gunicorn** su gesper1 sono già
 
 Il secondo Gunicorn su **8001** e le `location` Nginx per `/gesper-test/` **non sono più** nel repository. Su una VPS ancora configurata così: rimuovi da `sites-available` le `location` `/gesper-test/`, `sudo systemctl disable --now gesper-test` (se esiste), `sudo nginx -t && sudo systemctl reload nginx`. I path in repo (`deploy/nginx-gesper-vps-standalone.conf`, `nginx-gesper-production-split.conf`) espongono solo **8000** (root su `gesper1`) e opz. **8003** per `/gesper/` su `www` (split).
 
+## 0.4 Checklist rapida — sviluppo → Git → deploy (~1 min)
+
+Flusso consigliato: **modifiche solo in locale** (o branch), **commit/push** su GitHub, **deploy** verso la VPS. Evitare patch persistenti solo in produzione senza riportarle nel repo.
+
+### Pre-commit (Mac, root del repo)
+
+1. `git status` — solo le modifiche che si intendono committare.
+2. `.venv/bin/python manage.py check`
+3. Se si è toccata logica critica (es. registro studio / import):  
+   `.venv/bin/python manage.py test accounts.tests_consulente_registro_studio -v 1` (o il sottoinsieme di test abituale).
+4. `git diff` rapido su file sensibili (`settings_production.py`, `urls.py`, viste).
+5. `git commit` con messaggio chiaro.
+
+### Pre-push
+
+6. `git push origin main` (o il branch usato dal team).
+
+### Pre-deploy (Mac)
+
+7. Dalla directory del repo:  
+   `GESPER_DEPLOY_HOST=root@gesper1.plazapretoria.it ./deploy/remote-rsync-django-gesper1.sh`  
+   (variabili opzionali: vedi commenti in cima a `deploy/remote-rsync-django-gesper1.sh`.)
+8. Controllare l’output: `migrate` senza errori, `collectstatic` ok, `systemctl is-active gesper` → **active**.
+
+### Post-deploy (browser, ~2 min)
+
+9. Login area consulente + una pagina “pesante” (libro / pagamenti / proforma).
+10. Un flusso legato all’ultima modifica (es. allegato PDF bonifico, upload multipart documenti).
+
 ## 1. Ruoli
 
 | Componente | Funzione |
