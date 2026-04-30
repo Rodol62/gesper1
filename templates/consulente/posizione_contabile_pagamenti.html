@@ -13,7 +13,11 @@
   </nav>
 
   <h1 class="h4 mb-2" style="color:#1b3a5f;font-weight:700"><i class="bi bi-bank me-2"></i>Pagamenti (bonifici)</h1>
-  <p class="text-muted small">Salva i PDF delle distinte di bonifico (import guidato) oppure registra manualmente data, importo e riferimento (CRO / TRN). Puoi allegare un PDF anche al bonifico manuale.</p>
+  <p class="text-muted small mb-1">
+    <strong>A regime:</strong> l’azienda (o il consulente) registra data, importo, riferimento e opzionalmente la distinta PDF; il libro mostra l’avere e il saldo.
+    Dopo un <strong>pregresso da Excel</strong> (bonifici già in tabella senza file), usa il riquadro <strong>«Aggancia distinte PDF»</strong> per allegare le copie alle righe esistenti (CRO/data/importo come da distinta).
+  </p>
+  <p class="text-muted small">Puoi registrare un bonifico <strong>solo dalla distinta PDF</strong> (importo e CRO leggibili nel file), oppure con <strong>dati manuali</strong> e PDF opzionale. Sulle righe già salvate puoi <strong>sostituire</strong> o <strong>rimuovere</strong> il PDF. Durante l’invio dei file viene mostrata la <strong>percentuale di caricamento</strong>.</p>
 
   {% include "consulente/posizione_contabile_subnav.html" %}
 
@@ -21,12 +25,87 @@
     <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
   {% endfor %}
 
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header py-2 bg-light small fw-semibold">Import bonifici da Excel (riepilogo)</div>
+    <div class="card-body py-3">
+      <p class="small text-secondary mb-2 border-start border-3 border-primary ps-2">
+        Questo riquadro serve solo a <strong>caricare un nuovo</strong> file Excel: <strong>non è uno storico</strong> degli import.
+        L’elenco dei bonifici salvati è nella <strong>tabella in fondo alla pagina</strong>. Se dopo aver eliminato righe da Admin vedi ancora movimenti,
+        controlla di essere sulla <strong>stessa installazione</strong> (es. <code>127.0.0.1</code> = database locale, non il server di produzione) e sulla <strong>stessa azienda</strong> selezionata in consulente.
+      </p>
+      <p class="small text-muted mb-2">
+        Intestazioni obbligatorie: <strong>Data</strong>, <strong>Descrizione</strong> (o Dettaglio / Causale), <strong>Importo</strong> (o Dare / Avere / Valore).
+        La colonna <strong>Documento</strong> (o Doc., Protocollo, Fattura…) è <strong>opzionale</strong>. Si cercano le intestazioni nelle prime <strong>150 righe</strong> e, se serve, nei primi <strong>8 fogli</strong> del file.
+        Vengono importate solo le righe riconosciute come <strong>bonifico</strong>; l’<strong>avere</strong> nel libro è il <strong>valore assoluto</strong> della colonna Importo (se in Excel gli incassi sono negativi, in Pagamenti risultano positivi).
+        Se <strong>tutta</strong> la colonna Importo (valori non nulli) è <strong>negativa</strong>, si importano <strong>solo</strong> le righe con importo negativo (gli importi positivi nella colonna vengono ignorati).
+        Le righe di <strong>solo</strong> proforma/parcella (testo emissione o colonna Documento tipo «PARCELLA 182», «PF-…», «PAR-…» senza bonifico SEPA) <strong>non</strong> diventano bonifici: il dare resta dai PDF in Proforma. Le righe con «Bonifico» / CRO in descrizione si importano anche se in Documento c’è un numero parcella.
+        Per ogni bonifico, in «Causale» e nelle note si indica se il <strong>PDF della proforma/parcella</strong> collegata al «Documento» è presente in archivio o meno.
+        Se in passato risultano ancora bonifici in avere duplicati rispetto alle parcelle (stesso importo, riferimento <code>PARCELLA …|…</code>), la pulizia mirata è in <a href="{% url 'consulente_posizione_libro' %}">Libro movimenti</a> (istruzioni comando in fondo alla pagina).
+      </p>
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end small gesper-multipart-upload">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="import_riepilogo_bonifici">
+        <div class="col-12 col-md-8">
+          <label class="form-label text-muted mb-0">File .xlsx</label>
+          <input type="file" name="excel_riepilogo" class="form-control form-control-sm" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+        </div>
+        <div class="col-12 col-md-4">
+          <button type="submit" class="btn btn-outline-primary btn-sm w-100">Importa bonifici</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4 border-secondary">
+    <div class="card-header py-2 bg-light small fw-semibold">Pregresso: aggancia distinte PDF a bonifici già in libro (senza allegato)</div>
+    <div class="card-body py-3">
+      <p class="small text-muted mb-2">
+        Cerca un movimento <strong>bonifico</strong> senza file con lo stesso <strong>CRO/TRN</strong> (o stessa data+importo come da Excel), poi salva il PDF come allegato. Utile dopo import Excel senza distinte.
+        In alternativa, nella <strong>tabella in basso</strong> ogni riga senza PDF ha <strong>Allega PDF</strong> sulla stessa riga (stessa logica della distinta).
+      </p>
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end gesper-multipart-upload">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="aggancia_pdf_bonifici">
+        <div class="col-12 col-md-8">
+          <label class="form-label small text-muted mb-1">PDF distinte (multiplo)</label>
+          <input type="file" name="pdf_aggancia_bonifici" class="form-control form-control-sm" accept="application/pdf,.pdf" multiple required>
+        </div>
+        <div class="col-12 col-md-4">
+          <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Aggancia PDF a bonifici esistenti</button>
+        </div>
+      </form>
+      {% if report_aggancia_csv_bonifici %}
+      <p class="small text-muted border-top pt-2 mb-0 mt-2">
+        <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=bonifici" class="fw-semibold">Scarica report CSV</a>
+        dell’ultimo aggancio distinte (per file: esito, movimento id, riferimento/importo/data estratti, messaggio).
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
   <div class="row g-3 mb-4">
-    <div class="col-lg-6">
+    <div class="col-lg-6 d-flex flex-column gap-3">
+      <div class="card border-0 shadow-sm border-primary">
+        <div class="card-header py-2 bg-light small fw-semibold">Solo distinta PDF (nuovo bonifico)</div>
+        <div class="card-body py-3">
+          <p class="small text-muted mb-2">Crea una riga in avere e allega il file: servono <strong>importo</strong> e <strong>riferimento</strong> (CRO / TRN) leggibili nel testo del PDF. Se il file è solo immagine, usa il modulo sotto.</p>
+          <form method="post" enctype="multipart/form-data" class="row g-2 small gesper-multipart-upload">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="solo_pdf_bonifico">
+            <div class="col-12">
+              <label class="form-label text-muted mb-0">PDF distinta</label>
+              <input type="file" name="pdf_bonifico_solo" class="form-control form-control-sm" accept="application/pdf,.pdf" required>
+            </div>
+            <div class="col-12 pt-1">
+              <button type="submit" class="btn btn-primary btn-sm">Registra da PDF</button>
+            </div>
+          </form>
+        </div>
+      </div>
       <div class="card border-0 shadow-sm h-100">
         <div class="card-header py-2 bg-light small fw-semibold">Bonifico manuale + PDF opzionale</div>
         <div class="card-body py-3">
-          <form method="post" enctype="multipart/form-data" class="row g-2 small">
+          <form method="post" enctype="multipart/form-data" class="row g-2 small gesper-multipart-upload">
             {% csrf_token %}
             <input type="hidden" name="action" value="aggiungi_bonifico">
             <div class="col-md-6">
@@ -61,7 +140,7 @@
         <div class="card-header py-2 bg-light small fw-semibold">Upload multiplo PDF distinte</div>
         <div class="card-body py-3">
           <p class="small text-muted">Per ogni file viene tentata l’estrazione automatica di importo e riferimento dal testo del PDF. Se non riesce, usare il modulo a sinistra.</p>
-          <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+          <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end gesper-multipart-upload">
             {% csrf_token %}
             <div class="col-12">
               <input type="file" name="pdf" class="form-control form-control-sm" accept="application/pdf,.pdf" multiple required>
@@ -75,6 +154,7 @@
     </div>
   </div>
 
+  <h2 class="h6 text-secondary mb-2">Bonifici registrati (database)</h2>
   <div class="table-responsive border rounded shadow-sm">
     <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.8rem">
       <thead class="table-light">
@@ -83,7 +163,7 @@
           <th>Riferimento</th>
           <th>Causale</th>
           <th class="text-end">Avere</th>
-          <th>PDF</th>
+          <th>PDF bonifico</th>
         </tr>
       </thead>
       <tbody>
@@ -93,7 +173,31 @@
           <td class="font-monospace small">{{ r.riferimento_pagamento|default:"—" }}</td>
           <td class="small text-muted">{{ r.causale_pagamento|truncatechars:48|default:"—" }}</td>
           <td class="text-end font-monospace">€ {{ r.avere|num_it:2 }}</td>
-          <td>{% if r.file %}<a href="{{ r.file.url }}" target="_blank" rel="noopener">Scarica</a>{% else %}—{% endif %}</td>
+          <td class="align-top" style="min-width:12rem">
+            {% if r.file %}
+            <div class="d-flex flex-column gap-1">
+              <a href="{{ r.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">Apri PDF</a>
+              <form method="post" action="{% url 'consulente_pagamenti_allega_pdf_movimento' r.pk %}" enctype="multipart/form-data" class="d-flex flex-column gap-1 gesper-multipart-upload"
+                    onsubmit="return confirm('Sostituire il PDF del bonifico del {% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %} (€ {{ r.avere|num_it:2 }})?');">
+                {% csrf_token %}
+                <input type="file" name="pdf" class="form-control form-control-sm py-0" accept="application/pdf,.pdf" required title="Nuova distinta (stesso importo/data della riga)">
+                <button type="submit" class="btn btn-sm btn-outline-secondary py-0">Sostituisci PDF</button>
+              </form>
+              <form method="post" action="{% url 'consulente_pagamenti_rimuovi_pdf_movimento' r.pk %}" class="d-inline" data-no-upload-progress="1"
+                    onsubmit="return confirm('Rimuovere il PDF da questo bonifico? La riga resta in elenco senza allegato.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0 w-100">Rimuovi PDF</button>
+              </form>
+            </div>
+            {% else %}
+            <form method="post" action="{% url 'consulente_pagamenti_allega_pdf_movimento' r.pk %}" enctype="multipart/form-data" class="d-flex flex-column gap-1 gesper-multipart-upload"
+                  onsubmit="return confirm('Allegare questo PDF al bonifico del {% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %} (€ {{ r.avere|num_it:2 }})?');">
+              {% csrf_token %}
+              <input type="file" name="pdf" class="form-control form-control-sm py-0" accept="application/pdf,.pdf" required title="Distinta coerente con importo/data della riga">
+              <button type="submit" class="btn btn-sm btn-primary py-0">Allega PDF</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% empty %}
         <tr><td colspan="5" class="text-center text-muted py-4">Nessun pagamento registrato.</td></tr>

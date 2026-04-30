@@ -148,10 +148,18 @@ class Command(BaseCommand):
         data = json.loads(preview_path.read_text(encoding="utf-8"))
         rows = data.get("rows", [])
         f24_pages = data.get("f24_pages", [])
+        diagnostics = data.get("diagnostics", {}) or {}
         natura_busta_file = (data.get("natura_busta_file") or "ORDINARIA").upper()
         source_pdf = Path(data.get("pdf", "")).expanduser()
-        if not rows:
-            raise CommandError("Nessuna riga nel file preview.")
+        if not rows and not f24_pages:
+            extra_hint = (diagnostics.get("hint") or "").strip()
+            raise CommandError(
+                (
+                    "Nessuna riga nel file preview (ne buste ne F24): "
+                    "il PDF potrebbe essere immagine/scansione senza testo leggibile."
+                )
+                + (f" Dettaglio: {extra_hint}" if extra_hint else "")
+            )
 
         attach_docs = bool(options.get("attach_docs"))
         allow_overwrite = bool(options.get("allow_overwrite"))

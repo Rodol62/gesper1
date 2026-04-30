@@ -85,6 +85,19 @@ document.addEventListener('DOMContentLoaded', function () {
   };
   sel.addEventListener('change', refresh);
   refresh();
+
+  const selAll = document.getElementById('doc-email-seleziona-tutti');
+  const checks = Array.from(document.querySelectorAll('.doc-email-checkbox'));
+  if (selAll && checks.length) {
+    selAll.addEventListener('change', function () {
+      checks.forEach(function (c) { c.checked = selAll.checked; });
+    });
+    checks.forEach(function (c) {
+      c.addEventListener('change', function () {
+        selAll.checked = checks.every(function (x) { return x.checked; });
+      });
+    });
+  }
 });
 </script>
 {% endblock %}
@@ -181,7 +194,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       {# Contratto già generato #}
       {% if proposta.contratto_generato_id %}
-        <a class="btn btn-sm btn-outline-dark" href="{% url 'contratto_pdf' proposta.contratto_generato_id %}">
+        <a class="btn btn-sm btn-outline-dark" href="{% url 'contratto_pdf' proposta.contratto_generato_id %}?ui=1&amp;next={{ request.path|urlencode }}">
           <i class="bi bi-file-earmark-pdf"></i> Contratto PDF
         </a>
         <a class="btn btn-sm btn-outline-primary" href="{% url 'dettaglio_contratto' proposta.contratto_generato_id %}">
@@ -343,8 +356,125 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="small text-muted mb-2">
         Riferimenti tracciati: <strong>{{ proposta.numero_proposta }}</strong>{% if proposta.contratto_generato %} · <strong>{{ proposta.contratto_generato.numero_contratto }}</strong>{% endif %}
       </div>
+      {% if user.is_superuser or user.ruolo == 'admin' or user.ruolo == 'hr' %}
+      <form method="post" action="{% url 'invia_documenti_proposta_email' proposta.id %}">
+        {% csrf_token %}
+      {% endif %}
+      <div class="fw-semibold mb-1" style="font-size:.82rem;color:#1b3a5f">Documenti disponibili</div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" style="font-size:.83rem">
+          <thead>
+            <tr>
+              <th style="width:170px">Data e ora</th>
+              <th style="width:120px">Tipo</th>
+              <th>Documento</th>
+              <th style="width:130px">File</th>
+              {% if user.is_superuser or user.ruolo == 'admin' or user.ruolo == 'hr' %}
+              <th style="width:120px">
+                <label class="small text-muted mb-0">
+                  <input type="checkbox" id="doc-email-seleziona-tutti" class="form-check-input me-1">
+                  Allega
+                </label>
+              </th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for doc in documenti_riferimento_email %}
+            <tr>
+              <td class="fw-semibold">{{ doc.data_riferimento|date:"d/m/Y H:i" }}</td>
+              <td>{{ doc.tipo_display }}</td>
+              <td>{{ doc.descrizione }}</td>
+              <td>
+                <a class="btn btn-sm btn-outline-primary"
+                   style="font-size:.72rem;padding:.2rem .5rem"
+                   href="{{ doc.visualizza_url }}"
+                   target="_blank" rel="noopener">
+                  <i class="bi bi-file-earmark-pdf"></i> Visualizza PDF
+                </a>
+                <div class="text-muted" style="font-size:.68rem;margin-top:.2rem;">
+                  Rif: {{ doc.riferimento_display|default:doc.select_value }}
+                </div>
+                {% if doc.storage_path %}
+                <div class="text-muted" style="font-size:.66rem;word-break:break-all;">
+                  {{ doc.storage_path }}
+                </div>
+                {% endif %}
+              </td>
+              {% if user.is_superuser or user.ruolo == 'admin' or user.ruolo == 'hr' %}
+              <td>
+                <input class="form-check-input doc-email-checkbox" type="checkbox" name="documenti_ids" value="{{ doc.select_value }}">
+              </td>
+              {% endif %}
+            </tr>
+            {% if doc.invio_email_recente %}
+            <tr class="table-light border-top-0">
+              {% if user.is_superuser or user.ruolo == 'admin' or user.ruolo == 'hr' %}
+              <td colspan="5" class="py-2 small text-muted" style="font-size:.74rem;border-top:0;padding-top:0!important">
+              {% else %}
+              <td colspan="4" class="py-2 small text-muted" style="font-size:.74rem;border-top:0;padding-top:0!important">
+              {% endif %}
+                <i class="bi bi-envelope-check text-success me-1"></i>
+                <span class="text-dark fw-semibold">Inviato per e-mail</span>
+                il {{ doc.invio_email_recente.data_evento|date:"d/m/Y H:i" }}
+                a <strong>{{ doc.invio_email_recente.destinatario }}</strong>
+                {% if doc.invio_email_recente.oggetto %}
+                <span class="text-muted">·</span> oggetto: «{{ doc.invio_email_recente.oggetto }}»
+                {% endif %}
+              </td>
+            </tr>
+            {% endif %}
+            {% empty %}
+            <tr>
+              <td colspan="{% if user.is_superuser or user.ruolo == 'admin' or user.ruolo == 'hr' %}5{% else %}4{% endif %}" class="text-muted">
+                Nessun documento disponibile per il dipendente collegato alla proposta.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if user.is_superuser or user.ruolo == 'admin' or user.ruolo == 'hr' %}
+      <hr class="my-3">
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" id="email-send-toggle" data-bs-toggle="collapse" data-bs-target="#email-send-box" aria-expanded="false" aria-controls="email-send-box">
+          <label class="form-check-label small" for="email-send-toggle">
+            Vuoi inviare i documenti selezionati al dipendente?
+          </label>
+        </div>
+        <div id="email-send-box" class="collapse">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label mb-1 small">Destinatario e-mail</label>
+            <input type="email" name="destinatario_email" class="form-control form-control-sm" value="{{ proposta.dipendente.email|default:'' }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label mb-1 small">Oggetto</label>
+            <input type="text" name="oggetto_email" class="form-control form-control-sm" value="Invio documenti — {{ proposta.dipendente.cognome }} {{ proposta.dipendente.nome }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label mb-1 small">Testo accompagnamento</label>
+            <textarea name="testo_email" rows="5" class="form-control form-control-sm" required>{{ email_accompagnamento_default }}</textarea>
+            <div class="small text-muted mt-1">
+              Suggerimento: inserisci qui il messaggio da inviare al dipendente. Gli allegati saranno quelli selezionati sopra.
+            </div>
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-sm btn-primary">
+              <i class="bi bi-send-fill"></i> Invia documenti selezionati
+            </button>
+          </div>
+        </div>
+        </div>
+      </form>
+      {% endif %}
+
+      {% if eventi_documento %}
+      <hr class="my-3">
+      <div class="fw-semibold mb-1" style="font-size:.82rem;color:#1b3a5f">Storico eventi</div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0" style="font-size:.8rem">
           <thead>
             <tr>
               <th style="width:170px">Data e ora</th>
@@ -363,11 +493,19 @@ document.addEventListener('DOMContentLoaded', function () {
           </tbody>
         </table>
       </div>
+      {% endif %}
     </div>
   </div>
   {% endif %}
 
-  <!-- DOCUMENTO -->
+  <div class="d-print-none mb-2">
+    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#doc-area-wrap" aria-expanded="false" aria-controls="doc-area-wrap">
+      <i class="bi bi-eye"></i> Mostra anteprima proposta/contratto
+    </button>
+  </div>
+
+  <!-- DOCUMENTO (anteprima nascosta di default) -->
+  <div id="doc-area-wrap" class="collapse">
   <div id="doc-area">
 
     <!-- ── INTESTAZIONE ───────────────────────────────────────── -->
@@ -378,6 +516,7 @@ document.addEventListener('DOMContentLoaded', function () {
         {% if proposta.azienda.email %}<div>{{ proposta.azienda.email }}{% if proposta.azienda.telefono %} &nbsp;—&nbsp; Tel. {{ proposta.azienda.telefono }}{% endif %}</div>{% endif %}
         {% if proposta.azienda.partita_iva %}<div style="font-size:9pt;color:#555">P.IVA {{ proposta.azienda.partita_iva }}</div>{% endif %}
       </div>
+  </div>
       <div class="doc-ref">
         <div class="rif-num">Rif. {{ proposta.numero_proposta }}</div>
         <div>{{ proposta.data_creazione|date:"d/m/Y" }}</div>

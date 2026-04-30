@@ -307,6 +307,11 @@
 {% if request.user.is_superuser or request.user|has_ruolo:'admin' or request.user|has_ruolo:'hr' %}
 <div class="alert alert-light border py-2 small mb-3" role="status">
   <div class="mb-1"><strong>Documenti del personale.</strong> In questa area trovi buste paga, CUD e F24, con filtri per anno, tipo e dipendente. Consensi privacy, firme e tracciature più avanzate saranno gestiti nel modulo dedicato (in evoluzione).</div>
+  {% if tipo_filter == 'contratto' and anno_filter and contratti_senza_anno_esplicito_inclusi %}
+  <div class="mb-1 text-muted" style="font-size:.85em;">
+    Nota contratti: {{ contratti_senza_anno_esplicito_inclusi }} documento/i senza anno esplicito nel nome/descrizione sono inclusi per compatibilita archivio legacy.
+  </div>
+  {% endif %}
   <div class="mb-0 text-muted" style="font-size:.9em;">
     <a href="{% url 'guida_modulo' 'documenti-compliance' %}">Guida: documenti e compliance</a>
   </div>
@@ -743,7 +748,7 @@
                                                             {% with natura=mov.natura_busta|default:'ORDINARIA' %}
                                                             {% if rr.documento and rr.file_available %}
                                                                 <a href="{% url 'visualizza_documento' rr.documento.id %}" class="btn btn-outline-secondary btn-xxs">
-                                                                    Visualizza {% if natura == 'TREDICESIMA' %}13ª{% elif natura == 'QUATTORDICESIMA' %}14ª{% else %}Ord.{% endif %}
+                                                                    Visualizza #{{ rr.documento.id }} {% if natura == 'TREDICESIMA' %}13ª{% elif natura == 'QUATTORDICESIMA' %}14ª{% else %}Ord.{% endif %}
                                                                 </a>
                                                                 {% if rr.documento.file.name|lower|slice:"-4:" == ".pdf" %}
                                                                 <a href="{% url 'visualizza_cedolino_busta' rr.documento.id %}" class="btn btn-outline-info btn-xxs" title="Dati estratti dal cedolino">Cedolino</a>
@@ -757,7 +762,7 @@
                                                             {% endwith %}
                                                         {% else %}
                                                             {% if rr.documento and rr.file_available %}
-                                                                <a href="{% url 'visualizza_documento' rr.documento.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza</a>
+                                                                <a href="{% url 'visualizza_documento' rr.documento.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza #{{ rr.documento.id }}</a>
                                                                 {% if rr.documento.file.name|lower|slice:"-4:" == ".pdf" %}
                                                                 <a href="{% url 'visualizza_cedolino_busta' rr.documento.id %}" class="btn btn-outline-info btn-xxs" title="Dati estratti dal cedolino">Cedolino</a>
                                                                 {% endif %}
@@ -831,7 +836,7 @@
                                 <div class="br-action-row">
                                 {% with rr=m.rows.0 %}
                                 {% if rr and rr.movimento and rr.movimento.documento and rr.movimento.documento.file %}
-                                    <a href="{% url 'visualizza_documento' rr.movimento.documento.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza PDF</a>
+                                    <a href="{% url 'visualizza_documento' rr.movimento.documento.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza PDF #{{ rr.movimento.documento.id }}</a>
                                     <a href="{% url 'download_documento' rr.movimento.documento.id %}" class="btn btn-primary btn-xxs">Stampa PDF</a>
                                 {% else %}
                                     <span class="text-muted br-action-muted">PDF non disponibile</span>
@@ -858,7 +863,7 @@
                                         <div class="br-action-row">
                                         {% with doc=r.movimento.documento %}
                                         {% if doc and doc.file %}
-                                            <a href="{% url 'visualizza_documento' doc.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza</a>
+                                            <a href="{% url 'visualizza_documento' doc.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza #{{ doc.id }}</a>
                                             <a href="{% url 'download_documento' doc.id %}" class="btn btn-primary btn-xxs">Stampa</a>
                                         {% else %}
                                             <span class="text-muted br-action-muted">Nessun file</span>
@@ -922,7 +927,7 @@
                         <div class="br-actions">
                             <div class="br-action-row">
                             {% if r and r.file_available %}
-                                <a href="{% url 'visualizza_documento' r.documento.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza</a>
+                                <a href="{% url 'visualizza_documento' r.documento.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza #{{ r.documento.id }}</a>
                                 <a href="{% url 'download_documento' r.documento.id %}" class="btn btn-primary btn-xxs">Stampa</a>
                             {% elif r %}
                                 <span class="text-muted br-action-muted">File non disponibile</span>
@@ -987,7 +992,7 @@
                 <td>{{ documento.data_caricamento|date:'d/m/Y' }}</td>
                 <td style="white-space:nowrap">
                     {% if documento.file %}
-                    <a href="{% url 'visualizza_documento' documento.id %}" class="btn btn-sm btn-outline-secondary" style="font-size:.72rem">Visualizza</a>
+                    <a href="{% url 'visualizza_documento' documento.id %}" class="btn btn-sm btn-outline-secondary" style="font-size:.72rem">Visualizza #{{ documento.id }}</a>
                     {% endif %}
                     {% if documento.tipo == 'busta_paga' and documento.file and documento.file.name|lower|slice:"-4:" == ".pdf" %}
                     <a href="{% url 'visualizza_cedolino_busta' documento.id %}" class="btn btn-sm btn-outline-info" style="font-size:.72rem" title="Estrazione cedolino">Cedolino</a>

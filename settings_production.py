@@ -76,6 +76,11 @@ else:
     ]
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
+# Obbligatorio su gesper1.* in root: cookie validi su tutto il path pubblico (/rapporti/, /accounts/, …).
+# Se systemd usa per errore ``settings_production_www``, quel modulo imposta SESSION_COOKIE_PATH=/gesper/:
+# il browser non invia più la sessione su URL come /rapporti/contratti/N/ → redirect continuo al login.
+SESSION_COOKIE_PATH = '/'
+CSRF_COOKIE_PATH = '/'
 SECURE_SSL_REDIRECT = False  # Nginx gestisce HTTPS, non Django
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # Nginx imposta il nome host con ``proxy_set_header Host $host``. Con

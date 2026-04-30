@@ -13,7 +13,12 @@
   </nav>
 
   <h1 class="h4 mb-2" style="color:#1b3a5f;font-weight:700"><i class="bi bi-file-earmark-pdf me-2"></i>Proforma e parcelle (PDF)</h1>
-  <p class="text-muted small">Carica tutti i PDF delle proforma e delle parcelle in un solo invio (multiplo). Sono esclusi i file il cui nome inizia con <code>riepilogo</code>. Da terminale: <code class="small">python manage.py import_proforma_parcelle_studio --path «cartella» --username {{ request.user.username }}</code></p>
+  <p class="text-muted small mb-1">
+    <strong>A regime:</strong> il consulente carica qui i PDF mensili: il sistema estrae data, numero e importo e crea le righe in dare nel libro, con allegato.
+    Dopo un <strong>pregresso da Excel</strong> (solo numeri in tabella), usa il riquadro sotto per <strong>agganciare massivamente</strong> i PDF alle righe già presenti <strong>senza file</strong> (stesso numero documento letto dal PDF).
+  </p>
+  <p class="text-muted small">Sono esclusi i file il cui nome inizia con <code>riepilogo</code>. Da terminale (cartella locale, stessa deduplica <strong>data+numero</strong> del portale): <code class="small">python manage.py import_proforma_parcelle_studio --path «cartella» --username {{ request.user.username }}</code> — opz. <code class="small">--report-csv /percorso/report.csv</code> e <code class="small">--dry-run</code>.</p>
+  <p class="small border-start border-primary border-3 ps-2 mb-0">Per i <strong>bonifici</strong> da Excel o distinte PDF usa <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a>.</p>
 
   {% include "consulente/posizione_contabile_subnav.html" %}
 
@@ -21,10 +26,10 @@
     <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
   {% endfor %}
 
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header py-2 bg-light small fw-semibold">Upload PDF</div>
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 bg-light small fw-semibold">Nuove proforma / parcelle (crea righe in libro)</div>
     <div class="card-body py-3">
-      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end gesper-multipart-upload">
         {% csrf_token %}
         <div class="col-12 col-md-8">
           <label class="form-label small text-muted mb-1">Allega uno o più PDF</label>
@@ -34,6 +39,69 @@
           <button type="submit" class="btn btn-primary btn-sm w-100">Importa e ricalcola saldi</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3 border-info">
+    <div class="card-header py-2 bg-light small fw-semibold">Senza PDF: registra manualmente (poi allega con «Aggancia PDF»)</div>
+    <div class="card-body py-3">
+      <p class="small text-muted mb-2">
+        Per proforma/parcelle <strong>non importabili da PDF</strong> (es. solo cartaceo o PDF non leggibile): crea la riga in libro con
+        <strong>data</strong>, <strong>tipo</strong>, <strong>numero</strong> e <strong>importo da pagare</strong> (uguale al <strong>dare contabile</strong>).
+        Quando avrai il file, usa il riquadro sotto <strong>Aggancia PDF</strong> con lo stesso numero e data estratti dal PDF.
+      </p>
+      <form method="post" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="inserimento_manuale_documento">
+        <div class="col-6 col-md-2">
+          <label class="form-label small text-muted mb-1">Data documento</label>
+          <input type="date" name="data_documento" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small text-muted mb-1">Tipo</label>
+          <select name="tipo_documento" class="form-select form-select-sm" required>
+            <option value="proforma">Proforma</option>
+            <option value="parcella">Parcella</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small text-muted mb-1">Numero documento</label>
+          <input type="text" name="numero_documento" class="form-control form-control-sm font-monospace" maxlength="80" placeholder="es. PF-2026-01 o PARCELLA 182" required autocomplete="off">
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small text-muted mb-1">Importo da pagare (€)</label>
+          <input type="text" name="importo_da_pagare" class="form-control form-control-sm font-monospace" inputmode="decimal" placeholder="es. 1.234,56" required autocomplete="off">
+        </div>
+        <div class="col-12 col-md-2">
+          <button type="submit" class="btn btn-outline-primary btn-sm w-100">Registra senza PDF</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4 border-secondary">
+    <div class="card-header py-2 bg-light small fw-semibold">Pregresso: aggancia PDF a righe già in libro (senza allegato)</div>
+    <div class="card-body py-3">
+      <p class="small text-muted mb-2">
+        Per ogni PDF servono <strong>data documento</strong> e <strong>numero</strong> estratti dal testo (stesso numero in anni diversi si distingue per la data). Si cerca una riga <strong>documento</strong> senza file con la <strong>stessa data</strong> e numero <strong>uguale o compatibile</strong> (es. in libro «182» e nel PDF «PARCELLA 182»). Se in libro la data manca, deve esserci <strong>una sola</strong> riga senza data con quel numero. Usare questo riquadro solo se le righe esistono <strong>senza PDF</strong>: il pulsante «Importa» sopra crea invece <strong>nuove</strong> righe. Solo allegato + testo estratto; non crea nuove righe.
+      </p>
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end gesper-multipart-upload">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="aggancia_pdf_documenti">
+        <div class="col-12 col-md-8">
+          <label class="form-label small text-muted mb-1">PDF da agganciare (multiplo)</label>
+          <input type="file" name="pdf_aggancia" class="form-control form-control-sm" accept="application/pdf,.pdf" multiple required>
+        </div>
+        <div class="col-12 col-md-4">
+          <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Aggancia PDF a movimenti esistenti</button>
+        </div>
+      </form>
+      {% if report_aggancia_csv_documenti %}
+      <p class="small text-muted border-top pt-2 mb-0 mt-2">
+        <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=documenti" class="fw-semibold">Scarica report CSV</a>
+        dell’ultimo aggancio massivo (per file: esito, movimento id, numero/data letti dal PDF, messaggio). Utile per correggere in blocco le righe saltate.
+      </p>
+      {% endif %}
     </div>
   </div>
 
@@ -67,7 +135,31 @@
             {% endif %}
           </td>
           <td class="text-end font-monospace">€ {{ r.dare|num_it:2 }}</td>
-          <td>{% if r.file %}<a href="{{ r.file.url }}" target="_blank" rel="noopener">Apri</a>{% else %}—{% endif %}</td>
+          <td class="align-top" style="min-width:11rem">
+            {% if r.file %}
+            <div class="d-flex flex-column gap-1">
+              <a href="{{ r.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">Apri PDF</a>
+              <form method="post" action="{% url 'consulente_proforma_allega_pdf_movimento' r.pk %}" enctype="multipart/form-data" class="d-flex flex-column gap-1 gesper-multipart-upload"
+                    onsubmit="return confirm('Sostituire il PDF del documento n. {{ r.numero_documento|default:"—"|escapejs }}?');">
+                {% csrf_token %}
+                <input type="file" name="pdf" class="form-control form-control-sm py-0" accept="application/pdf,.pdf" required title="Nuovo PDF con stesso numero e data della riga">
+                <button type="submit" class="btn btn-sm btn-outline-secondary py-0">Sostituisci PDF</button>
+              </form>
+              <form method="post" action="{% url 'consulente_proforma_rimuovi_pdf_movimento' r.pk %}" class="d-inline" data-no-upload-progress="1"
+                    onsubmit="return confirm('Rimuovere il PDF da questo documento?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0 w-100">Rimuovi PDF</button>
+              </form>
+            </div>
+            {% else %}
+            <form method="post" action="{% url 'consulente_proforma_allega_pdf_movimento' r.pk %}" enctype="multipart/form-data" class="d-flex flex-column gap-1 gesper-multipart-upload"
+                  onsubmit="return confirm('Allegare questo PDF al documento n. {{ r.numero_documento|default:"—"|escapejs }} del {% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}?');">
+              {% csrf_token %}
+              <input type="file" name="pdf" class="form-control form-control-sm py-0" accept="application/pdf,.pdf" required title="PDF con stesso numero e data documento della riga">
+              <button type="submit" class="btn btn-sm btn-primary py-0">Allega PDF</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% if r.note %}<tr class="border-0"><td colspan="7" class="pt-0 pb-2 small text-muted">{{ r.note }}</td></tr>{% endif %}
         {% empty %}

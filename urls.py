@@ -50,7 +50,13 @@ def pwa_index(request):
 
 
 if PWA_ROOT.is_dir():
+    # Refusi comuni (es. host gesper1 + «-app» → gesperr1-app / gesper1-app): portano alla PWA reale.
+    _pwa_typo_redirect = RedirectView.as_view(pattern_name='pwa_index', permanent=False)
     urlpatterns += [
+        path('gesperr1-app', _pwa_typo_redirect),
+        path('gesperr1-app/', _pwa_typo_redirect),
+        path('gesper1-app', _pwa_typo_redirect),
+        path('gesper1-app/', _pwa_typo_redirect),
         path('gesper-app', RedirectView.as_view(pattern_name='pwa_index', permanent=False)),
         re_path(
             r'^gesper-app/undefined/?$',

@@ -145,7 +145,7 @@
               <td class="text-end">{% if r.lordo is not None %}€ {{ r.lordo|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
               <td class="text-end">{% if r.netto is not None %}€ {{ r.netto|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
               <td class="doc-actions text-nowrap">
-                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi</a>
+                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi #{{ r.doc.id }}</a>
                 {% if r.doc.file and r.doc.file.name|lower|slice:"-4:" == ".pdf" %}
                 <a href="{% url 'visualizza_cedolino_busta' r.doc.id %}" class="btn btn-outline-info">Cedolino</a>
                 {% endif %}
@@ -240,7 +240,7 @@
               </td>
               <td style="white-space:nowrap;font-size:.82rem">{{ r.data_caricamento|date:"d/m/Y H:i" }}</td>
               <td class="text-end doc-actions text-nowrap">
-                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi</a>
+                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi #{{ r.doc.id }}</a>
                 <a href="{% url 'download_documento' r.doc.id %}" class="btn btn-outline-secondary">Scarica</a>
                 {% if r.doc.caricato_dal_dipendente and not r.doc.visualizzato_da_azienda %}
                 <form method="post" action="{% url 'elimina_documento' r.doc.id %}" class="d-inline">
@@ -355,7 +355,7 @@
               </td>
               <td style="white-space:nowrap;font-size:.82rem">{{ r.data_caricamento|date:"d/m/Y H:i" }}</td>
               <td class="text-end doc-actions text-nowrap">
-                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi</a>
+                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi #{{ r.doc.id }}</a>
                 <a href="{% url 'download_documento' r.doc.id %}" class="btn btn-outline-secondary">Scarica</a>
                 {% if r.doc.caricato_dal_dipendente and not r.doc.visualizzato_da_azienda %}
                 <form method="post" action="{% url 'elimina_documento' r.doc.id %}" class="d-inline">
@@ -434,7 +434,7 @@
               </td>
               <td style="white-space:nowrap;font-size:.82rem">{{ r.data_caricamento|date:"d/m/Y H:i" }}</td>
               <td class="text-end doc-actions text-nowrap">
-                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi</a>
+                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi #{{ r.doc.id }}</a>
                 <a href="{% url 'download_documento' r.doc.id %}" class="btn btn-outline-secondary">Scarica</a>
                 {% if r.doc.caricato_dal_dipendente and not r.doc.visualizzato_da_azienda %}
                 <form method="post" action="{% url 'elimina_documento' r.doc.id %}" class="d-inline">

@@ -215,6 +215,28 @@ sudo systemctl restart gesper gesper-www
 
 Riferimento rapido: `deploy/prod-setup.sh` (messaggi e comandi echo).
 
+### Pulizia import Excel — bonifici partitario consulente–azienda
+
+**Non è una voce di menu nell’app:** è un **management command** Django da eseguire **sulla VPS** (o in locale con lo stesso database che vuoi ripulire). Elimina, **per una sola azienda** (`--azienda-id` = pk in Admin → Azienda):
+
+- i movimenti `bonifico` marcati come provenienti da **Excel** (riepilogo / estratto conto);
+- i record **`ImportEstrattoContoStudio`** di quell’azienda (storico import “estratto”).
+
+Senza flag aggiuntivi mostra solo **conteggi** (anteprima). Con **`--execute`** applica le cancellazioni e **ricalcola i saldi progressivi**. I bonifici caricati in altro modo (es. solo PDF) restano intatti se non hanno quella tracciatura Excel.
+
+Per eliminare **solo** i bonifici «finti» da riepilogo PROFORMA (riferimento sintetico tipo `PARCELLA 182|data|…`) lasciando i bonifici bancari reali e **senza** toccare `ImportEstrattoContoStudio`, usare **`--solo-parcella-proforma-sintetici`** insieme a `--execute` (sempre dopo un’anteprima senza `--execute`).
+
+```bash
+cd /var/www/gesper
+set -a; [ -f /etc/gesper.env ] && . /etc/gesper.env; set +a
+export DJANGO_SETTINGS_MODULE=settings_production
+./.venv/bin/python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID
+./.venv/bin/python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID --execute
+./.venv/bin/python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID --solo-parcella-proforma-sintetici --execute
+```
+
+Codice: `accounts/management/commands/rimuovi_bonifici_import_excel_studio.py`.
+
 ### Radice dati (`GESPER_DATA_ROOT`)
 
 - **Produzione consigliata (gesper1, unificata con il codice in repo):** in `/etc/gesper.env` imposta `GESPER_DATA_ROOT=/var/www/gesper/documento` così **DB**, **`media/`** e **`archivio/`** stanno sotto un solo albero; `settings_production` usa `MEDIA_ROOT=$GESPER_DATA_ROOT/media`. **Nginx** in `deploy/nginx-gesper-vps-standalone.conf` (e split) ha `location /media/` → `alias /var/www/gesper/documento/media/;`.

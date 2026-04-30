@@ -15,7 +15,7 @@
     {% if v4_conflitto_documento_id %}
     <div class="alert alert-info py-2 px-3 mt-2 mb-0 small border-info">
       <strong>Stesso periodo, altro documento:</strong> in archivio c’è già un’estrazione v4 per questo dipendente e mese/anno, ma legata al documento
-      <a href="{% url 'visualizza_documento' v4_conflitto_documento_id %}" class="alert-link fw-semibold">#{{ v4_conflitto_documento_id }}</a>
+      <a href="{% url 'visualizza_documento' v4_conflitto_documento_id %}" class="alert-link fw-semibold">documento #{{ v4_conflitto_documento_id }}</a>
       (probabilmente un duplicato o una versione precedente del cedolino). Non la riusiamo automaticamente su questo PDF.
       Se <em>questo</em> è il file giusto, premi comunque <strong>v4</strong> qui: aggiorna il legame e sostituisce i dati memorizzati con l’estrazione da questo PDF.
     </div>

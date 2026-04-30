@@ -11,6 +11,8 @@ class AccountsConfig(AppConfig):
         from . import signals_dipendente  # noqa: F401
         # Signal: allineamento dati anagrafici User/ProfiloCandidato/Dipendente
         from . import signals_anagrafica  # noqa: F401
+        # Signal: dopo eliminazione movimento partitario → ricalcolo saldi
+        from . import signals_registro_studio  # noqa: F401
         from accounts.models import ConfigurazioneSistema
 
         post_save.connect(

@@ -11,6 +11,8 @@ import argparse
 import json
 import re
 import subprocess
+import sys
+import tempfile
 from collections import Counter
 from dataclasses import dataclass, asdict
 from datetime import date
@@ -18,8 +20,12 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
-PDF_BUSTE_PASSWORD = "DOLCEMASCOLO"
-
+# Quando lo script viene eseguito via subprocess dal management command,
+# sys.path punta a scripts/. Inseriamo la root progetto per poter importare
+# i moduli Django locali (es. documenti.buste_pdf_passwords).
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 MONTHS_IT = {
     "GENNAIO": 1,
@@ -35,6 +41,20 @@ MONTHS_IT = {
     "NOVEMBRE": 11,
     "DICEMBRE": 12,
 }
+
+
+def _password_candidates() -> list[str]:
+    """
+    Password candidate per PDF cifrati:
+    - usa la stessa logica applicativa (`documenti.buste_pdf_passwords`)
+    - include sempre anche stringa vuota (PDF non protetti)
+    """
+    try:
+        from documenti.buste_pdf_passwords import passwords_for_busta_pdf_read
+
+        return passwords_for_busta_pdf_read()
+    except Exception:
+        return [""]
 
 STOP_NAME_WORDS = {
     "COGNOME", "NOME", "CODICE", "FISCALE", "DATA", "ASSUNZ", "COMUNE",
@@ -62,25 +82,90 @@ class PageResult:
 
 
 def run_pdftotext_layout(pdf_path: Path) -> str:
-    cmd = ["pdftotext", "-layout", "-upw", PDF_BUSTE_PASSWORD, str(pdf_path), "-"]
-    try:
-        proc = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        return proc.stdout
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        # Fallback senza dipendenze di sistema: usa pypdf
-        import importlib
+    # 1) Tentativi pdftotext: prima senza password, poi password candidate.
+    candidates = [p for p in _password_candidates() if p]
+    attempts = [None, *candidates]
+    for pwd in attempts:
+        cmd = ["pdftotext", "-layout"]
+        if pwd is not None:
+            cmd += ["-upw", pwd]
+        cmd += [str(pdf_path), "-"]
+        try:
+            proc = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            return proc.stdout
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            continue
 
-        PdfReader = importlib.import_module("pypdf").PdfReader
-        reader = PdfReader(str(pdf_path))
-        if getattr(reader, 'is_encrypted', False):
-            reader.decrypt(PDF_BUSTE_PASSWORD)
-        pages = []
-        for p in reader.pages:
+    # 2) Fallback senza dipendenze di sistema: usa pypdf (+ tentativi password).
+    import importlib
+
+    PdfReader = importlib.import_module("pypdf").PdfReader
+    reader = PdfReader(str(pdf_path))
+    if getattr(reader, "is_encrypted", False):
+        unlocked = False
+        for pwd in _password_candidates():
             try:
-                pages.append(p.extract_text() or "")
+                if reader.decrypt(pwd):
+                    unlocked = True
+                    break
             except Exception:
-                pages.append("")
-        return "\f".join(pages)
+                continue
+        if not unlocked:
+            return ""
+    pages = []
+    for p in reader.pages:
+        try:
+            pages.append(p.extract_text() or "")
+        except Exception:
+            pages.append("")
+    return "\f".join(pages)
+
+
+def run_ocr_fallback(pdf_path: Path) -> str:
+    """
+    OCR fallback per PDF scansione/immagine.
+    Richiede binari di sistema: `pdftoppm` e `tesseract`.
+    Restituisce testo separato da form-feed per pagina.
+    """
+    with tempfile.TemporaryDirectory(prefix="gesper_ocr_") as td:
+        tmpdir = Path(td)
+        # Genera PNG per pagina (con tentativi password, perché molti PDF paghe sono cifrati).
+        # -r 220: buon compromesso qualità/tempo per layout paghe.
+        ok = False
+        for pwd in [None, *_password_candidates()]:
+            ppm_cmd = ["pdftoppm", "-png", "-r", "220"]
+            if pwd:
+                ppm_cmd += ["-upw", pwd]
+            ppm_cmd += [str(pdf_path), str(tmpdir / "page")]
+            try:
+                subprocess.run(ppm_cmd, check=True, capture_output=True, text=True)
+                ok = True
+                break
+            except subprocess.CalledProcessError:
+                continue
+        if not ok:
+            raise RuntimeError("OCR fallback: impossibile rasterizzare PDF (password/lettura).")
+
+        page_imgs = sorted(tmpdir.glob("page-*.png"))
+        pages_txt: list[str] = []
+        for img in page_imgs:
+            out_base = img.with_suffix("")  # tesseract aggiunge .txt
+            tess_cmd = [
+                "tesseract",
+                str(img),
+                str(out_base),
+                "-l",
+                "ita",
+                "--psm",
+                "6",
+            ]
+            subprocess.run(tess_cmd, check=True, capture_output=True, text=True)
+            txt_path = Path(f"{out_base}.txt")
+            if txt_path.exists():
+                pages_txt.append(txt_path.read_text(encoding="utf-8", errors="ignore"))
+            else:
+                pages_txt.append("")
+        return "\f".join(pages_txt)
 
 
 def normalize_spaces(s: str) -> str:
@@ -458,8 +543,53 @@ def classify_page(text: str) -> str:
 
 
 def analyze_pdf(pdf_path: Path) -> dict:
+    def _parse_pages(raw_content: str) -> list[PageResult]:
+        pages = (raw_content or "").split("\f")
+        out: list[PageResult] = []
+        for idx, raw_page in enumerate(pages, start=1):
+            text = raw_page or ""
+            kind = classify_page(text)
+            month, year = extract_period(text)
+            result = PageResult(
+                page=idx,
+                kind=kind,
+                cf=extract_cf(text) if kind == "BUSTA" else None,
+                full_name=extract_name(text) if kind == "BUSTA" else None,
+                birth_date=extract_birth_date(text) if kind == "BUSTA" else None,
+                lordo_busta=extract_lordo(text) if kind == "BUSTA" else None,
+                netto_busta=extract_netto(text) if kind == "BUSTA" else None,
+                f24_importo=extract_f24_importo(text) if kind == "F24" else None,
+                period_month=month,
+                period_year=year,
+                data_assunzione_conv=extract_data_assunzione_conv(text) if kind == "BUSTA" else None,
+                data_cessazione=extract_data_cessazione(text) if kind == "BUSTA" else None,
+            )
+            if result.kind == "BUSTA" and not result.cf and not result.netto_busta:
+                result.kind = "ALTRO"
+            # evita l'ultima pagina vuota dopo split su form-feed
+            if idx == len(pages) and not normalize_spaces(text):
+                continue
+            out.append(result)
+        return out
+
     content = run_pdftotext_layout(pdf_path)
-    pages = content.split("\f")
+    page_results = _parse_pages(content)
+
+    # OCR fallback aggressivo:
+    # - se testo quasi vuoto, oppure
+    # - se non riconosciamo alcuna pagina BUSTA/F24 (caso tipico OCR necessario).
+    if (
+        len(re.sub(r"\s+", "", content or "")) < 80
+        or not any(p.kind in {"BUSTA", "F24"} for p in page_results)
+    ):
+        try:
+            ocr_content = run_ocr_fallback(pdf_path)
+            ocr_results = _parse_pages(ocr_content)
+            if any(p.kind in {"BUSTA", "F24"} for p in ocr_results):
+                page_results = ocr_results
+                content = ocr_content
+        except Exception:
+            pass
 
     # Fallback da nome file (es: "1 GENNAIO 2024.pdf")
     file_upper = pdf_path.name.upper().replace("_", " ")
@@ -472,32 +602,6 @@ def analyze_pdf(pdf_path: Path) -> dict:
         if m_name in file_upper:
             fallback_month = m_num
             break
-
-    page_results: list[PageResult] = []
-    for idx, raw_page in enumerate(pages, start=1):
-        text = raw_page or ""
-        kind = classify_page(text)
-        month, year = extract_period(text)
-        result = PageResult(
-            page=idx,
-            kind=kind,
-            cf=extract_cf(text) if kind == "BUSTA" else None,
-            full_name=extract_name(text) if kind == "BUSTA" else None,
-            birth_date=extract_birth_date(text) if kind == "BUSTA" else None,
-            lordo_busta=extract_lordo(text) if kind == "BUSTA" else None,
-            netto_busta=extract_netto(text) if kind == "BUSTA" else None,
-            f24_importo=extract_f24_importo(text) if kind == "F24" else None,
-            period_month=month,
-            period_year=year,
-            data_assunzione_conv=extract_data_assunzione_conv(text) if kind == "BUSTA" else None,
-            data_cessazione=extract_data_cessazione(text) if kind == "BUSTA" else None,
-        )
-        if result.kind == "BUSTA" and not result.cf and not result.netto_busta:
-            result.kind = "ALTRO"
-        # evita l'ultima pagina vuota dopo split su form-feed
-        if idx == len(pages) and not normalize_spaces(text):
-            continue
-        page_results.append(result)
 
     # Consolida periodo sulle buste (evita 2009 da intestazioni autorizzative)
     buste_periods = [

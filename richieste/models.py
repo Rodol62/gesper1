@@ -40,3 +40,26 @@ class Richiesta(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.dipendente} ({self.get_stato_display()})"
+
+
+class InboxEmailDipendenteAzione(models.Model):
+    azienda = models.ForeignKey(Azienda, on_delete=models.CASCADE, related_name='inbox_email_dipendenti_azioni')
+    mailbox = models.CharField(max_length=120, default='INBOX')
+    uid_email = models.CharField(max_length=120)
+    mittente_email = models.CharField(max_length=255, blank=True, default='')
+    oggetto = models.CharField(max_length=255, blank=True, default='')
+    nascosta = models.BooleanField(default=False)
+    risposta_inviata = models.BooleanField(default=False)
+    data_risposta = models.DateTimeField(null=True, blank=True)
+    risposta_testo = models.TextField(blank=True, default='')
+    aggiornata_il = models.DateTimeField(auto_now=True)
+    creata_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('azienda', 'mailbox', 'uid_email')]
+        ordering = ['-aggiornata_il', '-id']
+        verbose_name = 'Inbox email dipendente (azione)'
+        verbose_name_plural = 'Inbox email dipendenti (azioni)'
+
+    def __str__(self):
+        return f'{self.mailbox}:{self.uid_email} - {self.mittente_email}'

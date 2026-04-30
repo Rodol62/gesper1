@@ -152,7 +152,7 @@
 
   {% if mese_bloccato_riepilogo and is_admin_hr %}
   <div class="alert alert-warning border py-2 small mb-2" role="status">
-    <strong>Mese chiuso.</strong> Esiste un <a href="{% url 'riepilogo_mensile_motore' %}?anno={{ anno|anno_it }}&mese={{ mese }}">riepilogo motore</a> per questo mese in stato <em>approvato</em> o <em>elaborato</em>: le presenze non possono essere modificate finché quel riepilogo resta in tale stato (coerenza con cedolino / monti).
+    <strong>Mese chiuso.</strong> Esiste un <a href="{% url 'riepilogo_mensile_motore' %}?anno={{ anno|anno_it }}&mese={{ mese }}">riepilogo motore</a> per questo mese in stato <em>approvato</em> o <em>elaborato</em>: le presenze non sono modificabili finché resta così (coerenza con cedolino / monti). Per correggere: nella stessa pagina motore, sulla riga del dipendente, usa <strong>Riapri mese</strong> (torna in bozza e rimuove i movimenti ferie/ROL di quella chiusura; poi ricalcola con «Aggrega»).
   </div>
   {% endif %}
 

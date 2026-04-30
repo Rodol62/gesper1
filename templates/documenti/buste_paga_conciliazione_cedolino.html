@@ -211,7 +211,7 @@ details.conc-det[open] > summary { margin-bottom: 0; }
           </td>
           <td class="small text-break" style="max-width:8rem">{{ row.conc_tab.motore }}</td>
           <td class="text-end conc-actions">
-            <a href="{% url 'visualizza_documento' row.documento.id %}" class="btn btn-outline-secondary btn-sm" title="Apri PDF">PDF</a>
+            <a href="{% url 'visualizza_documento' row.documento.id %}" class="btn btn-outline-secondary btn-sm" title="Apri PDF">PDF #{{ row.documento.id }}</a>
             {% if not row.extraction_error %}
             <a href="{% url 'visualizza_cedolino_busta' row.documento.id %}" class="btn btn-outline-primary btn-sm" title="Scheda cedolino">Cedolino</a>
             {% endif %}

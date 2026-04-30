@@ -7,7 +7,14 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
-from .models import User, ConfigurazioneSistema, ProfiloCandidato
+from .models import (
+	ConfigurazioneSistema,
+	ImportEstrattoContoStudio,
+	MovimentoRegistroStudioConsulente,
+	ProfiloCandidato,
+	RigaEstrattoContoStudio,
+	User,
+)
 from .portale_dipendente_defaults import (
     GRUPPO_PORTALE_DIPENDENTE,
     sync_gruppo_portale_se_ruolo_portale,
@@ -343,3 +350,139 @@ class ConfigurazioneSistemaAdmin(admin.ModelAdmin):
 
 	def has_delete_permission(self, request, obj=None):
 		return False
+
+
+@admin.register(MovimentoRegistroStudioConsulente)
+class MovimentoRegistroStudioConsulenteAdmin(admin.ModelAdmin):
+	"""Libro movimenti partitario consulente–azienda (proforma/parcelle in dare, bonifici in avere)."""
+
+	list_display = (
+		'id',
+		'azienda',
+		'tipo_riga',
+		'tipo_documento',
+		'numero_documento',
+		'rif_pagamento_breve',
+		'data_documento',
+		'dare',
+		'avere',
+		'saldo_progressivo',
+		'metodo_estrazione',
+		'nome_file_breve',
+		'importato_il',
+	)
+	list_filter = ('tipo_riga', 'tipo_documento', 'azienda', 'metodo_estrazione')
+	search_fields = (
+		'numero_documento',
+		'nome_file',
+		'riferimento_pagamento',
+		'note',
+		'causale_pagamento',
+	)
+	readonly_fields = ('importato_il',)
+	date_hierarchy = 'data_documento'
+	autocomplete_fields = ('azienda', 'importato_da')
+	ordering = ('-data_documento', '-importato_il', '-id')
+	actions = ('ricalcola_saldi_progressivi_action',)
+
+	fieldsets = (
+		(
+			None,
+			{
+				'fields': (
+					'azienda',
+					'tipo_riga',
+					'tipo_documento',
+					'numero_documento',
+					'data_documento',
+					'totale_da_pagare',
+					'dare',
+					'avere',
+					'saldo_progressivo',
+				),
+			},
+		),
+		(
+			'Origine e allegati',
+			{
+				'fields': ('nome_file', 'file', 'metodo_estrazione', 'importato_da', 'importato_il'),
+			},
+		),
+		(
+			'Testo estratto (PDF) / note',
+			{
+				'fields': ('testo_estratto', 'note', 'riferimento_pagamento', 'causale_pagamento'),
+				'classes': ('collapse',),
+			},
+		),
+	)
+
+	@admin.display(description='Rif. pagamento')
+	def rif_pagamento_breve(self, obj):
+		r = (obj.riferimento_pagamento or '').strip()
+		if not r:
+			return '—'
+		return (r[:40] + '…') if len(r) > 40 else r
+
+	@admin.display(description='Nome file')
+	def nome_file_breve(self, obj):
+		nf = obj.nome_file or ''
+		if len(nf) <= 52:
+			return nf or '—'
+		return nf[:49] + '…'
+
+	def get_queryset(self, request):
+		return super().get_queryset(request).select_related('azienda', 'importato_da')
+
+	@admin.action(description='Ricalcola saldi progressivi (per ogni azienda selezionata)')
+	def ricalcola_saldi_progressivi_action(self, request, queryset):
+		from .consulente_registro_studio import ricalcola_saldi_progressivi as _ricalcola
+
+		ids = set(queryset.values_list('azienda_id', flat=True))
+		for aid in ids:
+			_ricalcola(aid)
+		self.message_user(request, _('Saldi progressivi aggiornati per %(n)s azienda/e.') % {'n': len(ids)})
+
+
+@admin.register(ImportEstrattoContoStudio)
+class ImportEstrattoContoStudioAdmin(admin.ModelAdmin):
+	"""Import Excel estratto conto (tracciamento righe; uso avanzato / storico)."""
+
+	list_display = ('id', 'azienda', 'nome_file', 'righe_lette', 'righe_agganciate', 'importato_il', 'importato_da')
+	list_filter = ('azienda',)
+	search_fields = ('nome_file',)
+	readonly_fields = ('importato_il',)
+	autocomplete_fields = ('azienda', 'importato_da')
+	ordering = ('-importato_il', '-id')
+
+	def get_queryset(self, request):
+		return super().get_queryset(request).select_related('azienda', 'importato_da')
+
+
+@admin.register(RigaEstrattoContoStudio)
+class RigaEstrattoContoStudioAdmin(admin.ModelAdmin):
+	"""Singola riga di un import estratto conto Excel."""
+
+	list_display = (
+		'id',
+		'importazione',
+		'indice_riga',
+		'descrizione_breve',
+		'importo_excel',
+		'data_excel',
+		'esito_match',
+		'movimento',
+	)
+	list_filter = ('esito_match', 'importazione__azienda')
+	search_fields = ('descrizione', 'riferimento_excel', 'importazione__nome_file')
+	readonly_fields = ('importazione', 'indice_riga', 'celle_raw')
+	autocomplete_fields = ('movimento',)
+	ordering = ('-importazione_id', '-indice_riga')
+
+	def get_queryset(self, request):
+		return super().get_queryset(request).select_related('importazione', 'movimento')
+
+	@admin.display(description='Descrizione')
+	def descrizione_breve(self, obj):
+		d = (obj.descrizione or '')[:64]
+		return d + ('…' if len(obj.descrizione or '') > 64 else '')

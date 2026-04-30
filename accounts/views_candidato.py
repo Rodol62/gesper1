@@ -1016,13 +1016,19 @@ def accetta_contratto_dipendente(request, contratto_id):
 @_richiede_candidato
 def candidato_mio_contratto(request):
     """Dettaglio del contratto del dipendente."""
+    from documenti.models import Documento
     from rapporto_di_lavoro.models import RapportoDiLavoro
+    from rapporto_di_lavoro.views import (
+        _descrizione_contratto_firmato_cartaceo,
+        registra_contratto_firmato_cartaceo_da_dipendente,
+    )
+
     dip = _get_dipendente(request.user)
     if not dip:
         messages.warning(request, "Nessun profilo dipendente collegato.")
         return redirect('candidato_dashboard')
     contratto = (
-        RapportoDiLavoro.objects.filter(dipendente=dip, stato='sottoscritto')
+        RapportoDiLavoro.objects.filter(dipendente=dip, stato__in=('sottoscritto', 'sospeso'))
         .select_related('tipo_contratto', 'azienda', 'proposta_origine')
         .order_by('-data_inizio_rapporto', '-id')
         .first()
@@ -1030,6 +1036,42 @@ def candidato_mio_contratto(request):
     if not contratto:
         messages.info(request, "Nessun contratto sottoscritto disponibile in portale.")
         return redirect('candidato_miei_documenti')
+
+    descr_cartaceo = _descrizione_contratto_firmato_cartaceo(contratto.numero_contratto)
+    documento_cartaceo = (
+        Documento.objects.filter(
+            dipendente_id=dip.id,
+            azienda_id=contratto.azienda_id,
+            tipo='contratto',
+            descrizione=descr_cartaceo,
+        )
+        .order_by('-id')
+        .first()
+    )
+    puo_caricare_contratto_cartaceo = True
+    if documento_cartaceo and documento_cartaceo.visualizzato_da_azienda:
+        puo_caricare_contratto_cartaceo = False
+
+    if request.method == 'POST' and request.POST.get('action') == 'upload_contratto_cartaceo':
+        if not puo_caricare_contratto_cartaceo:
+            messages.error(
+                request,
+                'Non è possibile sostituire il PDF: il documento risulta già acquisito dall’azienda.',
+            )
+            return redirect('candidato_mio_contratto')
+        f = request.FILES.get('contratto_firmato_pdf')
+        if not f:
+            messages.error(request, 'Seleziona un file PDF da caricare.')
+            return redirect('candidato_mio_contratto')
+        try:
+            registra_contratto_firmato_cartaceo_da_dipendente(contratto, request.user, f)
+            messages.success(
+                request,
+                'Contratto firmato caricato. Sarà visibile in «I miei documenti» e usato come PDF del contratto nel portale.',
+            )
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        return redirect('candidato_mio_contratto')
 
     profilo = getattr(request.user, 'profilo_candidato', None)
     _num_fam = int(profilo.num_familiari_a_carico or 0) if profilo else 0
@@ -1047,6 +1089,8 @@ def candidato_mio_contratto(request):
         'calc_ret': calc_ret,
         'profilo': profilo,
         'eventi_documento': eventi_documento,
+        'documento_cartaceo': documento_cartaceo,
+        'puo_caricare_contratto_cartaceo': puo_caricare_contratto_cartaceo,
     })
 
 

@@ -5,14 +5,21 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Exists, OuterRef
-from .models import Richiesta
+from django.utils.html import strip_tags
+from django.core.mail import EmailMessage, get_connection
+from .models import Richiesta, InboxEmailDipendenteAzione
 from anagrafiche.models import Dipendente
+from accounts.models import ConfigurazioneSistema
 from anagrafiche.permissions import admin_required, hr_required, dipendente_required
 from log_attivita.utils import registra_log
 from django.utils import timezone
 from accounts.tenant import get_azienda_operativa
 from api.views import send_push_to_user
 from workflow.models import RichiestaApprovazione
+from email import message_from_bytes
+from email.header import decode_header
+from email.utils import parseaddr, parsedate_to_datetime
+import imaplib
 
 
 def _is_admin_or_hr(user):
@@ -75,6 +82,244 @@ def _blocca_se_workflow_pending(request, richiesta: Richiesta) -> bool:
     return False
 
 
+def _decode_mime_header(value: str) -> str:
+    if not value:
+        return ''
+    parts = decode_header(value)
+    out = []
+    for text, enc in parts:
+        if isinstance(text, bytes):
+            out.append(text.decode(enc or 'utf-8', errors='replace'))
+        else:
+            out.append(str(text))
+    return ''.join(out).strip()
+
+
+def _extract_text_snippet(msg, max_len: int = 220) -> str:
+    if msg.is_multipart():
+        for part in msg.walk():
+            ctype = (part.get_content_type() or '').lower()
+            disp = (part.get('Content-Disposition') or '').lower()
+            if ctype == 'text/plain' and 'attachment' not in disp:
+                payload = part.get_payload(decode=True) or b''
+                charset = part.get_content_charset() or 'utf-8'
+                text = payload.decode(charset, errors='replace')
+                text = ' '.join(strip_tags(text).split())
+                return text[:max_len]
+    payload = msg.get_payload(decode=True) or b''
+    charset = msg.get_content_charset() or 'utf-8'
+    text = payload.decode(charset, errors='replace')
+    text = ' '.join(strip_tags(text).split())
+    return text[:max_len]
+
+
+def _imap_host_candidates(smtp_host: str, username: str = '') -> list[str]:
+    host = (smtp_host or '').strip()
+    user = (username or '').strip().lower()
+    domain = user.split('@', 1)[1] if '@' in user else ''
+    cands = []
+    if host:
+        cands.append(host)
+        if host.startswith('smtp.'):
+            cands.append('imap.' + host[len('smtp.'):])
+        if not host.startswith('imap.'):
+            cands.append('imap.' + host)
+    if domain:
+        cands.extend([
+            f'imap.{domain}',
+            f'imaps.{domain}',
+        ])
+    # fallback noti Aruba/PEC Aruba
+    cands.extend([
+        'imaps.aruba.it',
+        'imap.pec.aruba.it',
+        'imaps.pec.aruba.it',
+    ])
+    # ordine + dedup
+    seen = set()
+    out = []
+    for h in cands:
+        k = h.lower()
+        if h and k not in seen:
+            seen.add(k)
+            out.append(h)
+    return out
+
+
+@login_required
+def inbox_email_dipendenti(request):
+    if not _is_admin_or_hr(request.user):
+        return HttpResponseForbidden("Accesso riservato ad admin e HR.")
+    azienda_scope = _azienda_scope_for_staff(request.user, request)
+    if not azienda_scope:
+        messages.error(request, "Azienda operativa non disponibile.")
+        return redirect('lista_richieste')
+
+    cfg = ConfigurazioneSistema.get()
+    username = (cfg.smtp_user or '').strip()
+    password = (cfg.smtp_password or '').strip()
+    dip_email_filter = (request.GET.get('dip_email') or '').strip().lower()
+    mailbox = (request.GET.get('mailbox') or 'INBOX').strip() or 'INBOX'
+    max_rows = 80
+    testo_risposta_default = (
+        "Buongiorno,\n\n"
+        "abbiamo ricevuto la sua e-mail e la stiamo gestendo.\n\n"
+        "Cordiali saluti"
+    )
+
+    dip_qs = Dipendente.objects.filter(azienda=azienda_scope).exclude(email='').exclude(email__isnull=True)
+    if dip_email_filter:
+        dip_qs = dip_qs.filter(email__icontains=dip_email_filter)
+    dipendenti = list(dip_qs.only('id', 'nome', 'cognome', 'email'))
+    dip_by_email = {str(d.email).strip().lower(): d for d in dipendenti if d.email}
+
+    email_rows = []
+    errore_conn = ''
+    host_usato = ''
+    totale_esaminate = 0
+    totale_match = 0
+
+    if request.method == 'POST':
+        action = (request.POST.get('action') or '').strip().lower()
+        uid_email = (request.POST.get('uid_email') or '').strip()
+        mittente = (request.POST.get('mittente_email') or '').strip().lower()
+        oggetto = (request.POST.get('oggetto') or '').strip()
+        if not uid_email:
+            messages.error(request, 'UID e-mail mancante.')
+            return redirect('inbox_email_dipendenti')
+        azione_obj, _ = InboxEmailDipendenteAzione.objects.get_or_create(
+            azienda=azienda_scope,
+            mailbox=mailbox,
+            uid_email=uid_email,
+            defaults={'mittente_email': mittente, 'oggetto': oggetto},
+        )
+        if action == 'hide':
+            azione_obj.nascosta = True
+            azione_obj.mittente_email = mittente or azione_obj.mittente_email
+            azione_obj.oggetto = oggetto or azione_obj.oggetto
+            azione_obj.save(update_fields=['nascosta', 'mittente_email', 'oggetto', 'aggiornata_il'])
+            messages.success(request, 'E-mail rimossa dalla vista (non eliminata dal server di posta).')
+            return redirect('inbox_email_dipendenti')
+        if action == 'unhide':
+            azione_obj.nascosta = False
+            azione_obj.save(update_fields=['nascosta', 'aggiornata_il'])
+            messages.success(request, 'E-mail ripristinata in elenco.')
+            return redirect('inbox_email_dipendenti')
+        if action == 'reply':
+            testo_risposta = (request.POST.get('testo_risposta') or '').strip()
+            if not mittente:
+                messages.error(request, 'Mittente non valido per la risposta.')
+                return redirect('inbox_email_dipendenti')
+            if not testo_risposta:
+                messages.error(request, 'Inserisci il testo risposta.')
+                return redirect('inbox_email_dipendenti')
+            try:
+                conn = get_connection(backend='accounts.email_backend.ConfigurazioneSistemaEmailBackend')
+                subj = oggetto or 'Riscontro richiesta'
+                if not subj.lower().startswith('re:'):
+                    subj = f'Re: {subj}'
+                msg = EmailMessage(
+                    subject=subj,
+                    body=testo_risposta,
+                    from_email=None,
+                    to=[mittente],
+                    connection=conn,
+                )
+                msg.send()
+                azione_obj.risposta_inviata = True
+                azione_obj.data_risposta = timezone.now()
+                azione_obj.risposta_testo = testo_risposta
+                azione_obj.mittente_email = mittente or azione_obj.mittente_email
+                azione_obj.oggetto = oggetto or azione_obj.oggetto
+                azione_obj.save(update_fields=[
+                    'risposta_inviata', 'data_risposta', 'risposta_testo',
+                    'mittente_email', 'oggetto', 'aggiornata_il',
+                ])
+                messages.success(request, f'Risposta inviata a {mittente}.')
+            except Exception as exc:
+                messages.error(request, f'Invio risposta non riuscito: {exc}')
+            return redirect('inbox_email_dipendenti')
+
+    if not username or not password or not cfg.smtp_host:
+        errore_conn = 'Configurazione email incompleta: imposta host/utente/password in Impostazioni > Email.'
+    else:
+        last_exc = None
+        for host in _imap_host_candidates(cfg.smtp_host, username):
+            try:
+                with imaplib.IMAP4_SSL(host, 993) as imap:
+                    imap.login(username, password)
+                    imap.select(mailbox)
+                    typ, data = imap.uid('search', None, 'ALL')
+                    if typ != 'OK':
+                        break
+                    uids = (data[0] or b'').split()
+                    uids = uids[-250:]  # coda recente
+                    azioni_map = {
+                        a.uid_email: a
+                        for a in InboxEmailDipendenteAzione.objects.filter(
+                            azienda=azienda_scope,
+                            mailbox=mailbox,
+                            uid_email__in=[u.decode('utf-8', errors='ignore') for u in uids],
+                        )
+                    }
+                    for uid in reversed(uids):
+                        if len(email_rows) >= max_rows:
+                            break
+                        uid_s = uid.decode('utf-8', errors='ignore')
+                        az = azioni_map.get(uid_s)
+                        if az and az.nascosta:
+                            continue
+                        typ, payload = imap.uid('fetch', uid, '(RFC822)')
+                        if typ != 'OK' or not payload or not payload[0]:
+                            continue
+                        raw = payload[0][1]
+                        msg = message_from_bytes(raw)
+                        totale_esaminate += 1
+                        from_name, from_addr = parseaddr(msg.get('From', ''))
+                        from_addr = (from_addr or '').strip().lower()
+                        if not from_addr or 'cardella' in from_addr:
+                            continue
+                        dip = dip_by_email.get(from_addr)
+                        if not dip:
+                            continue
+                        subj = _decode_mime_header(msg.get('Subject', ''))
+                        dt = None
+                        try:
+                            dt = parsedate_to_datetime(msg.get('Date', ''))
+                        except Exception:
+                            dt = None
+                        email_rows.append({
+                            'uid_email': uid_s,
+                            'from_addr': from_addr,
+                            'from_name': from_name,
+                            'subject': subj or '(senza oggetto)',
+                            'date': dt,
+                            'snippet': _extract_text_snippet(msg),
+                            'dipendente': dip,
+                            'gia_risposta': bool(az and az.risposta_inviata),
+                            'data_risposta': az.data_risposta if az else None,
+                        })
+                    host_usato = host
+                    break
+            except Exception as exc:
+                last_exc = exc
+                continue
+        if not host_usato:
+            errore_conn = f'Connessione IMAP non riuscita: {last_exc}' if last_exc else 'Connessione IMAP non riuscita.'
+    totale_match = len(email_rows)
+
+    return render(request, 'richieste/inbox_email_dipendenti.html', {
+        'email_rows': email_rows,
+        'dip_email_filter': dip_email_filter,
+        'host_usato': host_usato,
+        'mailbox': mailbox,
+        'totale_esaminate': totale_esaminate,
+        'totale_match': totale_match,
+        'errore_conn': errore_conn,
+        'testo_risposta_default': testo_risposta_default,
+    })
+
+
 @login_required
 def lista_richieste(request):
     """Lista richieste — per admin/HR mostra quelle della propria azienda.
@@ -99,6 +344,7 @@ def lista_richieste(request):
     # Filtro tipo e stato da querystring
     tipo_filter = request.GET.get('tipo', '')
     stato_filter = request.GET.get('stato', '')
+    dip_email_filter = (request.GET.get('dip_email') or '').strip()
     
     # Di default, mostra solo le richieste "inviata" (pendenti)
     if not stato_filter:
@@ -108,6 +354,10 @@ def lista_richieste(request):
     
     if tipo_filter:
         richieste = richieste.filter(tipo=tipo_filter)
+    if dip_email_filter and _is_admin_or_hr(request.user):
+        richieste = richieste.filter(
+            dipendente__email__icontains=dip_email_filter
+        )
 
     wf_pending_sq = RichiestaApprovazione.objects.filter(
         richiesta_id=OuterRef('pk'),
@@ -122,6 +372,7 @@ def lista_richieste(request):
         'page_obj': page_obj,
         'tipo_filter': tipo_filter,
         'stato_filter': stato_filter,
+        'dip_email_filter': dip_email_filter,
         'is_admin_hr': _is_admin_or_hr(request.user),
     })
 

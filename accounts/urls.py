@@ -70,8 +70,15 @@ from .views_consulente import (
     consulente_posizione_contabile,
     consulente_posizione_estratto,
     consulente_posizione_libro,
+    consulente_posizione_libro_excel,
+    consulente_posizione_libro_pdf,
     consulente_posizione_pagamenti,
+    consulente_pagamenti_allega_pdf_movimento,
+    consulente_pagamenti_rimuovi_pdf_movimento,
     consulente_posizione_proforma,
+    consulente_proforma_allega_pdf_movimento,
+    consulente_proforma_rimuovi_pdf_movimento,
+    consulente_report_aggancia_csv,
 )
 
 urlpatterns = [
@@ -193,9 +200,44 @@ urlpatterns = [
     path('consulente/import-pdf/', consulente_import_pdf_unico, name='consulente_import_pdf_unico'),
     path('consulente/posizione-contabile/', consulente_posizione_contabile, name='consulente_posizione_contabile'),
     path('consulente/posizione-contabile/proforma/', consulente_posizione_proforma, name='consulente_posizione_proforma'),
+    path(
+        'consulente/posizione-contabile/proforma/allega-pdf/<int:movimento_id>/',
+        consulente_proforma_allega_pdf_movimento,
+        name='consulente_proforma_allega_pdf_movimento',
+    ),
+    path(
+        'consulente/posizione-contabile/proforma/rimuovi-pdf/<int:movimento_id>/',
+        consulente_proforma_rimuovi_pdf_movimento,
+        name='consulente_proforma_rimuovi_pdf_movimento',
+    ),
     path('consulente/posizione-contabile/pagamenti/', consulente_posizione_pagamenti, name='consulente_posizione_pagamenti'),
+    path(
+        'consulente/posizione-contabile/pagamenti/allega-pdf/<int:movimento_id>/',
+        consulente_pagamenti_allega_pdf_movimento,
+        name='consulente_pagamenti_allega_pdf_movimento',
+    ),
+    path(
+        'consulente/posizione-contabile/pagamenti/rimuovi-pdf/<int:movimento_id>/',
+        consulente_pagamenti_rimuovi_pdf_movimento,
+        name='consulente_pagamenti_rimuovi_pdf_movimento',
+    ),
     path('consulente/posizione-contabile/estratto-conto/', consulente_posizione_estratto, name='consulente_posizione_estratto'),
     path('consulente/posizione-contabile/libro/', consulente_posizione_libro, name='consulente_posizione_libro'),
+    path(
+        'consulente/posizione-contabile/libro/export-excel/',
+        consulente_posizione_libro_excel,
+        name='consulente_posizione_libro_excel',
+    ),
+    path(
+        'consulente/posizione-contabile/libro/stampa-pdf/',
+        consulente_posizione_libro_pdf,
+        name='consulente_posizione_libro_pdf',
+    ),
+    path(
+        'consulente/posizione-contabile/report-aggancia-csv/',
+        consulente_report_aggancia_csv,
+        name='consulente_report_aggancia_csv',
+    ),
     path(
         'consulente/partitario-consulente/',
         consulente_registro_studio,

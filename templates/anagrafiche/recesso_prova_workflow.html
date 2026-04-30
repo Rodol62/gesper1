@@ -18,7 +18,7 @@
     </a>
     {% if comunicazione.documento_pdf_id %}
     <a href="{% url 'visualizza_documento' comunicazione.documento_pdf_id %}" class="btn btn-sm btn-outline-primary">
-      <i class="bi bi-file-earmark-text"></i> Apri PDF firmato
+      <i class="bi bi-file-earmark-text"></i> Apri PDF firmato #{{ comunicazione.documento_pdf_id }}
     </a>
     {% endif %}
   </div>

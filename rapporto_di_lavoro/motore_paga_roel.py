@@ -11,12 +11,14 @@ Il motore numerico resta in ``utils_motore_paga.calcola_busta_paga_mese``; qui c
      paga base mensile FT) × frazione ÷ divisore
    • Contingenza oraria   = contingenza tabellare × frazione ÷ divisore
    • Scatto anzianità     = importo scatto tabellare/contratto × frazione ÷ divisore
-   • FIPE (2024+): EDR storico **assorbito in contingenza** — non voce distinta; altri CCNL possono avere EDR/indennità
-     come voci **mensili** (€/h tab. eventualmente mostrate ma **non** nella ROEL = paga+cont+scatto).
-   • Superminimo e indennità turno restano **voci mensili** in busta (non nella ROEL /172).
+   • FIPE (2024+): EDR storico **assorbito in contingenza** — non voce distinta (€/h EDR = 0).
+   • Indennità di funzione / contrattuali restano **fuori** dalla retribuzione oraria di fatto (voce mensile).
+   • Superminimo, EL.DIS.SAN, EL.DIS.BIL: ciascuno come (importo tabellare FT ÷ ore contrattuali 172 o 173,33),
+     con pro-rata sul mese; concorrono alla **retribuzione oraria di fatto** insieme a paga base, contingenza,
+     EDR (se distinto), scatti.
 
-2) ROEL tabellare = **solo** €/h paga base + contingenza + scatto (somma al divisore 172 o 173,33).
-   (``retribuzione_oraria_di_fatto`` / ``paga_oraria`` con divisore orario; EDR/indennità fuori da questa somma.)
+2) ROEL tabellare = **stessa** somma €/h del motore: paga base + contingenza + EDR + scatto + superminimo + EL.DIS.SAN
+   + EL.DIS.BIL (tutti al divisore orario), salvo divisore «giorni» (26) dove si usa ``retribuzione_oraria_di_fatto`` dal cedolino.
 
 3) Competenze (prima parte cedolino) — modello righe:
    • Lavoro ordinario: con modalità ore effettive = ore inserite × ROEL; altrimenti **gg lav. calendario × ore/gg × ROEL**
@@ -36,12 +38,11 @@ from typing import Any
 
 def roel_tabellare_euro_oraria(r: dict[str, Any]) -> Decimal:
     """
-    ROEL tabellare (€/h) = (paga base tab. × frazione ÷ divisore) + (contingenza × frazione ÷ divisore)
-    + (scatto × frazione ÷ divisore), con divisore 172 o 173,33.
+    ROEL tabellare (€/h) = somma delle componenti ``oraria_tabellare_*`` del motore (divisore 172 o 173,33):
+    paga base, contingenza, EDR, scatto, superminimo, EL.DIS.SAN, EL.DIS.BIL — allineato a ``retribuzione_oraria_di_fatto``.
 
-    Con divisore orario **non** si usa mai ``retribuzione_oraria_di_fatto`` come fallback: quel campo in
-    contesti legacy o dict parziali poteva restare la vecchia «ROF» (paga+cont+EDR+ind+scatto) e mostrava
-    ad es. 9,7444 invece di 9,1651.
+    Con divisore orario **non** si preferisce il fallback ``retribuzione_oraria_di_fatto`` se il dict espone
+    già le singole colonne (evita incoerenze su dict parziali); se mancano tutte le componenti, si usa il totale.
     """
     q = Decimal('0.0001')
     div_raw = r.get('divisore')
@@ -60,11 +61,19 @@ def roel_tabellare_euro_oraria(r: dict[str, Any]) -> Decimal:
             return Decimal('0')
 
     if d > Decimal('30'):
-        return (
+        parts = (
             _h('oraria_tabellare_paga_base')
             + _h('oraria_tabellare_contingenza')
+            + _h('oraria_tabellare_edr')
             + _h('oraria_tabellare_scatto')
+            + _h('oraria_tabellare_superminimo')
+            + _h('oraria_tabellare_el_dis_san')
+            + _h('oraria_tabellare_el_dis_bil')
         ).quantize(q)
+        rof_fb = _h('retribuzione_oraria_di_fatto')
+        if parts > 0 or rof_fb <= 0:
+            return parts
+        return rof_fb.quantize(q)
     fb = r.get('retribuzione_oraria_di_fatto')
     if fb is None:
         return Decimal('0')
@@ -82,7 +91,7 @@ def _roel_tabellare_da_dict(r: dict[str, Any]) -> Decimal:
 def costruisci_competenze_logica_v1(r: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Righe descrittive per tabella «competenze» nel simulatore (solo lettura del risultato motore).
-    Per la ROEL tabellare somma esplicitamente paga base + contingenza + scatto €/h (campi ``oraria_tabellare_*``);
+    Per la ROEL tabellare somma le componenti €/h ``oraria_tabellare_*`` (o ``retribuzione_oraria_di_fatto`` se assenti);
     le altre righe usano gli importi già calcolati dal motore.
     """
     div = r.get('divisore') or Decimal('0')
@@ -113,14 +122,20 @@ def costruisci_competenze_logica_v1(r: dict[str, Any]) -> list[dict[str, Any]]:
             return str(v)
 
     parts = [f"paga base {_s(r.get('oraria_tabellare_paga_base'))}", f"contingenza {_s(r.get('oraria_tabellare_contingenza'))}"]
+    if r.get('oraria_tabellare_edr'):
+        parts.append(f"EDR {_s(r.get('oraria_tabellare_edr'))}")
     if r.get('oraria_tabellare_scatto'):
         parts.append(f"scatto {_s(r.get('oraria_tabellare_scatto'))}")
+    if r.get('oraria_tabellare_superminimo'):
+        parts.append(f"superminimo {_s(r.get('oraria_tabellare_superminimo'))}")
+    if r.get('oraria_tabellare_el_dis_san'):
+        parts.append(f"EL.DIS.SAN {_s(r.get('oraria_tabellare_el_dis_san'))}")
+    if r.get('oraria_tabellare_el_dis_bil'):
+        parts.append(f"EL.DIS.BIL {_s(r.get('oraria_tabellare_el_dis_bil'))}")
     extra_note = []
-    if r.get('oraria_tabellare_edr'):
-        extra_note.append(f"EDR tab. {_s(r.get('oraria_tabellare_edr'))} €/h — voce mensile, non in ROEL")
     if r.get('oraria_tabellare_indennita'):
-        extra_note.append(f"ind. tab. {_s(r.get('oraria_tabellare_indennita'))} €/h — fuori ROEL")
-    nota_comp = 'ROEL = somma: ' + ' + '.join(parts)
+        extra_note.append(f"ind. tab. {_s(r.get('oraria_tabellare_indennita'))} €/h — fuori retrib. oraria di fatto")
+    nota_comp = 'Retrib. oraria di fatto = somma: ' + ' + '.join(parts)
     if extra_note:
         nota_comp += '. ' + ' '.join(extra_note)
     rows.append({
@@ -139,7 +154,7 @@ def costruisci_competenze_logica_v1(r: dict[str, Any]) -> list[dict[str, Any]]:
         'base': roel,
         'competenze': None,
         'trattenute': None,
-        'nota': 'Solo paga + contingenza + scatto (€/h); base per straord. e maggiorazioni domenica/festivo.',
+        'nota': 'Somma componenti tabellari ÷ ore contrattuali (vedi riga sopra); base per straord. e maggiorazioni.',
     })
 
     if modalita and ore_ord and ore_ord > 0:
@@ -231,7 +246,7 @@ def costruisci_competenze_logica_v1(r: dict[str, Any]) -> list[dict[str, Any]]:
             'base': None,
             'competenze': r['superminimo'],
             'trattenute': None,
-            'nota': 'Voce mensile contrattuale (non inclusa nella ROEL tabellare /172).',
+            'nota': 'Voce mensile in busta; €/h equivalente incluso nella retrib. oraria di fatto se presente.',
         })
     if r.get('indennita_turno') and Decimal(str(r['indennita_turno'])) > 0:
         rows.append({

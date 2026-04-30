@@ -83,6 +83,17 @@ def _is_admin_hr_or_consulente(user):
     return _is_admin_or_hr(user) or user.has_ruolo('consulente')
 
 
+def _dipendente_documenti_accessible(request, dip) -> bool:
+    """Admin su azienda operativa; HR e consulente sulla propria azienda."""
+    u = request.user
+    if u.is_superuser or u.has_ruolo('admin'):
+        az = get_azienda_operativa(u, request.session)
+        return az is not None and dip.azienda_id == az.id
+    if u.has_ruolo('hr') or u.has_ruolo('consulente'):
+        return getattr(u, 'azienda_id', None) and dip.azienda_id == u.azienda_id
+    return False
+
+
 def _is_dipendente(user):
     return user.has_ruolo('dipendente')
 
@@ -2133,12 +2144,25 @@ def lista_documenti(request):
                 anni_disponibili = anni_f24_db
 
     if tipo_filter:
-        documenti = documenti.filter(tipo=tipo_filter)
+        # Compatibilità su archivi storici:
+        # alcuni contratti possono risultare classificati in cartella ``contratti/``
+        # con ``tipo`` non perfettamente allineato (es. maiuscole / legacy).
+        if tipo_filter == 'contratto':
+            documenti = documenti.filter(
+                Q(tipo__iexact='contratto')
+                | Q(tipo__iexact='contratti')
+                | Q(file__startswith='contratti/')
+                | Q(file__startswith='documenti/contratti/')
+            )
+        else:
+            documenti = documenti.filter(tipo__iexact=tipo_filter)
     if categoria == 'f24':
         documenti = documenti.filter(descrizione__icontains='F24')
-    # Per le buste il filtro anno deve essere sul periodo busta (descrizione/import),
-    # non sull'anno di caricamento file.
-    if anno_filter_int and not (_is_admin_hr_or_consulente(request.user) and tipo_filter in ('busta_paga', 'altro', 'certificato')):
+    # Base per filtri UI (es. select dipendente) prima dei vincoli puntuali anno/dipendente.
+    documenti_for_filter_options = documenti
+    # Per buste/F24/CUD/contratti il filtro anno segue la semantica documento
+    # (periodo o anno nel contenuto/descrizione), non il solo anno di upload.
+    if anno_filter_int and not (_is_admin_hr_or_consulente(request.user) and tipo_filter in ('busta_paga', 'altro', 'certificato', 'contratto')):
         documenti = documenti.filter(data_caricamento__year=anno_filter_int)
 
     # Per CUD/certificati filtrare sull'anno del documento (descrizione),
@@ -2150,6 +2174,24 @@ def lista_documenti(request):
             if year_doc == anno_filter_int:
                 cert_ids_anno.append(doc_id)
         documenti = documenti.filter(id__in=cert_ids_anno)
+
+    # Per i contratti usare anno da descrizione/percorso file (es. numero contratto con /2026)
+    # con fallback prudente all'anno upload.
+    contratti_senza_anno_esplicito_inclusi = 0
+    if anno_filter_int and tipo_filter == 'contratto':
+        contr_ids_anno = []
+        for doc_id, descrizione, file_name, year_loaded in documenti.values_list('id', 'descrizione', 'file', 'data_caricamento__year'):
+            year_doc = (
+                _extract_anno_from_descrizione(descrizione)
+                or _extract_anno_from_descrizione(file_name)
+            )
+            # Se il contratto non espone un anno esplicito in descrizione/path, non escluderlo:
+            # molti archivi legacy hanno naming neutro.
+            if year_doc is None or year_doc == anno_filter_int:
+                contr_ids_anno.append(doc_id)
+                if year_doc is None:
+                    contratti_senza_anno_esplicito_inclusi += 1
+        documenti = documenti.filter(id__in=contr_ids_anno)
 
     # Per F24 (tipo=altro) il filtro anno deve usare l'anno di riferimento del movimento,
     # non l'anno di caricamento del file.
@@ -2165,9 +2207,24 @@ def lista_documenti(request):
 
     dipendenti_filtri = []
     if _is_admin_hr_or_consulente(request.user):
-        doc_dip_ids = list(documenti.exclude(dipendente__isnull=True).values_list('dipendente_id', flat=True).distinct())
+        doc_dip_ids = list(
+            documenti_for_filter_options
+            .exclude(dipendente__isnull=True)
+            .values_list('dipendente_id', flat=True)
+            .distinct()
+        )
         if doc_dip_ids:
             dipendenti_filtri = list(Dipendente.objects.filter(id__in=doc_dip_ids).order_by('cognome', 'nome'))
+        else:
+            # Fallback UX: se i documenti filtrati non hanno dipendenti associati,
+            # mantenere comunque la select popolata dall'azienda operativa.
+            azienda_scope = _azienda_scope_for_user(request.user, request)
+            if azienda_scope is None and request.user.is_superuser:
+                azienda_scope = get_azienda_operativa(request.user, request.session)
+            if azienda_scope is not None:
+                dipendenti_filtri = list(
+                    Dipendente.objects.filter(azienda=azienda_scope).order_by('cognome', 'nome')
+                )
 
     if dipendente_filter_int:
         documenti = documenti.filter(dipendente_id=dipendente_filter_int)
@@ -3074,6 +3131,7 @@ def lista_documenti(request):
         'anni_disponibili': anni_disponibili,
         'dipendenti_filtri': dipendenti_filtri,
         'is_admin_hr': _is_admin_or_hr(request.user),
+        'contratti_senza_anno_esplicito_inclusi': contratti_senza_anno_esplicito_inclusi,
         'is_gestore_documenti': _is_admin_hr_or_consulente(request.user),
         'tipo_choices': [
             (c, 'F24' if c == 'altro' else l)
@@ -3099,10 +3157,12 @@ def lista_cud(request):
 
 @login_required
 def documenti_dipendente_admin(request, dipendente_id):
-    """Admin/HR: tutti i documenti di un dipendente specifico."""
-    if not _is_admin_or_hr(request.user):
+    """Admin/HR/consulente: tutti i documenti di un dipendente specifico."""
+    if not _is_admin_hr_or_consulente(request.user):
         return HttpResponseForbidden("Accesso riservato.")
     dip = get_object_or_404(Dipendente, id=dipendente_id)
+    if not _dipendente_documenti_accessible(request, dip):
+        return HttpResponseForbidden("Accesso non autorizzato per questo dipendente.")
     profilo_candidato = (
         ProfiloCandidato.objects.filter(dipendente=dip)
         .select_related('user')
@@ -3127,9 +3187,9 @@ def documenti_dipendente_admin(request, dipendente_id):
 
 @login_required
 def upload_documento(request):
-    """Admin/HR caricano documenti aziendali per un dipendente."""
-    if not _is_admin_or_hr(request.user):
-        return HttpResponseForbidden("Solo admin o HR possono caricare documenti aziendali.")
+    """Admin/HR/consulente caricano documenti aziendali per un dipendente (tutti i tipi previsti dal modello)."""
+    if not _is_admin_hr_or_consulente(request.user):
+        return HttpResponseForbidden("Solo admin, HR o consulente possono caricare documenti da questa pagina.")
     if request.method == 'POST':
         tipo = request.POST.get('tipo')
         descrizione = request.POST.get('descrizione', '')
@@ -3140,6 +3200,9 @@ def upload_documento(request):
         else:
             azienda = get_azienda_operativa(request.user, request.session) if request.user.has_ruolo('admin') else getattr(request.user, 'azienda', None)
             dip = Dipendente.objects.filter(id=dipendente_id).first() if dipendente_id else None
+            if dip and not _dipendente_documenti_accessible(request, dip):
+                messages.error(request, "Dipendente non valido per il tuo profilo o per l'azienda operativa.")
+                return redirect('upload_documento')
             doc = Documento.objects.create(
                 azienda=azienda,
                 dipendente=dip,
@@ -3192,9 +3255,16 @@ def upload_documento(request):
 
     azienda = get_azienda_operativa(request.user, request.session) if request.user.has_ruolo('admin') else getattr(request.user, 'azienda', None)
     dipendenti = Dipendente.objects.filter(azienda=azienda).order_by('cognome', 'nome') if azienda else []
+    preselect_dipendente_id = None
+    raw_pre = (request.GET.get('dipendente_id') or '').strip()
+    if raw_pre.isdigit():
+        cand = Dipendente.objects.filter(id=int(raw_pre)).first()
+        if cand and _dipendente_documenti_accessible(request, cand):
+            preselect_dipendente_id = cand.id
     return render(request, 'documenti/upload.html', {
         'dipendenti': dipendenti,
         'tipo_choices': Documento.TIPO_CHOICES,
+        'preselect_dipendente_id': preselect_dipendente_id,
     })
 
 
@@ -3916,6 +3986,12 @@ def visualizza_documento(request, documento_id):
                 'titolo': f'Documento #{documento_id}',
                 'embed_src': embed_src,
                 'next_url': next_safe,
+                'documento_id': documento.id,
+                'documento_storage_path': (
+                    (documento.file.name or '').lstrip('/')
+                    if getattr(documento, 'file', None) and getattr(documento.file, 'name', '')
+                    else ''
+                ),
             },
         )
         # La shell HTML del viewer (non solo il PDF ?embed=1) andava in iframe con

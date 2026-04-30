@@ -44,17 +44,17 @@
               <tr class="ced-row"><td>Paga base</td><td>€ {{ risultato.paga_base|euro_it }}</td></tr>
               <tr class="ced-row"><td>Contingenza</td><td>€ {{ risultato.contingenza|euro_it }}</td></tr>
               {% if risultato.edr %}<tr class="ced-row"><td>EDR</td><td>€ {{ risultato.edr|euro_it }}</td></tr>{% endif %}
-              {% if risultato.scatto_anzianita %}<tr class="ced-row"><td>Scatto anzianità</td><td>€ {{ risultato.scatto_anzianita|euro_it }}</td></tr>{% endif %}
+              {% if risultato.scatto %}<tr class="ced-row"><td>Scatto anzianità</td><td>€ {{ risultato.scatto|euro_it }}</td></tr>{% endif %}
               {% if risultato.superminimo %}<tr class="ced-row"><td>Superminimo</td><td>€ {{ risultato.superminimo|euro_it }}</td></tr>{% endif %}
               {% if risultato.indennita_turno %}<tr class="ced-row"><td>Indennità turno</td><td>€ {{ risultato.indennita_turno|euro_it }}</td></tr>{% endif %}
-              {% if risultato.magg_domenicale %}<tr class="ced-row"><td>Magg. domenicale</td><td>€ {{ risultato.magg_domenicale|euro_it }}</td></tr>{% endif %}
-              {% if risultato.magg_festivo %}<tr class="ced-row"><td>Magg. festivo</td><td>€ {{ risultato.magg_festivo|euro_it }}</td></tr>{% endif %}
-              {% if risultato.straord_diurno %}<tr class="ced-row"><td>Straord. diurno</td><td>€ {{ risultato.straord_diurno|euro_it }}</td></tr>{% endif %}
-              {% if risultato.straord_notturno %}<tr class="ced-row"><td>Straord. notturno</td><td>€ {{ risultato.straord_notturno|euro_it }}</td></tr>{% endif %}
-              {% if risultato.straord_festivo %}<tr class="ced-row"><td>Straord. festivo</td><td>€ {{ risultato.straord_festivo|euro_it }}</td></tr>{% endif %}
+              {% if risultato.imp_dom_magg %}<tr class="ced-row"><td>Domenicali / magg.</td><td>€ {{ risultato.imp_dom_magg|euro_it }}</td></tr>{% endif %}
+              {% if risultato.imp_fest_magg %}<tr class="ced-row"><td>Festivi lavorati</td><td>€ {{ risultato.imp_fest_magg|euro_it }}</td></tr>{% endif %}
+              {% if risultato.imp_sd %}<tr class="ced-row"><td>Straord. diurno</td><td>€ {{ risultato.imp_sd|euro_it }}</td></tr>{% endif %}
+              {% if risultato.imp_sn %}<tr class="ced-row"><td>Straord. notturno</td><td>€ {{ risultato.imp_sn|euro_it }}</td></tr>{% endif %}
+              {% if risultato.imp_sf %}<tr class="ced-row"><td>Straord. festivo</td><td>€ {{ risultato.imp_sf|euro_it }}</td></tr>{% endif %}
               {% if risultato.rat_13_m %}<tr class="ced-row"><td>Rateo tredicesima</td><td>€ {{ risultato.rat_13_m|euro_it }}</td></tr>{% endif %}
               {% if risultato.rat_14_m %}<tr class="ced-row"><td>Rateo quattordicesima</td><td>€ {{ risultato.rat_14_m|euro_it }}</td></tr>{% endif %}
-              {% if risultato.rat_ferie_m %}<tr class="ced-row"><td>Rateo ferie</td><td>€ {{ risultato.rat_ferie_m|euro_it }}</td></tr>{% endif %}
+              {% if risultato.rat_fer_m %}<tr class="ced-row"><td>Rateo ferie</td><td>€ {{ risultato.rat_fer_m|euro_it }}</td></tr>{% endif %}
               <tr class="ced-row tot-row"><td>Lordo mensile</td><td>€ {{ risultato.lordo_mensile|euro_it }}</td></tr>
             </tbody>
           </table>
@@ -66,14 +66,14 @@
           <table class="table mb-0">
             <thead class="ced-section"><tr><th colspan="2">Ritenute dipendente</th></tr></thead>
             <tbody>
-              <tr class="ced-row"><td>INPS dipendente</td><td>- € {{ risultato.inps_dipendente|abs_num|euro_it }}</td></tr>
+              <tr class="ced-row"><td>INPS dipendente</td><td>- € {{ risultato.inps_dip|abs_num|euro_it }}</td></tr>
               <tr class="ced-row"><td>IRPEF lorda</td><td>- € {{ risultato.irpef_lorda|abs_num|euro_it }}</td></tr>
-              {% if risultato.detrazioni_m %}<tr class="ced-row"><td>Detrazioni lav. dip.</td><td>+ € {{ risultato.detrazioni_m|abs_num|euro_it }}</td></tr>{% endif %}
-              {% if risultato.trattamento_integrativo %}<tr class="ced-row"><td>Tratt. integrativo</td><td>+ € {{ risultato.trattamento_integrativo|abs_num|euro_it }}</td></tr>{% endif %}
-              {% if risultato.bonus_l207 %}<tr class="ced-row"><td>Bonus L.207/2024</td><td>+ € {{ risultato.bonus_l207|abs_num|euro_it }}</td></tr>{% endif %}
-              {% if risultato.add_regionale_m %}<tr class="ced-row"><td>Add. regionale (stima)</td><td>- € {{ risultato.add_regionale_m|abs_num|euro_it }}</td></tr>{% endif %}
-              {% if risultato.add_comunale_m %}<tr class="ced-row"><td>Add. comunale (stima)</td><td>- € {{ risultato.add_comunale_m|abs_num|euro_it }}</td></tr>{% endif %}
-              <tr class="ced-row tot-row"><td>Netto dipendente</td><td>€ {{ risultato.netto|euro_it }}</td></tr>
+              {% if risultato.detrazioni %}<tr class="ced-row"><td>Detrazioni lav. dip.</td><td>+ € {{ risultato.detrazioni|abs_num|euro_it }}</td></tr>{% endif %}
+              {% if risultato.ti %}<tr class="ced-row"><td>Tratt. integrativo</td><td>+ € {{ risultato.ti|abs_num|euro_it }}</td></tr>{% endif %}
+              {% if risultato.l207 %}<tr class="ced-row"><td>Bonus L.207/2024</td><td>+ € {{ risultato.l207|abs_num|euro_it }}</td></tr>{% endif %}
+              {% if risultato.add_reg_m %}<tr class="ced-row"><td>Add. regionale (stima)</td><td>- € {{ risultato.add_reg_m|abs_num|euro_it }}</td></tr>{% endif %}
+              {% if risultato.add_com_m %}<tr class="ced-row"><td>Add. comunale (stima)</td><td>- € {{ risultato.add_com_m|abs_num|euro_it }}</td></tr>{% endif %}
+              <tr class="ced-row tot-row"><td>Netto dipendente</td><td>€ {{ risultato.netto_totale|euro_it }}</td></tr>
             </tbody>
           </table>
         </div>
@@ -88,10 +88,10 @@
             <thead class="ced-section"><tr><th colspan="2">Costo azienda</th></tr></thead>
             <tbody>
               <tr class="ced-row"><td>Lordo mensile</td><td>€ {{ risultato.lordo_mensile|euro_it }}</td></tr>
-              <tr class="ced-row"><td>INPS azienda</td><td>€ {{ risultato.inps_azienda|euro_it }}</td></tr>
-              <tr class="ced-row"><td>INAIL</td><td>€ {{ risultato.inail|euro_it }}</td></tr>
-              {% if risultato.rateo_tfr_m %}<tr class="ced-row"><td>Rateo TFR</td><td>€ {{ risultato.rateo_tfr_m|euro_it }}</td></tr>{% endif %}
-              <tr class="ced-row tot-row"><td>Costo totale azienda</td><td>€ {{ risultato.costo_azienda|euro_it }}</td></tr>
+              <tr class="ced-row"><td>INPS azienda</td><td>€ {{ risultato.inps_az|euro_it }}</td></tr>
+              <tr class="ced-row"><td>INAIL</td><td>€ {{ risultato.inail_az|euro_it }}</td></tr>
+              {% if risultato.tfr_m %}<tr class="ced-row"><td>Rateo TFR</td><td>€ {{ risultato.tfr_m|euro_it }}</td></tr>{% endif %}
+              <tr class="ced-row tot-row"><td>Costo totale azienda</td><td>€ {{ risultato.costo_mensile|euro_it }}</td></tr>
             </tbody>
           </table>
         </div>
@@ -133,7 +133,7 @@
       </button>
     </form>
     {% endif %}
-    <a href="{% url 'riepilogo_mensile_motore' %}?anno={{ anno|anno_it }}&mese={{ mese }}"
+    <a href="{% url 'riepilogo_mensile_motore' %}?anno={{ anno }}&mese={{ mese }}"
        class="btn btn-outline-secondary">
       Torna al riepilogo
     </a>

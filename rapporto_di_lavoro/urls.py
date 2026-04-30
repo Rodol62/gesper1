@@ -59,6 +59,7 @@ urlpatterns = [
     path('proposte/<int:proposta_id>/firma/', views.firma_proposta_candidato, name='firma_proposta_candidato'),
     path('proposte/<int:proposta_id>/rifiuta/', views.rifiuta_proposta_dipendente, name='rifiuta_proposta_dipendente'),
     path('proposte/<int:proposta_id>/invia/', views.invia_proposta_al_dipendente, name='invia_proposta_al_dipendente'),
+    path('proposte/<int:proposta_id>/invia-documenti-email/', views.invia_documenti_proposta_email, name='invia_documenti_proposta_email'),
     path('proposte/<int:proposta_id>/firma-admin/', views.firma_definitiva_admin, name='firma_definitiva_admin'),
     path('proposte/<int:proposta_id>/trasforma-contratto/', views.trasforma_proposta_in_contratto, name='trasforma_proposta_in_contratto'),
     path('proposte/<int:proposta_id>/rifiuta-admin/', views.rifiuta_proposta_admin, name='rifiuta_proposta_admin'),

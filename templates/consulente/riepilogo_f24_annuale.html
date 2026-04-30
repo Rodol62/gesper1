@@ -50,7 +50,7 @@
                 <td class="py-2 text-end">{% if r.importo is not None %}€ {{ r.importo|euro_it }}{% else %}<span class="text-muted">N/D</span>{% endif %}</td>
                 <td class="py-2 text-center pe-3">
                   {% if r.documento and r.documento.documento and r.documento.documento.file %}
-                    <a href="{% url 'visualizza_documento' r.documento.documento.id %}" class="btn btn-outline-primary btn-sm">Apri</a>
+                    <a href="{% url 'visualizza_documento' r.documento.documento.id %}" class="btn btn-outline-primary btn-sm">Apri #{{ r.documento.documento.id }}</a>
                   {% elif r.documento and r.documento.documento_id %}
                     <span class="text-muted">Doc non disponibile</span>
                   {% else %}

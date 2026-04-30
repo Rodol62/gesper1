@@ -18,6 +18,14 @@ from accounts.formatting import num_it_str
 register = template.Library()
 
 
+@register.filter(name='dict_get')
+def dict_get(mapping, key):
+    """Lookup su dict (es. mappa id campo layout → valore già risolto)."""
+    if not isinstance(mapping, dict):
+        return None
+    return mapping.get(key)
+
+
 @register.filter(name='abs_num')
 def abs_num(value):
     """Valore assoluto numerico (per mostrare importi con segno gestito a mano nel template)."""

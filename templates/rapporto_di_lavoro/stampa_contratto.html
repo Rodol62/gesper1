@@ -54,7 +54,8 @@
 <div class="container mt-4" id="print-area">
   <div class="d-print-none mb-3 d-flex gap-2">
     <button class="btn btn-primary" onclick="window.print()">Stampa</button>
-    <a class="btn btn-outline-secondary" href="{% url 'contratto_pdf' contratto.id %}">Apri/Scarica PDF</a>
+    <a class="btn btn-outline-secondary" href="{% url 'contratto_pdf' contratto.id %}?ui=1&amp;next={{ request.path|urlencode }}">Anteprima PDF</a>
+    <a class="btn btn-outline-secondary" href="{% url 'contratto_pdf' contratto.id %}?download=1">Scarica PDF</a>
   </div>
 
   <div class="text-center mb-4">

@@ -8,7 +8,7 @@
     <i class="bi bi-file-earmark-ruled me-2"></i>Import CUD PDF unico
   </h2>
   <p class="text-muted mb-3" style="font-size:.85rem">
-    Motore unico per admin/HR/consulente. Accetta PDF protetti con password <strong>DOLCEMASCOLO</strong>,
+    Motore unico per admin/HR/consulente. Accetta PDF protetti tramite configurazione sicura lato sistema,
     divide le pagine e scarta le copie duplicate nello stesso file.
   </p>
   <div class="alert alert-light border py-2 small mb-3" role="status">
@@ -30,7 +30,7 @@
     Suggerimento: includi l'anno nel nome file (es. <strong>CUD 2024.pdf</strong>) per una descrizione coerente.
   </div>
 
-  <form id="cudImportForm" method="post" enctype="multipart/form-data" class="card border-0 shadow-sm mb-4">
+  <form id="cudImportForm" method="post" enctype="multipart/form-data" class="card border-0 shadow-sm mb-4 gesper-multipart-upload">
     {% csrf_token %}
     <div class="card-body">
       <div class="row g-3 align-items-end">
@@ -104,7 +104,7 @@
             <td class="py-2"><span class="text-muted">{{ r.messaggio }}</span></td>
             <td class="py-2 text-center">
               {% if r.documento_id %}
-                <a href="{% url 'visualizza_documento' r.documento_id %}" class="btn btn-sm btn-outline-secondary">Visualizza</a>
+                <a href="{% url 'visualizza_documento' r.documento_id %}" class="btn btn-sm btn-outline-secondary">Visualizza #{{ r.documento_id }}</a>
               {% else %}
                 <span class="text-muted">—</span>
               {% endif %}

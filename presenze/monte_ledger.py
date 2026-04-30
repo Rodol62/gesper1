@@ -16,7 +16,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 
 from .models import MovimentoMonte, RiepilogoMensilePresenze, SaldoMonteDipendente
 
@@ -216,3 +216,29 @@ def applica_movimenti_da_tutti_riepiloghi_mese(
         except ValueError:
             continue
     return out
+
+
+@transaction.atomic
+def elimina_movimenti_monti_da_riepilogo(riepilogo: RiepilogoMensilePresenze) -> int:
+    """
+    Rimuove i movimenti GODIMENTO generati dalla chiusura monti su quel riepilogo
+    (stesso ``riepilogo_mensile`` oppure chiavi idempotenza ferie/ROL del mese).
+
+    Usato quando HR riapre il mese alle modifiche presenze dopo approvazione/elaborazione.
+    """
+    anno, mese = riepilogo.anno, riepilogo.mese
+    keys = (
+        chiave_idempotenza_riepilogo(anno, mese, 'ferie'),
+        chiave_idempotenza_riepilogo(anno, mese, 'rol'),
+    )
+    qs = MovimentoMonte.objects.filter(
+        Q(riepilogo_mensile_id=riepilogo.pk)
+        | Q(
+            idempotency_key__in=keys,
+            saldo_monte__dipendente_id=riepilogo.dipendente_id,
+            saldo_monte__azienda_id=riepilogo.azienda_id,
+            saldo_monte__anno_competenza=anno,
+        )
+    )
+    n, _ = qs.delete()
+    return int(n)

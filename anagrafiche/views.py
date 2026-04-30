@@ -445,6 +445,49 @@ def dettaglio_dipendente(request, pk):
     )
     if not _dipendente_accessibile(request, dipendente):
         raise Http404()
+
+    puo_gestire_contratto_cartaceo_hr = (
+        request.user.is_superuser
+        or request.user.has_ruolo('admin')
+        or request.user.has_ruolo('hr')
+        or request.user.has_ruolo('consulente')
+    )
+    if request.method == 'POST' and request.POST.get('action') == 'upload_contratto_cartaceo_hr':
+        if not puo_gestire_contratto_cartaceo_hr:
+            messages.error(request, 'Operazione non consentita.')
+            return redirect('dettaglio_dipendente', pk=pk)
+        f = request.FILES.get('contratto_firmato_pdf_hr')
+        rid = (request.POST.get('contratto_id') or '').strip()
+        qs_cartaceo = RapportoDiLavoro.objects.filter(
+            dipendente=dipendente,
+            stato__in=('sottoscritto', 'sospeso'),
+        ).order_by('-data_inizio_rapporto', '-id')
+        if rid.isdigit():
+            contratto = qs_cartaceo.filter(pk=int(rid)).first()
+        else:
+            contratto = qs_cartaceo.first()
+        if not contratto:
+            messages.error(
+                request,
+                'Nessun contratto in stato sottoscritto o sospeso: impossibile allegare il PDF firmato su carta.',
+            )
+            return redirect('dettaglio_dipendente', pk=pk)
+        if not f:
+            messages.error(request, 'Seleziona un file PDF da caricare.')
+            return redirect('dettaglio_dipendente', pk=pk)
+        from rapporto_di_lavoro.views import registra_contratto_firmato_cartaceo_da_hr
+
+        try:
+            registra_contratto_firmato_cartaceo_da_hr(contratto, request.user, f)
+            messages.success(
+                request,
+                'PDF del contratto firmato su carta caricato. '
+                'È disponibile tra i documenti del dipendente e come PDF del rapporto in portale.',
+            )
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        return redirect('dettaglio_dipendente', pk=pk)
+
     oggi = datetime.date.today()
     presenze_mese = Presenza.objects.filter(
         dipendente=dipendente,
@@ -540,6 +583,15 @@ def dettaglio_dipendente(request, pk):
     )
     puo_inviare_certificazione_firma = puo_registrare_addendum
 
+    rapporti_upload_cartaceo = (
+        RapportoDiLavoro.objects.filter(
+            dipendente=dipendente,
+            stato__in=('sottoscritto', 'sospeso'),
+        )
+        .select_related('tipo_contratto')
+        .order_by('-data_inizio_rapporto', '-id')
+    )
+
     return render(request, 'anagrafiche/dettaglio_dipendente.html', {
         'dipendente': dipendente,
         'presenze_mese': presenze_mese,
@@ -550,6 +602,8 @@ def dettaglio_dipendente(request, pk):
         'posizioni_contrattuali': posizioni_contrattuali,
         'puo_registrare_addendum': puo_registrare_addendum,
         'puo_inviare_certificazione_firma': puo_inviare_certificazione_firma,
+        'puo_gestire_contratto_cartaceo_hr': puo_gestire_contratto_cartaceo_hr,
+        'rapporti_upload_cartaceo': rapporti_upload_cartaceo,
     })
 
 

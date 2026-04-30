@@ -7,18 +7,45 @@
       <h2 class="mb-0">Contratto {{ contratto.numero_contratto }}</h2>
       <small class="text-muted">{{ contratto.dipendente.cognome }} {{ contratto.dipendente.nome }} · Stato: {{ contratto.get_stato_display }}</small>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-      <a href="{% url 'contratto_pdf' contratto.id %}" class="btn btn-outline-dark btn-sm"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <div class="btn-group" role="group" aria-label="PDF contratto">
+        <a href="{% url 'contratto_pdf' contratto.id %}?ui=1&amp;next={{ request.path|urlencode }}"
+           class="btn btn-outline-dark btn-sm">
+          <i class="bi bi-eye"></i> Anteprima PDF
+        </a>
+        <a href="{% url 'contratto_pdf' contratto.id %}?download=1"
+           class="btn btn-outline-dark btn-sm" title="Scarica il file PDF">
+          <i class="bi bi-download"></i> Scarica
+        </a>
+        <a href="{% url 'contratto_stampa' contratto.id %}" class="btn btn-outline-dark btn-sm" title="Testo per stampa / salvataggio da browser">
+          <i class="bi bi-printer"></i> Stampa
+        </a>
+      </div>
       {% if contratto.stato == 'proposta' %}
         <a href="{% url 'modifica_contratto' contratto.id %}" class="btn btn-outline-primary btn-sm">Modifica bozza</a>
       {% endif %}
       {% if puo_gestire_addendum %}
         <a href="{% url 'addendum_contratto_nuovo' contratto.id %}" class="btn btn-primary btn-sm">Registra addendum</a>
       {% endif %}
-      {% if proposta %}
-        <a href="{% url 'dettaglio_proposta' proposta.id %}" class="btn btn-outline-secondary btn-sm">Proposta origine</a>
-      {% endif %}
-      <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-secondary btn-sm">Elenco proposte</a>
+      <div class="btn-group" role="group" aria-label="Proposta collegata">
+        {% if proposta %}
+          <a href="{% url 'dettaglio_proposta' proposta.id %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-link-45deg"></i> Proposta {{ proposta.numero_proposta }}
+          </a>
+          <a href="{% url 'proposta_pdf' proposta.id %}?ui=1&amp;next={{ request.path|urlencode }}"
+             class="btn btn-outline-secondary btn-sm" title="PDF della proposta di origine">
+            <i class="bi bi-file-earmark-pdf"></i> PDF proposta
+          </a>
+        {% else %}
+          <span class="btn btn-sm btn-outline-secondary disabled" tabindex="-1"
+                title="Nessuna proposta collegata: contratto creato fuori dal flusso standard o dati legacy.">
+            <i class="bi bi-dash-circle"></i> Nessuna proposta
+          </span>
+        {% endif %}
+      </div>
+      <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-collection"></i> Proposte di assunzione
+      </a>
     </div>
   </div>
 

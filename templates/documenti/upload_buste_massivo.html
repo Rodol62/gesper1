@@ -34,7 +34,7 @@
   </div>
   {% endif %}
 
-  <form method="post" enctype="multipart/form-data" id="massiveUploadForm">
+  <form method="post" enctype="multipart/form-data" id="massiveUploadForm" class="gesper-multipart-upload">
     {% csrf_token %}
 
     <div class="card border-0 shadow-sm mb-4">
@@ -61,7 +61,7 @@
             <input type="file" name="pdf_files" class="form-control form-control-sm" multiple accept="application/pdf,.pdf,.PDF" required>
           </div>
           <div class="col-12 text-muted" style="font-size:.8rem">
-            I PDF protetti da password sono supportati con password <strong>DOLCEMASCOLO</strong>. Le pagine duplicate vengono escluse e l'F24 viene gestito separatamente.
+            I PDF protetti da password sono supportati tramite configurazione sicura lato sistema. Le pagine duplicate vengono escluse e l'F24 viene gestito separatamente.
           </div>
           <div class="col-12">
             <div class="form-check border rounded px-3 py-2 bg-light">
@@ -192,7 +192,7 @@
             </td>
             <td class="py-2 text-center">
               {% if r.documento_id %}
-                <a href="{% url 'visualizza_documento' r.documento_id %}" class="btn btn-sm btn-outline-secondary">Visualizza</a>
+                <a href="{% url 'visualizza_documento' r.documento_id %}" class="btn btn-sm btn-outline-secondary">Visualizza #{{ r.documento_id }}</a>
               {% else %}
                 <span class="text-muted">—</span>
               {% endif %}

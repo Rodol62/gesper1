@@ -24,9 +24,17 @@
         </div>
       {% endif %}
     </div>
-    <a href="{% url 'consulente_documenti' %}" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-arrow-left me-1"></i>Torna alla lista
-    </a>
+    <div class="d-flex flex-wrap gap-2 justify-content-end">
+      <a href="{% url 'documenti_dipendente_admin' dip.id %}" class="btn btn-sm btn-outline-primary" style="font-size:.78rem">
+        <i class="bi bi-folder2-open"></i> Tutti i documenti
+      </a>
+      <a href="{% url 'upload_documento' %}?dipendente_id={{ dip.id }}" class="btn btn-sm text-white" style="background:#0a6640;font-size:.78rem">
+        <i class="bi bi-cloud-upload"></i> Carica (tutti i tipi)
+      </a>
+      <a href="{% url 'consulente_documenti' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.78rem">
+        <i class="bi bi-arrow-left me-1"></i> Lista dipendenti
+      </a>
+    </div>
   </div>
 
   {% if messages %}

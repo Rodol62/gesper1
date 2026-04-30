@@ -17,10 +17,55 @@
        class="btn btn-sm btn-outline-primary" style="font-size:.88rem">
       <i class="bi bi-eye"></i> Anteprima PDF
     </a>
-    <a href="{% url 'contratto_pdf' contratto.id %}"
+    <a href="{% url 'contratto_pdf' contratto.id %}?download=1"
        class="btn btn-sm" style="background:#0a6640;color:#fff;font-size:.88rem">
       <i class="bi bi-file-earmark-pdf"></i> Scarica contratto PDF
     </a>
+  </div>
+
+  {# ── Caricamento scansione contratto firmato su carta (dipendente) ── #}
+  <div class="card border-0 shadow-sm mb-3" style="border-left:4px solid #198754!important">
+    <div class="card-header py-2 d-flex align-items-center gap-2"
+         style="background:#f4fbf7;font-size:.88rem;font-weight:700;color:#0a6640;border-bottom:1px solid #c8ebd8">
+      <i class="bi bi-pen-fill"></i>
+      Contratto firmato in originale (carta)
+    </div>
+    <div class="card-body py-3" style="font-size:.88rem">
+      {% if documento_cartaceo %}
+      <p class="text-muted small mb-2 mb-md-0">
+        <i class="bi bi-clock-history"></i>
+        Ultimo caricamento: <strong>{{ documento_cartaceo.data_caricamento|date:"d/m/Y H:i" }}</strong>
+        {% if documento_cartaceo.caricato_dal_dipendente %}
+        <span class="badge bg-secondary ms-1" style="font-size:.72rem">Caricato da te</span>
+        {% endif %}
+      </p>
+      {% endif %}
+      {% if documento_cartaceo and documento_cartaceo.visualizzato_da_azienda %}
+      <div class="alert alert-success py-2 mb-0 small">
+        <i class="bi bi-check-circle-fill"></i>
+        Il PDF è stato <strong>acquisito dall’azienda</strong>. Per sostituirlo occorre contattare l’ufficio HR.
+      </div>
+      {% elif puo_caricare_contratto_cartaceo %}
+      <p class="text-muted mb-3" style="font-size:.84rem">
+        Se avete firmato il contratto su carta, carica qui <strong>un unico file PDF</strong> (scansione/foto chiara delle pagine firmate).
+        Massimo <strong>15 MB</strong>. Il file sarà visibile in «I miei documenti» e usato come PDF del contratto nel portale.
+      </p>
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end flex-wrap">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="upload_contratto_cartaceo">
+        <div class="col-12 col-md-7 col-lg-6">
+          <label for="contratto_firmato_pdf" class="form-label small mb-1">File PDF</label>
+          <input class="form-control form-control-sm" type="file" name="contratto_firmato_pdf" id="contratto_firmato_pdf"
+                 accept="application/pdf,.pdf" required>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-success btn-sm">
+            <i class="bi bi-cloud-upload"></i> Carica PDF firmato
+          </button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
   </div>
 
   <div class="card border-0 shadow-sm mb-3">

@@ -29,7 +29,7 @@
     {% endfor %}
   {% endif %}
 
-  <form method="post" enctype="multipart/form-data">
+  <form method="post" enctype="multipart/form-data" class="gesper-multipart-upload">
     {% csrf_token %}
 
     <!-- Selezione mese/anno (GET per cambiare periodo) -->

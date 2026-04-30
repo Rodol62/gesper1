@@ -11,6 +11,7 @@ from django.core.management.base import BaseCommand, CommandError
 from anagrafiche.models import Azienda, Dipendente
 from accounts.models import MovimentoImportPaghe
 from documenti.models import Documento
+from documenti.buste_pdf_passwords import passwords_for_busta_pdf_read
 
 
 MONTHS_ITA = {
@@ -114,6 +115,32 @@ class Command(BaseCommand):
             raise CommandError(f"Errore analisi PDF: {exc.stderr or exc.stdout}") from exc
 
         report = json.loads(tmp_out.read_text(encoding="utf-8"))
+        diagnostics = {
+            "pdf_pages": None,
+            "is_encrypted": None,
+            "decrypt_with_configured_passwords": None,
+            "hint": "",
+        }
+        try:
+            from pypdf import PdfReader
+
+            reader = PdfReader(str(pdf_path))
+            diagnostics["pdf_pages"] = len(reader.pages)
+            diagnostics["is_encrypted"] = bool(getattr(reader, "is_encrypted", False))
+            if diagnostics["is_encrypted"]:
+                ok = False
+                for pwd in passwords_for_busta_pdf_read():
+                    try:
+                        if reader.decrypt(pwd):
+                            ok = True
+                            break
+                    except Exception:
+                        continue
+                diagnostics["decrypt_with_configured_passwords"] = ok
+            else:
+                diagnostics["decrypt_with_configured_passwords"] = True
+        except Exception:
+            pass
         source_name = (options.get("source_name") or "").strip() or pdf_path.name
         natura_busta_file = _infer_natura_busta_from_source(source_name)
         fallback_mese, fallback_anno = _infer_period_from_filename(source_name)
@@ -333,6 +360,7 @@ class Command(BaseCommand):
             "source_name": source_name,
             "natura_busta_file": natura_busta_file,
             "azienda": {"id": azienda.id, "nome": azienda.nome},
+            "diagnostics": diagnostics,
             "f24_pages": [
                 {
                     "page": x.get("page"),
@@ -356,6 +384,20 @@ class Command(BaseCommand):
             },
             "rows": preview_rows,
         }
+        if (
+            output["summary"]["buste_pages"] == 0
+            and output["summary"]["f24_pages"] == 0
+        ):
+            if diagnostics.get("is_encrypted") and diagnostics.get("decrypt_with_configured_passwords") is False:
+                output["diagnostics"]["hint"] = (
+                    "PDF cifrato: nessuna password configurata ha funzionato. "
+                    "Aggiungere la password corretta in configurazione sistema."
+                )
+            elif (diagnostics.get("pdf_pages") or 0) > 0:
+                output["diagnostics"]["hint"] = (
+                    "PDF con pagine presenti ma nessun testo riconosciuto "
+                    "(possibile scansione degradata/OCR insufficiente)."
+                )
         out_path.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
 
         self.stdout.write(self.style.SUCCESS("Anteprima completata."))

@@ -58,6 +58,17 @@ class Documento(models.Model):
         import os
         return os.path.basename(self.file.name) if self.file else ''
 
+    def save(self, *args, **kwargs):
+        """
+        Forza il path upload nella sottocartella coerente con ``tipo`` per i nuovi file.
+        Non modifica i record già salvati (evita di cambiare solo il riferimento DB
+        senza spostare fisicamente file esistenti).
+        """
+        if self.file and getattr(self.file, "_committed", True) is False:
+            current_name = getattr(self.file, "name", "") or "file.bin"
+            self.file.name = documento_file_upload_to(self, current_name)
+        super().save(*args, **kwargs)
+
 
 class CedolinoMotoreV4(models.Model):
     """

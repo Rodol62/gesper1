@@ -20,6 +20,12 @@
       <i class="bi bi-plus-circle"></i> Nuova proposta manuale
     </a>
   </div>
+  {% elif user|has_ruolo:'consulente' %}
+  <div class="d-flex gap-2">
+    <a href="{% url 'lista_contratti_scadenza' %}" class="btn btn-sm btn-outline-dark">
+      <i class="bi bi-calendar-event"></i> Scadenze TD
+    </a>
+  </div>
   {% endif %}
 </div>
 
@@ -35,7 +41,7 @@
   {% endfor %}
 {% endif %}
 
-{# ── Banner candidati pronti per proposta (admin/HR) ─────────────── #}
+{# ── Banner candidati pronti per proposta (admin/HR/consulente) ─── #}
 {% if candidati_pronti %}
 <div class="alert py-2 mb-3" style="background:#e8f4e8;border:1px solid #5a9a5a;font-size:.82rem">
   <div class="d-flex align-items-center gap-2 mb-1">
@@ -64,7 +70,7 @@
 </div>
 {% endif %}
 
-{% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %}
+{% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
   {% if contratti_td_prossimi or contratti_td_scaduti %}
   <div class="alert py-2 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2"
        style="background:#fff4e5;border:1px solid #e8a54a;font-size:.82rem">
@@ -101,7 +107,7 @@
 {% endif %}
 
 {# ── Filtro per stato ────────────────────────────────────────── #}
-{% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %}
+{% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
 <form method="get" class="d-flex align-items-center gap-2 mb-3 flex-wrap" style="font-size:.82rem">
   <label class="text-muted mb-0" style="white-space:nowrap">Filtra per stato:</label>
   <select name="stato" class="form-select form-select-sm" style="max-width:220px" onchange="this.form.submit()">

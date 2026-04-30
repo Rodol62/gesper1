@@ -23,9 +23,11 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 from decimal import Decimal
+from urllib.parse import quote
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.views.decorators.http import require_POST
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.core.management import call_command
@@ -1090,6 +1092,9 @@ def consulente_import_pdf_unico(request):
 
 # ── Posizione contabile consulente (proforma / pagamenti / estratto / libro) ─
 
+SESSION_REPORT_AGGANCIA_DOCUMENTI = "report_aggancia_documenti_csv_v1"
+SESSION_REPORT_AGGANCIA_BONIFICI = "report_aggancia_bonifici_csv_v1"
+
 
 def _partitario_azienda_o_redirect(request):
     azienda = _get_azienda_partitario(request)
@@ -1130,6 +1135,10 @@ def consulente_posizione_contabile(request):
         .order_by(F('data_documento').desc(nulls_last=True), '-importato_il')
         .first()
     )
+    rep_doc = request.session.get(SESSION_REPORT_AGGANCIA_DOCUMENTI) or {}
+    rep_bon = request.session.get(SESSION_REPORT_AGGANCIA_BONIFICI) or {}
+    report_aggancia_csv_documenti = bool(rep_doc.get('azienda_id') == azienda.id and rep_doc.get('rows'))
+    report_aggancia_csv_bonifici = bool(rep_bon.get('azienda_id') == azienda.id and rep_bon.get('rows'))
     return render(
         request,
         'consulente/posizione_contabile_hub.html',
@@ -1140,6 +1149,8 @@ def consulente_posizione_contabile(request):
             'n_bonifici': n_bon,
             'ultimo_movimento': ultimo,
             'posizione_nav': 'hub',
+            'report_aggancia_csv_documenti': report_aggancia_csv_documenti,
+            'report_aggancia_csv_bonifici': report_aggancia_csv_bonifici,
         },
     )
 
@@ -1149,13 +1160,76 @@ def consulente_posizione_contabile(request):
 def consulente_posizione_proforma(request):
     from django.db.models import F
 
-    from .consulente_registro_studio import applica_upload_proforma_parcelle_pdf
+    from .consulente_registro_studio import (
+        applica_aggancia_pdf_proforma_parcelle_a_libro,
+        applica_inserimento_manuale_proforma_parcella,
+        applica_upload_proforma_parcelle_pdf,
+        parse_importo_form,
+    )
     from .models import MovimentoRegistroStudioConsulente
 
     azienda, redir = _partitario_azienda_o_redirect(request)
     if redir:
         return redir
     if request.method == 'POST':
+        action = (request.POST.get('action') or '').strip()
+        if action == 'inserimento_manuale_documento':
+            raw_data = (request.POST.get('data_documento') or '').strip()
+            try:
+                d_doc = date.fromisoformat(raw_data) if raw_data else None
+            except ValueError:
+                d_doc = None
+            tipo_doc = (request.POST.get('tipo_documento') or '').strip().lower()
+            numero = (request.POST.get('numero_documento') or '').strip()
+            imp = parse_importo_form(request.POST.get('importo_da_pagare') or '')
+            if d_doc is None:
+                messages.error(request, 'Data documento non valida (usare il selettore data o formato AAAA-MM-GG).')
+            elif imp is None or imp <= 0:
+                messages.error(request, 'Importo da pagare non valido o non indicato.')
+            else:
+                for msg in applica_inserimento_manuale_proforma_parcella(
+                    azienda,
+                    request.user,
+                    tipo_documento=tipo_doc,
+                    numero_documento=numero,
+                    data_documento=d_doc,
+                    importo_contabile=imp,
+                ):
+                    if msg.lower().startswith('già presente'):
+                        messages.warning(request, msg)
+                    elif msg.lower().startswith('registrato'):
+                        messages.success(request, msg)
+                    else:
+                        messages.error(request, msg)
+            return redirect('consulente_posizione_proforma')
+        uploads_agg = request.FILES.getlist('pdf_aggancia')
+        if action == 'aggancia_pdf_documenti' and uploads_agg:
+            msgs, report_rows = applica_aggancia_pdf_proforma_parcelle_a_libro(azienda, request.user, uploads_agg)
+            request.session[SESSION_REPORT_AGGANCIA_DOCUMENTI] = {
+                'azienda_id': azienda.id,
+                'rows': report_rows,
+            }
+            for msg in msgs:
+                low = msg.lower()
+                if msg.startswith('Agganciati') or ': allegato a movimento' in msg.lower():
+                    messages.success(request, msg)
+                elif ' file con errori' in low:
+                    messages.warning(request, msg)
+                elif (
+                    'saltato' in low
+                    or 'nessun movimento' in low
+                    or 'non estratto' in low
+                    or 'data documento non estratta' in low
+                    or 'più movimenti senza data' in low
+                    or 'più movimenti in libro' in low
+                    or 'già un movimento' in low
+                ):
+                    messages.warning(request, msg)
+                elif ': ' in msg and 'allegato a movimento' not in msg.lower():
+                    messages.error(request, msg)
+                else:
+                    messages.info(request, msg)
+            return redirect('consulente_posizione_proforma')
         uploads = request.FILES.getlist('pdf')
         if uploads:
             for msg in applica_upload_proforma_parcelle_pdf(azienda, request.user, uploads):
@@ -1176,6 +1250,8 @@ def consulente_posizione_proforma(request):
         .select_related('importato_da')
         .order_by(F('data_documento').desc(nulls_last=True), '-importato_il')
     )
+    rep_doc = request.session.get(SESSION_REPORT_AGGANCIA_DOCUMENTI) or {}
+    report_aggancia_csv_documenti = bool(rep_doc.get('azienda_id') == azienda.id and rep_doc.get('rows'))
     return render(
         request,
         'consulente/posizione_contabile_proforma.html',
@@ -1184,8 +1260,162 @@ def consulente_posizione_proforma(request):
             'righe': righe,
             'partitario_back': _partitario_back(request),
             'posizione_nav': 'proforma',
+            'report_aggancia_csv_documenti': report_aggancia_csv_documenti,
         },
     )
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+@require_POST
+def consulente_proforma_allega_pdf_movimento(request, movimento_id: int):
+    from .consulente_registro_studio import applica_pdf_su_movimento_documento
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+    up = request.FILES.get("pdf")
+    if not up:
+        messages.error(request, "Seleziona un file PDF da allegare.")
+        return redirect("consulente_posizione_proforma")
+    for msg in applica_pdf_su_movimento_documento(azienda, request.user, movimento_id, up):
+        low = msg.lower()
+        if (
+            "pdf allegato con successo" in low
+            or "pdf allegato al movimento" in low
+            or "pdf documento sostituito" in low
+        ):
+            messages.success(request, msg)
+        elif "non corrisponde" in low or "annullato" in low or "ambiguo" in low:
+            messages.warning(request, msg)
+        else:
+            messages.error(request, msg)
+    return redirect("consulente_posizione_proforma")
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+@require_POST
+def consulente_pagamenti_allega_pdf_movimento(request, movimento_id: int):
+    from .consulente_registro_studio import applica_pdf_su_movimento_bonifico
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+    up = request.FILES.get("pdf")
+    if not up:
+        messages.error(request, "Seleziona un file PDF da allegare.")
+        return redirect("consulente_posizione_pagamenti")
+    for msg in applica_pdf_su_movimento_bonifico(azienda, request.user, movimento_id, up):
+        low = msg.lower()
+        if (
+            "pdf allegato con successo" in low
+            or "pdf allegato a bonifico" in low
+            or "allegata con successo al bonifico" in low
+            or "sostituita per il bonifico" in low
+        ):
+            messages.success(request, msg)
+        elif "non corrisponde" in low or "annullato" in low:
+            messages.warning(request, msg)
+        else:
+            messages.error(request, msg)
+    return redirect("consulente_posizione_pagamenti")
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+@require_POST
+def consulente_pagamenti_rimuovi_pdf_movimento(request, movimento_id: int):
+    from .consulente_registro_studio import ricalcola_saldi_progressivi
+    from .models import MovimentoRegistroStudioConsulente
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+    mov = MovimentoRegistroStudioConsulente.objects.filter(
+        pk=movimento_id, azienda=azienda, tipo_riga="bonifico"
+    ).first()
+    if mov is None:
+        messages.error(request, "Movimento non trovato.")
+    elif not getattr(mov.file, "name", None):
+        messages.warning(request, "Questa riga non ha un PDF allegato.")
+    else:
+        try:
+            mov.file.delete(save=False)
+        except OSError:
+            pass
+        mov.file = None
+        mov.save(update_fields=["file"])
+        ricalcola_saldi_progressivi(azienda.id)
+        messages.success(request, "PDF distinta rimosso dal bonifico.")
+    return redirect("consulente_posizione_pagamenti")
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+@require_POST
+def consulente_proforma_rimuovi_pdf_movimento(request, movimento_id: int):
+    from .consulente_registro_studio import ricalcola_saldi_progressivi
+    from .models import MovimentoRegistroStudioConsulente
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+    mov = MovimentoRegistroStudioConsulente.objects.filter(
+        pk=movimento_id, azienda=azienda, tipo_riga="documento"
+    ).first()
+    if mov is None:
+        messages.error(request, "Movimento non trovato.")
+    elif not getattr(mov.file, "name", None):
+        messages.warning(request, "Questa riga non ha un PDF allegato.")
+    else:
+        try:
+            mov.file.delete(save=False)
+        except OSError:
+            pass
+        mov.file = None
+        mov.save(update_fields=["file"])
+        ricalcola_saldi_progressivi(azienda.id)
+        messages.success(request, "PDF rimosso dal documento.")
+    return redirect("consulente_posizione_proforma")
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_report_aggancia_csv(request):
+    """Scarica CSV dell'ultimo aggancio massivo PDF (documenti o bonifici) per l'azienda in sessione partitario."""
+    from .consulente_registro_studio import render_csv_report_aggancia_bonifici, render_csv_report_aggancia_documenti
+
+    tipo = (request.GET.get('tipo') or '').strip().lower()
+    if tipo not in ('documenti', 'bonifici'):
+        return HttpResponse('Parametro tipo=documenti|bonifici obbligatorio.', status=400, content_type='text/plain; charset=utf-8')
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+
+    key = SESSION_REPORT_AGGANCIA_DOCUMENTI if tipo == 'documenti' else SESSION_REPORT_AGGANCIA_BONIFICI
+    payload = request.session.get(key) or {}
+    rows = payload.get('rows') or []
+    if payload.get('azienda_id') != azienda.id or not rows:
+        messages.warning(
+            request,
+            'Nessun report CSV disponibile per questa azienda: eseguire prima un aggancio massivo PDF nella pagina corrispondente.',
+        )
+        if tipo == 'documenti':
+            return redirect('consulente_posizione_proforma')
+        return redirect('consulente_posizione_pagamenti')
+
+    if tipo == 'documenti':
+        body = render_csv_report_aggancia_documenti(rows)
+        fname = f"report_aggancia_documenti_{timezone.now().strftime('%Y%m%d_%H%M')}.csv"
+    else:
+        body = render_csv_report_aggancia_bonifici(rows)
+        fname = f"report_aggancia_bonifici_{timezone.now().strftime('%Y%m%d_%H%M')}.csv"
+
+    resp = HttpResponse("\ufeff" + body, content_type='text/csv; charset=utf-8')
+    resp['Content-Disposition'] = f'attachment; filename="{fname}"'
+    return resp
 
 
 @login_required
@@ -1197,7 +1427,12 @@ def consulente_posizione_pagamenti(request):
 
     from django.db.models import F
 
-    from .consulente_registro_studio import applica_upload_bonifici_pdf, parse_importo_form, ricalcola_saldi_progressivi
+    from .consulente_registro_studio import (
+        applica_aggancia_pdf_bonifici_a_libro,
+        applica_upload_bonifici_pdf,
+        parse_importo_form,
+        ricalcola_saldi_progressivi,
+    )
     from .models import MovimentoRegistroStudioConsulente
 
     azienda, redir = _partitario_azienda_o_redirect(request)
@@ -1205,6 +1440,56 @@ def consulente_posizione_pagamenti(request):
         return redir
     if request.method == 'POST':
         action = (request.POST.get('action') or '').strip()
+        uploads_bon_agg = request.FILES.getlist('pdf_aggancia_bonifici')
+        if action == 'aggancia_pdf_bonifici' and uploads_bon_agg:
+            msgs, report_rows = applica_aggancia_pdf_bonifici_a_libro(azienda, request.user, uploads_bon_agg)
+            request.session[SESSION_REPORT_AGGANCIA_BONIFICI] = {
+                'azienda_id': azienda.id,
+                'rows': report_rows,
+            }
+            for msg in msgs:
+                low = msg.lower()
+                if msg.startswith('Agganciati') or ': pdf allegato a bonifico' in msg.lower():
+                    messages.success(request, msg)
+                elif ' file con errori' in low:
+                    messages.warning(request, msg)
+                elif 'saltato' in low or 'nessun bonifico' in low or 'non estratto' in low or 'già un pdf' in low or 'già pdf' in low:
+                    messages.warning(request, msg)
+                elif ': ' in msg and 'pdf allegato a bonifico' not in msg.lower():
+                    messages.error(request, msg)
+                else:
+                    messages.info(request, msg)
+            return redirect('consulente_posizione_pagamenti')
+        if action == 'import_riepilogo_bonifici':
+            import hashlib
+            import time
+
+            from .consulente_registro_studio import import_riepilogo_bonifici_da_excel
+
+            f = request.FILES.get('excel_riepilogo')
+            if not f:
+                messages.error(request, 'Selezionare un file Excel (.xlsx) con colonne Data, Documento, Descrizione, Importo.')
+            else:
+                nome = (f.name or 'riepilogo.xlsx')[:280]
+                if not nome.lower().endswith(('.xlsx', '.xlsm')):
+                    messages.error(request, 'Formato non supportato: usare .xlsx')
+                else:
+                    raw = f.read()
+                    sha = hashlib.sha256(raw).hexdigest()
+                    guard = request.session.get('bonifici_excel_imp_guard') or {}
+                    if guard.get('sha256') == sha and (time.time() - float(guard.get('t', 0))) < 180:
+                        messages.warning(
+                            request,
+                            'Stesso file importato pochi minuti fa: operazione ignorata per evitare duplicati.',
+                        )
+                    else:
+                        try:
+                            for msg in import_riepilogo_bonifici_da_excel(io.BytesIO(raw), nome, azienda, request.user):
+                                messages.success(request, msg)
+                            request.session['bonifici_excel_imp_guard'] = {'sha256': sha, 't': time.time()}
+                        except Exception as exc:
+                            messages.error(request, str(exc))
+            return redirect('consulente_posizione_pagamenti')
         if action == 'aggiungi_bonifico':
             data_raw = (request.POST.get('data_valuta') or '').strip()
             rif = (request.POST.get('riferimento_pagamento') or '').strip()
@@ -1224,6 +1509,16 @@ def consulente_posizione_pagamenti(request):
             elif imp is None or imp <= 0:
                 messages.error(request, 'Indicare un importo in avere maggiore di zero.')
             else:
+                from .consulente_registro_studio import trova_bonifico_esistente_stesso_excel
+
+                dup_b = trova_bonifico_esistente_stesso_excel(azienda.id, data_doc, imp, rif, caus)
+                if dup_b is not None:
+                    messages.warning(
+                        request,
+                        'Esiste già un bonifico con la stessa data, lo stesso importo in avere e un riferimento o causale '
+                        f'compatibile (mov. id {dup_b.pk}); operazione annullata.',
+                    )
+                    return redirect('consulente_posizione_pagamenti')
                 nome_sint = (pdf.name if pdf else None) or f"bonifico-{data_doc.isoformat()}-{uuid.uuid4().hex[:10]}"
                 nome_sint = nome_sint[:280]
                 obj = MovimentoRegistroStudioConsulente(
@@ -1250,6 +1545,31 @@ def consulente_posizione_pagamenti(request):
                 ricalcola_saldi_progressivi(azienda.id)
                 messages.success(request, 'Bonifico registrato in avere.')
             return redirect('consulente_posizione_pagamenti')
+        if action == 'solo_pdf_bonifico':
+            from .consulente_registro_studio import applica_upload_bonifici_pdf
+
+            solo = request.FILES.get('pdf_bonifico_solo')
+            if not solo:
+                messages.error(request, 'Seleziona un PDF distinta (importo e riferimento leggibili dal testo).')
+            else:
+                for msg in applica_upload_bonifici_pdf(azienda, request.user, [solo]):
+                    low = msg.lower()
+                    if 'registrati' in low and 'bonifici da pdf' in low:
+                        messages.success(request, msg)
+                    elif (
+                        'non importati' in low
+                        or 'non rilevato' in low
+                        or 'assente' in low
+                        or 'usare inserimento' in low
+                        or 'riferimento assente' in low
+                        or 'importo non rilevato' in low
+                        or 'ignorati perché equivalenti' in low
+                        or 'importazione ignorata' in low
+                    ):
+                        messages.warning(request, msg)
+                    else:
+                        messages.info(request, msg)
+            return redirect('consulente_posizione_pagamenti')
         uploads = request.FILES.getlist('pdf')
         if uploads:
             for msg in applica_upload_bonifici_pdf(azienda, request.user, uploads):
@@ -1263,6 +1583,8 @@ def consulente_posizione_pagamenti(request):
         .select_related('importato_da')
         .order_by(F('data_documento').desc(nulls_last=True), '-importato_il')
     )
+    rep_bon = request.session.get(SESSION_REPORT_AGGANCIA_BONIFICI) or {}
+    report_aggancia_csv_bonifici = bool(rep_bon.get('azienda_id') == azienda.id and rep_bon.get('rows'))
     return render(
         request,
         'consulente/posizione_contabile_pagamenti.html',
@@ -1271,6 +1593,7 @@ def consulente_posizione_pagamenti(request):
             'righe': righe,
             'partitario_back': _partitario_back(request),
             'posizione_nav': 'pagamenti',
+            'report_aggancia_csv_bonifici': report_aggancia_csv_bonifici,
         },
     )
 
@@ -1278,10 +1601,14 @@ def consulente_posizione_pagamenti(request):
 @login_required
 @user_passes_test(_is_admin_o_consulente_partitario)
 def consulente_posizione_estratto(request):
-    from django.db.models import Prefetch
+    """
+    Stesso URL «estratto-conto»: import Excel **solo bonifici** (come Pagamenti),
+    salvataggio nel libro movimenti e reindirizzamento all’elenco Pagamenti.
+    """
+    import hashlib
+    import time
 
-    from .consulente_registro_studio import import_estratto_excel
-    from .models import ImportEstrattoContoStudio, RigaEstrattoContoStudio
+    from .consulente_registro_studio import import_riepilogo_bonifici_da_excel
 
     azienda, redir = _partitario_azienda_o_redirect(request)
     if redir:
@@ -1292,29 +1619,30 @@ def consulente_posizione_estratto(request):
             messages.error(request, 'Selezionare un file Excel (.xlsx).')
         else:
             nome = (f.name or 'estratto.xlsx')[:280]
-            try:
-                imp_obj, extra = import_estratto_excel(f, nome, azienda, request.user)
-                for msg in extra:
-                    messages.success(request, msg)
-            except Exception as exc:
-                messages.error(request, str(exc))
-        return redirect('consulente_posizione_estratto')
-    imports_recenti = (
-        ImportEstrattoContoStudio.objects.filter(azienda=azienda)
-        .prefetch_related(
-            Prefetch(
-                'righe',
-                queryset=RigaEstrattoContoStudio.objects.select_related('movimento').order_by('indice_riga'),
-            )
-        )
-        .order_by('-importato_il')[:8]
-    )
+            if not nome.lower().endswith(('.xlsx', '.xlsm')):
+                messages.error(request, 'Formato non supportato: usare .xlsx o .xlsm.')
+            else:
+                raw = f.read()
+                sha = hashlib.sha256(raw).hexdigest()
+                guard = request.session.get('bonifici_excel_imp_guard') or {}
+                if guard.get('sha256') == sha and (time.time() - float(guard.get('t', 0))) < 180:
+                    messages.warning(
+                        request,
+                        'Stesso file importato pochi minuti fa: operazione ignorata per evitare duplicati.',
+                    )
+                else:
+                    try:
+                        for msg in import_riepilogo_bonifici_da_excel(io.BytesIO(raw), nome, azienda, request.user):
+                            messages.success(request, msg)
+                        request.session['bonifici_excel_imp_guard'] = {'sha256': sha, 't': time.time()}
+                    except Exception as exc:
+                        messages.error(request, str(exc))
+        return redirect('consulente_posizione_pagamenti')
     return render(
         request,
         'consulente/posizione_contabile_estratto.html',
         {
             'azienda': azienda,
-            'imports_recenti': imports_recenti,
             'partitario_back': _partitario_back(request),
             'posizione_nav': 'estratto',
         },
@@ -1343,21 +1671,337 @@ def consulente_posizione_libro(request):
             res = ricalcola_totali_documenti_da_testo_estratto(azienda.id)
             messages.success(request, res['message'])
         return redirect('consulente_posizione_libro')
-    righe = (
+    from collections import Counter
+
+    righe = list(
         MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda)
         .select_related('importato_da')
         .order_by(F('data_documento').asc(nulls_last=True), 'importato_il', 'id')
     )
+    doc_pairs = [
+        (r.id, (r.numero_documento or "").strip().lower(), r.tipo_documento, r.data_documento)
+        for r in righe
+        if r.tipo_riga == "documento" and (r.numero_documento or "").strip()
+    ]
+    cnt = Counter((num, tipo, data) for _pk, num, tipo, data in doc_pairs)
+    dup_keys = {k for k, n in cnt.items() if n > 1}
+    documento_duplicato_ids = {pk for pk, num, tipo, data in doc_pairs if (num, tipo, data) in dup_keys}
     return render(
         request,
         'consulente/posizione_contabile_libro.html',
         {
             'azienda': azienda,
             'righe': righe,
+            'documento_duplicato_ids': documento_duplicato_ids,
             'partitario_back': _partitario_back(request),
             'posizione_nav': 'libro',
         },
     )
+
+
+def _qs_libro_movimenti_azienda(azienda):
+    from django.db.models import F
+
+    from .models import MovimentoRegistroStudioConsulente
+
+    return (
+        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda)
+        .select_related('importato_da')
+        .order_by(F('data_documento').asc(nulls_last=True), 'importato_il', 'id')
+    )
+
+
+def _fmt_euro_pdf(val) -> str:
+    try:
+        num = Decimal(val or 0)
+    except Exception:
+        num = Decimal("0")
+    s = f"{num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"EUR {s}"
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_posizione_libro_excel(request):
+    try:
+        import openpyxl
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        return HttpResponse("openpyxl non disponibile.", status=500)
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+
+    righe = list(_qs_libro_movimenti_azienda(azienda))
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    if ws is None:
+        return HttpResponse("Impossibile creare il file Excel.", status=500)
+    ws.title = "Libro movimenti"
+
+    headers = ["Data", "Movimento", "Dettaglio", "Tot. doc.", "Dare", "Avere", "Saldo", "Doc."]
+    thin = Side(border_style='thin', color='D0D0D0')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    h_fill = PatternFill('solid', fgColor='1B3A5F')
+    h_font = Font(bold=True, color='FFFFFF', size=10)
+    center = Alignment(horizontal='center', vertical='center')
+    left = Alignment(horizontal='left', vertical='center')
+
+    for col, h in enumerate(headers, start=1):
+        c = ws.cell(row=1, column=col, value=h)
+        c.fill = h_fill
+        c.font = h_font
+        c.alignment = center
+        c.border = border
+    ws.freeze_panes = "A2"
+
+    alt_fill = PatternFill('solid', fgColor='F7FAFC')
+    for idx, r in enumerate(righe, start=2):
+        if r.tipo_riga == 'bonifico':
+            dettaglio = (r.riferimento_pagamento or '').strip() or "—"
+            if r.causale_pagamento:
+                dettaglio = f"{dettaglio} | {r.causale_pagamento}"
+        else:
+            tipo_doc = _safe_display(r, 'get_tipo_documento_display', 'tipo_documento') or ''
+            num_doc = f"n. {r.numero_documento}" if r.numero_documento else ''
+            dettaglio = f"{tipo_doc} {num_doc}".strip() or "—"
+
+        row = [
+            r.data_documento.strftime('%d/%m/%Y') if r.data_documento else '',
+            _safe_display(r, 'get_tipo_riga_display', 'tipo_riga'),
+            dettaglio,
+            float(r.totale_da_pagare) if r.totale_da_pagare is not None else None,
+            float(r.dare or 0),
+            float(r.avere or 0),
+            float(r.saldo_progressivo or 0),
+            "PDF" if getattr(r.file, "name", "") else "",
+        ]
+        fill = alt_fill if idx % 2 == 0 else None
+        for col, val in enumerate(row, start=1):
+            c = ws.cell(row=idx, column=col, value=val)
+            c.border = border
+            c.alignment = left
+            if fill is not None:
+                c.fill = fill
+            if col in (4, 5, 6, 7):
+                c.number_format = '#,##0.00'
+                c.alignment = Alignment(horizontal='right', vertical='center')
+
+    widths = [12, 18, 64, 13, 13, 13, 13, 9]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    filename = f"libro_movimenti_{quote(azienda.nome.replace(' ', '_'))}.xlsx"
+    response = HttpResponse(
+        out.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_posizione_libro_pdf(request):
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.pdfgen import canvas as pdfcanvas
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ImportError:
+        return HttpResponse("reportlab non disponibile.", status=500)
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+
+    righe = list(_qs_libro_movimenti_azienda(azienda))
+    buffer = BytesIO()
+    timestamp_ref = timezone.localtime()
+    data_ref = timestamp_ref.strftime('%d/%m/%Y')
+    header_title = (
+        f"Posizione contabile {azienda.nome} "
+        "Societa a Responsabilita Limitata Semplificata - SRLS verso Studio di Consulenza del Lavoro"
+    )
+
+    class NumberedCanvas(pdfcanvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._saved_page_states = []
+
+        def showPage(self):
+            self._saved_page_states.append(dict(self.__dict__))
+            self._startPage()
+
+        def save(self):
+            total_pages = len(self._saved_page_states)
+            for state in self._saved_page_states:
+                self.__dict__.update(state)
+                _draw_page_chrome(self, doc, self._pageNumber, total_pages)
+                super().showPage()
+            super().save()
+
+    def _draw_page_chrome(canv, _doc, page_num, total_pages):
+        canv.saveState()
+        canv.setFont("Helvetica-Bold", 8.6)
+        canv.setFillColor(colors.HexColor("#1B3A5F"))
+        page_h = landscape(A4)[1]
+        canv.drawString(_doc.leftMargin, page_h - 11 * mm, header_title[:180])
+
+        footer = f"Posizione aggiornata al {data_ref} - pagina {page_num} di {total_pages}"
+        canv.setFont("Helvetica", 8)
+        canv.setFillColor(colors.HexColor("#4B5563"))
+        footer_y = 8.2 * mm
+        page_w = landscape(A4)[0]
+        text_w = canv.stringWidth(footer, "Helvetica", 8)
+        canv.drawString((page_w - text_w) / 2, footer_y, footer)
+        canv.restoreState()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=12 * mm,
+        rightMargin=12 * mm,
+        topMargin=16 * mm,
+        bottomMargin=12 * mm,
+        title=f"Posizione contabile - {azienda.nome}",
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "LibroTitle",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=13,
+        textColor=colors.HexColor("#1B3A5F"),
+        spaceAfter=6,
+    )
+    meta_style = ParagraphStyle(
+        "LibroMeta",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        textColor=colors.HexColor("#4B5563"),
+        spaceAfter=8,
+    )
+    cell_style = ParagraphStyle(
+        "LibroCell",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=7.4,
+        leading=9,
+        wordWrap="CJK",
+    )
+    mov_style = ParagraphStyle(
+        "LibroMov",
+        parent=cell_style,
+        fontName="Helvetica-Bold",
+        fontSize=7.3,
+        leading=8.8,
+    )
+    det_style = ParagraphStyle(
+        "LibroDet",
+        parent=cell_style,
+        fontName="Helvetica",
+        fontSize=7.2,
+        leading=8.8,
+    )
+
+    story = [Spacer(1, 2 * mm)]
+
+    data = [[
+        "Data",
+        "Movimento",
+        "Dettaglio",
+        "Da pagare",
+        "Pagato",
+        "Saldo residuo",
+        "Doc.",
+    ]]
+    row_styles: list[tuple] = []
+    for r in righe:
+        if r.tipo_riga == 'bonifico':
+            dettaglio_raw = (r.riferimento_pagamento or "—").strip()
+            if r.causale_pagamento:
+                dettaglio_raw = f"{dettaglio_raw}<br/><font size='6' color='#6B7280'>{r.causale_pagamento[:90]}</font>"
+        else:
+            tipo_doc = _safe_display(r, 'get_tipo_documento_display', 'tipo_documento') or ''
+            num_doc = f" n. {r.numero_documento}" if r.numero_documento else ''
+            dettaglio_raw = f"{tipo_doc}{num_doc}" or "—"
+
+        mov_label = _safe_display(r, 'get_tipo_riga_display', 'tipo_riga') or "—"
+        if len(mov_label) > 24:
+            mov_label = f"{mov_label[:21]}..."
+
+        row_idx = len(data)
+        if r.tipo_riga == "documento":
+            row_styles.append(("BACKGROUND", (0, row_idx), (-1, row_idx), colors.HexColor("#FFF7D6")))
+            row_styles.append(("FONTNAME", (0, row_idx), (2, row_idx), "Helvetica-Bold"))
+            row_styles.append(("TEXTCOLOR", (0, row_idx), (2, row_idx), colors.HexColor("#4A3B00")))
+        else:
+            row_styles.append(("BACKGROUND", (0, row_idx), (-1, row_idx), colors.HexColor("#F8FAFC")))
+
+        data.append([
+            r.data_documento.strftime('%d/%m/%Y') if r.data_documento else "—",
+            Paragraph(mov_label, mov_style),
+            Paragraph(dettaglio_raw, det_style),
+            _fmt_euro_pdf(r.dare),
+            _fmt_euro_pdf(r.avere),
+            _fmt_euro_pdf(r.saldo_progressivo),
+            "PDF" if getattr(r.file, "name", "") else "—",
+        ])
+
+    table = Table(
+        data,
+        repeatRows=1,
+        colWidths=[23 * mm, 25 * mm, 127 * mm, 24 * mm, 24 * mm, 24 * mm, 12 * mm],
+    )
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1B3A5F")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("ALIGN", (0, 0), (2, -1), "LEFT"),
+        ("ALIGN", (3, 1), (5, -1), "RIGHT"),
+        ("ALIGN", (6, 1), (6, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 7.2),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#CBD5E1")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        *row_styles,
+    ]))
+    story.append(table)
+    story.append(Spacer(1, 3 * mm))
+    story.append(Paragraph(f"Totale righe: {len(righe)}", meta_style))
+
+    saldo_finale = righe[-1].saldo_progressivo if righe else Decimal("0")
+    if saldo_finale > 0:
+        saldo_msg = f"Resta da pagare: {_fmt_euro_pdf(saldo_finale)}"
+    elif saldo_finale < 0:
+        saldo_msg = f"Importo credito da compensare in conto nuove Proforma: {_fmt_euro_pdf(abs(saldo_finale))}"
+    else:
+        saldo_msg = "Saldo residuo pari a zero."
+    story.append(Paragraph(saldo_msg, title_style))
+
+    doc.build(story, canvasmaker=NumberedCanvas)
+
+    buffer.seek(0)
+    filename = f"libro_movimenti_{quote(azienda.nome.replace(' ', '_'))}.pdf"
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
 
 
 @login_required

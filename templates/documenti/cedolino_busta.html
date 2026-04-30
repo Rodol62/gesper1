@@ -82,7 +82,7 @@
   </div>
   <div class="ced-actions">
     <a href="{% url 'visualizza_documento' documento.id %}" class="btn btn-sm btn-light">
-      <i class="bi bi-file-earmark-pdf"></i> PDF
+      <i class="bi bi-file-earmark-pdf"></i> PDF #{{ documento.id }}
     </a>
     <a href="{% url 'download_documento' documento.id %}" class="btn btn-sm btn-outline-light">
       <i class="bi bi-download"></i> Scarica

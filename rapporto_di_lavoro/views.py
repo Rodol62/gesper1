@@ -14,6 +14,7 @@ from django.utils.dateparse import parse_datetime
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Case, IntegerField, Model, Q, Value, When
+from django.core.mail import EmailMessage, get_connection
 from io import BytesIO
 from decimal import Decimal
 import os
@@ -22,9 +23,11 @@ from datetime import date, datetime, timedelta
 import json
 import csv
 import logging
+import re
 from urllib.parse import urlencode
 from io import StringIO
 from types import SimpleNamespace
+from typing import Any, Sequence
 
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen import canvas
@@ -43,6 +46,7 @@ from gesper_next_url import sanitize_internal_next
 from accounts.pagination import pagination_window
 from accounts.formatting import euro_it_str, num_it_str
 from anagrafiche.models import ComunicazioneRecessoProva, Dipendente
+from documenti.models import Documento
 from .forms import (
 	PropostaAssunzioneForm,
 	IstruttoriaAssunzioneForm,
@@ -108,20 +112,26 @@ logger = logging.getLogger(__name__)
 
 
 def _get_azienda_operativa_per_utente(user, session):
-	if user.is_superuser or getattr(user, 'ruolo', None) == 'admin':
+	if not getattr(user, 'is_authenticated', False):
+		return None
+	if user.is_superuser or user.has_ruolo('admin'):
 		return get_azienda_operativa(user, session)
-	if getattr(user, 'ruolo', None) == 'hr':
+	if user.has_ruolo('hr'):
 		return user.azienda
+	if user.has_ruolo('consulente'):
+		return getattr(user, 'azienda', None)
 	return None
 
 
 def _get_azienda_per_contratti_scadenze(user, session):
 	"""Azienda per elenco scadenze TD: admin (sessione), HR e consulente (FK su utente)."""
-	if user.is_superuser or getattr(user, 'ruolo', None) == 'admin':
+	if not getattr(user, 'is_authenticated', False):
+		return None
+	if user.is_superuser or user.has_ruolo('admin'):
 		return get_azienda_operativa(user, session)
-	if getattr(user, 'ruolo', None) == 'hr':
+	if user.has_ruolo('hr'):
 		return user.azienda
-	if getattr(user, 'ruolo', None) == 'consulente':
+	if user.has_ruolo('consulente'):
 		return getattr(user, 'azienda', None)
 	return None
 
@@ -161,7 +171,7 @@ def _eventi_documento_per_riferimenti(dipendente, azienda, *riferimenti, limite=
 	qs = EventoStorico.objects.filter(dipendente=dipendente, azienda=azienda)
 	if filtri:
 		qs = qs.filter(filtri)
-	return qs.order_by('-data_evento')[:limite]
+	return qs.select_related('documento').order_by('-data_evento')[:limite]
 
 
 def _autocompleta_retribuzione_proposta(proposta, azienda_operativa, preserve_manual=False):
@@ -300,7 +310,9 @@ def _autocompleta_retribuzione_proposta(proposta, azienda_operativa, preserve_ma
 
 
 def _is_admin_like(user):
-	return user.is_authenticated and (user.is_superuser or getattr(user, 'ruolo', None) in ['admin', 'hr'])
+	return user.is_authenticated and (
+		user.is_superuser or user.has_ruolo('admin') or user.has_ruolo('hr')
+	)
 
 
 def _puo_accedere_centro_rapporti(user):
@@ -416,25 +428,31 @@ def _deserialize_querydict_from_session(payload):
 
 def _get_proposta_con_permesso(request, proposta_id):
 	proposta = get_object_or_404(PropostaAssunzione, id=proposta_id)
+	user = request.user
+	if not getattr(user, 'is_authenticated', False):
+		return None
+	has_ruolo = getattr(user, 'has_ruolo', None)
+	if not callable(has_ruolo):
+		has_ruolo = lambda *_: False
 
-	if request.user.is_superuser or request.user.has_ruolo('admin') or request.user.has_ruolo('hr'):
-		azienda_operativa = get_azienda_operativa(request.user, request.session) if request.user.has_ruolo('admin') else request.user.azienda
+	if user.is_superuser or has_ruolo('admin') or has_ruolo('hr'):
+		azienda_operativa = get_azienda_operativa(user, request.session) if has_ruolo('admin') else user.azienda
 		if azienda_operativa and proposta.azienda_id != azienda_operativa.id:
 			return None
 		return proposta
 
-	if request.user.has_ruolo('consulente'):
-		azienda_consulente = getattr(request.user, 'azienda', None)
+	if has_ruolo('consulente'):
+		azienda_consulente = getattr(user, 'azienda', None)
 		if azienda_consulente and proposta.azienda_id == azienda_consulente.id:
 			return proposta
 		return None
 
-	if (request.user.has_ruolo('dipendente') or request.user.has_ruolo('candidato')) and proposta.dipendente_id:
+	if (has_ruolo('dipendente') or has_ruolo('candidato')) and proposta.dipendente_id:
 		dip = proposta.dipendente
-		if dip.utente_id == request.user.id:
+		if dip.utente_id == user.id:
 			return proposta
 		# Fallback: dipendente collegato via ProfiloCandidato (utente non ancora impostato sul Dipendente)
-		profilo = getattr(request.user, 'profilo_candidato', None)
+		profilo = getattr(user, 'profilo_candidato', None)
 		if profilo and profilo.dipendente_id and profilo.dipendente_id == proposta.dipendente_id:
 			return proposta
 
@@ -455,7 +473,12 @@ def _proposta_attiva_per_dipendente(azienda, dipendente, exclude_id=None):
 
 
 def _get_contratto_con_permesso(request, contratto_id):
-	contratto = get_object_or_404(RapportoDiLavoro, id=contratto_id)
+	contratto = get_object_or_404(
+		RapportoDiLavoro.objects.select_related(
+			'dipendente', 'azienda', 'tipo_contratto', 'proposta_origine',
+		),
+		id=contratto_id,
+	)
 
 	if request.user.is_superuser or (request.user.has_ruolo('admin') or request.user.has_ruolo('hr')):
 		azienda_operativa = get_azienda_operativa(request.user, request.session) if request.user.has_ruolo('admin') else request.user.azienda
@@ -4613,12 +4636,20 @@ def lista_proposte(request):
 		ha_bozza_in_lavorazione = PropostaAssunzione.objects.filter(
 			dipendente__utente=request.user, stato='bozza',
 		).exists()
+	elif request.user.has_ruolo('consulente'):
+		# Stesso isolamento di centro_rapporti / dashboard consulente: solo proposte dell'azienda collegata.
+		azienda_operativa = getattr(request.user, 'azienda', None)
+		if not azienda_operativa:
+			return HttpResponseForbidden("Accesso negato")
+		proposte = PropostaAssunzione.objects.filter(azienda=azienda_operativa)
 	else:
 		return HttpResponseForbidden("Accesso negato")
 
 	# Candidati pronti per una proposta (profilo completo, convalidati, senza proposta attiva)
 	candidati_pronti = []
-	if request.user.is_superuser or (request.user.has_ruolo('admin') or request.user.has_ruolo('hr')):
+	if request.user.is_superuser or (
+		request.user.has_ruolo('admin') or request.user.has_ruolo('hr') or request.user.has_ruolo('consulente')
+	):
 		from django.contrib.auth import get_user_model
 		User = get_user_model()
 		candidati_qs = User.objects.filter(
@@ -4647,7 +4678,10 @@ def lista_proposte(request):
 	contratti_td_prossimi = []
 	contratti_td_scaduti = []
 	if azienda_operativa and (
-		request.user.is_superuser or request.user.has_ruolo('admin') or request.user.has_ruolo('hr')
+		request.user.is_superuser
+		or request.user.has_ruolo('admin')
+		or request.user.has_ruolo('hr')
+		or request.user.has_ruolo('consulente')
 	):
 		from .services_contratti import contratti_td_in_scadenza, contratti_td_scaduti_non_chiusi
 
@@ -5273,6 +5307,15 @@ def dettaglio_proposta(request, proposta_id):
 		proposta.numero_proposta,
 		getattr(proposta.contratto_generato, 'numero_contratto', ''),
 	)
+	documenti_riferimento_email = _documenti_riferimento_email_per_proposta(proposta)
+	_invio_map = _ultimo_invio_email_per_select_value(
+		proposta.dipendente,
+		proposta.azienda,
+		[str(r.get('select_value') or '') for r in documenti_riferimento_email],
+	)
+	for row in documenti_riferimento_email:
+		sel = str(row.get('select_value') or '')
+		row['invio_email_recente'] = _invio_map.get(sel)
 	show_service_data = request.user.is_superuser or (request.user.has_ruolo('admin') or request.user.has_ruolo('hr'))
 	ctx = {
 		'proposta': proposta,
@@ -5280,9 +5323,305 @@ def dettaglio_proposta(request, proposta_id):
 		'puo_convertire': proposta.puo_essere_convertita(),
 		'motivi_blocco': proposta.motivi_blocco_conversione(),
 		'eventi_documento': eventi_documento,
+		'documenti_email_condivisibili': _documenti_condivisibili_per_proposta(proposta),
+		'documenti_riferimento_email': documenti_riferimento_email,
+		'email_accompagnamento_default': (
+			"Buongiorno,\n\n"
+			"in relazione alla sua richiesta le trasmettiamo in allegato quanto richiesto.\n\n"
+			"Cordiali saluti,\n"
+			f"{proposta.azienda.nome}"
+		),
 	}
 	ctx.update(_proposta_context_extra(proposta))
 	return render(request, 'rapporto_di_lavoro/dettaglio_proposta.html', ctx)
+
+
+def _documenti_condivisibili_per_proposta(proposta: PropostaAssunzione):
+	if not proposta or not proposta.dipendente_id or not proposta.azienda_id:
+		return Documento.objects.none()
+	return (
+		Documento.objects
+		.filter(azienda_id=proposta.azienda_id, dipendente_id=proposta.dipendente_id)
+		.select_related('caricato_da')
+		.order_by('-data_caricamento', '-id')
+	)
+
+
+def _documenti_riferimento_email_per_proposta(proposta: PropostaAssunzione) -> list[dict[str, Any]]:
+	rows: list[dict[str, Any]] = []
+	if not proposta:
+		return rows
+	added: set[str] = set()
+
+	def _push(row: dict[str, Any]):
+		key = str(row.get('select_value') or '')
+		if not key or key in added:
+			return
+		added.add(key)
+		rows.append(row)
+
+	rows.append({
+		'select_value': 'virtual:proposta',
+		'data_riferimento': proposta.data_creazione,
+		'tipo_display': 'Proposta',
+		'descrizione': f'Proposta {proposta.numero_proposta}',
+		'visualizza_url': reverse('proposta_pdf', args=[proposta.id]),
+		'riferimento_display': 'virtual:proposta',
+	})
+	added.add('virtual:proposta')
+
+	contratto_ref = proposta.contratto_generato if proposta.contratto_generato_id else None
+	if not contratto_ref:
+		eventi = list(_eventi_documento_per_riferimenti(
+			proposta.dipendente,
+			proposta.azienda,
+			proposta.numero_proposta,
+			limite=50,
+		))
+		ctr_num = ''
+		for e in eventi:
+			m = re.search(r'(CTR-[A-Za-z0-9\-]+)', str(e.descrizione or ''))
+			if m:
+				ctr_num = m.group(1)
+				break
+		if ctr_num:
+			contratto_ref = (
+				RapportoDiLavoro.objects
+				.filter(azienda=proposta.azienda, dipendente=proposta.dipendente, numero_contratto__iexact=ctr_num)
+				.order_by('-id')
+				.first()
+			)
+	if contratto_ref:
+		_push({
+			'select_value': 'virtual:contratto',
+			'data_riferimento': getattr(contratto_ref, 'data_creazione', None) or proposta.data_modifica,
+			'tipo_display': 'Contratto',
+			'descrizione': f'Contratto {contratto_ref.numero_contratto}',
+			'visualizza_url': reverse('contratto_pdf', args=[contratto_ref.id]),
+			'riferimento_display': 'virtual:contratto',
+		})
+
+	for doc in _documenti_condivisibili_per_proposta(proposta):
+		_push({
+			'select_value': f'doc:{doc.id}',
+			'data_riferimento': doc.data_caricamento,
+			'tipo_display': doc.get_tipo_display(),
+			'descrizione': doc.descrizione or 'Documento senza descrizione',
+			'visualizza_url': reverse('visualizza_documento', args=[doc.id]),
+			'riferimento_display': f'doc:{doc.id}',
+			'storage_path': (
+				(doc.file.name or '').lstrip('/')
+				if getattr(doc, 'file', None) and getattr(doc.file, 'name', '')
+				else ''
+			),
+		})
+	return rows
+
+
+def _parse_allegati_inviati_da_descrizione_evento(desc: str) -> list[str]:
+	"""Token inviati (doc:N, virtual:…) salvati in coda alla descrizione ``EventoStorico``."""
+	desc = str(desc or '')
+	key = 'Allegati_inviati:'
+	i = desc.find(key)
+	if i < 0:
+		return []
+	rest = desc[i + len(key) :].strip()
+	return [t.strip() for t in rest.split(',') if t.strip()]
+
+
+def _parse_destinatario_invio_doc_email(desc: str) -> str:
+	m = re.search(r'Inviata e-mail documentale a (\S+)\s+con', str(desc or ''))
+	return (m.group(1) or '').strip() if m else ''
+
+
+def _parse_oggetto_invio_doc_email(desc: str) -> str:
+	s = str(desc or '')
+	if ' Oggetto: ' not in s:
+		return ''
+	part = s.split(' Oggetto: ', 1)[1]
+	if '. Proposta ' in part:
+		return part.split('. Proposta ', 1)[0].strip()
+	return part.strip()[:300]
+
+
+def _ultimo_invio_email_per_select_value(
+	dipendente,
+	azienda,
+	select_values: Sequence[str],
+) -> dict[str, dict[str, Any]]:
+	"""
+	Per ogni ``select_value`` (doc:… / virtual:…) restituisce i metadati dell'ultimo invio e-mail
+	che includeva quel documento tra gli allegati (da ``EventoStorico``).
+	"""
+	if not select_values:
+		return {}
+	needed = frozenset(str(v).strip() for v in select_values if str(v).strip())
+	if not needed:
+		return {}
+	qs = (
+		EventoStorico.objects.filter(
+			dipendente_id=dipendente.pk,
+			azienda_id=azienda.pk,
+			tipo='documento',
+		)
+		.filter(descrizione__icontains='Inviata e-mail documentale')
+		.filter(descrizione__icontains='Allegati_inviati:')
+		.order_by('-data_evento')[:250]
+	)
+	out: dict[str, dict[str, Any]] = {}
+	for ev in qs:
+		if len(out) >= len(needed):
+			break
+		desc = str(ev.descrizione or '')
+		tokens = _parse_allegati_inviati_da_descrizione_evento(desc)
+		if not tokens:
+			continue
+		dest = _parse_destinatario_invio_doc_email(desc)
+		oggetto = _parse_oggetto_invio_doc_email(desc)
+		for tok in tokens:
+			if tok in needed and tok not in out:
+				out[tok] = {
+					'data_evento': ev.data_evento,
+					'destinatario': dest,
+					'oggetto': oggetto,
+				}
+	return out
+
+
+@login_required
+@user_passes_test(_is_admin_like)
+def invia_documenti_proposta_email(request, proposta_id):
+	proposta = get_object_or_404(PropostaAssunzione, id=proposta_id)
+	azienda_operativa = (
+		get_azienda_operativa(request.user, request.session)
+		if request.user.has_ruolo('admin')
+		else getattr(request.user, 'azienda', None)
+	)
+	if azienda_operativa and proposta.azienda_id != azienda_operativa.id:
+		return HttpResponseForbidden("Accesso negato")
+	if request.method != 'POST':
+		return redirect('dettaglio_proposta', proposta_id=proposta.id)
+
+	destinatario = (request.POST.get('destinatario_email') or proposta.dipendente.email or '').strip()
+	if not destinatario:
+		messages.error(request, 'E-mail destinatario mancante: inserisci una mail valida del dipendente.')
+		return redirect('dettaglio_proposta', proposta_id=proposta.id)
+
+	selected_ids = [str(x).strip() for x in request.POST.getlist('documenti_ids') if str(x).strip()]
+	if not selected_ids:
+		messages.error(request, 'Seleziona almeno un documento da inviare.')
+		return redirect('dettaglio_proposta', proposta_id=proposta.id)
+
+	doc_tokens = [t for t in selected_ids if t.startswith('doc:')]
+	virtual_tokens = [t for t in selected_ids if t.startswith('virtual:')]
+	doc_ids = []
+	for tok in doc_tokens:
+		raw_id = tok.split(':', 1)[1]
+		if raw_id.isdigit():
+			doc_ids.append(int(raw_id))
+	docs = list(_documenti_condivisibili_per_proposta(proposta).filter(id__in=doc_ids)) if doc_ids else []
+	allowed_virtual = {'virtual:proposta', 'virtual:contratto'}
+	virtual_tokens = [t for t in virtual_tokens if t in allowed_virtual]
+	if not docs and not virtual_tokens:
+		messages.error(request, 'I documenti selezionati non risultano disponibili per questa proposta.')
+		return redirect('dettaglio_proposta', proposta_id=proposta.id)
+
+	oggetto = (request.POST.get('oggetto_email') or '').strip() or (
+		f'Invio documenti — {proposta.dipendente.cognome} {proposta.dipendente.nome}'
+	)
+	testo = (request.POST.get('testo_email') or '').strip()
+	if not testo:
+		messages.error(request, 'Inserisci un testo di accompagnamento per l’e-mail.')
+		return redirect('dettaglio_proposta', proposta_id=proposta.id)
+
+	allegati_tracciati: list[str] = []
+	try:
+		conn = get_connection(backend='accounts.email_backend.ConfigurazioneSistemaEmailBackend')
+		msg = EmailMessage(
+			subject=oggetto,
+			body=testo,
+			from_email=None,  # backend ConfigurazioneSistema gestisce mittente
+			to=[destinatario],
+			connection=conn,
+		)
+		attach_ok = 0
+		attach_ko = 0
+		for d in docs:
+			try:
+				if not (d.file and d.file.name):
+					attach_ko += 1
+					continue
+				d.file.open('rb')
+				try:
+					payload = d.file.read()
+				finally:
+					d.file.close()
+				filename = os.path.basename(d.file.name) or f'documento_{d.id}.pdf'
+				msg.attach(filename, payload, 'application/pdf')
+				attach_ok += 1
+				allegati_tracciati.append(f'doc:{d.id}')
+			except Exception:
+				attach_ko += 1
+		for vt in virtual_tokens:
+			try:
+				if vt == 'virtual:proposta':
+					extra = _proposta_context_extra(proposta)
+					proposta_pdf = _genera_proposta_pdf(proposta, extra).getvalue()
+					msg.attach(f'proposta_{proposta.numero_proposta}.pdf', proposta_pdf, 'application/pdf')
+					attach_ok += 1
+					allegati_tracciati.append(vt)
+				elif vt == 'virtual:contratto' and proposta.contratto_generato_id:
+					contratto_pdf = _genera_contratto_pdf_bytes(proposta.contratto_generato)
+					msg.attach(f'contratto_{proposta.contratto_generato.numero_contratto}.pdf', contratto_pdf, 'application/pdf')
+					attach_ok += 1
+					allegati_tracciati.append(vt)
+				else:
+					attach_ko += 1
+			except Exception:
+				attach_ko += 1
+		if attach_ok == 0:
+			messages.error(request, 'Nessun allegato leggibile: impossibile inviare e-mail.')
+			return redirect('dettaglio_proposta', proposta_id=proposta.id)
+
+		msg.send()
+		rif_contr = ''
+		if getattr(proposta, 'contratto_generato_id', None) and proposta.contratto_generato:
+			rif_contr = f' Contratto {proposta.contratto_generato.numero_contratto}.'
+		traccia = (
+			f' Allegati_inviati:{",".join(allegati_tracciati)}'
+			if allegati_tracciati
+			else ''
+		)
+		EventoStorico.objects.create(
+			dipendente=proposta.dipendente,
+			azienda=proposta.azienda,
+			tipo='documento',
+			data_evento=timezone.now(),
+			descrizione=(
+				f'Inviata e-mail documentale a {destinatario} con {attach_ok} allegati'
+				f'{f" ({attach_ko} non allegati)" if attach_ko else ""}. '
+				f'Oggetto: {oggetto}. '
+				f'Proposta {proposta.numero_proposta}.{rif_contr}{traccia}'
+			),
+		)
+		logger.info(
+			'[INVIA_DOC_EMAIL] proposta=%s dip=%s dest=%s allegati_ok=%s allegati_ko=%s virtual=%s doc_ids=%s',
+			proposta.numero_proposta,
+			proposta.dipendente_id,
+			destinatario,
+			attach_ok,
+			attach_ko,
+			','.join(virtual_tokens),
+			','.join(str(i) for i in doc_ids),
+		)
+		messages.success(
+			request,
+			f'E-mail inviata a {destinatario} con {attach_ok} allegati'
+			f'{f" ({attach_ko} non allegati)" if attach_ko else ""}.',
+		)
+	except Exception as exc:
+		messages.error(request, f'Invio e-mail non riuscito: {exc}')
+	return redirect('dettaglio_proposta', proposta_id=proposta.id)
 
 
 def _genera_proposta_pdf(proposta, extra):
@@ -6123,6 +6462,10 @@ def _allega_contratto_definitivo_documento(contratto, utente):
 		) from exc
 
 
+def _descrizione_contratto_firmato_cartaceo(numero_contratto: str) -> str:
+	return f'Contratto firmato cartaceo {numero_contratto}'
+
+
 def _allega_contratto_firmato_cartaceo_documento(contratto, utente, uploaded_file):
 	"""Salva il PDF firmato cartaceo nell'area Documenti del dipendente."""
 	from documenti.models import Documento
@@ -6134,7 +6477,7 @@ def _allega_contratto_firmato_cartaceo_documento(contratto, utente, uploaded_fil
 	if not nome.lower().endswith('.pdf'):
 		raise ValueError('Il file firmato deve essere in formato PDF.')
 
-	descr = f'Contratto firmato cartaceo {contratto.numero_contratto}'
+	descr = _descrizione_contratto_firmato_cartaceo(contratto.numero_contratto)
 	esistente = Documento.objects.filter(
 		dipendente=contratto.dipendente,
 		tipo='contratto',
@@ -6166,6 +6509,158 @@ def _allega_contratto_firmato_cartaceo_documento(contratto, utente, uploaded_fil
 			f'sulla cartella media ({media_root}). Verificare permessi su MEDIA_ROOT e la cartella '
 			'«documenti/contratti».'
 		) from exc
+
+
+def registra_contratto_firmato_cartaceo_da_dipendente(contratto, utente, uploaded_file, *, max_bytes: int = 15 * 1024 * 1024):
+	"""
+	Carica il PDF del contratto firmato in originale (scansione) dal lavoratore.
+
+	- Crea o aggiorna il documento tipo «contratto» con descrizione standard.
+	- Aggiorna ``RapportoDiLavoro.file_contratto_pdf`` così anteprima/scarico nel portale usano lo stesso file.
+	- Se il documento risulta già ``visualizzato_da_azienda`` (acquisito da HR), non consente la sostituzione.
+	"""
+	from django.core.files.base import ContentFile
+	from documenti.models import Documento
+	from documenti.upload_paths import ensure_documenti_media_subdirs
+
+	if not contratto or not contratto.dipendente_id or uploaded_file is None:
+		raise ValueError('File mancante.')
+
+	nome = str(getattr(uploaded_file, 'name', '') or '').strip()
+	if not nome.lower().endswith('.pdf'):
+		raise ValueError('Il file deve essere in formato PDF.')
+
+	try:
+		pdf_bytes = uploaded_file.read()
+	except Exception as exc:
+		raise ValueError('Lettura file non riuscita. Riprova con un altro PDF.') from exc
+
+	if not pdf_bytes:
+		raise ValueError('File vuoto o non leggibile.')
+	if len(pdf_bytes) > max_bytes:
+		raise ValueError(f'File troppo grande (massimo {max_bytes // (1024 * 1024)} MB).')
+
+	descr = _descrizione_contratto_firmato_cartaceo(contratto.numero_contratto)
+	nome_safe = os.path.basename(nome) or f'contratto_{contratto.numero_contratto}_firmato.pdf'
+	nome_safe = nome_safe.replace('/', '-')
+	if not nome_safe.lower().endswith('.pdf'):
+		nome_safe = f'{nome_safe}.pdf'
+
+	esistente = (
+		Documento.objects.filter(
+			dipendente_id=contratto.dipendente_id,
+			azienda_id=contratto.azienda_id,
+			tipo='contratto',
+			descrizione=descr,
+		)
+		.order_by('-id')
+		.first()
+	)
+	if esistente and esistente.visualizzato_da_azienda:
+		raise ValueError(
+			'Questo documento è già stato acquisito dall’azienda: per una correzione contatta l’ufficio HR.'
+		)
+
+	ensure_documenti_media_subdirs()
+
+	with transaction.atomic():
+		if esistente:
+			esistente.file.save(nome_safe, ContentFile(pdf_bytes), save=False)
+			esistente.caricato_dal_dipendente = True
+			esistente.caricato_da = utente
+			esistente.visualizzato_da_azienda = False
+			esistente.save()
+			doc = esistente
+		else:
+			doc = Documento.objects.create(
+				azienda=contratto.azienda,
+				dipendente=contratto.dipendente,
+				tipo='contratto',
+				descrizione=descr,
+				file=ContentFile(pdf_bytes, name=nome_safe),
+				caricato_da=utente,
+				caricato_dal_dipendente=True,
+				visibile_al_dipendente=True,
+				visualizzato_da_azienda=False,
+			)
+
+		contratto.file_contratto_pdf.save(nome_safe, ContentFile(pdf_bytes), save=True)
+
+	return doc
+
+
+def registra_contratto_firmato_cartaceo_da_hr(contratto, utente, uploaded_file, *, max_bytes: int = 15 * 1024 * 1024):
+	"""
+	Carica o sostituisce il PDF del contratto firmato su carta (scansione) da parte di HR / admin / consulente.
+
+	Stesso archivio documenti e ``file_contratto_pdf`` del rapporto del dipendente; sostituzione sempre consentita.
+	Il documento risulta caricato dall'azienda (``visualizzato_da_azienda=True``).
+	"""
+	from django.core.files.base import ContentFile
+	from documenti.models import Documento
+	from documenti.upload_paths import ensure_documenti_media_subdirs
+
+	if not contratto or not contratto.dipendente_id or uploaded_file is None:
+		raise ValueError('File mancante.')
+
+	nome = str(getattr(uploaded_file, 'name', '') or '').strip()
+	if not nome.lower().endswith('.pdf'):
+		raise ValueError('Il file deve essere in formato PDF.')
+
+	try:
+		pdf_bytes = uploaded_file.read()
+	except Exception as exc:
+		raise ValueError('Lettura file non riuscita. Riprova con un altro PDF.') from exc
+
+	if not pdf_bytes:
+		raise ValueError('File vuoto o non leggibile.')
+	if len(pdf_bytes) > max_bytes:
+		raise ValueError(f'File troppo grande (massimo {max_bytes // (1024 * 1024)} MB).')
+
+	descr = _descrizione_contratto_firmato_cartaceo(contratto.numero_contratto)
+	nome_safe = os.path.basename(nome) or f'contratto_{contratto.numero_contratto}_firmato.pdf'
+	nome_safe = nome_safe.replace('/', '-')
+	if not nome_safe.lower().endswith('.pdf'):
+		nome_safe = f'{nome_safe}.pdf'
+
+	esistente = (
+		Documento.objects.filter(
+			dipendente_id=contratto.dipendente_id,
+			azienda_id=contratto.azienda_id,
+			tipo='contratto',
+			descrizione=descr,
+		)
+		.order_by('-id')
+		.first()
+	)
+
+	ensure_documenti_media_subdirs()
+
+	with transaction.atomic():
+		if esistente:
+			esistente.file.save(nome_safe, ContentFile(pdf_bytes), save=False)
+			esistente.caricato_dal_dipendente = False
+			esistente.caricato_da = utente
+			esistente.visualizzato_da_azienda = True
+			esistente.visibile_al_dipendente = True
+			esistente.save()
+			doc = esistente
+		else:
+			doc = Documento.objects.create(
+				azienda=contratto.azienda,
+				dipendente=contratto.dipendente,
+				tipo='contratto',
+				descrizione=descr,
+				file=ContentFile(pdf_bytes, name=nome_safe),
+				caricato_da=utente,
+				caricato_dal_dipendente=False,
+				visibile_al_dipendente=True,
+				visualizzato_da_azienda=True,
+			)
+
+		contratto.file_contratto_pdf.save(nome_safe, ContentFile(pdf_bytes), save=True)
+
+	return doc
 
 
 def _promuovi_dipendente_da_proposta(proposta):
@@ -6204,7 +6699,7 @@ def _resolve_fieldfile_pdf_contratto_archiviato(contratto):
 
 	num = contratto.numero_contratto
 	for descr in (
-		f'Contratto firmato cartaceo {num}',
+		_descrizione_contratto_firmato_cartaceo(num),
 		f'Contratto definitivo {num}',
 	):
 		doc = (
@@ -6222,13 +6717,26 @@ def _resolve_fieldfile_pdf_contratto_archiviato(contratto):
 	return None
 
 
+def _leggi_bytes_pdf_contratto(contratto):
+	"""Restituisce i byte del PDF: upload su rapporto, documenti archiviati, altrimenti generazione ReportLab."""
+	ff = _resolve_fieldfile_pdf_contratto_archiviato(contratto)
+	if ff and getattr(ff, 'name', None):
+		try:
+			with ff.open('rb') as fh:
+				return fh.read()
+		except (FileNotFoundError, OSError):
+			pass
+	return _genera_contratto_pdf_bytes(contratto)
+
+
 @login_required
 @xframe_options_sameorigin
 def contratto_pdf(request, contratto_id):
-	"""PDF contratto: con ?ui=1 apre il viewer; con ?embed=1 serve il bytes per l'iframe (serve SAMEORIGIN, non DENY)."""
+	"""Serve il PDF del contratto (archiviato o generato), con anteprima incorniciata opzionale (?ui=1)."""
 	contratto = _get_contratto_con_permesso(request, contratto_id)
 	if not contratto:
 		return HttpResponseForbidden("Accesso negato")
+
 	next_raw = (request.GET.get('next') or '').strip()
 	if (request.GET.get('ui') == '1' or next_raw) and request.GET.get('embed') != '1':
 		next_safe = sanitize_internal_next(request, next_raw)
@@ -6244,19 +6752,14 @@ def contratto_pdf(request, contratto_id):
 				'next_url': next_safe,
 			},
 		)
-	ff = _resolve_fieldfile_pdf_contratto_archiviato(contratto)
-	if ff is not None:
-		try:
-			return FileResponse(
-				ff.open('rb'),
-				as_attachment=False,
-				filename=os.path.basename(ff.name) or f'contratto_{contratto.numero_contratto}.pdf',
-			)
-		except FileNotFoundError:
-			pass
-	pdf_bytes = _genera_contratto_pdf_bytes(contratto)
+
+	pdf_bytes = _leggi_bytes_pdf_contratto(contratto)
+	filename = f"contratto_{contratto.numero_contratto.replace('/', '-')}.pdf"
 	response = HttpResponse(pdf_bytes, content_type='application/pdf')
-	response['Content-Disposition'] = f'inline; filename="contratto_{contratto.numero_contratto}.pdf"'
+	if request.GET.get('download') == '1':
+		response['Content-Disposition'] = f'attachment; filename="{filename}"'
+	else:
+		response['Content-Disposition'] = f'inline; filename="{filename}"'
 	return response
 
 

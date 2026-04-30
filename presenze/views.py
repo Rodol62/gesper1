@@ -1468,7 +1468,8 @@ def salva_giorno(request, dipendente_id):
     if presenze_mese_bloccate(dipendente, azienda, data_giorno.year, data_giorno.month):
         msg = (
             'Il mese è chiuso (riepilogo approvato o elaborato): non è possibile modificare le presenze. '
-            'Riportare il riepilogo in revisione dalla pagina «Motore» se serve correggere.'
+            'Per riaprire alle modifiche: Riepilogo mensile motore → «Riapri mese» sulla riga del dipendente '
+            '(stato torna in bozza e vengono rimossi i movimenti ferie/ROL legati a quella chiusura).'
         )
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({'ok': False, 'error': msg, 'bloccato': True}, status=403)
@@ -1625,7 +1626,7 @@ def salva_multiplo(request, dipendente_id):
         if presenze_mese_bloccate(dipendente, azienda, ay, am):
             msg = (
                 'Uno o più giorni cadono in un mese chiuso (riepilogo approvato o elaborato): '
-                'modifica non consentita.'
+                'modifica non consentita. Usa «Riapri mese» nel Riepilogo mensile motore per quel mese.'
             )
             return JsonResponse({'ok': False, 'error': msg, 'bloccato': True}, status=403)
 
@@ -1729,7 +1730,10 @@ def aggiorna_orario_giorno(request, dipendente_id):
         return JsonResponse(
             {
                 'ok': False,
-                'error': 'Il mese è chiuso (riepilogo approvato o elaborato): modifica non consentita.',
+                'error': (
+                    'Il mese è chiuso (riepilogo approvato o elaborato): modifica non consentita. '
+                    'Usa «Riapri mese» nel Riepilogo mensile motore.'
+                ),
                 'bloccato': True,
             },
             status=403,
@@ -1815,7 +1819,10 @@ def applica_schema_mese(request, dipendente_id):
         return JsonResponse(
             {
                 'ok': False,
-                'error': 'Il mese è chiuso (riepilogo approvato o elaborato): applicazione schema non consentita.',
+                'error': (
+                    'Il mese è chiuso (riepilogo approvato o elaborato): applicazione schema non consentita. '
+                    'Usa «Riapri mese» nel Riepilogo mensile motore.'
+                ),
                 'bloccato': True,
             },
             status=403,
@@ -3444,6 +3451,39 @@ def riepilogo_mensile_motore(request):
                 )
             else:
                 messages.error(request, "Il riepilogo deve essere in stato 'Approvata' per avviare l'elaborazione.")
+            return redirect(redirect_url)
+
+        if action == 'riapri_mese_presenze' and dip_id:
+            rie = RiepilogoMensilePresenze.objects.filter(
+                dipendente_id=dip_id, azienda=azienda, anno=anno_p, mese=mese_p
+            ).first()
+            if rie and rie.stato in ('approvata', 'elaborata'):
+                from .monte_ledger import elimina_movimenti_monti_da_riepilogo
+
+                n_mov = elimina_movimenti_monti_da_riepilogo(rie)
+                rie.stato = 'bozza'
+                rie.approvata_da = None
+                ts = timezone.now().strftime('%Y-%m-%d %H:%M')
+                un = getattr(request.user, 'username', '') or str(request.user.pk)
+                extra = (
+                    f"\n[{ts}] Riaperto mese presenze da {un}: stato → bozza; "
+                    f"rimossi {n_mov} movimenti monti (ferie/ROL) collegati al riepilogo."
+                )
+                rie.note = ((rie.note or '') + extra)[:4000]
+                rie.save()
+                messages.success(
+                    request,
+                    f"Riepilogo {rie.dipendente.cognome} {rie.dipendente.nome} — {mese_p:02d}/{anno_p} "
+                    f"riportato in bozza: puoi modificare le presenze e usare «Aggrega» per ricalcolare. "
+                    f"Rimossi {n_mov} movimenti sui monti del mese.",
+                )
+            elif rie:
+                messages.error(
+                    request,
+                    f"Riapertura disponibile solo da stato Approvata o Elaborata (stato attuale: {rie.get_stato_display()}).",
+                )
+            else:
+                messages.error(request, 'Nessun riepilogo motore per questo dipendente e mese.')
             return redirect(redirect_url)
 
     # ── GET: costruzione lista ────────────────────────────────────────────────

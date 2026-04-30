@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
@@ -292,18 +294,28 @@ class RiepilogoMensilePresenze(models.Model):
         Restituisce i kwargs pronti per calcola_busta_paga_mese().
         Il chiamante deve aggiungere: parametro_ccnl, data_riferimento,
         paga_base, contingenza, ecc.
+
+        Valori numerici come Decimal (non float): il motore moltiplica con Decimal
+        e float × Decimal solleva TypeError.
         """
+
+        def D(x) -> Decimal:
+            if x is None:
+                return Decimal('0')
+            return Decimal(str(x))
+
         return {
-            'ore_straord_diurno':    float(self.ore_straord_diurno),
-            'ore_straord_notturno':  float(self.ore_straord_notturno),
-            'ore_straord_festivo':   float(self.ore_straord_festivo),
-            'ore_straord_domenica':  float(self.ore_straord_domenica),
-            'ore_straord_nott_fest': float(self.ore_straord_nott_fest),
-            'ore_domenicali':        float(self.ore_domenicali),
-            'ore_festivi':           float(self.ore_festivi),
-            'giorni_ferie_godute':   float(self.giorni_ferie_godute),
-            'ore_permessi_goduti':   float(self.ore_permessi_goduti),
-            'giorni_assenza_ingiust': self.giorni_assenza_ingiust,
+            'ore_straord_diurno':    D(self.ore_straord_diurno),
+            'ore_straord_notturno':  D(self.ore_straord_notturno),
+            'ore_straord_festivo':   D(self.ore_straord_festivo),
+            'ore_straord_domenica':  D(self.ore_straord_domenica),
+            'ore_straord_nott_fest': D(self.ore_straord_nott_fest),
+            'ore_domenicali':        D(self.ore_domenicali),
+            'ore_festivi':           D(self.ore_festivi),
+            'ore_ordinarie_retribuite': D(self.ore_ordinarie),
+            'giorni_ferie_godute':   D(self.giorni_ferie_godute),
+            'ore_permessi_goduti':   D(self.ore_permessi_goduti),
+            'giorni_assenza_ingiust': D(self.giorni_assenza_ingiust),
             'auto_ore_domenicali_da_calendario': False,  # usiamo dati reali
         }
 

@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('', views.lista_richieste, name='index_richieste'),
     path('', views.lista_richieste, name='lista_richieste'),
+    path('email-in-arrivo/', views.inbox_email_dipendenti, name='inbox_email_dipendenti'),
     path('invia/', views.invia_richiesta, name='invia_richiesta'),
     path('<int:richiesta_id>/', views.dettaglio_richiesta, name='dettaglio_richiesta'),
     path('<int:richiesta_id>/rispondi/', views.rispondi_richiesta, name='rispondi_richiesta'),

@@ -36,8 +36,10 @@
               {% endif %}
             {% endif %}
           </div>
-          <div class="text-nowrap">
-            <a class="btn btn-sm btn-outline-primary py-0" style="font-size:.72rem" href="{% url 'dettaglio_contratto' r.id %}">Scheda contratto</a>
+          <div class="text-nowrap d-flex flex-wrap gap-1 justify-content-end">
+            <a class="btn btn-sm btn-outline-dark py-0" style="font-size:.72rem" href="{% url 'contratto_pdf' r.id %}?ui=1&amp;next={{ request.path|urlencode }}"
+               title="Anteprima PDF (file firmato o generato)"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+            <a class="btn btn-sm btn-outline-primary py-0" style="font-size:.72rem" href="{% url 'dettaglio_contratto' r.id %}">Scheda</a>
             {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
             {% if r.stato == 'sottoscritto' or r.stato == 'sospeso' %}
             <form method="post" action="{% url 'genera_comunicazione_recesso_prova' r.dipendente_id r.id %}" class="d-inline">
@@ -60,6 +62,9 @@
             <i class="bi bi-arrow-return-right text-muted me-1"></i>
             {{ ad.data_decorrenza|date:"d/m/Y" }} — {{ ad.get_tipo_display }}
             {% if ad.data_fine_rapporto_aggiornata %}· fine {{ ad.data_fine_rapporto_aggiornata|date:"d/m/Y" }}{% endif %}
+            {% if ad.file_allegato %}
+              <a class="ms-1" style="font-size:.72rem" href="{% url 'addendum_allegato_file' ad.id %}?ui=1&amp;next={{ request.path|urlencode }}">Allegato PDF</a>
+            {% endif %}
           </li>
           {% endfor %}
         </ul>

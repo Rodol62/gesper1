@@ -94,7 +94,7 @@
       <div class="d-flex gap-2 align-items-center small">
         <span class="badge bg-light text-dark">{{ estr.n_voci }} etichette</span>
         {% if estr.metodo %}<span class="badge bg-secondary">{{ estr.metodo }}</span>{% endif %}
-        <a href="{% url 'visualizza_documento' doc.pk %}" class="btn btn-sm btn-light py-0">PDF</a>
+        <a href="{% url 'visualizza_documento' doc.pk %}" class="btn btn-sm btn-light py-0">PDF #{{ doc.pk }}</a>
       </div>
     </div>
     <div class="card-body py-2 small">

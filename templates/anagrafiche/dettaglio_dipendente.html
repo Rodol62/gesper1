@@ -6,6 +6,12 @@
 {% block content %}
 <div class="container-fluid px-3 mt-3">
 
+  {% if messages %}
+  {% for msg in messages %}
+  <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+  {% endfor %}
+  {% endif %}
+
   {# ── Header ──────────────────────────────────────────────────── #}
   <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:8px;
               padding:.7rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;
@@ -50,6 +56,62 @@
 
   <div class="row g-3">
     {% include 'rapporto_di_lavoro/_profilo_posizione_contrattuale.html' %}
+
+    {% if puo_gestire_contratto_cartaceo_hr %}
+    <div class="col-12">
+      <div class="card border-0 shadow-sm" style="border-left:4px solid #0a6640!important">
+        <div class="card-header py-2 d-flex align-items-center justify-content-between flex-wrap gap-2"
+             style="background:#f4fbf7;font-size:.8rem;font-weight:700;color:#0a6640;border-bottom:1px solid #c8ebd8">
+          <span><i class="bi bi-pen-fill me-1"></i>Contratto firmato su carta (scansione PDF)</span>
+          {% if rapporti_upload_cartaceo %}
+          <a href="{% url 'documenti_dipendente_admin' dipendente.id %}" class="small text-decoration-none" style="color:#2d6199">
+            Documenti dipendente <i class="bi bi-arrow-right"></i>
+          </a>
+          {% endif %}
+        </div>
+        <div class="card-body py-3" style="font-size:.82rem">
+          {% if rapporti_upload_cartaceo %}
+          <p class="text-muted small mb-3 mb-md-0">
+            Carica lo stesso PDF archiviato anche in <strong>Documenti</strong> (tipo contratto) e collegalo al <strong>PDF del rapporto</strong> in portale.
+            Solo PDF, massimo <strong>15 MB</strong>. Sostituisce eventuali versioni precedenti.
+          </p>
+          <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end flex-wrap">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="upload_contratto_cartaceo_hr">
+            {% if rapporti_upload_cartaceo|length > 1 %}
+            <div class="col-12 col-md-5 col-lg-4">
+              <label class="form-label small mb-1" for="contratto_id_cartaceo">Rapporto / contratto</label>
+              <select class="form-select form-select-sm" name="contratto_id" id="contratto_id_cartaceo" required>
+                {% for r in rapporti_upload_cartaceo %}
+                <option value="{{ r.id }}">{{ r.numero_contratto }} · {{ r.tipo_contratto }} · dal {{ r.data_inizio_rapporto|date:"d/m/Y" }} ({{ r.get_stato_display }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% else %}
+            {% for r in rapporti_upload_cartaceo %}{% if forloop.first %}
+            <input type="hidden" name="contratto_id" value="{{ r.id }}">
+            {% endif %}{% endfor %}
+            {% endif %}
+            <div class="col-12 {% if rapporti_upload_cartaceo|length > 1 %}col-md-4 col-lg-4{% else %}col-md-6 col-lg-5{% endif %}">
+              <label class="form-label small mb-1" for="contratto_firmato_pdf_hr">File PDF</label>
+              <input class="form-control form-control-sm" type="file" name="contratto_firmato_pdf_hr" id="contratto_firmato_pdf_hr"
+                     accept="application/pdf,.pdf" required>
+            </div>
+            <div class="col-auto">
+              <button type="submit" class="btn btn-success btn-sm">
+                <i class="bi bi-cloud-upload"></i> Carica PDF firmato
+              </button>
+            </div>
+          </form>
+          {% else %}
+          <p class="text-muted small mb-0">
+            <i class="bi bi-info-circle"></i> Non risulta un contratto in stato <em>sottoscritto</em> o <em>sospeso</em>: non è possibile allegare qui lo scan cartaceo.
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     {# ── Dati anagrafici ─────────────────────────────────────── #}
     <div class="col-12 col-md-6">
@@ -188,11 +250,16 @@
         <div class="card-header py-2 d-flex align-items-center justify-content-between"
              style="background:#f4f7fa;font-size:.78rem;font-weight:700;color:#1b3a5f">
           <span><i class="bi bi-folder2-open"></i> Buste paga e CUD</span>
-          {% if request.user.is_superuser or request.user|has_ruolo:'admin' or request.user|has_ruolo:'hr' %}
-          <a href="{% url 'documenti_dipendente_admin' dipendente.id %}"
-             style="font-size:.72rem;font-weight:400;color:#2d6199;text-decoration:none">
-            Gestione documenti <i class="bi bi-arrow-right"></i>
-          </a>
+          {% if request.user.is_superuser or request.user|has_ruolo:'admin' or request.user|has_ruolo:'hr' or request.user|has_ruolo:'consulente' %}
+          <span class="d-flex flex-wrap gap-2 align-items-center" style="font-size:.72rem;font-weight:400">
+            <a href="{% url 'documenti_dipendente_admin' dipendente.id %}" style="color:#2d6199;text-decoration:none">
+              Gestione documenti <i class="bi bi-arrow-right"></i>
+            </a>
+            <span class="text-muted">·</span>
+            <a href="{% url 'upload_documento' %}?dipendente_id={{ dipendente.id }}" style="color:#0a6640;text-decoration:none;font-weight:600">
+              <i class="bi bi-cloud-upload"></i> Carica documento (tutti i tipi)
+            </a>
+          </span>
           {% endif %}
         </div>
         <div class="card-body" style="font-size:.82rem">
@@ -219,7 +286,7 @@
                         <a href="{% url 'visualizza_documento' mese_group.doc.id %}"
                            class="btn btn-sm btn-outline-secondary"
                            style="font-size:.72rem;padding:.15rem .45rem">
-                          {{ mese_group.busta_label }}
+                          {{ mese_group.busta_label }} (#{{ mese_group.doc.id }})
                         </a>
                         {% if mese_group.doc.file and mese_group.doc.file.name|lower|slice:"-4:" == ".pdf" %}
                         <a href="{% url 'visualizza_cedolino_busta' mese_group.doc.id %}"
@@ -255,7 +322,7 @@
                     <li class="list-group-item px-0 py-1 border-0 d-flex justify-content-between align-items-center">
                       <span style="font-size:.76rem">{{ doc.descrizione }}</span>
                       <div class="d-flex gap-1 flex-shrink-0">
-                        <a href="{% url 'visualizza_documento' doc.id %}" class="btn btn-sm btn-outline-primary" style="font-size:.7rem">Apri</a>
+                        <a href="{% url 'visualizza_documento' doc.id %}" class="btn btn-sm btn-outline-primary" style="font-size:.7rem">Apri #{{ doc.id }}</a>
                         <a href="{% url 'download_documento' doc.id %}" class="btn btn-sm btn-outline-secondary" style="font-size:.7rem">PDF</a>
                       </div>
                     </li>

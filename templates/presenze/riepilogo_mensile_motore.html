@@ -32,7 +32,7 @@
       · <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno|anno_it }}&mese={{ mese }}">Griglia presenze mese</a>
     </div>
     <div class="mt-2 pt-2 border-top small" style="font-size:.88em;color:#495057">
-      <strong>Blocco modifiche presenze.</strong> Con riepilogo in stato <em>Approvata</em> o <em>Elaborata</em>, per quel dipendente e mese le presenze non sono più modificabili dal calendario (coerenza con cedolino e <a href="{% url 'monti_saldi' %}?anno={{ anno|anno_it }}&mese_busta={{ mese }}">monti</a>). Controllare i dati prima di approvare.
+      <strong>Blocco modifiche presenze.</strong> Con riepilogo in stato <em>Approvata</em> o <em>Elaborata</em>, per quel dipendente e mese le presenze non sono modificabili dal calendario (coerenza con cedolino e <a href="{% url 'monti_saldi' %}?anno={{ anno|anno_it }}&mese_busta={{ mese }}">monti</a>). Se serve correggere dopo l’approvazione, usare <strong>Riapri mese</strong> sulla riga (stato → bozza, annullamento movimenti ferie/ROL del mese; verificare coerenza se il cedolino era già stato elaborato).
     </div>
   </div>
 
@@ -220,6 +220,17 @@
                    style="font-size:.62rem;padding:1px 6px">
                   Vedi cedolino
                 </a>
+              {% endif %}
+
+              {# Riapri mese alle modifiche presenze (da Approvata / Elaborata) #}
+              {% if riga.rie and riga.rie.stato == 'approvata' or riga.rie and riga.rie.stato == 'elaborata' %}
+                <button type="submit" name="action" value="riapri_mese_presenze"
+                        class="btn btn-xs btn-outline-danger"
+                        style="font-size:.62rem;padding:1px 6px"
+                        title="Riporta in bozza, rimuove godimenti monti del mese collegati al riepilogo"
+                        onclick="return confirm('Riaprire il mese alle modifiche presenze?\n\nIl riepilogo torna in BOZZA e vengono eliminati i movimenti ferie/ROL sul libro monti legati a questa chiusura.\nSe il cedolino era già stato elaborato, verificare la coerenza con la busta paga effettiva.');">
+                  Riapri mese
+                </button>
               {% endif %}
 
               <input type="hidden" name="nuovo_stato" value="">

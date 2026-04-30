@@ -29,6 +29,15 @@ def _is_hr_or_admin(user):
     return user.is_superuser or user.has_ruolo('admin') or user.has_ruolo('hr')
 
 
+def _is_hr_admin_o_consulente(user):
+    """HR/admin come prima; consulente con azienda (stesso isolamento lista proposte / dashboard)."""
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser or user.has_ruolo('admin') or user.has_ruolo('hr'):
+        return True
+    return user.has_ruolo('consulente') and bool(getattr(user, 'azienda_id', None))
+
+
 def _candidato_appartiene_ad_azienda(candidato_user, azienda):
     """True se il candidato è riconducibile all'azienda (profilo, utente.azienda, dipendente o proposta)."""
     if not azienda:
@@ -68,6 +77,9 @@ def _candidato_gestionabile_da_richiedente(request, candidato_user):
         az = get_azienda_operativa(u, request.session)
         return _candidato_appartiene_ad_azienda(candidato_user, az) if az else False
     if u.has_ruolo('hr'):
+        az = getattr(u, 'azienda', None)
+        return _candidato_appartiene_ad_azienda(candidato_user, az) if az else False
+    if u.has_ruolo('consulente'):
         az = getattr(u, 'azienda', None)
         return _candidato_appartiene_ad_azienda(candidato_user, az) if az else False
     return False
@@ -658,7 +670,7 @@ def revoca_convalida_candidato(request, user_id):
 
 
 @login_required
-@user_passes_test(_is_hr_or_admin)
+@user_passes_test(_is_hr_admin_o_consulente)
 def crea_proposta_da_candidato(request, user_id):
     from rapporto_di_lavoro.models import PropostaAssunzione
 
