@@ -1199,7 +1199,7 @@ def consulente_import_pdf_unico(request):
     })
 
 
-# ── Posizione contabile consulente (proforma / pagamenti / estratto / libro) ─
+# ── Posizione contabile consulente (proforma / pagamenti / libro) ─
 
 SESSION_REPORT_AGGANCIA_DOCUMENTI = "report_aggancia_documenti_csv_v1"
 SESSION_REPORT_AGGANCIA_BONIFICI = "report_aggancia_bonifici_csv_v1"
@@ -1645,36 +1645,6 @@ def consulente_posizione_pagamenti(request):
                 else:
                     messages.info(request, msg)
             return _redirect_posizione_con_querystring(request, 'consulente_posizione_pagamenti')
-        if action == 'import_riepilogo_bonifici':
-            import hashlib
-            import time
-
-            from .consulente_registro_studio import import_riepilogo_bonifici_da_excel
-
-            f = request.FILES.get('excel_riepilogo')
-            if not f:
-                messages.error(request, 'Selezionare un file Excel (.xlsx) con colonne Data, Documento, Descrizione, Importo.')
-            else:
-                nome = (f.name or 'riepilogo.xlsx')[:280]
-                if not nome.lower().endswith(('.xlsx', '.xlsm')):
-                    messages.error(request, 'Formato non supportato: usare .xlsx')
-                else:
-                    raw = f.read()
-                    sha = hashlib.sha256(raw).hexdigest()
-                    guard = request.session.get('bonifici_excel_imp_guard') or {}
-                    if guard.get('sha256') == sha and (time.time() - float(guard.get('t', 0))) < 180:
-                        messages.warning(
-                            request,
-                            'Stesso file importato pochi minuti fa: operazione ignorata per evitare duplicati.',
-                        )
-                    else:
-                        try:
-                            for msg in import_riepilogo_bonifici_da_excel(io.BytesIO(raw), nome, azienda, request.user):
-                                messages.success(request, msg)
-                            request.session['bonifici_excel_imp_guard'] = {'sha256': sha, 't': time.time()}
-                        except Exception as exc:
-                            messages.error(request, str(exc))
-            return _redirect_posizione_con_querystring(request, 'consulente_posizione_pagamenti')
         if action == 'aggiungi_bonifico':
             data_raw = (request.POST.get('data_valuta') or '').strip()
             rif = (request.POST.get('riferimento_pagamento') or '').strip()
@@ -1798,57 +1768,6 @@ def consulente_posizione_pagamenti(request):
             'report_aggancia_csv_bonifici': report_aggancia_csv_bonifici,
             'libro_filter': filter_params,
             'anni_disponibili': anni_disponibili,
-        },
-    )
-
-
-@login_required
-@user_passes_test(_is_admin_o_consulente_partitario)
-def consulente_posizione_estratto(request):
-    """
-    Stesso URL «estratto-conto»: import Excel **solo bonifici** (come Pagamenti),
-    salvataggio nel libro movimenti e reindirizzamento all’elenco Pagamenti.
-    """
-    import hashlib
-    import time
-
-    from .consulente_registro_studio import import_riepilogo_bonifici_da_excel
-
-    azienda, redir = _partitario_azienda_o_redirect(request)
-    if redir:
-        return redir
-    if request.method == 'POST':
-        f = request.FILES.get('excel')
-        if not f:
-            messages.error(request, 'Selezionare un file Excel (.xlsx).')
-        else:
-            nome = (f.name or 'estratto.xlsx')[:280]
-            if not nome.lower().endswith(('.xlsx', '.xlsm')):
-                messages.error(request, 'Formato non supportato: usare .xlsx o .xlsm.')
-            else:
-                raw = f.read()
-                sha = hashlib.sha256(raw).hexdigest()
-                guard = request.session.get('bonifici_excel_imp_guard') or {}
-                if guard.get('sha256') == sha and (time.time() - float(guard.get('t', 0))) < 180:
-                    messages.warning(
-                        request,
-                        'Stesso file importato pochi minuti fa: operazione ignorata per evitare duplicati.',
-                    )
-                else:
-                    try:
-                        for msg in import_riepilogo_bonifici_da_excel(io.BytesIO(raw), nome, azienda, request.user):
-                            messages.success(request, msg)
-                        request.session['bonifici_excel_imp_guard'] = {'sha256': sha, 't': time.time()}
-                    except Exception as exc:
-                        messages.error(request, str(exc))
-        return redirect('consulente_posizione_pagamenti')
-    return render(
-        request,
-        'consulente/posizione_contabile_estratto.html',
-        {
-            'azienda': azienda,
-            'partitario_back': _partitario_back(request),
-            'posizione_nav': 'estratto',
         },
     )
 

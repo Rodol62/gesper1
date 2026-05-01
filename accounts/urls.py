@@ -69,7 +69,6 @@ from .views_consulente import (
     consulente_import_pdf_unico,
     consulente_registro_studio,
     consulente_posizione_contabile,
-    consulente_posizione_estratto,
     consulente_posizione_libro,
     consulente_posizione_libro_excel,
     consulente_posizione_libro_pdf,
@@ -223,7 +222,11 @@ urlpatterns = [
         consulente_pagamenti_rimuovi_pdf_movimento,
         name='consulente_pagamenti_rimuovi_pdf_movimento',
     ),
-    path('consulente/posizione-contabile/estratto-conto/', consulente_posizione_estratto, name='consulente_posizione_estratto'),
+    path(
+        'consulente/posizione-contabile/estratto-conto/',
+        RedirectView.as_view(pattern_name='consulente_posizione_pagamenti', permanent=False),
+        name='consulente_posizione_estratto',
+    ),
     path('consulente/posizione-contabile/libro/', consulente_posizione_libro, name='consulente_posizione_libro'),
     path(
         'consulente/posizione-contabile/libro/export-excel/',

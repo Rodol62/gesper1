@@ -18,7 +18,7 @@
 
   <header class="gesper-libro-hero">
     <h1><i class="bi bi-calculator me-2"></i>Posizione contabile</h1>
-    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — bonifici in avere (distinte PDF, manuale, import Excel)</p>
+    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — bonifici in avere (distinte PDF, registrazione manuale)</p>
     <p class="gesper-libro-lead">Le proforma in dare restano in <a class="text-white fw-semibold text-decoration-underline" href="{% url 'consulente_posizione_proforma' %}">Proforma / parcelle</a>. Dettagli operativi in <strong>Aiuto</strong> nei riquadri sotto.</p>
   </header>
 
@@ -57,43 +57,6 @@
     </form>
   </div>
 
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Import bonifici da Excel (riepilogo)</div>
-    <div class="card-body py-3">
-      <details class="gesper-help mb-2">
-        {% include "consulente/_posizione_help_summary.html" with hint="import Excel: colonne, storico, proforma nel foglio, ambiente" %}
-        <div class="gesper-help-body">
-          <p class="small text-secondary mb-2 border-start border-3 border-primary ps-2">
-            Questo riquadro serve solo a <strong>caricare un nuovo</strong> file Excel: <strong>non è uno storico</strong> degli import.
-            L’elenco dei bonifici salvati è nella <strong>tabella in fondo alla pagina</strong>. Se dopo aver eliminato righe da Admin vedi ancora movimenti,
-            controlla di essere sulla <strong>stessa installazione</strong> (es. <code>127.0.0.1</code> = database locale, non il server di produzione) e sulla <strong>stessa azienda</strong> selezionata in consulente.
-          </p>
-          <p class="small text-muted mb-0">
-            Intestazioni obbligatorie: <strong>Data</strong>, <strong>Descrizione</strong> (o Dettaglio / Causale), <strong>Importo</strong> (o Dare / Avere / Valore).
-            La colonna <strong>Documento</strong> (o Doc., Protocollo, Fattura…) è <strong>opzionale</strong>. Si cercano le intestazioni nelle prime <strong>150 righe</strong> e, se serve, nei primi <strong>8 fogli</strong> del file.
-            Vengono importate solo le righe riconosciute come <strong>bonifico</strong>; l’<strong>avere</strong> nel libro è il <strong>valore assoluto</strong> della colonna Importo (se in Excel gli incassi sono negativi, in Pagamenti risultano positivi).
-            Se <strong>tutta</strong> la colonna Importo (valori non nulli) è <strong>negativa</strong>, si importano <strong>solo</strong> le righe con importo negativo (gli importi positivi nella colonna vengono ignorati).
-            Le righe di <strong>solo</strong> proforma/parcella (testo emissione o colonna Documento tipo «PARCELLA 182», «PF-…», «PAR-…» senza bonifico SEPA) <strong>non</strong> diventano bonifici: il dare resta dai PDF in Proforma. Le righe con «Bonifico» / CRO in descrizione si importano anche se in Documento c’è un numero parcella.
-            Per ogni bonifico, in «Causale» e nelle note si indica se il <strong>PDF della proforma/parcella</strong> collegata al «Documento» è presente in archivio o meno.
-            Nella tabella <strong>Bonifici registrati</strong>, il badge <span class="badge bg-warning text-dark" style="font-size:.65rem">Doppio</span> indica due o più righe con la stessa <strong>data valuta</strong>, lo stesso <strong>importo in avere</strong> e lo stesso <strong>riferimento</strong> (o la stessa causale se il riferimento è vuoto): eliminare la riga in eccesso da Admin → Movimenti partitario consulente–azienda, poi ricalcolare i saldi da <a href="{% url 'consulente_posizione_libro' %}">Movimenti</a> se serve.
-            Se in passato risultano ancora bonifici in avere duplicati rispetto alle parcelle (stesso importo, riferimento <code>PARCELLA …|…</code>), la pulizia mirata è in <a href="{% url 'consulente_posizione_libro' %}">Movimenti</a> (istruzioni comando nell’<strong>Aiuto</strong> di quella pagina).
-          </p>
-        </div>
-      </details>
-      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end small gesper-multipart-upload">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="import_riepilogo_bonifici">
-        <div class="col-12 col-md-8">
-          <label class="form-label text-muted mb-0">File .xlsx</label>
-          <input type="file" name="excel_riepilogo" class="form-control form-control-sm" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
-        </div>
-        <div class="col-12 col-md-4">
-          <button type="submit" class="btn btn-outline-primary btn-sm w-100">Importa bonifici</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <div class="card border-0 shadow-sm mb-4 border-start border-4 border-secondary">
     <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Pregresso: aggancia distinte PDF a bonifici già in libro (senza allegato)</div>
     <div class="card-body py-3">
@@ -101,7 +64,7 @@
         {% include "consulente/_posizione_help_summary.html" with hint="aggancio distinte PDF a bonifici esistenti" %}
         <div class="gesper-help-body">
           <p class="small text-muted mb-0">
-            Cerca un movimento <strong>bonifico</strong> senza file con lo stesso <strong>CRO/TRN</strong> (o stessa data+importo come da Excel), poi salva il PDF come allegato. Utile dopo import Excel senza distinte.
+            Cerca un movimento <strong>bonifico</strong> senza file con lo stesso <strong>CRO/TRN</strong> (o stessa data+importo), poi salva il PDF come allegato. Utile per bonifici registrati senza distinta.
             In alternativa, nella <strong>tabella in basso</strong> ogni riga senza PDF ha <strong>Allega PDF</strong> sulla stessa riga (stessa logica della distinta).
           </p>
         </div>

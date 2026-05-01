@@ -1,4 +1,4 @@
-{# Richiede: posizione_nav in ('hub','proforma','pagamenti','estratto','libro') #}
+{# Richiede: posizione_nav in ('hub','proforma','pagamenti','libro') #}
 <style>
 .gesper-help {
   border: 1px solid var(--bs-border-color, #dee2e6);
@@ -52,9 +52,6 @@
   </li>
   <li class="nav-item">
     <a class="nav-link py-1 px-2 {% if posizione_nav == 'pagamenti' %}active{% endif %}" href="{% url 'consulente_posizione_pagamenti' %}"><i class="bi bi-bank"></i> Pagamenti</a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link py-1 px-2 {% if posizione_nav == 'estratto' %}active{% endif %}" href="{% url 'consulente_posizione_estratto' %}"><i class="bi bi-file-earmark-spreadsheet"></i> Excel bonifici</a>
   </li>
   <li class="nav-item">
     <a class="nav-link py-1 px-2 {% if posizione_nav == 'libro' %}active{% endif %}" href="{% url 'consulente_posizione_libro' %}"><i class="bi bi-journal-text"></i> Movimenti</a>

@@ -2416,8 +2416,8 @@ def import_estratto_excel(
     """
     Import Excel con tracciamento per riga (ImportEstrattoContoStudio): uso avanzato e test automatici.
 
-    Nel portale consulente l’upload Excel «estratto / conto» chiama invece ``import_riepilogo_bonifici_da_excel``:
-    solo bonifici nel libro e elenco in Pagamenti.
+    Per import massivi da riga di comando usare il management command dedicato o chiamare
+    ``import_riepilogo_bonifici_da_excel`` (stessa logica bonifici nel libro).
     """
     from django.core.files.base import ContentFile
     from django.db import transaction
