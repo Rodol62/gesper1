@@ -47,6 +47,9 @@ from log_attivita.utils import registra_log
 from log_attivita.anomalie import registra_evento_anomalia
 from .models import MovimentoImportPaghe
 import json
+from functools import reduce
+from operator import or_
+
 from urllib.parse import urlencode
 
 PDF_BUSTE_PASSWORD = 'DOLCEMASCOLO'
@@ -95,6 +98,67 @@ def _get_azienda_partitario(request):
 def _get_azienda_consulente(user):
     """Restituisce l'azienda associata al consulente (FK su User)."""
     return getattr(user, 'azienda', None)
+
+
+def _bulk_pdf_meta_for_rapporti_consulente(rapporti):
+    """
+    Per ogni rapporto: id documento scansione cartacea, id «Contratto definitivo»,
+    flag PDF caricato sul record, dati proposta collegata (PDF atto firmabile / firmato).
+    Usato in elenco consulente per non mostrare solo il PDF generato da ReportLab.
+    """
+    from documenti.models import Documento
+
+    if not rapporti:
+        return {}
+
+    q_parts = []
+    for r in rapporti:
+        did = getattr(r, 'dipendente_id', None)
+        if not did:
+            continue
+        num = r.numero_contratto
+        q_parts.append(Q(dipendente_id=did, descrizione=f'Contratto firmato cartaceo {num}'))
+        q_parts.append(Q(dipendente_id=did, descrizione=f'Contratto definitivo {num}'))
+
+    mapping = {}
+    if q_parts:
+        combined = reduce(or_, q_parts)
+        for d in (
+            Documento.objects.filter(tipo='contratto', visibile_al_dipendente=True)
+            .filter(combined)
+            .exclude(file='')
+            .order_by('-data_caricamento', '-id')
+        ):
+            if not d.file or not getattr(d.file, 'name', None):
+                continue
+            k = (d.dipendente_id, (d.descrizione or '').strip())
+            if k not in mapping:
+                mapping[k] = d.id
+
+    out = {}
+    for r in rapporti:
+        did = getattr(r, 'dipendente_id', None)
+        num = r.numero_contratto
+        dc = f'Contratto firmato cartaceo {num}'
+        dd = f'Contratto definitivo {num}'
+        meta = {
+            'ha_file_su_rapporto': bool(
+                getattr(r, 'file_contratto_pdf', None) and getattr(r.file_contratto_pdf, 'name', None)
+            ),
+            'id_doc_cartaceo': mapping.get((did, dc)) if did else None,
+            'id_doc_definitivo': mapping.get((did, dd)) if did else None,
+            'proposta_id': None,
+            'proposta_firmata': False,
+        }
+        p = getattr(r, 'proposta_origine', None)
+        if p is not None:
+            meta['proposta_id'] = getattr(p, 'id', None)
+            has_firma = bool(getattr(p, 'data_firma_candidato', None))
+            _fn = getattr(p, 'is_firmata_da_candidato', None)
+            is_firm = callable(_fn) and bool(_fn())
+            meta['proposta_firmata'] = has_firma or is_firm
+        out[r.pk] = meta
+    return out
 
 
 # Nomi mesi in italiano
@@ -263,7 +327,7 @@ def consulente_contratti(request):
 
     qs = (
         RapportoDiLavoro.objects.filter(azienda=azienda)
-        .select_related('dipendente', 'tipo_contratto')
+        .select_related('dipendente', 'tipo_contratto', 'proposta_origine')
         .order_by('-data_modifica', '-id')
     )
     qstr = (request.GET.get('q') or '').strip()
@@ -277,6 +341,10 @@ def consulente_contratti(request):
 
     paginator = Paginator(qs, 40)
     page_obj = paginator.get_page(request.GET.get('page'))
+
+    meta_map = _bulk_pdf_meta_for_rapporti_consulente(list(page_obj))
+    for c in page_obj:
+        c.pdf_meta = meta_map.get(c.id, {})
 
     oggi = date.today()
     return render(
