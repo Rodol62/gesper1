@@ -13,7 +13,7 @@
   </nav>
 
   <h1 class="h4 mb-2" style="color:#1b3a5f;font-weight:700"><i class="bi bi-journal-text me-2"></i>Libro movimenti</h1>
-  <p class="text-muted small">Saldi progressivi in ordine di data documento. Saldo positivo = residuo a debito verso il consulente.</p>
+  <p class="text-muted small">Saldi progressivi in ordine di data documento. Saldo positivo = residuo a debito verso il consulente. Per regole import, duplicati e pulizia dati apri <strong>Aiuto</strong> sotto.</p>
 
   {% include "consulente/posizione_contabile_subnav.html" %}
 
@@ -39,19 +39,24 @@
       <button type="submit" class="btn btn-outline-primary btn-sm" title="Usa il testo salvato al primo import (nessun nuovo upload)">Rileggi totali da PDF (testo salvato)</button>
     </form>
   </div>
-  <p class="text-muted small mb-2">«Rileggi totali» applica i pattern aggiornati (es. Totale parcella / proforma) alle righe documento che hanno ancora il testo estratto; le righe senza testo vanno reimportate dalla sezione Proforma/parcelle.</p>
-  <p class="text-muted small mb-2">
-    L’Excel da «Estratto conto» / «Pagamenti» importa solo <strong>bonifici in avere</strong>, non movimenti in dare.
-    Le proforma/parcelle in dare arrivano dagli <strong>upload PDF</strong>. Due righe documento simili di solito sono due PDF con
-    <strong>nome file diverso</strong> ma stesso numero estratto: il secondo upload viene ignorato (messaggio «Già presente in libro …»).
-    Il libro considera univoca la coppia <strong>data documento + numero</strong> (stesso numero in anni diversi è ammesso se le date differiscono). Badge <span class="badge bg-warning text-dark" style="font-size:.65rem">Doppio</span> se la stessa terna data+numero+tipo compare più volte.
-    Righe da togliere: Admin → <strong>ACCOUNTS</strong> → <strong>Movimenti partitario consulente–azienda</strong>; dopo eliminazioni i saldi si ricalcolano da soli.
-    Bonifici in avere creati per errore dal vecchio import Excel «riepilogo PROFORMA» (riferimento tipo <code>PARCELLA 182|data|importo</code> accanto alle parcelle già in dare): da terminale, con l’<strong>ID azienda</strong> corretto, prima anteprima poi esecuzione —
-    <code class="small">python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID --solo-parcella-proforma-sintetici</code>
-    poi
-    <code class="small">python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID --solo-parcella-proforma-sintetici --execute</code>
-    (non tocca i bonifici bancari reali né l’import «estratto conto»). Per rimuovere <strong>tutti</strong> i bonifici tracciati Excel di quell’azienda usare il comando <strong>senza</strong> <code class="small">--solo-parcella-proforma-sintetici</code> (vedi <code class="small">deploy/PROCEDURA_DEPLOY.md</code>).
-  </p>
+  <details class="gesper-help mb-2">
+    {% include "consulente/_posizione_help_summary.html" with hint="libro, Rileggi totali, import Excel/PDF, duplicati, pulizia bonifici" %}
+    <div class="gesper-help-body">
+      <p class="text-muted small mb-2">«Rileggi totali» applica i pattern aggiornati (es. Totale parcella / proforma) alle righe documento che hanno ancora il testo estratto; le righe senza testo vanno reimportate dalla sezione Proforma/parcelle.</p>
+      <p class="text-muted small mb-0">
+        L’Excel da «Estratto conto» / «Pagamenti» importa solo <strong>bonifici in avere</strong>, non movimenti in dare.
+        Le proforma/parcelle in dare arrivano dagli <strong>upload PDF</strong>. Due righe documento simili di solito sono due PDF con
+        <strong>nome file diverso</strong> ma stesso numero estratto: il secondo upload viene ignorato (messaggio «Già presente in libro …»).
+        Il libro considera univoca la coppia <strong>data documento + numero</strong> (stesso numero in anni diversi è ammesso se le date differiscono). Badge <span class="badge bg-warning text-dark" style="font-size:.65rem">Doppio</span> se la stessa terna data+numero+tipo compare più volte.
+        Righe da togliere: Admin → <strong>ACCOUNTS</strong> → <strong>Movimenti partitario consulente–azienda</strong>; dopo eliminazioni i saldi si ricalcolano da soli.
+        Bonifici in avere creati per errore dal vecchio import Excel «riepilogo PROFORMA» (riferimento tipo <code>PARCELLA 182|data|importo</code> accanto alle parcelle già in dare): da terminale, con l’<strong>ID azienda</strong> corretto, prima anteprima poi esecuzione —
+        <code class="small">python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID --solo-parcella-proforma-sintetici</code>
+        poi
+        <code class="small">python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID --solo-parcella-proforma-sintetici --execute</code>
+        (non tocca i bonifici bancari reali né l’import «estratto conto»). Per rimuovere <strong>tutti</strong> i bonifici tracciati Excel di quell’azienda usare il comando <strong>senza</strong> <code class="small">--solo-parcella-proforma-sintetici</code> (vedi <code class="small">deploy/PROCEDURA_DEPLOY.md</code>).
+      </p>
+    </div>
+  </details>
 
   <div class="table-responsive border rounded shadow-sm">
     <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.8rem">

@@ -13,12 +13,17 @@
   </nav>
 
   <h1 class="h4 mb-2" style="color:#1b3a5f;font-weight:700"><i class="bi bi-file-earmark-pdf me-2"></i>Proforma e parcelle (PDF)</h1>
-  <p class="text-muted small mb-1">
-    <strong>A regime:</strong> il consulente carica qui i PDF mensili: il sistema estrae data, numero e importo e crea le righe in dare nel libro, con allegato.
-    Dopo un <strong>pregresso da Excel</strong> (solo numeri in tabella), usa il riquadro sotto per <strong>agganciare massivamente</strong> i PDF alle righe già presenti <strong>senza file</strong> (stesso numero documento letto dal PDF).
-  </p>
-  <p class="text-muted small">Sono esclusi i file il cui nome inizia con <code>riepilogo</code>. Da terminale (cartella locale, stessa deduplica <strong>data+numero</strong> del portale): <code class="small">python manage.py import_proforma_parcelle_studio --path «cartella» --username {{ request.user.username }}</code> — opz. <code class="small">--report-csv /percorso/report.csv</code> e <code class="small">--dry-run</code>.</p>
-  <p class="small border-start border-primary border-3 ps-2 mb-0">Per i <strong>bonifici</strong> da Excel o distinte PDF usa <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a>.</p>
+  <details class="gesper-help mb-2">
+    {% include "consulente/_posizione_help_summary.html" with hint="proforma/parcelle PDF, pregresso, CLI, bonifici" %}
+    <div class="gesper-help-body">
+      <p class="text-muted small mb-2">
+        <strong>A regime:</strong> il consulente carica qui i PDF mensili: il sistema estrae data, numero e importo e crea le righe in dare nel libro, con allegato.
+        Dopo un <strong>pregresso da Excel</strong> (solo numeri in tabella), usa il riquadro sotto per <strong>agganciare massivamente</strong> i PDF alle righe già presenti <strong>senza file</strong> (stesso numero documento letto dal PDF).
+      </p>
+      <p class="text-muted small mb-2">Sono esclusi i file il cui nome inizia con <code>riepilogo</code>. Da terminale (cartella locale, stessa deduplica <strong>data+numero</strong> del portale): <code class="small">python manage.py import_proforma_parcelle_studio --path «cartella» --username {{ request.user.username }}</code> — opz. <code class="small">--report-csv /percorso/report.csv</code> e <code class="small">--dry-run</code>.</p>
+      <p class="small border-start border-primary border-3 ps-2 mb-0">Per i <strong>bonifici</strong> da Excel o distinte PDF usa <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a>.</p>
+    </div>
+  </details>
 
   {% include "consulente/posizione_contabile_subnav.html" %}
 
@@ -45,11 +50,16 @@
   <div class="card border-0 shadow-sm mb-3 border-info">
     <div class="card-header py-2 bg-light small fw-semibold">Senza PDF: registra manualmente (poi allega con «Aggancia PDF»)</div>
     <div class="card-body py-3">
-      <p class="small text-muted mb-2">
-        Per proforma/parcelle <strong>non importabili da PDF</strong> (es. solo cartaceo o PDF non leggibile): crea la riga in libro con
-        <strong>data</strong>, <strong>tipo</strong>, <strong>numero</strong> e <strong>importo da pagare</strong> (uguale al <strong>dare contabile</strong>).
-        Quando avrai il file, usa il riquadro sotto <strong>Aggancia PDF</strong> con lo stesso numero e data estratti dal PDF.
-      </p>
+      <details class="gesper-help mb-2">
+        {% include "consulente/_posizione_help_summary.html" with hint="riga senza PDF (manuale)" %}
+        <div class="gesper-help-body">
+          <p class="small text-muted mb-0">
+            Per proforma/parcelle <strong>non importabili da PDF</strong> (es. solo cartaceo o PDF non leggibile): crea la riga in libro con
+            <strong>data</strong>, <strong>tipo</strong>, <strong>numero</strong> e <strong>importo da pagare</strong> (uguale al <strong>dare contabile</strong>).
+            Quando avrai il file, usa il riquadro sotto <strong>Aggancia PDF</strong> con lo stesso numero e data estratti dal PDF.
+          </p>
+        </div>
+      </details>
       <form method="post" class="row g-2 align-items-end">
         {% csrf_token %}
         <input type="hidden" name="action" value="inserimento_manuale_documento">
@@ -82,9 +92,14 @@
   <div class="card border-0 shadow-sm mb-4 border-secondary">
     <div class="card-header py-2 bg-light small fw-semibold">Pregresso: aggancia PDF a righe già in libro (senza allegato)</div>
     <div class="card-body py-3">
-      <p class="small text-muted mb-2">
-        Per ogni PDF servono <strong>data documento</strong> e <strong>numero</strong> estratti dal testo (stesso numero in anni diversi si distingue per la data). Si cerca una riga <strong>documento</strong> senza file con la <strong>stessa data</strong> e numero <strong>uguale o compatibile</strong> (es. in libro «182» e nel PDF «PARCELLA 182»). Se in libro la data manca, deve esserci <strong>una sola</strong> riga senza data con quel numero. Usare questo riquadro solo se le righe esistono <strong>senza PDF</strong>: il pulsante «Importa» sopra crea invece <strong>nuove</strong> righe. Solo allegato + testo estratto; non crea nuove righe.
-      </p>
+      <details class="gesper-help mb-2">
+        {% include "consulente/_posizione_help_summary.html" with hint="aggancio PDF a righe già in libro" %}
+        <div class="gesper-help-body">
+          <p class="small text-muted mb-0">
+            Per ogni PDF servono <strong>data documento</strong> e <strong>numero</strong> estratti dal testo (stesso numero in anni diversi si distingue per la data). Si cerca una riga <strong>documento</strong> senza file con la <strong>stessa data</strong> e numero <strong>uguale o compatibile</strong> (es. in libro «182» e nel PDF «PARCELLA 182»). Se in libro la data manca, deve esserci <strong>una sola</strong> riga senza data con quel numero. Usare questo riquadro solo se le righe esistono <strong>senza PDF</strong>: il pulsante «Importa» sopra crea invece <strong>nuove</strong> righe. Solo allegato + testo estratto; non crea nuove righe.
+          </p>
+        </div>
+      </details>
       <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end gesper-multipart-upload">
         {% csrf_token %}
         <input type="hidden" name="action" value="aggancia_pdf_documenti">
@@ -97,10 +112,15 @@
         </div>
       </form>
       {% if report_aggancia_csv_documenti %}
-      <p class="small text-muted border-top pt-2 mb-0 mt-2">
-        <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=documenti" class="fw-semibold">Scarica report CSV</a>
-        dell’ultimo aggancio massivo (per file: esito, movimento id, numero/data letti dal PDF, messaggio). Utile per correggere in blocco le righe saltate.
-      </p>
+      <details class="gesper-help gesper-help-compact border-top pt-2 mt-2 mb-0">
+        {% include "consulente/_posizione_help_summary.html" with hint="report CSV ultimo aggancio massivo" %}
+        <div class="gesper-help-body">
+          <p class="small text-muted mb-0">
+            <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=documenti" class="fw-semibold">Scarica report CSV</a>
+            dell’ultimo aggancio massivo (per file: esito, movimento id, numero/data letti dal PDF, messaggio). Utile per correggere in blocco le righe saltate.
+          </p>
+        </div>
+      </details>
       {% endif %}
     </div>
   </div>

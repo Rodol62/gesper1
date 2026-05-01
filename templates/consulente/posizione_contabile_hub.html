@@ -24,16 +24,20 @@
   {% endfor %}
 
   {% if report_aggancia_csv_documenti or report_aggancia_csv_bonifici %}
-  <div class="alert alert-light border small mb-3 py-2" role="status">
-    <span class="text-muted me-2">Report ultimo aggancio massivo PDF:</span>
-    {% if report_aggancia_csv_documenti %}
-    <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=documenti" class="fw-semibold me-3">CSV documenti</a>
-    {% endif %}
-    {% if report_aggancia_csv_bonifici %}
-    <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=bonifici" class="fw-semibold">CSV bonifici</a>
-    {% endif %}
-    <span class="text-muted small ms-1">(dalle pagine Proforma o Pagamenti; si aggiorna al prossimo aggancio.)</span>
-  </div>
+  <details class="gesper-help mb-3">
+    {% include "consulente/_posizione_help_summary.html" with hint="report CSV ultimo aggancio massivo (PDF)" %}
+    <div class="gesper-help-body">
+      <div class="alert alert-light border small mb-0 py-2" role="status">
+        {% if report_aggancia_csv_documenti %}
+        <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=documenti" class="fw-semibold me-3">CSV documenti</a>
+        {% endif %}
+        {% if report_aggancia_csv_bonifici %}
+        <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=bonifici" class="fw-semibold">CSV bonifici</a>
+        {% endif %}
+        <span class="text-muted small ms-1 d-block d-md-inline mt-1 mt-md-0">(dalle pagine Proforma o Pagamenti; si aggiorna al prossimo aggancio.)</span>
+      </div>
+    </div>
+  </details>
   {% endif %}
 
   <div class="row g-3 mb-4">
@@ -95,8 +99,13 @@
     <div class="col-md-6">
       <div class="card h-100 border shadow-sm">
         <div class="card-header bg-light small fw-semibold"><i class="bi bi-file-earmark-spreadsheet text-warning"></i> Excel bonifici</div>
-        <div class="card-body small">
-          <p class="mb-2">Import .xlsx dell’estratto / riepilogo: solo righe bonifico nel libro; elenco in Pagamenti. I riepiloghi «PROFORMA» non creano avere sulle sole parcelle (evita doppioni con il dare da PDF).</p>
+        <div class="card-body small position-relative">
+          <details class="gesper-help mb-2">
+            {% include "consulente/_posizione_help_summary.html" with hint="import Excel riepilogo / estratto" %}
+            <div class="gesper-help-body">
+              <p class="mb-0 small text-muted">Import .xlsx dell’estratto / riepilogo: solo righe bonifico nel libro; elenco in Pagamenti. I riepiloghi «PROFORMA» non creano avere sulle sole parcelle (evita doppioni con il dare da PDF).</p>
+            </div>
+          </details>
           <a href="{% url 'consulente_posizione_estratto' %}" class="stretched-link text-decoration-none fw-semibold">Apri sezione →</a>
         </div>
       </div>

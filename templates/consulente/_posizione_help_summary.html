@@ -1,0 +1,2 @@
+{# hint: breve contesto dopo "Aiuto —" (opzionale); summary_class: classi extra sul <summary> #}
+<summary{% if summary_class %} class="{{ summary_class }}"{% endif %}><span class="gesper-help-summary-inner"><i class="bi bi-question-circle-fill gesper-help-summary-icon" aria-hidden="true"></i><span class="gesper-help-summary-text"><span class="gesper-help-summary-title">Aiuto</span>{% if hint %}<span class="gesper-help-summary-hint text-muted fw-normal"> — {{ hint }}</span>{% endif %}</span></span></summary>

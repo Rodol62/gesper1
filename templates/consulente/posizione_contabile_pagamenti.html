@@ -13,11 +13,16 @@
   </nav>
 
   <h1 class="h4 mb-2" style="color:#1b3a5f;font-weight:700"><i class="bi bi-bank me-2"></i>Pagamenti (bonifici)</h1>
-  <p class="text-muted small mb-1">
-    <strong>A regime:</strong> l’azienda (o il consulente) registra data, importo, riferimento e opzionalmente la distinta PDF; il libro mostra l’avere e il saldo.
-    Dopo un <strong>pregresso da Excel</strong> (bonifici già in tabella senza file), usa il riquadro <strong>«Aggancia distinte PDF»</strong> per allegare le copie alle righe esistenti (CRO/data/importo come da distinta).
-  </p>
-  <p class="text-muted small">Puoi registrare un bonifico <strong>solo dalla distinta PDF</strong> (importo e CRO leggibili nel file), oppure con <strong>dati manuali</strong> e PDF opzionale. Sulle righe già salvate puoi <strong>sostituire</strong> o <strong>rimuovere</strong> il PDF. Durante l’invio dei file viene mostrata la <strong>percentuale di caricamento</strong>.</p>
+  <details class="gesper-help mb-2">
+    {% include "consulente/_posizione_help_summary.html" with hint="bonifici: PDF, manuale, pregresso Excel, caricamento" %}
+    <div class="gesper-help-body">
+      <p class="text-muted small mb-2">
+        <strong>A regime:</strong> l’azienda (o il consulente) registra data, importo, riferimento e opzionalmente la distinta PDF; il libro mostra l’avere e il saldo.
+        Dopo un <strong>pregresso da Excel</strong> (bonifici già in tabella senza file), usa il riquadro <strong>«Aggancia distinte PDF»</strong> per allegare le copie alle righe esistenti (CRO/data/importo come da distinta).
+      </p>
+      <p class="text-muted small mb-0">Puoi registrare un bonifico <strong>solo dalla distinta PDF</strong> (importo e CRO leggibili nel file), oppure con <strong>dati manuali</strong> e PDF opzionale. Sulle righe già salvate puoi <strong>sostituire</strong> o <strong>rimuovere</strong> il PDF. Durante l’invio dei file viene mostrata la <strong>percentuale di caricamento</strong>.</p>
+    </div>
+  </details>
 
   {% include "consulente/posizione_contabile_subnav.html" %}
 
@@ -28,20 +33,25 @@
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-header py-2 bg-light small fw-semibold">Import bonifici da Excel (riepilogo)</div>
     <div class="card-body py-3">
-      <p class="small text-secondary mb-2 border-start border-3 border-primary ps-2">
-        Questo riquadro serve solo a <strong>caricare un nuovo</strong> file Excel: <strong>non è uno storico</strong> degli import.
-        L’elenco dei bonifici salvati è nella <strong>tabella in fondo alla pagina</strong>. Se dopo aver eliminato righe da Admin vedi ancora movimenti,
-        controlla di essere sulla <strong>stessa installazione</strong> (es. <code>127.0.0.1</code> = database locale, non il server di produzione) e sulla <strong>stessa azienda</strong> selezionata in consulente.
-      </p>
-      <p class="small text-muted mb-2">
-        Intestazioni obbligatorie: <strong>Data</strong>, <strong>Descrizione</strong> (o Dettaglio / Causale), <strong>Importo</strong> (o Dare / Avere / Valore).
-        La colonna <strong>Documento</strong> (o Doc., Protocollo, Fattura…) è <strong>opzionale</strong>. Si cercano le intestazioni nelle prime <strong>150 righe</strong> e, se serve, nei primi <strong>8 fogli</strong> del file.
-        Vengono importate solo le righe riconosciute come <strong>bonifico</strong>; l’<strong>avere</strong> nel libro è il <strong>valore assoluto</strong> della colonna Importo (se in Excel gli incassi sono negativi, in Pagamenti risultano positivi).
-        Se <strong>tutta</strong> la colonna Importo (valori non nulli) è <strong>negativa</strong>, si importano <strong>solo</strong> le righe con importo negativo (gli importi positivi nella colonna vengono ignorati).
-        Le righe di <strong>solo</strong> proforma/parcella (testo emissione o colonna Documento tipo «PARCELLA 182», «PF-…», «PAR-…» senza bonifico SEPA) <strong>non</strong> diventano bonifici: il dare resta dai PDF in Proforma. Le righe con «Bonifico» / CRO in descrizione si importano anche se in Documento c’è un numero parcella.
-        Per ogni bonifico, in «Causale» e nelle note si indica se il <strong>PDF della proforma/parcella</strong> collegata al «Documento» è presente in archivio o meno.
-        Se in passato risultano ancora bonifici in avere duplicati rispetto alle parcelle (stesso importo, riferimento <code>PARCELLA …|…</code>), la pulizia mirata è in <a href="{% url 'consulente_posizione_libro' %}">Libro movimenti</a> (istruzioni comando in fondo alla pagina).
-      </p>
+      <details class="gesper-help mb-2">
+        {% include "consulente/_posizione_help_summary.html" with hint="import Excel: colonne, storico, proforma nel foglio, ambiente" %}
+        <div class="gesper-help-body">
+          <p class="small text-secondary mb-2 border-start border-3 border-primary ps-2">
+            Questo riquadro serve solo a <strong>caricare un nuovo</strong> file Excel: <strong>non è uno storico</strong> degli import.
+            L’elenco dei bonifici salvati è nella <strong>tabella in fondo alla pagina</strong>. Se dopo aver eliminato righe da Admin vedi ancora movimenti,
+            controlla di essere sulla <strong>stessa installazione</strong> (es. <code>127.0.0.1</code> = database locale, non il server di produzione) e sulla <strong>stessa azienda</strong> selezionata in consulente.
+          </p>
+          <p class="small text-muted mb-0">
+            Intestazioni obbligatorie: <strong>Data</strong>, <strong>Descrizione</strong> (o Dettaglio / Causale), <strong>Importo</strong> (o Dare / Avere / Valore).
+            La colonna <strong>Documento</strong> (o Doc., Protocollo, Fattura…) è <strong>opzionale</strong>. Si cercano le intestazioni nelle prime <strong>150 righe</strong> e, se serve, nei primi <strong>8 fogli</strong> del file.
+            Vengono importate solo le righe riconosciute come <strong>bonifico</strong>; l’<strong>avere</strong> nel libro è il <strong>valore assoluto</strong> della colonna Importo (se in Excel gli incassi sono negativi, in Pagamenti risultano positivi).
+            Se <strong>tutta</strong> la colonna Importo (valori non nulli) è <strong>negativa</strong>, si importano <strong>solo</strong> le righe con importo negativo (gli importi positivi nella colonna vengono ignorati).
+            Le righe di <strong>solo</strong> proforma/parcella (testo emissione o colonna Documento tipo «PARCELLA 182», «PF-…», «PAR-…» senza bonifico SEPA) <strong>non</strong> diventano bonifici: il dare resta dai PDF in Proforma. Le righe con «Bonifico» / CRO in descrizione si importano anche se in Documento c’è un numero parcella.
+            Per ogni bonifico, in «Causale» e nelle note si indica se il <strong>PDF della proforma/parcella</strong> collegata al «Documento» è presente in archivio o meno.
+            Se in passato risultano ancora bonifici in avere duplicati rispetto alle parcelle (stesso importo, riferimento <code>PARCELLA …|…</code>), la pulizia mirata è in <a href="{% url 'consulente_posizione_libro' %}">Libro movimenti</a> (istruzioni comando nell’<strong>Aiuto</strong> di quella pagina).
+          </p>
+        </div>
+      </details>
       <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end small gesper-multipart-upload">
         {% csrf_token %}
         <input type="hidden" name="action" value="import_riepilogo_bonifici">
@@ -59,10 +69,15 @@
   <div class="card border-0 shadow-sm mb-4 border-secondary">
     <div class="card-header py-2 bg-light small fw-semibold">Pregresso: aggancia distinte PDF a bonifici già in libro (senza allegato)</div>
     <div class="card-body py-3">
-      <p class="small text-muted mb-2">
-        Cerca un movimento <strong>bonifico</strong> senza file con lo stesso <strong>CRO/TRN</strong> (o stessa data+importo come da Excel), poi salva il PDF come allegato. Utile dopo import Excel senza distinte.
-        In alternativa, nella <strong>tabella in basso</strong> ogni riga senza PDF ha <strong>Allega PDF</strong> sulla stessa riga (stessa logica della distinta).
-      </p>
+      <details class="gesper-help mb-2">
+        {% include "consulente/_posizione_help_summary.html" with hint="aggancio distinte PDF a bonifici esistenti" %}
+        <div class="gesper-help-body">
+          <p class="small text-muted mb-0">
+            Cerca un movimento <strong>bonifico</strong> senza file con lo stesso <strong>CRO/TRN</strong> (o stessa data+importo come da Excel), poi salva il PDF come allegato. Utile dopo import Excel senza distinte.
+            In alternativa, nella <strong>tabella in basso</strong> ogni riga senza PDF ha <strong>Allega PDF</strong> sulla stessa riga (stessa logica della distinta).
+          </p>
+        </div>
+      </details>
       <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end gesper-multipart-upload">
         {% csrf_token %}
         <input type="hidden" name="action" value="aggancia_pdf_bonifici">
@@ -75,10 +90,15 @@
         </div>
       </form>
       {% if report_aggancia_csv_bonifici %}
-      <p class="small text-muted border-top pt-2 mb-0 mt-2">
-        <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=bonifici" class="fw-semibold">Scarica report CSV</a>
-        dell’ultimo aggancio distinte (per file: esito, movimento id, riferimento/importo/data estratti, messaggio).
-      </p>
+      <details class="gesper-help gesper-help-compact border-top pt-2 mt-2 mb-0">
+        {% include "consulente/_posizione_help_summary.html" with hint="report CSV ultimo aggancio distinte" %}
+        <div class="gesper-help-body">
+          <p class="small text-muted mb-0">
+            <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=bonifici" class="fw-semibold">Scarica report CSV</a>
+            dell’ultimo aggancio distinte (per file: esito, movimento id, riferimento/importo/data estratti, messaggio).
+          </p>
+        </div>
+      </details>
       {% endif %}
     </div>
   </div>
@@ -88,7 +108,12 @@
       <div class="card border-0 shadow-sm border-primary">
         <div class="card-header py-2 bg-light small fw-semibold">Solo distinta PDF (nuovo bonifico)</div>
         <div class="card-body py-3">
-          <p class="small text-muted mb-2">Crea una riga in avere e allega il file: servono <strong>importo</strong> e <strong>riferimento</strong> (CRO / TRN) leggibili nel testo del PDF. Se il file è solo immagine, usa il modulo sotto.</p>
+          <details class="gesper-help mb-2">
+            {% include "consulente/_posizione_help_summary.html" with hint="registrazione da sola distinta PDF" %}
+            <div class="gesper-help-body">
+              <p class="small text-muted mb-0">Crea una riga in avere e allega il file: servono <strong>importo</strong> e <strong>riferimento</strong> (CRO / TRN) leggibili nel testo del PDF. Se il file è solo immagine, usa il modulo sotto.</p>
+            </div>
+          </details>
           <form method="post" enctype="multipart/form-data" class="row g-2 small gesper-multipart-upload">
             {% csrf_token %}
             <input type="hidden" name="action" value="solo_pdf_bonifico">
@@ -139,7 +164,12 @@
       <div class="card border-0 shadow-sm h-100">
         <div class="card-header py-2 bg-light small fw-semibold">Upload multiplo PDF distinte</div>
         <div class="card-body py-3">
-          <p class="small text-muted">Per ogni file viene tentata l’estrazione automatica di importo e riferimento dal testo del PDF. Se non riesce, usare il modulo a sinistra.</p>
+          <details class="gesper-help mb-2">
+            {% include "consulente/_posizione_help_summary.html" with hint="upload multiplo distinte PDF" %}
+            <div class="gesper-help-body">
+              <p class="small text-muted mb-0">Per ogni file viene tentata l’estrazione automatica di importo e riferimento dal testo del PDF. Se non riesce, usare il modulo a sinistra.</p>
+            </div>
+          </details>
           <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end gesper-multipart-upload">
             {% csrf_token %}
             <div class="col-12">
