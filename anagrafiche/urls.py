@@ -33,6 +33,11 @@ urlpatterns = [
         views.workflow_recesso_prova,
         name='workflow_recesso_prova',
     ),
+    path(
+        'dipendenti/<int:pk>/rapporti/<int:rapporto_id>/elimina-comunicazione-recesso-prova/',
+        views.elimina_comunicazione_recesso_prova,
+        name='elimina_comunicazione_recesso_prova',
+    ),
     path('aziende/', lista_aziende, name='lista_aziende'),
     path('aziende/nuova/', views.crea_azienda, name='crea_azienda'),
     path('aziende/<int:pk>/modifica/', views.modifica_azienda, name='modifica_azienda'),

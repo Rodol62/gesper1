@@ -13,6 +13,7 @@ from django.http import Http404, HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.urls import reverse
 from django.utils import timezone
@@ -1141,5 +1142,30 @@ def workflow_recesso_prova(request, pk, rapporto_id):
             'rapporto': rapporto,
             'comunicazione': comunicazione,
             'puo_modificare': puo_modificare,
+            'puo_eliminare_comunicazione_recesso': request.user.is_superuser or request.user.has_ruolo('admin'),
         },
     )
+
+
+def _solo_admin_o_superuser(user):
+    """Eliminazione comunicazione recesso in prova: solo superuser o ruolo admin (non HR né consulente)."""
+    return user.is_authenticated and (user.is_superuser or user.has_ruolo('admin'))
+
+
+@login_required
+@user_passes_test(_solo_admin_o_superuser)
+@require_POST
+def elimina_comunicazione_recesso_prova(request, pk, rapporto_id):
+    dipendente = get_object_or_404(Dipendente.objects.select_related('azienda'), pk=pk)
+    if not _dipendente_accessibile(request, dipendente):
+        raise Http404()
+    rapporto = get_object_or_404(
+        RapportoDiLavoro.objects.select_related('tipo_contratto', 'azienda'),
+        pk=rapporto_id,
+        dipendente=dipendente,
+    )
+    comunicazione = get_object_or_404(ComunicazioneRecessoProva, rapporto=rapporto, dipendente=dipendente)
+    eti = f'{dipendente.cognome} {dipendente.nome} · {rapporto.numero_contratto or "contratto"}'
+    comunicazione.delete()
+    messages.success(request, f'Comunicazione recesso in prova eliminata ({eti}).')
+    return redirect(f"{reverse('centro_rapporti_lavoro')}#recesso-prova-periodo")

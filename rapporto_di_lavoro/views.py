@@ -377,6 +377,8 @@ def centro_rapporti_lavoro(request):
 
 	# Flag esplicito: evita {% if user|has_ruolo:'consulente' and count %} (precedenze / filtri in template)
 	is_consulente_centro = u.has_ruolo('consulente')
+	# Eliminazione righe recesso in prova: solo admin/superuser (non consulente in verifica, non HR)
+	centro_elimina_recesso_prova_admin = u.is_superuser or u.has_ruolo('admin')
 
 	return render(
 		request,
@@ -386,6 +388,7 @@ def centro_rapporti_lavoro(request):
 			'recesso_prova_recenti': recesso_prova_recenti,
 			'recesso_prova_in_verifica_centro_count': recesso_prova_in_verifica_centro_count,
 			'is_consulente_centro': is_consulente_centro,
+			'centro_elimina_recesso_prova_admin': centro_elimina_recesso_prova_admin,
 		},
 	)
 

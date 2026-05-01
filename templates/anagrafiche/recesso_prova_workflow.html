@@ -12,10 +12,16 @@
     </div>
   </div>
 
-  <div class="mb-2 d-flex gap-2 flex-wrap">
+  <div class="mb-2 d-flex gap-2 flex-wrap align-items-center">
     <a href="{% url 'dettaglio_dipendente' dipendente.id %}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-arrow-left"></i> Torna alla scheda dipendente
     </a>
+    {% if puo_eliminare_comunicazione_recesso %}
+    <form method="post" action="{% url 'elimina_comunicazione_recesso_prova' dipendente.id rapporto.id %}" class="d-inline" onsubmit="return confirm('Eliminare definitivamente questa comunicazione recesso in prova (qualsiasi stato)?');">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Elimina comunicazione</button>
+    </form>
+    {% endif %}
     {% if comunicazione.documento_pdf_id %}
     <a href="{% url 'visualizza_documento' comunicazione.documento_pdf_id %}" class="btn btn-sm btn-outline-primary">
       <i class="bi bi-file-earmark-text"></i> Apri PDF firmato #{{ comunicazione.documento_pdf_id }}

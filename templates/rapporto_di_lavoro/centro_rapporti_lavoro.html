@@ -50,6 +50,7 @@
           <p class="mb-0 mt-1" style="font-size:.78rem;color:#555;max-width:52rem">
             Lettera al dipendente (bozza, verifica consulente, firma digitale amministratore, PDF e invio e-mail).
             Per <strong>nuove</strong> comunicazioni: scheda dipendente → <em>Contratti e storico</em> → <strong>Workflow recesso prova</strong>.
+            {% if centro_elimina_recesso_prova_admin %}<span class="d-block mt-1 text-secondary">Solo utenti <strong>admin</strong> possono <strong>eliminare</strong> una riga dall’elenco (anche se è in verifica consulente).</span>{% endif %}
           </p>
         </div>
         <a href="{% url 'lista_dipendenti' %}?stato=attivo" class="btn btn-sm btn-primary text-nowrap"><i class="bi bi-person-badge"></i> Vai ai dipendenti</a>
@@ -95,8 +96,14 @@
                 {% endif %}
               </td>
               <td class="text-nowrap text-muted">{{ c.data_modifica|date:"d/m/Y H:i" }}</td>
-              <td class="text-end">
+              <td class="text-end text-nowrap">
                 <a href="{% url 'workflow_recesso_prova' c.dipendente_id c.rapporto_id %}" class="btn btn-sm btn-outline-primary py-0">Apri workflow</a>
+                {% if centro_elimina_recesso_prova_admin %}
+                <form method="post" action="{% url 'elimina_comunicazione_recesso_prova' c.dipendente_id c.rapporto_id %}" class="d-inline-block ms-1 align-middle" onsubmit="return confirm('Eliminare definitivamente questa comunicazione recesso in prova (qualsiasi stato, incluso «In verifica consulente»)?');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger py-0">Elimina</button>
+                </form>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}
