@@ -246,12 +246,12 @@
       </a>
     </div>
     <div class="col">
-      <a href="#cons-contratti" class="cons-dash-kpi-link text-reset">
+      <a href="{% url 'consulente_contratti' %}" class="cons-dash-kpi-link text-reset">
         <div class="card border-0 shadow-sm" style="border-left:4px solid #5a3e9b!important">
           <div class="card-body cons-dash-kpi-body">
-            <div class="kpi-num" style="color:#5a3e9b">{{ contratti_sottoscritti_count }}</div>
-            <div class="kpi-lbl">Contratti attivi</div>
-            <div class="kpi-sub">Sottoscritti</div>
+            <div class="kpi-num" style="color:#5a3e9b">{{ contratti_registrati_count }}</div>
+            <div class="kpi-lbl">Visualizza contratti</div>
+            <div class="kpi-sub">Tutti i rapporti</div>
           </div>
         </div>
       </a>
@@ -389,7 +389,7 @@
           <div class="fw-semibold mb-2" style="font-size:.88rem;color:var(--cd-primary)"><i class="bi bi-file-earmark-text me-1"></i>Contratti</div>
           <div class="d-flex flex-column gap-1">
             <a href="{% url 'lista_contratti_scadenza' %}">Scadenze contratti a termine</a>
-            <a href="#cons-contratti">Contratti recenti (sotto)</a>
+            <a href="{% url 'consulente_contratti' %}">Visualizza contratti (elenco)</a>
             <a href="#cons-addenda">Modifiche / addendum recenti</a>
             {% if recesso_prova_in_verifica_count %}
             <a href="#cons-recesso-prova"><strong>Recesso in prova</strong> ({{ recesso_prova_in_verifica_count }} in verifica)</a>
@@ -456,67 +456,9 @@
     </div>
   </div>
 
-  <div class="cons-dash-section-title" id="cons-contratti"><i class="bi bi-journal-text"></i> Contratti recenti</div>
+  <div class="cons-dash-section-title" id="cons-addenda"><i class="bi bi-arrow-repeat"></i> Modifiche contrattuali (addendum)</div>
   <div class="row g-3 mb-4">
-    <div class="col-lg-6">
-      <div class="cons-dash-panel h-100">
-        <div class="ph">
-          <span><i class="bi bi-file-earmark-ruled me-1"></i> Ultimi aggiornamenti (esclusa bozza «proposta»)</span>
-          <a href="{% url 'lista_contratti_scadenza' %}" class="text-muted small text-decoration-none">Scadenze TD →</a>
-        </div>
-        {% if contratti_recenti %}
-        <div class="table-responsive">
-          <table class="table table-hover align-middle">
-            <thead>
-              <tr>
-                <th>Contratto</th>
-                <th>Dipendente</th>
-                <th>Stato</th>
-                <th class="text-nowrap">File</th>
-                <th class="text-end">Aggiornato</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for c in contratti_recenti %}
-              <tr>
-                <td>
-                  <a href="{% url 'dettaglio_contratto' c.id %}" class="fw-semibold text-decoration-none" style="color:var(--cd-accent)">{{ c.numero_contratto }}</a>
-                  <div class="text-muted" style="font-size:.72rem">{{ c.posizione|truncatechars:42 }}</div>
-                </td>
-                <td>
-                  {% if c.dipendente %}
-                    <a href="{% url 'dettaglio_dipendente' c.dipendente.pk %}" class="text-decoration-none">{{ c.dipendente.cognome }} {{ c.dipendente.nome }}</a>
-                  {% else %}<span class="text-muted">—</span>{% endif %}
-                </td>
-                <td>
-                  {% if c.stato == 'sottoscritto' %}
-                    <span class="cons-dash-badge" style="background:#e8f5e9;color:var(--cd-success)">{{ c.get_stato_display }}</span>
-                  {% elif c.stato == 'sospeso' %}
-                    <span class="cons-dash-badge" style="background:#fff8e6;color:var(--cd-warning)">{{ c.get_stato_display }}</span>
-                  {% elif c.stato == 'cessato' %}
-                    <span class="cons-dash-badge" style="background:#fdeaea;color:var(--cd-danger)">{{ c.get_stato_display }}</span>
-                  {% else %}
-                    <span class="cons-dash-badge" style="background:#eef3f9;color:var(--cd-primary)">{{ c.get_stato_display }}</span>
-                  {% endif %}
-                </td>
-                <td class="text-nowrap" style="font-size:.72rem">
-                  <a href="{% url 'contratto_pdf' c.id %}?ui=1&amp;next={{ request.path|urlencode }}%23cons-contratti"
-                     class="text-decoration-none"><i class="bi bi-file-earmark-pdf text-danger"></i> PDF</a>
-                  <span class="text-muted">·</span>
-                  <a href="{% url 'contratto_pdf' c.id %}?download=1" class="text-decoration-none text-muted" title="Scarica">↓</a>
-                </td>
-                <td class="text-end text-muted" style="font-size:.76rem;white-space:nowrap">{{ c.data_modifica|date:"d/m/Y H:i" }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <div class="p-4 text-center text-muted small">Nessun contratto registrato per questa azienda.</div>
-        {% endif %}
-      </div>
-    </div>
-    <div class="col-lg-6" id="cons-addenda">
+    <div class="col-12">
       <div class="cons-dash-panel h-100">
         <div class="ph">
           <span><i class="bi bi-arrow-repeat me-1"></i> Modifiche contrattuali (addendum)</span>

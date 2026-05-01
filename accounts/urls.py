@@ -52,6 +52,7 @@ from .views_certificazione_firma import (
 )
 from .views_consulente import (
     consulente_dashboard,
+    consulente_contratti,
     consulente_candidati,
     consulente_approva_proposta,
     consulente_proposta_detail,
@@ -184,6 +185,7 @@ urlpatterns = [
 
     # ── Interfaccia Consulente del Lavoro ───────────────────────
     path('consulente/', consulente_dashboard, name='consulente_dashboard'),
+    path('consulente/contratti/', consulente_contratti, name='consulente_contratti'),
     path('consulente/candidati/', consulente_candidati, name='consulente_candidati'),
     path('consulente/candidati/<int:proposta_id>/approva/', consulente_approva_proposta, name='consulente_approva_proposta'),
     path('consulente/candidati/<int:proposta_id>/proposta/', consulente_proposta_detail, name='consulente_proposta_detail'),

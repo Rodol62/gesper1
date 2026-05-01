@@ -2,7 +2,7 @@
 views_consulente.py — Interfaccia consulente del lavoro.
 
 Funzionalità:
-  1. Dashboard con statistiche rapide
+  1. Dashboard con statistiche rapide; elenco contratti su pagina dedicata
   2. Anagrafiche candidati (firmata_candidato / contratto_attivo) + export Excel/CSV
   3. Approva proposta di assunzione (firmata_candidato → contratto_attivo)
   4. Documenti dipendenti (identità, CF, attestati) + download
@@ -207,15 +207,7 @@ def consulente_dashboard(request):
     td_in_scadenza = len(contratti_td_in_scadenza(azienda))
     td_scaduti_aperti = len(contratti_td_scaduti_non_chiusi(azienda))
 
-    contratti_sottoscritti_count = RapportoDiLavoro.objects.filter(
-        azienda=azienda, stato='sottoscritto'
-    ).count()
-    contratti_recenti = (
-        RapportoDiLavoro.objects.filter(azienda=azienda)
-        .exclude(stato='proposta')
-        .select_related('dipendente', 'tipo_contratto')
-        .order_by('-data_modifica', '-id')[:10]
-    )
+    contratti_registrati_count = RapportoDiLavoro.objects.filter(azienda=azienda).count()
     addenda_recenti = (
         AddendumContrattuale.objects.filter(rapporto__azienda=azienda)
         .select_related('rapporto', 'rapporto__dipendente', 'creato_da')
@@ -254,11 +246,50 @@ def consulente_dashboard(request):
         'anno_corrente': oggi.year,
         'td_in_scadenza': td_in_scadenza,
         'td_scaduti_aperti': td_scaduti_aperti,
-        'contratti_sottoscritti_count': contratti_sottoscritti_count,
-        'contratti_recenti': contratti_recenti,
+        'contratti_registrati_count': contratti_registrati_count,
         'addenda_recenti': addenda_recenti,
         'addendum_anno_count': addendum_anno_count,
     })
+
+
+@login_required
+@user_passes_test(_is_consulente)
+def consulente_contratti(request):
+    """Elenco contratti / rapporti dell'azienda (tutti gli stati: bozza digitale, sottoscritto anche cartaceo, ecc.)."""
+    azienda = _get_azienda_consulente(request.user)
+    if not azienda:
+        messages.error(request, "Nessuna azienda associata al tuo account. Contatta l'amministratore.")
+        return redirect('home')
+
+    qs = (
+        RapportoDiLavoro.objects.filter(azienda=azienda)
+        .select_related('dipendente', 'tipo_contratto')
+        .order_by('-data_modifica', '-id')
+    )
+    qstr = (request.GET.get('q') or '').strip()
+    if qstr:
+        qs = qs.filter(
+            Q(numero_contratto__icontains=qstr)
+            | Q(dipendente__nome__icontains=qstr)
+            | Q(dipendente__cognome__icontains=qstr)
+            | Q(posizione__icontains=qstr)
+        )
+
+    paginator = Paginator(qs, 40)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    oggi = date.today()
+    return render(
+        request,
+        'consulente/contratti.html',
+        {
+            'azienda': azienda,
+            'page_obj': page_obj,
+            'q': qstr,
+            'mese_corrente': MESI_ITA[oggi.month],
+            'anno_corrente': oggi.year,
+        },
+    )
 
 
 # ── Dettaglio proposta (read-only per consulente) ───────────────────────────
