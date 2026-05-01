@@ -13,7 +13,7 @@ from decimal import Decimal, InvalidOperation
 from django import template
 from django.utils.formats import date_format
 
-from accounts.formatting import num_it_str
+from accounts.formatting import normalize_anno_calendario, num_it_str
 
 register = template.Library()
 
@@ -84,10 +84,5 @@ def anno_it(value):
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     s = str(value).strip().replace(' ', '')
-    collapsed = s.replace('.', '')
-    if collapsed.isdigit():
-        return str(int(collapsed))
-    try:
-        return str(int(value))
-    except (TypeError, ValueError):
-        return s
+    out = normalize_anno_calendario(s)
+    return out if out else s

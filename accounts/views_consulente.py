@@ -1753,8 +1753,12 @@ def consulente_posizione_libro(request):
 
 
 def _libro_filter_params_from_request(request) -> dict[str, str]:
+    from .formatting import normalize_anno_calendario
+
+    raw_anno = (request.GET.get('anno') or '').strip()
+    anno = normalize_anno_calendario(raw_anno) if raw_anno else ''
     return {
-        'anno': (request.GET.get('anno') or '').strip(),
+        'anno': anno,
         'data_da': (request.GET.get('data_da') or '').strip(),
         'data_a': (request.GET.get('data_a') or '').strip(),
     }
@@ -1769,11 +1773,18 @@ def _redirect_posizione_con_querystring(request, url_name: str):
 
 def _redirect_posizione_con_filtri_tabella_post(request, url_name: str):
     """Dopo POST (es. allega PDF riga): redirect con filtri da campi hidden anno/data_da/data_a."""
+    from .formatting import normalize_anno_calendario
+
     params = {}
     for k in ('anno', 'data_da', 'data_a'):
         v = (request.POST.get(k) or '').strip()
-        if v:
-            params[k] = v
+        if not v:
+            continue
+        if k == 'anno':
+            v = normalize_anno_calendario(v)
+            if not v:
+                continue
+        params[k] = v
     base = reverse(url_name)
     q = urlencode(params)
     return redirect(f'{base}?{q}' if q else base)

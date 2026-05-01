@@ -35,7 +35,7 @@
         <select name="anno" class="form-select form-select-sm">
           <option value="">Tutti</option>
           {% for y in anni_disponibili %}
-          <option value="{{ y }}"{% if libro_filter.anno == y|stringformat:"d" %} selected{% endif %}>{{ y }}</option>
+          <option value="{{ y|anno_it }}"{% if libro_filter.anno|anno_it == y|anno_it %} selected{% endif %}>{{ y|anno_it }}</option>
           {% endfor %}
         </select>
       </div>
