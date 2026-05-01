@@ -1687,6 +1687,7 @@ def consulente_posizione_estratto(request):
 @user_passes_test(_is_admin_o_consulente_partitario)
 def consulente_posizione_libro(request):
     from .consulente_registro_studio import ricalcola_saldi_progressivi
+    from .models import MovimentoRegistroStudioConsulente
 
     azienda, redir = _partitario_azienda_o_redirect(request)
     if redir:
