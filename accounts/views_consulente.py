@@ -1226,6 +1226,69 @@ def _partitario_back(request):
     return {'url_name': 'consulente_dashboard', 'label': 'Consulente'}
 
 
+def _hub_saldi_posizione_contabile(azienda):
+    """
+    Saldo finale libro (dare − avere) e saldo «alla data» oggi (esclude movimenti con data documento futura).
+    Convenzione come nel libro: saldo > 0 = residuo da pagare allo studio; saldo < 0 = credito azienda.
+    """
+    from datetime import date
+    from decimal import Decimal
+
+    from django.db.models import F
+
+    from .models import MovimentoRegistroStudioConsulente
+
+    def _fmt_it(val):
+        try:
+            n = Decimal(val or 0)
+        except Exception:
+            n = Decimal('0')
+        return f"{n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    oggi = date.today()
+    qs = list(
+        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda)
+        .order_by(F('data_documento').asc(nulls_last=True), 'importato_il', 'id')
+        .only('dare', 'avere', 'data_documento', 'saldo_progressivo')
+    )
+    if not qs:
+        return {
+            'ha_movimenti': False,
+            'saldo_finale': Decimal('0'),
+            'saldo_alla_data': Decimal('0'),
+            'saldo_finale_fmt': _fmt_it(0),
+            'saldo_alla_data_fmt': _fmt_it(0),
+            'data_riferimento': oggi,
+            'ultima_data_documento': None,
+            'saldi_coincidono': True,
+            'segno': 'zero',
+        }
+
+    running = Decimal('0')
+    saldo_alla_data = Decimal('0')
+    for row in qs:
+        running += (row.dare or Decimal('0')) - (row.avere or Decimal('0'))
+        d = row.data_documento
+        if d is None or d <= oggi:
+            saldo_alla_data = running
+
+    saldo_finale = running
+    dates = [r.data_documento for r in qs if r.data_documento]
+    ultima = max(dates) if dates else None
+    segno = 'positivo' if saldo_finale > 0 else ('negativo' if saldo_finale < 0 else 'zero')
+    return {
+        'ha_movimenti': True,
+        'saldo_finale': saldo_finale,
+        'saldo_alla_data': saldo_alla_data,
+        'saldo_finale_fmt': _fmt_it(saldo_finale),
+        'saldo_alla_data_fmt': _fmt_it(saldo_alla_data),
+        'data_riferimento': oggi,
+        'ultima_data_documento': ultima,
+        'saldi_coincidono': saldo_alla_data == saldo_finale,
+        'segno': segno,
+    }
+
+
 @login_required
 @user_passes_test(_is_admin_o_consulente_partitario)
 def consulente_posizione_contabile(request):
@@ -1233,17 +1296,12 @@ def consulente_posizione_contabile(request):
     azienda, redir = _partitario_azienda_o_redirect(request)
     if redir:
         return redir
-    from django.db.models import F
 
     from .models import MovimentoRegistroStudioConsulente
 
     n_doc = MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda, tipo_riga='documento').count()
     n_bon = MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda, tipo_riga='bonifico').count()
-    ultimo = (
-        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda)
-        .order_by(F('data_documento').desc(nulls_last=True), '-importato_il')
-        .first()
-    )
+    hub_saldo = _hub_saldi_posizione_contabile(azienda)
     rep_doc = request.session.get(SESSION_REPORT_AGGANCIA_DOCUMENTI) or {}
     rep_bon = request.session.get(SESSION_REPORT_AGGANCIA_BONIFICI) or {}
     report_aggancia_csv_documenti = bool(rep_doc.get('azienda_id') == azienda.id and rep_doc.get('rows'))
@@ -1256,7 +1314,7 @@ def consulente_posizione_contabile(request):
             'partitario_back': _partitario_back(request),
             'n_documenti': n_doc,
             'n_bonifici': n_bon,
-            'ultimo_movimento': ultimo,
+            'hub_saldo': hub_saldo,
             'posizione_nav': 'hub',
             'report_aggancia_csv_documenti': report_aggancia_csv_documenti,
             'report_aggancia_csv_bonifici': report_aggancia_csv_bonifici,

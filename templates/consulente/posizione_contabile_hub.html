@@ -62,16 +62,34 @@
       </div>
     </div>
     <div class="col-md-4">
-      <div class="card border-0 shadow-sm h-100">
+      <div class="card border-0 shadow-sm h-100 {% if hub_saldo.ha_movimenti %}{% if hub_saldo.segno == 'positivo' %}border-start border-4 border-primary{% elif hub_saldo.segno == 'negativo' %}border-start border-4 border-warning{% endif %}{% endif %}">
         <div class="card-body">
-          <div class="text-muted text-uppercase small fw-bold mb-1">Ultimo movimento</div>
-          {% if ultimo_movimento %}
-          <div class="small">{{ ultimo_movimento.get_tipo_riga_display }} — {{ ultimo_movimento.data_documento|date:"d/m/Y"|default:"—" }}</div>
-          <div class="font-monospace small text-truncate">{{ ultimo_movimento.numero_documento|default:ultimo_movimento.riferimento_pagamento|default:ultimo_movimento.nome_file }}</div>
+          <div class="text-muted text-uppercase small fw-bold mb-1">Saldo posizione contabile</div>
+          {% if hub_saldo.ha_movimenti %}
+          <div class="small text-muted mb-2">
+            Alla data <strong>{{ hub_saldo.data_riferimento|date:"d/m/Y" }}</strong>
+            {% if hub_saldo.ultima_data_documento %}
+            <span class="d-block d-md-inline">· ultimo documento <strong>{{ hub_saldo.ultima_data_documento|date:"d/m/Y" }}</strong></span>
+            {% endif %}
+          </div>
+          <div class="fs-4 fw-bold {% if hub_saldo.segno == 'positivo' %}text-primary{% elif hub_saldo.segno == 'negativo' %}text-warning{% else %}text-secondary{% endif %} mb-2">€ {{ hub_saldo.saldo_finale_fmt }}</div>
+          {% if hub_saldo.segno == 'positivo' %}
+          <p class="small mb-2" style="line-height:1.35"><strong>Da ricevere.</strong> Saldo finale movimenti a favore dello studio (residuo da incassare rispetto all’azienda).</p>
+          {% elif hub_saldo.segno == 'negativo' %}
+          <p class="small mb-2" style="line-height:1.35"><strong>Credito in favore dell’azienda.</strong> Saldo finale movimenti: pagamenti / avere superiori al dare documenti (importo da compensare con nuove proforma o da concordare).</p>
           {% else %}
-          <p class="small text-muted mb-2">Nessun movimento ancora.</p>
+          <p class="small text-muted mb-2">Saldo finale movimenti pari a zero.</p>
           {% endif %}
-          <a href="{% url 'consulente_posizione_libro' %}" class="btn btn-sm btn-outline-secondary mt-1">Movimenti</a>
+          {% if not hub_saldo.saldi_coincidono %}
+          <p class="small text-muted border-top pt-2 mb-2" style="line-height:1.35">
+            <span class="text-uppercase fw-semibold">Alla data odierna</span> (esclusi documenti con data successiva): <strong>€ {{ hub_saldo.saldo_alla_data_fmt }}</strong>
+            <span class="d-block mt-1">Saldo complessivo libro (tutte le date): <strong>€ {{ hub_saldo.saldo_finale_fmt }}</strong></span>
+          </p>
+          {% endif %}
+          {% else %}
+          <p class="small text-muted mb-2">Nessun movimento ancora nel libro.</p>
+          {% endif %}
+          <a href="{% url 'consulente_posizione_libro' %}" class="btn btn-sm btn-outline-secondary mt-1">Apri movimenti</a>
         </div>
       </div>
     </div>
