@@ -1366,3 +1366,25 @@ class UploadBonificoPdfDedupTests(TestCase):
             MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(),
             1,
         )
+
+
+class PartitarioLibroLinkAdminMovimentiTests(SimpleTestCase):
+    """Flag colonna Admin sul libro: solo superuser o ruolo admin, non consulente."""
+
+    def test_superuser_e_admin_ruolo_true(self):
+        from unittest.mock import Mock
+
+        from accounts.views_consulente import _partitario_libro_link_admin_movimenti
+
+        su = Mock(is_authenticated=True, is_superuser=True)
+        self.assertTrue(_partitario_libro_link_admin_movimenti(su))
+        adm = Mock(is_authenticated=True, is_superuser=False, has_ruolo=lambda r: r == "admin")
+        self.assertTrue(_partitario_libro_link_admin_movimenti(adm))
+
+    def test_consulente_false(self):
+        from unittest.mock import Mock
+
+        from accounts.views_consulente import _partitario_libro_link_admin_movimenti
+
+        cons = Mock(is_authenticated=True, is_superuser=False, has_ruolo=lambda r: r == "consulente")
+        self.assertFalse(_partitario_libro_link_admin_movimenti(cons))

@@ -84,7 +84,7 @@
         Le proforma/parcelle in dare arrivano dagli <strong>upload PDF</strong>. Due righe documento simili di solito sono due PDF con
         <strong>nome file diverso</strong> ma stesso numero estratto: il secondo upload viene ignorato (messaggio «Già presente in libro …»).
         Il libro considera univoca la coppia <strong>data documento + numero</strong> (stesso numero in anni diversi è ammesso se le date differiscono). Badge <span class="badge bg-warning text-dark" style="font-size:.65rem">Doppio</span> se la stessa terna data+numero+tipo compare più volte.
-        Righe da togliere: Admin → <strong>ACCOUNTS</strong> → <strong>Movimenti partitario consulente–azienda</strong>; dopo eliminazioni i saldi si ricalcolano da soli.
+        Righe da togliere: utenti <strong>admin</strong> hanno in tabella la colonna <strong>Admin</strong> con link Modifica/Elimina (Django Admin); altrimenti Admin → <strong>ACCOUNTS</strong> → <strong>Movimenti partitario consulente–azienda</strong>. Dopo eliminazioni i saldi si ricalcolano da soli.
         Bonifici in avere creati per errore dal vecchio import Excel «riepilogo PROFORMA» (riferimento tipo <code>PARCELLA 182|data|importo</code> accanto alle parcelle già in dare): da terminale, con l’<strong>ID azienda</strong> corretto, prima anteprima poi esecuzione —
         <code class="small">python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID --solo-parcella-proforma-sintetici</code>
         poi
@@ -101,11 +101,11 @@
           <th>Data</th>
           <th>Movimento</th>
           <th>Dettaglio</th>
-          <th class="text-end">Tot. doc.</th>
           <th class="text-end">Dare</th>
           <th class="text-end">Avere</th>
           <th class="text-end">Saldo</th>
           <th>Doc.</th>
+          {% if libro_link_admin_movimenti %}<th class="text-center gesper-libro-admin-col-h small text-white-50">Admin</th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -124,15 +124,20 @@
               {% endif %}
             {% endif %}
           </td>
-          <td class="text-end font-monospace gesper-libro-amt">{% if r.totale_da_pagare is not None %}€ {{ r.totale_da_pagare|num_it:2 }}{% else %}—{% endif %}</td>
           <td class="text-end font-monospace gesper-libro-amt text-primary">€ {{ r.dare|num_it:2 }}</td>
           <td class="text-end font-monospace gesper-libro-amt text-success">€ {{ r.avere|num_it:2 }}</td>
           <td class="text-end font-monospace gesper-libro-amt {% if r.saldo_progressivo > 0 %}gesper-libro-saldo-pos{% elif r.saldo_progressivo < 0 %}gesper-libro-saldo-neg{% else %}gesper-libro-saldo-zero{% endif %}">€ {{ r.saldo_progressivo|num_it:2 }}</td>
           <td>{% if r.file %}<a href="{{ r.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">PDF</a>{% else %}<span class="text-muted small">—</span>{% endif %}</td>
+          {% if libro_link_admin_movimenti %}
+          <td class="gesper-libro-admin-col align-top">
+            <a href="{% url 'admin:accounts_movimentoregistrostudioconsulente_change' r.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-1" target="_blank" rel="noopener">Modifica</a>
+            <a href="{% url 'admin:accounts_movimentoregistrostudioconsulente_delete' r.pk %}" class="btn btn-sm btn-outline-danger py-0 px-1" target="_blank" rel="noopener">Elimina</a>
+          </td>
+          {% endif %}
         </tr>
-        {% if r.note %}<tr class="border-0"><td colspan="8" class="pt-0 pb-2 small text-muted bg-white">{{ r.note }}</td></tr>{% endif %}
+        {% if r.note %}<tr class="border-0"><td colspan="{% if libro_link_admin_movimenti %}8{% else %}7{% endif %}" class="pt-0 pb-2 small text-muted bg-white">{{ r.note }}</td></tr>{% endif %}
         {% empty %}
-        <tr><td colspan="8" class="text-center text-muted py-5">Nessun movimento in questo intervallo.</td></tr>
+        <tr><td colspan="{% if libro_link_admin_movimenti %}8{% else %}7{% endif %}" class="text-center text-muted py-5">Nessun movimento in questo intervallo.</td></tr>
         {% endfor %}
       </tbody>
     </table>

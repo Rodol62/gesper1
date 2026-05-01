@@ -70,6 +70,16 @@ def _is_admin_o_consulente_partitario(user):
     return has_ruolo('admin') or has_ruolo('consulente')
 
 
+def _partitario_libro_link_admin_movimenti(user) -> bool:
+    """Link modifica/elimina verso Django Admin sul libro: solo superuser o ruolo admin (non consulente)."""
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    has_ruolo = getattr(user, 'has_ruolo', None)
+    return callable(has_ruolo) and has_ruolo('admin')
+
+
 def _get_azienda_partitario(request):
     """Azienda di contesto: sessione operativa per admin/superuser, FK consulente per consulente."""
     u = request.user
@@ -1751,6 +1761,7 @@ def consulente_posizione_libro(request):
             'libro_filter': filter_params,
             'anni_disponibili': anni_disponibili,
             'filtro_attivo': filtro_attivo,
+            'libro_link_admin_movimenti': _partitario_libro_link_admin_movimenti(request.user),
         },
     )
 
@@ -1858,7 +1869,7 @@ def consulente_posizione_libro_excel(request):
         return HttpResponse("Impossibile creare il file Excel.", status=500)
     ws.title = "Movimenti"
 
-    headers = ["Data", "Movimento", "Dettaglio", "Tot. doc.", "Dare", "Avere", "Saldo", "Doc."]
+    headers = ["Data", "Movimento", "Dettaglio", "Dare", "Avere", "Saldo", "Doc."]
     thin = Side(border_style='thin', color='D0D0D0')
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     h_fill = PatternFill('solid', fgColor='1B3A5F')
@@ -1889,7 +1900,6 @@ def consulente_posizione_libro_excel(request):
             r.data_documento.strftime('%d/%m/%Y') if r.data_documento else '',
             _safe_display(r, 'get_tipo_riga_display', 'tipo_riga'),
             dettaglio,
-            float(r.totale_da_pagare) if r.totale_da_pagare is not None else None,
             float(r.dare or 0),
             float(r.avere or 0),
             float(r.saldo_progressivo or 0),
@@ -1902,11 +1912,11 @@ def consulente_posizione_libro_excel(request):
             c.alignment = left
             if fill is not None:
                 c.fill = fill
-            if col in (4, 5, 6, 7):
+            if col in (4, 5, 6):
                 c.number_format = '#,##0.00'
                 c.alignment = Alignment(horizontal='right', vertical='center')
 
-    widths = [12, 18, 64, 13, 13, 13, 13, 9]
+    widths = [12, 18, 64, 13, 13, 13, 9]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
