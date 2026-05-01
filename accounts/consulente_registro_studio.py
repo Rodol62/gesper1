@@ -2144,6 +2144,32 @@ def trova_bonifico_esistente_stesso_excel(
     return None
 
 
+def bonifico_duplicato_elenco_ids(righe) -> set[int]:
+    """
+    ID dei bonifici che nell'elenco condividono la stessa chiave con almeno un'altra riga:
+    (data valuta, avere, riferimento in minuscolo) oppure, se riferimento vuoto,
+    (data valuta, avere, causale troncata in minuscolo).
+
+    Serve solo evidenziazione in UI (es. Pagamenti); non sostituisce la deduplica in import.
+    """
+    from collections import Counter
+
+    rows = list(righe)
+
+    def row_key(r):
+        d = r.data_documento
+        av = r.avere
+        rif = (r.riferimento_pagamento or "").strip().lower()
+        if rif:
+            return (d, av, "rif", rif)
+        caus = (r.causale_pagamento or "").strip().lower()[:200]
+        return (d, av, "caus", caus)
+
+    cnt = Counter(row_key(r) for r in rows)
+    dup_keys = {k for k, n in cnt.items() if n > 1}
+    return {r.id for r in rows if row_key(r) in dup_keys}
+
+
 def _riepilogo_excel_convenzione_solo_importi_negativi(all_rows: list[tuple], header_idx: int, ci_imp: int) -> bool:
     """
     True se **tutti** gli importi numerici non nulli della colonna sono < 0 (almeno 5 righe):

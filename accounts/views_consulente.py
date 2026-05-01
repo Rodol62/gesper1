@@ -1447,6 +1447,7 @@ def consulente_posizione_pagamenti(request):
     from .consulente_registro_studio import (
         applica_aggancia_pdf_bonifici_a_libro,
         applica_upload_bonifici_pdf,
+        bonifico_duplicato_elenco_ids,
         parse_importo_form,
         ricalcola_saldi_progressivi,
     )
@@ -1603,7 +1604,8 @@ def consulente_posizione_pagamenti(request):
         .select_related('importato_da')
         .order_by(F('data_documento').desc(nulls_last=True), '-importato_il')
     )
-    righe = _filter_movimenti_qs_by_data_documento(base_righe, filter_params)
+    righe = list(_filter_movimenti_qs_by_data_documento(base_righe, filter_params))
+    bonifico_duplicato_ids = bonifico_duplicato_elenco_ids(righe)
     anni_disponibili = sorted(
         {
             y
@@ -1623,6 +1625,7 @@ def consulente_posizione_pagamenti(request):
         {
             'azienda': azienda,
             'righe': righe,
+            'bonifico_duplicato_ids': bonifico_duplicato_ids,
             'partitario_back': _partitario_back(request),
             'posizione_nav': 'pagamenti',
             'report_aggancia_csv_bonifici': report_aggancia_csv_bonifici,

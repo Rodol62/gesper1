@@ -75,6 +75,7 @@
             Se <strong>tutta</strong> la colonna Importo (valori non nulli) è <strong>negativa</strong>, si importano <strong>solo</strong> le righe con importo negativo (gli importi positivi nella colonna vengono ignorati).
             Le righe di <strong>solo</strong> proforma/parcella (testo emissione o colonna Documento tipo «PARCELLA 182», «PF-…», «PAR-…» senza bonifico SEPA) <strong>non</strong> diventano bonifici: il dare resta dai PDF in Proforma. Le righe con «Bonifico» / CRO in descrizione si importano anche se in Documento c’è un numero parcella.
             Per ogni bonifico, in «Causale» e nelle note si indica se il <strong>PDF della proforma/parcella</strong> collegata al «Documento» è presente in archivio o meno.
+            Nella tabella <strong>Bonifici registrati</strong>, il badge <span class="badge bg-warning text-dark" style="font-size:.65rem">Doppio</span> indica due o più righe con la stessa <strong>data valuta</strong>, lo stesso <strong>importo in avere</strong> e lo stesso <strong>riferimento</strong> (o la stessa causale se il riferimento è vuoto): eliminare la riga in eccesso da Admin → Movimenti partitario consulente–azienda, poi ricalcolare i saldi da <a href="{% url 'consulente_posizione_libro' %}">Movimenti</a> se serve.
             Se in passato risultano ancora bonifici in avere duplicati rispetto alle parcelle (stesso importo, riferimento <code>PARCELLA …|…</code>), la pulizia mirata è in <a href="{% url 'consulente_posizione_libro' %}">Movimenti</a> (istruzioni comando nell’<strong>Aiuto</strong> di quella pagina).
           </p>
         </div>
@@ -227,7 +228,7 @@
         {% for r in righe %}
         <tr class="gesper-libro-row-bon">
           <td class="text-nowrap text-secondary">{% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-          <td class="font-monospace small fw-medium">{{ r.riferimento_pagamento|default:"—" }}</td>
+          <td class="font-monospace small fw-medium">{{ r.riferimento_pagamento|default:"—" }}{% if r.id in bonifico_duplicato_ids %}<span class="badge bg-warning text-dark ms-1 align-middle" style="font-size:.65rem" title="Stessa data valuta, importo in avere e riferimento (o causale se riferimento vuoto) su più righe: controllare doppio import; elimina la riga in eccesso da Admin.">Doppio</span>{% endif %}</td>
           <td class="small text-muted">{{ r.causale_pagamento|truncatechars:48|default:"—" }}</td>
           <td class="text-end font-monospace gesper-libro-amt text-success fw-semibold">€ {{ r.avere|num_it:2 }}</td>
           <td class="align-top" style="min-width:12rem">

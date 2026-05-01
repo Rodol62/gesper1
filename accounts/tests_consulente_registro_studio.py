@@ -15,6 +15,7 @@ from accounts.consulente_registro_studio import (
     EsitoParsingBonifico,
     EsitoParsingProforma,
     applica_pdf_su_movimento_bonifico,
+    bonifico_duplicato_elenco_ids,
     _numeri_documento_aggancio_coerenti,
     applica_inserimento_manuale_proforma_parcella,
     applica_pdf_su_movimento_documento,
@@ -309,6 +310,96 @@ class AgganciaPdfALibroTests(TestCase):
         )
         self.assertIn("numero_pdf", csv_out.splitlines()[0])
         self.assertIn("x/y.pdf", csv_out)
+
+
+class BonificoDuplicatoElencoIdsTests(TestCase):
+    """Chiave visiva data + avere + riferimento (o causale se rif vuoto) per badge Doppio in Pagamenti."""
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Dup Bon",
+            partita_iva="IT11223344556",
+            indirizzo="Via Dup 1",
+            email="dup@bon.it",
+        )
+        self.d1 = date(2026, 4, 1)
+        self.rif = "CRO-SEPA-987654"
+
+    def _qs_bon(self):
+        return MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico")
+
+    def test_stesso_riferimento_case_insensitive(self):
+        a = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("500.00"),
+            nome_file="a.xlsx",
+            riferimento_pagamento=self.rif,
+        )
+        b = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("500.00"),
+            nome_file="b.xlsx",
+            riferimento_pagamento=self.rif.upper(),
+        )
+        ids = bonifico_duplicato_elenco_ids(self._qs_bon())
+        self.assertEqual(ids, {a.id, b.id})
+
+    def test_riferimenti_diversi_non_segnati(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("500.00"),
+            nome_file="a.xlsx",
+            riferimento_pagamento="CRO-A",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("500.00"),
+            nome_file="b.xlsx",
+            riferimento_pagamento="CRO-B",
+        )
+        self.assertEqual(bonifico_duplicato_elenco_ids(self._qs_bon()), set())
+
+    def test_riferimento_vuoto_stessa_causale_duplicato(self):
+        caus = "Bonifico SEPA ordinativo 12"
+        a = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("100.00"),
+            nome_file="a.xlsx",
+            riferimento_pagamento="",
+            causale_pagamento=caus,
+        )
+        b = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("100.00"),
+            nome_file="b.xlsx",
+            riferimento_pagamento="",
+            causale_pagamento=caus,
+        )
+        self.assertEqual(bonifico_duplicato_elenco_ids(self._qs_bon()), {a.id, b.id})
 
 
 class RegistroStudioPostDeleteSignalTests(TestCase):
