@@ -1,28 +1,26 @@
 {% extends "base.html" %}
 {% load format_it_tags %}
-{% block title %}Pagamenti — {{ azienda.nome }}{% endblock %}
+{% block title %}Posizione contabile — {{ azienda.nome }}{% endblock %}
+
+{% block extra_head %}
+{% include "consulente/_posizione_elenco_head_styles.html" %}
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 mt-3" style="max-width:1150px;margin:0 auto">
+<div class="container-fluid px-3 mt-3 gesper-libro-page gesper-libro-wrap">
   <nav aria-label="breadcrumb" class="small mb-2">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url partitario_back.url_name %}">{{ partitario_back.label }}</a></li>
       <li class="breadcrumb-item"><a href="{% url 'consulente_posizione_contabile' %}">Posizione contabile</a></li>
-      <li class="breadcrumb-item active">Pagamenti</li>
+      <li class="breadcrumb-item active" aria-current="page">Pagamenti</li>
     </ol>
   </nav>
 
-  <h1 class="h4 mb-2" style="color:#1b3a5f;font-weight:700"><i class="bi bi-bank me-2"></i>Pagamenti (bonifici)</h1>
-  <details class="gesper-help mb-2">
-    {% include "consulente/_posizione_help_summary.html" with hint="bonifici: PDF, manuale, pregresso Excel, caricamento" %}
-    <div class="gesper-help-body">
-      <p class="text-muted small mb-2">
-        <strong>A regime:</strong> l’azienda (o il consulente) registra data, importo, riferimento e opzionalmente la distinta PDF; il libro mostra l’avere e il saldo.
-        Dopo un <strong>pregresso da Excel</strong> (bonifici già in tabella senza file), usa il riquadro <strong>«Aggancia distinte PDF»</strong> per allegare le copie alle righe esistenti (CRO/data/importo come da distinta).
-      </p>
-      <p class="text-muted small mb-0">Puoi registrare un bonifico <strong>solo dalla distinta PDF</strong> (importo e CRO leggibili nel file), oppure con <strong>dati manuali</strong> e PDF opzionale. Sulle righe già salvate puoi <strong>sostituire</strong> o <strong>rimuovere</strong> il PDF. Durante l’invio dei file viene mostrata la <strong>percentuale di caricamento</strong>.</p>
-    </div>
-  </details>
+  <header class="gesper-libro-hero">
+    <h1><i class="bi bi-calculator me-2"></i>Posizione contabile</h1>
+    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — bonifici in avere (distinte PDF, manuale, import Excel)</p>
+    <p class="gesper-libro-lead">Le proforma in dare restano in <a class="text-white fw-semibold text-decoration-underline" href="{% url 'consulente_posizione_proforma' %}">Proforma / parcelle</a>. Dettagli operativi in <strong>Aiuto</strong> nei riquadri sotto.</p>
+  </header>
 
   {% include "consulente/posizione_contabile_subnav.html" %}
 
@@ -30,8 +28,37 @@
     <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
   {% endfor %}
 
+  <div class="gesper-libro-filter-card">
+    <form method="get" class="row g-2 align-items-end small">
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Anno</label>
+        <select name="anno" class="form-select form-select-sm">
+          <option value="">Tutti</option>
+          {% for y in anni_disponibili %}
+          <option value="{{ y }}"{% if libro_filter.anno == y|stringformat:"d" %} selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Da data</label>
+        <input type="date" name="data_da" class="form-control form-control-sm" value="{{ libro_filter.data_da }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">A data</label>
+        <input type="date" name="data_a" class="form-control form-control-sm" value="{{ libro_filter.data_a }}">
+      </div>
+      <div class="col-6 col-md-3 d-flex gap-1">
+        <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Applica filtri</button>
+        <a href="{% url 'consulente_posizione_pagamenti' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+      </div>
+      <div class="col-12 col-md-3 text-muted small align-self-center pt-md-0 pt-1">
+        Filtro su <strong>data valuta</strong> (data documento del bonifico). Elenco ordinato dal più recente.
+      </div>
+    </form>
+  </div>
+
   <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header py-2 bg-light small fw-semibold">Import bonifici da Excel (riepilogo)</div>
+    <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Import bonifici da Excel (riepilogo)</div>
     <div class="card-body py-3">
       <details class="gesper-help mb-2">
         {% include "consulente/_posizione_help_summary.html" with hint="import Excel: colonne, storico, proforma nel foglio, ambiente" %}
@@ -66,8 +93,8 @@
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm mb-4 border-secondary">
-    <div class="card-header py-2 bg-light small fw-semibold">Pregresso: aggancia distinte PDF a bonifici già in libro (senza allegato)</div>
+  <div class="card border-0 shadow-sm mb-4 border-start border-4 border-secondary">
+    <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Pregresso: aggancia distinte PDF a bonifici già in libro (senza allegato)</div>
     <div class="card-body py-3">
       <details class="gesper-help mb-2">
         {% include "consulente/_posizione_help_summary.html" with hint="aggancio distinte PDF a bonifici esistenti" %}
@@ -105,8 +132,8 @@
 
   <div class="row g-3 mb-4">
     <div class="col-lg-6 d-flex flex-column gap-3">
-      <div class="card border-0 shadow-sm border-primary">
-        <div class="card-header py-2 bg-light small fw-semibold">Solo distinta PDF (nuovo bonifico)</div>
+      <div class="card border-0 shadow-sm border-start border-4 border-primary">
+        <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Solo distinta PDF (nuovo bonifico)</div>
         <div class="card-body py-3">
           <details class="gesper-help mb-2">
             {% include "consulente/_posizione_help_summary.html" with hint="registrazione da sola distinta PDF" %}
@@ -128,7 +155,7 @@
         </div>
       </div>
       <div class="card border-0 shadow-sm h-100">
-        <div class="card-header py-2 bg-light small fw-semibold">Bonifico manuale + PDF opzionale</div>
+        <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Bonifico manuale + PDF opzionale</div>
         <div class="card-body py-3">
           <form method="post" enctype="multipart/form-data" class="row g-2 small gesper-multipart-upload">
             {% csrf_token %}
@@ -161,8 +188,8 @@
       </div>
     </div>
     <div class="col-lg-6">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header py-2 bg-light small fw-semibold">Upload multiplo PDF distinte</div>
+      <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
+        <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Upload multiplo PDF distinte</div>
         <div class="card-body py-3">
           <details class="gesper-help mb-2">
             {% include "consulente/_posizione_help_summary.html" with hint="upload multiplo distinte PDF" %}
@@ -184,10 +211,10 @@
     </div>
   </div>
 
-  <h2 class="h6 text-secondary mb-2">Bonifici registrati (database)</h2>
-  <div class="table-responsive border rounded shadow-sm">
-    <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.8rem">
-      <thead class="table-light">
+  <h2 class="gesper-pos-section-title"><i class="bi bi-bank me-1"></i>Bonifici registrati</h2>
+  <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
+    <table class="table table-hover mb-0 align-middle table-gesper-libro">
+      <thead>
         <tr>
           <th>Data</th>
           <th>Riferimento</th>
@@ -198,11 +225,11 @@
       </thead>
       <tbody>
         {% for r in righe %}
-        <tr>
-          <td class="text-nowrap">{% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-          <td class="font-monospace small">{{ r.riferimento_pagamento|default:"—" }}</td>
+        <tr class="gesper-libro-row-bon">
+          <td class="text-nowrap text-secondary">{% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+          <td class="font-monospace small fw-medium">{{ r.riferimento_pagamento|default:"—" }}</td>
           <td class="small text-muted">{{ r.causale_pagamento|truncatechars:48|default:"—" }}</td>
-          <td class="text-end font-monospace">€ {{ r.avere|num_it:2 }}</td>
+          <td class="text-end font-monospace gesper-libro-amt text-success fw-semibold">€ {{ r.avere|num_it:2 }}</td>
           <td class="align-top" style="min-width:12rem">
             {% if r.file %}
             <div class="d-flex flex-column gap-1">
@@ -230,7 +257,7 @@
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="text-center text-muted py-4">Nessun pagamento registrato.</td></tr>
+        <tr><td colspan="5" class="text-center text-muted py-5">Nessun bonifico in questo intervallo. Modifica i filtri o registra un pagamento sopra.</td></tr>
         {% endfor %}
       </tbody>
     </table>

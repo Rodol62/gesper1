@@ -1201,7 +1201,7 @@ def consulente_posizione_proforma(request):
                         messages.success(request, msg)
                     else:
                         messages.error(request, msg)
-            return redirect('consulente_posizione_proforma')
+            return _redirect_posizione_con_querystring(request, 'consulente_posizione_proforma')
         uploads_agg = request.FILES.getlist('pdf_aggancia')
         if action == 'aggancia_pdf_documenti' and uploads_agg:
             msgs, report_rows = applica_aggancia_pdf_proforma_parcelle_a_libro(azienda, request.user, uploads_agg)
@@ -1229,7 +1229,7 @@ def consulente_posizione_proforma(request):
                     messages.error(request, msg)
                 else:
                     messages.info(request, msg)
-            return redirect('consulente_posizione_proforma')
+            return _redirect_posizione_con_querystring(request, 'consulente_posizione_proforma')
         uploads = request.FILES.getlist('pdf')
         if uploads:
             for msg in applica_upload_proforma_parcelle_pdf(azienda, request.user, uploads):
@@ -1244,11 +1244,26 @@ def consulente_posizione_proforma(request):
                     messages.error(request, msg)
                 else:
                     messages.info(request, msg)
-        return redirect('consulente_posizione_proforma')
-    righe = (
+        return _redirect_posizione_con_querystring(request, 'consulente_posizione_proforma')
+    from django.db.models.functions import ExtractYear
+
+    filter_params = _libro_filter_params_from_request(request)
+    base_righe = (
         MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda, tipo_riga='documento')
         .select_related('importato_da')
         .order_by(F('data_documento').desc(nulls_last=True), '-importato_il')
+    )
+    righe = _filter_movimenti_qs_by_data_documento(base_righe, filter_params)
+    anni_disponibili = sorted(
+        {
+            y
+            for y in MovimentoRegistroStudioConsulente.objects.filter(
+                azienda=azienda, data_documento__isnull=False, tipo_riga='documento'
+            )
+            .annotate(y=ExtractYear('data_documento'))
+            .values_list('y', flat=True)
+        },
+        reverse=True,
     )
     rep_doc = request.session.get(SESSION_REPORT_AGGANCIA_DOCUMENTI) or {}
     report_aggancia_csv_documenti = bool(rep_doc.get('azienda_id') == azienda.id and rep_doc.get('rows'))
@@ -1261,6 +1276,8 @@ def consulente_posizione_proforma(request):
             'partitario_back': _partitario_back(request),
             'posizione_nav': 'proforma',
             'report_aggancia_csv_documenti': report_aggancia_csv_documenti,
+            'libro_filter': filter_params,
+            'anni_disponibili': anni_disponibili,
         },
     )
 
@@ -1459,7 +1476,7 @@ def consulente_posizione_pagamenti(request):
                     messages.error(request, msg)
                 else:
                     messages.info(request, msg)
-            return redirect('consulente_posizione_pagamenti')
+            return _redirect_posizione_con_querystring(request, 'consulente_posizione_pagamenti')
         if action == 'import_riepilogo_bonifici':
             import hashlib
             import time
@@ -1489,7 +1506,7 @@ def consulente_posizione_pagamenti(request):
                             request.session['bonifici_excel_imp_guard'] = {'sha256': sha, 't': time.time()}
                         except Exception as exc:
                             messages.error(request, str(exc))
-            return redirect('consulente_posizione_pagamenti')
+            return _redirect_posizione_con_querystring(request, 'consulente_posizione_pagamenti')
         if action == 'aggiungi_bonifico':
             data_raw = (request.POST.get('data_valuta') or '').strip()
             rif = (request.POST.get('riferimento_pagamento') or '').strip()
@@ -1518,7 +1535,7 @@ def consulente_posizione_pagamenti(request):
                         'Esiste già un bonifico con la stessa data, lo stesso importo in avere e un riferimento o causale '
                         f'compatibile (mov. id {dup_b.pk}); operazione annullata.',
                     )
-                    return redirect('consulente_posizione_pagamenti')
+                    return _redirect_posizione_con_querystring(request, 'consulente_posizione_pagamenti')
                 nome_sint = (pdf.name if pdf else None) or f"bonifico-{data_doc.isoformat()}-{uuid.uuid4().hex[:10]}"
                 nome_sint = nome_sint[:280]
                 obj = MovimentoRegistroStudioConsulente(
@@ -1544,7 +1561,7 @@ def consulente_posizione_pagamenti(request):
                     obj.file.save(pdf.name[:200], File(pdf), save=True)
                 ricalcola_saldi_progressivi(azienda.id)
                 messages.success(request, 'Bonifico registrato in avere.')
-            return redirect('consulente_posizione_pagamenti')
+            return _redirect_posizione_con_querystring(request, 'consulente_posizione_pagamenti')
         if action == 'solo_pdf_bonifico':
             from .consulente_registro_studio import applica_upload_bonifici_pdf
 
@@ -1569,7 +1586,7 @@ def consulente_posizione_pagamenti(request):
                         messages.warning(request, msg)
                     else:
                         messages.info(request, msg)
-            return redirect('consulente_posizione_pagamenti')
+            return _redirect_posizione_con_querystring(request, 'consulente_posizione_pagamenti')
         uploads = request.FILES.getlist('pdf')
         if uploads:
             for msg in applica_upload_bonifici_pdf(azienda, request.user, uploads):
@@ -1577,11 +1594,26 @@ def consulente_posizione_pagamenti(request):
                     messages.warning(request, msg)
                 else:
                     messages.success(request, msg)
-            return redirect('consulente_posizione_pagamenti')
-    righe = (
+            return _redirect_posizione_con_querystring(request, 'consulente_posizione_pagamenti')
+    from django.db.models.functions import ExtractYear
+
+    filter_params = _libro_filter_params_from_request(request)
+    base_righe = (
         MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda, tipo_riga='bonifico')
         .select_related('importato_da')
         .order_by(F('data_documento').desc(nulls_last=True), '-importato_il')
+    )
+    righe = _filter_movimenti_qs_by_data_documento(base_righe, filter_params)
+    anni_disponibili = sorted(
+        {
+            y
+            for y in MovimentoRegistroStudioConsulente.objects.filter(
+                azienda=azienda, data_documento__isnull=False, tipo_riga='bonifico'
+            )
+            .annotate(y=ExtractYear('data_documento'))
+            .values_list('y', flat=True)
+        },
+        reverse=True,
     )
     rep_bon = request.session.get(SESSION_REPORT_AGGANCIA_BONIFICI) or {}
     report_aggancia_csv_bonifici = bool(rep_bon.get('azienda_id') == azienda.id and rep_bon.get('rows'))
@@ -1594,6 +1626,8 @@ def consulente_posizione_pagamenti(request):
             'partitario_back': _partitario_back(request),
             'posizione_nav': 'pagamenti',
             'report_aggancia_csv_bonifici': report_aggancia_csv_bonifici,
+            'libro_filter': filter_params,
+            'anni_disponibili': anni_disponibili,
         },
     )
 
@@ -1725,16 +1759,14 @@ def _libro_filter_params_from_request(request) -> dict[str, str]:
     }
 
 
-def _qs_libro_movimenti_azienda(azienda, filter_params: dict[str, str] | None = None):
-    from django.db.models import F
+def _redirect_posizione_con_querystring(request, url_name: str):
+    """Reindirizza mantenendo anno/data_da/data_a in querystring (filtri elenco)."""
+    base = reverse(url_name)
+    q = request.GET.urlencode()
+    return redirect(f'{base}?{q}' if q else base)
 
-    from .models import MovimentoRegistroStudioConsulente
 
-    qs = (
-        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda)
-        .select_related('importato_da')
-        .order_by(F('data_documento').asc(nulls_last=True), 'importato_il', 'id')
-    )
+def _filter_movimenti_qs_by_data_documento(qs, filter_params: dict[str, str] | None):
     if not filter_params:
         return qs
     anno = (filter_params.get('anno') or '').strip()
@@ -1753,6 +1785,19 @@ def _qs_libro_movimenti_azienda(azienda, filter_params: dict[str, str] | None = 
         except ValueError:
             pass
     return qs
+
+
+def _qs_libro_movimenti_azienda(azienda, filter_params: dict[str, str] | None = None):
+    from django.db.models import F
+
+    from .models import MovimentoRegistroStudioConsulente
+
+    qs = (
+        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda)
+        .select_related('importato_da')
+        .order_by(F('data_documento').asc(nulls_last=True), 'importato_il', 'id')
+    )
+    return _filter_movimenti_qs_by_data_documento(qs, filter_params)
 
 
 def _fmt_euro_pdf(val) -> str:
