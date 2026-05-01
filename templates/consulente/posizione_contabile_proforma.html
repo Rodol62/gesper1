@@ -201,12 +201,14 @@
               <form method="post" action="{% url 'consulente_proforma_allega_pdf_movimento' r.pk %}" enctype="multipart/form-data" class="d-flex flex-column gap-1 gesper-multipart-upload"
                     onsubmit="return confirm('Sostituire il PDF del documento n. {{ r.numero_documento|default:"—"|escapejs }}?');">
                 {% csrf_token %}
+                {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
                 <input type="file" name="pdf" class="form-control form-control-sm py-0" accept="application/pdf,.pdf" required title="Nuovo PDF con stesso numero e data della riga">
                 <button type="submit" class="btn btn-sm btn-outline-secondary py-0">Sostituisci PDF</button>
               </form>
               <form method="post" action="{% url 'consulente_proforma_rimuovi_pdf_movimento' r.pk %}" class="d-inline" data-no-upload-progress="1"
                     onsubmit="return confirm('Rimuovere il PDF da questo documento?');">
                 {% csrf_token %}
+                {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
                 <button type="submit" class="btn btn-sm btn-outline-danger py-0 w-100">Rimuovi PDF</button>
               </form>
             </div>
@@ -214,6 +216,7 @@
             <form method="post" action="{% url 'consulente_proforma_allega_pdf_movimento' r.pk %}" enctype="multipart/form-data" class="d-flex flex-column gap-1 gesper-multipart-upload"
                   onsubmit="return confirm('Allegare questo PDF al documento n. {{ r.numero_documento|default:"—"|escapejs }} del {% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}?');">
               {% csrf_token %}
+              {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
               <input type="file" name="pdf" class="form-control form-control-sm py-0" accept="application/pdf,.pdf" required title="PDF con stesso numero e data documento della riga">
               <button type="submit" class="btn btn-sm btn-primary py-0">Allega PDF</button>
             </form>

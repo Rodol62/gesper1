@@ -1294,7 +1294,7 @@ def consulente_proforma_allega_pdf_movimento(request, movimento_id: int):
     up = request.FILES.get("pdf")
     if not up:
         messages.error(request, "Seleziona un file PDF da allegare.")
-        return redirect("consulente_posizione_proforma")
+        return _redirect_posizione_con_filtri_tabella_post(request, 'consulente_posizione_proforma')
     for msg in applica_pdf_su_movimento_documento(azienda, request.user, movimento_id, up):
         low = msg.lower()
         if (
@@ -1307,7 +1307,7 @@ def consulente_proforma_allega_pdf_movimento(request, movimento_id: int):
             messages.warning(request, msg)
         else:
             messages.error(request, msg)
-    return redirect("consulente_posizione_proforma")
+    return _redirect_posizione_con_filtri_tabella_post(request, 'consulente_posizione_proforma')
 
 
 @login_required
@@ -1322,7 +1322,7 @@ def consulente_pagamenti_allega_pdf_movimento(request, movimento_id: int):
     up = request.FILES.get("pdf")
     if not up:
         messages.error(request, "Seleziona un file PDF da allegare.")
-        return redirect("consulente_posizione_pagamenti")
+        return _redirect_posizione_con_filtri_tabella_post(request, 'consulente_posizione_pagamenti')
     for msg in applica_pdf_su_movimento_bonifico(azienda, request.user, movimento_id, up):
         low = msg.lower()
         if (
@@ -1336,7 +1336,7 @@ def consulente_pagamenti_allega_pdf_movimento(request, movimento_id: int):
             messages.warning(request, msg)
         else:
             messages.error(request, msg)
-    return redirect("consulente_posizione_pagamenti")
+    return _redirect_posizione_con_filtri_tabella_post(request, 'consulente_posizione_pagamenti')
 
 
 @login_required
@@ -1365,7 +1365,7 @@ def consulente_pagamenti_rimuovi_pdf_movimento(request, movimento_id: int):
         mov.save(update_fields=["file"])
         ricalcola_saldi_progressivi(azienda.id)
         messages.success(request, "PDF distinta rimosso dal bonifico.")
-    return redirect("consulente_posizione_pagamenti")
+    return _redirect_posizione_con_filtri_tabella_post(request, 'consulente_posizione_pagamenti')
 
 
 @login_required
@@ -1394,7 +1394,7 @@ def consulente_proforma_rimuovi_pdf_movimento(request, movimento_id: int):
         mov.save(update_fields=["file"])
         ricalcola_saldi_progressivi(azienda.id)
         messages.success(request, "PDF rimosso dal documento.")
-    return redirect("consulente_posizione_proforma")
+    return _redirect_posizione_con_filtri_tabella_post(request, 'consulente_posizione_proforma')
 
 
 @login_required
@@ -1763,6 +1763,18 @@ def _redirect_posizione_con_querystring(request, url_name: str):
     """Reindirizza mantenendo anno/data_da/data_a in querystring (filtri elenco)."""
     base = reverse(url_name)
     q = request.GET.urlencode()
+    return redirect(f'{base}?{q}' if q else base)
+
+
+def _redirect_posizione_con_filtri_tabella_post(request, url_name: str):
+    """Dopo POST (es. allega PDF riga): redirect con filtri da campi hidden anno/data_da/data_a."""
+    params = {}
+    for k in ('anno', 'data_da', 'data_a'):
+        v = (request.POST.get(k) or '').strip()
+        if v:
+            params[k] = v
+    base = reverse(url_name)
+    q = urlencode(params)
     return redirect(f'{base}?{q}' if q else base)
 
 

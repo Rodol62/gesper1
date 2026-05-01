@@ -1,0 +1,4 @@
+{# Passa anno/data_da/data_a ai POST verso allega/rimuovi PDF così il redirect ripristina i filtri. Richiede: libro_filter #}
+<input type="hidden" name="anno" value="{{ libro_filter.anno|default:'' }}">
+<input type="hidden" name="data_da" value="{{ libro_filter.data_da|default:'' }}">
+<input type="hidden" name="data_a" value="{{ libro_filter.data_a|default:'' }}">
