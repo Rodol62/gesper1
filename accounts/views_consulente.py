@@ -1652,10 +1652,7 @@ def consulente_posizione_estratto(request):
 @login_required
 @user_passes_test(_is_admin_o_consulente_partitario)
 def consulente_posizione_libro(request):
-    from django.db.models import F
-
     from .consulente_registro_studio import ricalcola_saldi_progressivi
-    from .models import MovimentoRegistroStudioConsulente
 
     azienda, redir = _partitario_azienda_o_redirect(request)
     if redir:
@@ -1670,22 +1667,40 @@ def consulente_posizione_libro(request):
 
             res = ricalcola_totali_documenti_da_testo_estratto(azienda.id)
             messages.success(request, res['message'])
-        return redirect('consulente_posizione_libro')
+        base = reverse('consulente_posizione_libro')
+        q = request.GET.urlencode()
+        return redirect(f'{base}?{q}' if q else base)
     from collections import Counter
 
-    righe = list(
-        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda)
-        .select_related('importato_da')
-        .order_by(F('data_documento').asc(nulls_last=True), 'importato_il', 'id')
-    )
+    from django.db.models.functions import ExtractYear
+
+    filter_params = _libro_filter_params_from_request(request)
+    righe_full = list(_qs_libro_movimenti_azienda(azienda, None))
     doc_pairs = [
         (r.id, (r.numero_documento or "").strip().lower(), r.tipo_documento, r.data_documento)
-        for r in righe
+        for r in righe_full
         if r.tipo_riga == "documento" and (r.numero_documento or "").strip()
     ]
     cnt = Counter((num, tipo, data) for _pk, num, tipo, data in doc_pairs)
     dup_keys = {k for k, n in cnt.items() if n > 1}
     documento_duplicato_ids = {pk for pk, num, tipo, data in doc_pairs if (num, tipo, data) in dup_keys}
+    righe = list(_qs_libro_movimenti_azienda(azienda, filter_params))
+    anni_disponibili = sorted(
+        {
+            y
+            for y in MovimentoRegistroStudioConsulente.objects.filter(
+                azienda=azienda, data_documento__isnull=False
+            )
+            .annotate(y=ExtractYear('data_documento'))
+            .values_list('y', flat=True)
+        },
+        reverse=True,
+    )
+    filtro_attivo = bool(
+        (filter_params.get('anno') or '').strip()
+        or (filter_params.get('data_da') or '').strip()
+        or (filter_params.get('data_a') or '').strip()
+    )
     return render(
         request,
         'consulente/posizione_contabile_libro.html',
@@ -1695,20 +1710,49 @@ def consulente_posizione_libro(request):
             'documento_duplicato_ids': documento_duplicato_ids,
             'partitario_back': _partitario_back(request),
             'posizione_nav': 'libro',
+            'libro_filter': filter_params,
+            'anni_disponibili': anni_disponibili,
+            'filtro_attivo': filtro_attivo,
         },
     )
 
 
-def _qs_libro_movimenti_azienda(azienda):
+def _libro_filter_params_from_request(request) -> dict[str, str]:
+    return {
+        'anno': (request.GET.get('anno') or '').strip(),
+        'data_da': (request.GET.get('data_da') or '').strip(),
+        'data_a': (request.GET.get('data_a') or '').strip(),
+    }
+
+
+def _qs_libro_movimenti_azienda(azienda, filter_params: dict[str, str] | None = None):
     from django.db.models import F
 
     from .models import MovimentoRegistroStudioConsulente
 
-    return (
+    qs = (
         MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda)
         .select_related('importato_da')
         .order_by(F('data_documento').asc(nulls_last=True), 'importato_il', 'id')
     )
+    if not filter_params:
+        return qs
+    anno = (filter_params.get('anno') or '').strip()
+    data_da = (filter_params.get('data_da') or '').strip()
+    data_a = (filter_params.get('data_a') or '').strip()
+    if anno.isdigit() and len(anno) == 4:
+        qs = qs.filter(data_documento__year=int(anno))
+    if data_da:
+        try:
+            qs = qs.filter(data_documento__gte=date.fromisoformat(data_da))
+        except ValueError:
+            pass
+    if data_a:
+        try:
+            qs = qs.filter(data_documento__lte=date.fromisoformat(data_a))
+        except ValueError:
+            pass
+    return qs
 
 
 def _fmt_euro_pdf(val) -> str:
@@ -1734,13 +1778,13 @@ def consulente_posizione_libro_excel(request):
     if redir:
         return redir
 
-    righe = list(_qs_libro_movimenti_azienda(azienda))
+    righe = list(_qs_libro_movimenti_azienda(azienda, _libro_filter_params_from_request(request)))
 
     wb = openpyxl.Workbook()
     ws = wb.active
     if ws is None:
         return HttpResponse("Impossibile creare il file Excel.", status=500)
-    ws.title = "Libro movimenti"
+    ws.title = "Movimenti"
 
     headers = ["Data", "Movimento", "Dettaglio", "Tot. doc.", "Dare", "Avere", "Saldo", "Doc."]
     thin = Side(border_style='thin', color='D0D0D0')
@@ -1823,7 +1867,7 @@ def consulente_posizione_libro_pdf(request):
     if redir:
         return redir
 
-    righe = list(_qs_libro_movimenti_azienda(azienda))
+    righe = list(_qs_libro_movimenti_azienda(azienda, _libro_filter_params_from_request(request)))
     buffer = BytesIO()
     timestamp_ref = timezone.localtime()
     data_ref = timestamp_ref.strftime('%d/%m/%Y')
@@ -1916,6 +1960,17 @@ def consulente_posizione_libro_pdf(request):
     )
 
     story = [Spacer(1, 2 * mm)]
+    fp = _libro_filter_params_from_request(request)
+    filtro_frasi: list[str] = []
+    if fp.get('anno'):
+        filtro_frasi.append(f"anno {fp['anno']}")
+    if fp.get('data_da'):
+        filtro_frasi.append(f"dal {fp['data_da']}")
+    if fp.get('data_a'):
+        filtro_frasi.append(f"al {fp['data_a']}")
+    if filtro_frasi:
+        story.append(Paragraph("Filtro elenco: " + ", ".join(filtro_frasi), meta_style))
+        story.append(Spacer(1, 2 * mm))
 
     data = [[
         "Data",

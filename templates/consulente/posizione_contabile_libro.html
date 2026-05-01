@@ -1,19 +1,75 @@
 {% extends "base.html" %}
 {% load format_it_tags %}
-{% block title %}Libro movimenti — {{ azienda.nome }}{% endblock %}
+{% block title %}Posizione contabile — {{ azienda.nome }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gesper-libro-page { --gesper-libro-accent: #0c4a6e; --gesper-libro-accent-soft: #e0f2fe; --gesper-libro-doc-bg: #f0f7ff; --gesper-libro-bon-bg: #f0fdf4; --gesper-libro-ret-bg: #faf5ff; }
+  .gesper-libro-hero {
+    background: linear-gradient(135deg, #0c4a6e 0%, #1e5a7a 45%, #155e75 100%);
+    color: #fff;
+    border-radius: 0.5rem;
+    padding: 1.1rem 1.25rem 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 14px rgba(12, 74, 110, 0.25);
+  }
+  .gesper-libro-hero h1 { color: #fff; font-size: 1.35rem; font-weight: 700; margin: 0 0 0.2rem; letter-spacing: -0.02em; }
+  .gesper-libro-hero .gesper-libro-sub { opacity: 0.92; font-size: 0.875rem; margin: 0; }
+  .gesper-libro-hero .gesper-libro-lead { opacity: 0.88; font-size: 0.8rem; margin: 0.5rem 0 0; max-width: 42rem; }
+  .gesper-libro-filter-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .gesper-libro-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+  .table-gesper-libro { font-size: 0.875rem; margin-bottom: 0; }
+  .table-gesper-libro thead th {
+    background: var(--gesper-libro-accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border: none;
+    padding: 0.55rem 0.65rem;
+    vertical-align: middle;
+  }
+  .table-gesper-libro tbody td { padding: 0.55rem 0.65rem; vertical-align: middle; border-color: #e5e7eb; }
+  .table-gesper-libro tbody tr:hover td { filter: brightness(0.97); }
+  .gesper-libro-row-doc { background: var(--gesper-libro-doc-bg); }
+  .gesper-libro-row-bon { background: var(--gesper-libro-bon-bg); }
+  .gesper-libro-row-ret { background: var(--gesper-libro-ret-bg); }
+  .gesper-libro-amt { font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+  .gesper-libro-saldo-pos { color: #b45309; font-weight: 600; }
+  .gesper-libro-saldo-neg { color: #047857; font-weight: 600; }
+  .gesper-libro-saldo-zero { color: #475569; font-weight: 600; }
+  .gesper-libro-wrap { max-width: 1200px; margin: 0 auto; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid px-3 mt-3" style="max-width:1150px;margin:0 auto">
+<div class="container-fluid px-3 mt-3 gesper-libro-page gesper-libro-wrap">
   <nav aria-label="breadcrumb" class="small mb-2">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item"><a href="{% url partitario_back.url_name %}">{{ partitario_back.label }}</a></li>
-      <li class="breadcrumb-item"><a href="{% url 'consulente_posizione_contabile' %}">Posizione contabile</a></li>
-      <li class="breadcrumb-item active">Libro movimenti</li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_posizione_contabile' %}">Panoramica</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Posizione contabile</li>
     </ol>
   </nav>
 
-  <h1 class="h4 mb-2" style="color:#1b3a5f;font-weight:700"><i class="bi bi-journal-text me-2"></i>Libro movimenti</h1>
-  <p class="text-muted small">Saldi progressivi in ordine di data documento. Saldo positivo = residuo a debito verso il consulente. Per regole import, duplicati e pulizia dati apri <strong>Aiuto</strong> sotto.</p>
+  <header class="gesper-libro-hero">
+    <h1><i class="bi bi-calculator me-2"></i>Posizione contabile</h1>
+    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — libro movimenti (dare / avere / saldo progressivo)</p>
+    <p class="gesper-libro-lead">Saldo positivo = residuo a debito verso il consulente. Per regole import, duplicati e pulizia dati apri <strong>Aiuto</strong> sotto.</p>
+  </header>
 
   {% include "consulente/posizione_contabile_subnav.html" %}
 
@@ -21,25 +77,54 @@
     <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
   {% endfor %}
 
-  <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
-    <a href="{% url 'consulente_posizione_libro_pdf' %}" target="_blank" rel="noopener" class="btn btn-outline-dark btn-sm">
+  <div class="gesper-libro-filter-card">
+    <form method="get" class="row g-2 align-items-end small">
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Anno</label>
+        <select name="anno" class="form-select form-select-sm">
+          <option value="">Tutti</option>
+          {% for y in anni_disponibili %}
+          <option value="{{ y }}"{% if libro_filter.anno == y|stringformat:"d" %} selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Da data</label>
+        <input type="date" name="data_da" class="form-control form-control-sm" value="{{ libro_filter.data_da }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">A data</label>
+        <input type="date" name="data_a" class="form-control form-control-sm" value="{{ libro_filter.data_a }}">
+      </div>
+      <div class="col-6 col-md-3 d-flex gap-1">
+        <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Applica filtri</button>
+        <a href="{% url 'consulente_posizione_libro' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+      </div>
+      <div class="col-12 col-md-3 text-muted small align-self-center pt-md-0 pt-1">
+        {% if filtro_attivo %}Filtro attivo: il saldo è sempre quello <strong>globale</strong> del libro dopo la riga.{% else %}Nessun filtro: tutti i movimenti.{% endif %}
+      </div>
+    </form>
+  </div>
+
+  <div class="gesper-libro-toolbar">
+    <a href="{% url 'consulente_posizione_libro_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" target="_blank" rel="noopener" class="btn btn-light btn-sm border">
       <i class="bi bi-printer me-1"></i>Stampa PDF A4
     </a>
-    <a href="{% url 'consulente_posizione_libro_excel' %}" class="btn btn-outline-success btn-sm">
+    <a href="{% url 'consulente_posizione_libro_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-light btn-sm border text-success">
       <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
     </a>
     <form method="post" class="d-inline">
       {% csrf_token %}
-      <input type="hidden" name="action" value="ricalcola_saldi">
-      <button type="submit" class="btn btn-outline-secondary btn-sm">Ricalcola saldi progressivi</button>
+      <button type="submit" name="action" value="ricalcola_saldi" class="btn btn-outline-light btn-sm border bg-white text-dark">Ricalcola saldi</button>
     </form>
     <form method="post" class="d-inline" onsubmit="return confirm('Rileggere i totali da testo già estratto dai PDF delle proforma/parcelle? Aggiorna importi e dare dove il parsing trova un valore; poi ricalcola i saldi.');">
       {% csrf_token %}
       <input type="hidden" name="action" value="rileggi_totali_pdf">
-      <button type="submit" class="btn btn-outline-primary btn-sm" title="Usa il testo salvato al primo import (nessun nuovo upload)">Rileggi totali da PDF (testo salvato)</button>
+      <button type="submit" class="btn btn-outline-primary btn-sm">Rileggi totali da PDF</button>
     </form>
   </div>
-  <details class="gesper-help mb-2">
+
+  <details class="gesper-help mb-3">
     {% include "consulente/_posizione_help_summary.html" with hint="libro, Rileggi totali, import Excel/PDF, duplicati, pulizia bonifici" %}
     <div class="gesper-help-body">
       <p class="text-muted small mb-2">«Rileggi totali» applica i pattern aggiornati (es. Totale parcella / proforma) alle righe documento che hanno ancora il testo estratto; le righe senza testo vanno reimportate dalla sezione Proforma/parcelle.</p>
@@ -58,9 +143,9 @@
     </div>
   </details>
 
-  <div class="table-responsive border rounded shadow-sm">
-    <table class="table table-sm table-hover mb-0 align-middle" style="font-size:.8rem">
-      <thead class="table-light">
+  <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
+    <table class="table table-hover mb-0 align-middle table-gesper-libro">
+      <thead>
         <tr>
           <th>Data</th>
           <th>Movimento</th>
@@ -74,29 +159,29 @@
       </thead>
       <tbody>
         {% for r in righe %}
-        <tr>
-          <td class="text-nowrap">{% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-          <td>{{ r.get_tipo_riga_display }}</td>
+        <tr class="{% if r.tipo_riga == 'documento' %}gesper-libro-row-doc{% elif r.tipo_riga == 'bonifico' %}gesper-libro-row-bon{% else %}gesper-libro-row-ret{% endif %}">
+          <td class="text-nowrap text-secondary">{% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+          <td class="fw-medium">{{ r.get_tipo_riga_display }}</td>
           <td>
             {% if r.tipo_riga == 'bonifico' %}
-              <span class="font-monospace">{{ r.riferimento_pagamento|default:"—" }}</span>
-              {% if r.causale_pagamento %}<div class="text-muted" style="font-size:.72rem">{{ r.causale_pagamento|truncatechars:64 }}</div>{% endif %}
+              <span class="font-monospace small">{{ r.riferimento_pagamento|default:"—" }}</span>
+              {% if r.causale_pagamento %}<div class="text-muted small">{{ r.causale_pagamento|truncatechars:72 }}</div>{% endif %}
             {% else %}
-              {{ r.get_tipo_documento_display }} {% if r.numero_documento %}<span class="font-monospace">n. {{ r.numero_documento }}</span>{% endif %}
+              {{ r.get_tipo_documento_display }} {% if r.numero_documento %}<span class="font-monospace small">n. {{ r.numero_documento }}</span>{% endif %}
               {% if r.id in documento_duplicato_ids %}
                 <span class="badge bg-warning text-dark ms-1 align-middle" style="font-size:.65rem" title="Stessa combinazione data + numero + tipo compare più volte: controllare doppio caricamento o Excel. Elimina la riga in eccesso da Admin.">Doppio</span>
               {% endif %}
             {% endif %}
           </td>
-          <td class="text-end font-monospace">{% if r.totale_da_pagare is not None %}€ {{ r.totale_da_pagare|num_it:2 }}{% else %}—{% endif %}</td>
-          <td class="text-end font-monospace">€ {{ r.dare|num_it:2 }}</td>
-          <td class="text-end font-monospace">€ {{ r.avere|num_it:2 }}</td>
-          <td class="text-end font-monospace fw-semibold {% if r.saldo_progressivo > 0 %}text-danger{% elif r.saldo_progressivo < 0 %}text-success{% endif %}">€ {{ r.saldo_progressivo|num_it:2 }}</td>
-          <td>{% if r.file %}<a href="{{ r.file.url }}" target="_blank" rel="noopener" class="small">PDF</a>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td class="text-end font-monospace gesper-libro-amt">{% if r.totale_da_pagare is not None %}€ {{ r.totale_da_pagare|num_it:2 }}{% else %}—{% endif %}</td>
+          <td class="text-end font-monospace gesper-libro-amt text-primary">€ {{ r.dare|num_it:2 }}</td>
+          <td class="text-end font-monospace gesper-libro-amt text-success">€ {{ r.avere|num_it:2 }}</td>
+          <td class="text-end font-monospace gesper-libro-amt {% if r.saldo_progressivo > 0 %}gesper-libro-saldo-pos{% elif r.saldo_progressivo < 0 %}gesper-libro-saldo-neg{% else %}gesper-libro-saldo-zero{% endif %}">€ {{ r.saldo_progressivo|num_it:2 }}</td>
+          <td>{% if r.file %}<a href="{{ r.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">PDF</a>{% else %}<span class="text-muted small">—</span>{% endif %}</td>
         </tr>
-        {% if r.note %}<tr class="border-0"><td colspan="8" class="pt-0 pb-2 small text-muted">{{ r.note }}</td></tr>{% endif %}
+        {% if r.note %}<tr class="border-0"><td colspan="8" class="pt-0 pb-2 small text-muted bg-white">{{ r.note }}</td></tr>{% endif %}
         {% empty %}
-        <tr><td colspan="8" class="text-center text-muted py-4">Nessun movimento.</td></tr>
+        <tr><td colspan="8" class="text-center text-muted py-5">Nessun movimento in questo intervallo.</td></tr>
         {% endfor %}
       </tbody>
     </table>

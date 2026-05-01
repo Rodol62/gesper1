@@ -48,7 +48,7 @@
             Se <strong>tutta</strong> la colonna Importo (valori non nulli) è <strong>negativa</strong>, si importano <strong>solo</strong> le righe con importo negativo (gli importi positivi nella colonna vengono ignorati).
             Le righe di <strong>solo</strong> proforma/parcella (testo emissione o colonna Documento tipo «PARCELLA 182», «PF-…», «PAR-…» senza bonifico SEPA) <strong>non</strong> diventano bonifici: il dare resta dai PDF in Proforma. Le righe con «Bonifico» / CRO in descrizione si importano anche se in Documento c’è un numero parcella.
             Per ogni bonifico, in «Causale» e nelle note si indica se il <strong>PDF della proforma/parcella</strong> collegata al «Documento» è presente in archivio o meno.
-            Se in passato risultano ancora bonifici in avere duplicati rispetto alle parcelle (stesso importo, riferimento <code>PARCELLA …|…</code>), la pulizia mirata è in <a href="{% url 'consulente_posizione_libro' %}">Libro movimenti</a> (istruzioni comando nell’<strong>Aiuto</strong> di quella pagina).
+            Se in passato risultano ancora bonifici in avere duplicati rispetto alle parcelle (stesso importo, riferimento <code>PARCELLA …|…</code>), la pulizia mirata è in <a href="{% url 'consulente_posizione_libro' %}">Movimenti</a> (istruzioni comando nell’<strong>Aiuto</strong> di quella pagina).
           </p>
         </div>
       </details>
