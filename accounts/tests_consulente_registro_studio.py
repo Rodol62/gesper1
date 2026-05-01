@@ -1002,6 +1002,33 @@ class RimuoviBonificiImportExcelStudioCommandTests(TestCase):
         self.assertIn("BONIFICO DOLCEMASCOLO|2021-07-09|130.00", rifs)
         self.assertNotIn("PARCELLA 182|2021-06-16|130.00", rifs)
 
+    def test_solo_parcella_sintetici_rimuove_fattura_protocollo_n_su_anno(self):
+        """Riga emissione fattura n/AAAA importata per errore come bonifico (chiave doc|data|importo)."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=date(2026, 2, 10),
+            avere=Decimal("52.00"),
+            dare=Decimal("0"),
+            nome_file="xlsx-bon/RIEP/fatt",
+            metodo_estrazione="excel_riepilogo",
+            riferimento_pagamento="59/2026 10/02/2026 € 52,00|2026-02-10|52.00",
+            causale_pagamento="",
+        )
+        bogus = MovimentoRegistroStudioConsulente.objects.get(riferimento_pagamento__contains="59/2026")
+        self.assertTrue(bonifico_excel_con_riferimento_sintetico_parcella_o_proforma(bogus))
+        call_command(
+            "rimuovi_bonifici_import_excel_studio",
+            "--azienda-id",
+            self.az.pk,
+            "--solo-parcella-proforma-sintetici",
+            "--execute",
+        )
+        self.assertFalse(
+            MovimentoRegistroStudioConsulente.objects.filter(pk=bogus.pk).exists(),
+        )
+
 
 class InserimentoManualeProformaTests(TestCase):
     """Riga documento senza PDF: stessa deduplica data+numero degli upload PDF."""

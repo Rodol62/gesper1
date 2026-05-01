@@ -1977,11 +1977,25 @@ def _excel_doc_colonna_riferimento_parcella_proforma(documento: str) -> bool:
     return False
 
 
+def _excel_doc_primo_token_fattura_o_protocollo_n_su_anno(documento: str) -> bool:
+    """
+    True se il primo token (prima parola) è un progressivo fattura/protocollo tipo «59/2026»,
+    «182/2021» — tipico di righe di emissione nel riepilogo importate per errore come bonifico
+    (chiave sintetica «59/2026 …|2026-02-10|52.00»). Non coincide con date gg/mm/aaaa su un solo token.
+    """
+    doc = (documento or "").strip()
+    if not doc:
+        return False
+    first = doc.split()[0]
+    return bool(re.match(r"^\d{1,6}/(19|20)\d{2}$", first))
+
+
 def bonifico_excel_con_riferimento_sintetico_parcella_o_proforma(mov) -> bool:
     """
     True se il movimento è un bonifico da import riepilogo Excel il cui ``riferimento_pagamento``
     è la chiave sintetica ``documento|data|importo`` con documento chiaramente proforma/parcella
-    (es. «PARCELLA 182|2021-06-16|130.00»), da distinguere dai bonifici bancari reali («BONIFICO …|…»).
+    (es. «PARCELLA 182|2021-06-16|130.00») oppure progressivo fattura/protocollo «n/AAAA» in testa
+    (es. «59/2026 …|2026-02-10|52.00»), da distinguere dai bonifici bancari reali («BONIFICO …|…»).
     """
     if getattr(mov, "tipo_riga", None) != "bonifico":
         return False
@@ -1993,7 +2007,9 @@ def bonifico_excel_con_riferimento_sintetico_parcella_o_proforma(mov) -> bool:
     head = rif.split("|", 1)[0].strip()
     if not head:
         return False
-    return _excel_doc_colonna_riferimento_parcella_proforma(head)
+    if _excel_doc_colonna_riferimento_parcella_proforma(head):
+        return True
+    return _excel_doc_primo_token_fattura_o_protocollo_n_su_anno(head)
 
 
 def _excel_riga_solo_fattura_proforma_senza_bonifico(descrizione: str, documento: str = "") -> bool:

@@ -13,8 +13,9 @@ class Command(BaseCommand):
         "Rimuove per un'azienda: (1) movimenti bonifico da import Excel "
         "(metodo excel_riepilogo / excel_estratto_conto o nome_file xlsx-bon/ / xlsx-estratto/); "
         "(2) eventuali ImportEstrattoContoStudio (import «estratto» deprecato in UI). "
-        "Con --solo-parcella-proforma-sintetici elimina solo i bonifici «finti» da riepilogo PROFORMA "
-        "(riferimento tipo PARCELLA n|data|… o PF-/PAR-), lasciando i bonifici bancari reali. "
+        "Con --solo-parcella-proforma-sintetici elimina solo i bonifici «finti» da riepilogo Excel "
+        "(riferimento tipo PARCELLA n|data|…, PF-/PAR-, o progressivo fattura n/AAAA|data|importo), "
+        "lasciando i bonifici bancari reali. "
         "Senza --execute mostra solo il conteggio (anteprima)."
     )
 
@@ -30,8 +31,9 @@ class Command(BaseCommand):
             action="store_true",
             help=(
                 "Solo bonifici excel_riepilogo con riferimento sintetico da colonna Documento "
-                "proforma/parcella (es. PARCELLA 182|2021-06-16|130.00). Non elimina bonifici tipo "
-                "«BONIFICO BANCA|…» né tocca ImportEstrattoContoStudio."
+                "proforma/parcella (es. PARCELLA 182|2021-06-16|130.00) o fattura/protocollo "
+                "(es. 59/2026 …|2026-02-10|52.00). Non elimina bonifici tipo «BONIFICO BANCA|…» "
+                "né tocca ImportEstrattoContoStudio."
             ),
         )
 
