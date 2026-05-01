@@ -2335,9 +2335,9 @@ def import_riepilogo_bonifici_da_excel(
                 n_salt_bon += 1
                 continue
 
-            note_parts = [f"Import Excel «{stem}»; {pdf_note}"]
+            note_parts = [f"Bonifici da riepilogo «{stem}»; {pdf_note}"]
             if imp < 0:
-                note_parts.append("Colonna Importo negativa in Excel → avere positivo (incasso).")
+                note_parts.append("Importo negativo nel foglio → in avere come incasso (valore assoluto).")
             note = " ".join(note_parts)[:500]
             obj = MovimentoRegistroStudioConsulente(
                 azienda=azienda,
@@ -2583,7 +2583,7 @@ def import_estratto_excel(
                             if doc_raw
                             else "Colonna Documento vuota o non associata."
                         )
-                    note = f"Creato da import estratto conto «{stem}» (riga {n_row}). {pdf_note}"[:500]
+                    note = f"Bonifico da estratto conto «{stem}» (riga {n_row}). {pdf_note}"[:500]
                     mov = MovimentoRegistroStudioConsulente(
                         azienda=azienda,
                         tipo_riga="bonifico",

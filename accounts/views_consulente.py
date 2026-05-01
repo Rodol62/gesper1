@@ -1825,6 +1825,8 @@ def consulente_posizione_libro(request):
         or (filter_params.get('data_da') or '').strip()
         or (filter_params.get('data_a') or '').strip()
     )
+    for r in righe:
+        r.nota_libro_display = _libro_nota_consulente_display(getattr(r, 'note', None) or '')
     return render(
         request,
         'consulente/posizione_contabile_libro.html',
@@ -1912,6 +1914,32 @@ def _qs_libro_movimenti_azienda(azienda, filter_params: dict[str, str] | None = 
         .order_by(F('data_documento').asc(nulls_last=True), 'importato_il', 'id')
     )
     return _filter_movimenti_qs_by_data_documento(qs, filter_params)
+
+
+def _libro_nota_consulente_display(note: str) -> str:
+    """
+    Libro consulente: rimuove prefissi legacy legati agli import massivi Excel nelle note,
+    lasciando il resto (es. stato PDF proforma/parcella collegata, distinta allegata).
+    """
+    import re
+
+    s = (note or "").strip()
+    if not s:
+        return ""
+    if not re.search(
+        r"(?i)(import\s+excel\s*«|colonna\s+importo\s+negativa\s+in\s+excel|creato\s+da\s+import\s+estratto\s+conto\s*«)",
+        s,
+    ):
+        return s
+    s = re.sub(r"(?i)Import\s+Excel\s*«[^»]*»\s*;\s*", "", s)
+    s = re.sub(
+        r"(?i)Colonna\s+Importo\s+negativa\s+in\s+Excel\s*→\s*avere\s+positivo\s*\(incasso\)\.?\s*",
+        "Importo con segno negativo nel riepilogo registrato come incasso (valore assoluto). ",
+        s,
+    )
+    s = re.sub(r"(?i)Creato\s+da\s+import\s+estratto\s+conto\s*«[^»]*»\s*\(riga\s+\d+\)\.\s*", "", s)
+    s = re.sub(r"\s{2,}", " ", s).strip()
+    return s
 
 
 def _fmt_euro_pdf(val) -> str:

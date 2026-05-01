@@ -19,7 +19,7 @@
   <header class="gesper-libro-hero">
     <h1><i class="bi bi-calculator me-2"></i>Posizione contabile</h1>
     <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — libro movimenti (dare / avere / saldo progressivo)</p>
-    <p class="gesper-libro-lead">Saldo positivo = residuo a debito verso il consulente. Per regole import, duplicati e pulizia dati apri <strong>Aiuto</strong> sotto.</p>
+    <p class="gesper-libro-lead">Saldo positivo = residuo a debito verso il consulente. Per regole su PDF, duplicati e pulizia dati apri <strong>Aiuto</strong> sotto.</p>
   </header>
 
   {% include "consulente/posizione_contabile_subnav.html" %}
@@ -84,11 +84,11 @@
         <strong>nome file diverso</strong> ma stesso numero estratto: il secondo upload viene ignorato (messaggio «Già presente in libro …»).
         Il libro considera univoca la coppia <strong>data documento + numero</strong> (stesso numero in anni diversi è ammesso se le date differiscono). Badge <span class="badge bg-warning text-dark" style="font-size:.65rem">Doppio</span> se la stessa terna data+numero+tipo compare più volte.
         Righe da togliere: utenti <strong>admin</strong> hanno in tabella la colonna <strong>Admin</strong> con link Modifica/Elimina (Django Admin); altrimenti Admin → <strong>ACCOUNTS</strong> → <strong>Movimenti partitario consulente–azienda</strong>. Dopo eliminazioni i saldi si ricalcolano da soli.
-        Bonifici in avere creati per errore dal vecchio import Excel «riepilogo PROFORMA» (riferimento tipo <code>PARCELLA 182|data|importo</code> accanto alle parcelle già in dare): da terminale, con l’<strong>ID azienda</strong> corretto, prima anteprima poi esecuzione —
+        Pulizia massiva di bonifici sintetici errati (riferimento tipo <code>PARCELLA …|data|importo</code> duplicati rispetto al dare): da terminale, con l’<strong>ID azienda</strong> corretto, prima anteprima poi esecuzione —
         <code class="small">python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID --solo-parcella-proforma-sintetici</code>
         poi
         <code class="small">python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID --solo-parcella-proforma-sintetici --execute</code>
-        (non tocca i bonifici bancari reali registrati manualmente). Per rimuovere <strong>tutti</strong> i bonifici import Excel storici di quell’azienda usare il comando <strong>senza</strong> <code class="small">--solo-parcella-proforma-sintetici</code> (vedi <code class="small">deploy/PROCEDURA_DEPLOY.md</code>).
+        (non tocca i bonifici bancari reali registrati manualmente). Per un intervento più ampio sull’azienda vedi lo stesso comando <strong>senza</strong> <code class="small">--solo-parcella-proforma-sintetici</code> in <code class="small">deploy/PROCEDURA_DEPLOY.md</code>.
       </p>
     </div>
   </details>
@@ -119,7 +119,7 @@
             {% else %}
               {{ r.get_tipo_documento_display }} {% if r.numero_documento %}<span class="font-monospace small">n. {{ r.numero_documento }}</span>{% endif %}
               {% if r.id in documento_duplicato_ids %}
-                <span class="badge bg-warning text-dark ms-1 align-middle" style="font-size:.65rem" title="Stessa combinazione data + numero + tipo compare più volte: controllare doppio caricamento o Excel. Elimina la riga in eccesso da Admin.">Doppio</span>
+                <span class="badge bg-warning text-dark ms-1 align-middle" style="font-size:.65rem" title="Stessa combinazione data + numero + tipo compare più volte: controllare doppio caricamento PDF. Elimina la riga in eccesso da Admin.">Doppio</span>
               {% endif %}
             {% endif %}
           </td>
@@ -134,7 +134,7 @@
           </td>
           {% endif %}
         </tr>
-        {% if r.note %}<tr class="border-0"><td colspan="{% if libro_link_admin_movimenti %}8{% else %}7{% endif %}" class="pt-0 pb-2 small text-muted bg-white">{{ r.note }}</td></tr>{% endif %}
+        {% if r.nota_libro_display %}<tr class="border-0"><td colspan="{% if libro_link_admin_movimenti %}8{% else %}7{% endif %}" class="pt-0 pb-2 small text-muted bg-white">{{ r.nota_libro_display }}</td></tr>{% endif %}
         {% empty %}
         <tr><td colspan="{% if libro_link_admin_movimenti %}8{% else %}7{% endif %}" class="text-center text-muted py-5">Nessun movimento in questo intervallo.</td></tr>
         {% endfor %}

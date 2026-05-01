@@ -728,7 +728,8 @@ class ImportRiepilogoBonificiExcelTests(TestCase):
         self.assertTrue(any("Bonifici importati: 1" in m for m in msgs), msgs)
         b = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, tipo_riga="bonifico")
         self.assertEqual(b.avere, Decimal("42.50"))
-        self.assertIn("negativa", b.note.lower())
+        self.assertIn("negativo", b.note.lower())
+        self.assertIn("foglio", b.note.lower())
 
     def test_tutta_colonna_importi_negativi_solo_quelle_righe(self):
         """Tutti gli importi non nulli nel foglio sono negativi: si importano solo righe con importo < 0."""
@@ -1366,6 +1367,25 @@ class UploadBonificoPdfDedupTests(TestCase):
             MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(),
             1,
         )
+
+
+class LibroNotaConsulenteDisplayTests(SimpleTestCase):
+    """Note libro: prefissi legacy «Import Excel» non mostrati in UI (solo display)."""
+
+    def test_rimuove_prefisso_excel_e_frase_colonna_negativa(self):
+        from accounts.views_consulente import _libro_nota_consulente_display
+
+        raw = (
+            'Import Excel «RIEPILOGO GENERALE»; PDF proforma/parcella collegato: nessun documento. '
+            'Colonna Importo negativa in Excel → avere positivo (incasso). '
+            'PDF distinta allegato da riga singola «20260110_Ricevuta_bonifico.pdf».'
+        )
+        out = _libro_nota_consulente_display(raw)
+        self.assertNotIn("Import Excel", out)
+        self.assertNotIn("Excel", out)
+        self.assertIn("PDF proforma/parcella", out)
+        self.assertIn("Ricevuta_bonifico.pdf", out)
+        self.assertIn("riepilogo", out.lower())
 
 
 class PartitarioLibroLinkAdminMovimentiTests(SimpleTestCase):
