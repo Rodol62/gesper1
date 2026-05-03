@@ -1378,7 +1378,6 @@ def consulente_piano_allocazione_bonifici(request):
     )
     _esclusi_solo_saldati = bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati(azienda.id)
     bonifici_pool = [b for b in bonifici_all if b.pk not in _esclusi_solo_saldati]
-    bonifici_esclusi_solo_saldati = [b for b in bonifici_all if b.pk in _esclusi_solo_saldati]
     piano_obj = PianoAllocazioneBonificiQuad.objects.filter(azienda=azienda).first()
     piano_count = len(piano_obj.righe) if piano_obj and piano_obj.righe else 0
 
@@ -1467,7 +1466,6 @@ def consulente_piano_allocazione_bonifici(request):
             'partitario_back': _partitario_back(request),
             'posizione_nav': 'piano_bonifici',
             'bonifici_pool': bonifici_pool,
-            'bonifici_esclusi_solo_saldati': bonifici_esclusi_solo_saldati,
             'pool_ids': pool_ids,
             'pool_total': pool_total(pool_ids) if pool_ids else Decimal('0'),
             'quad_anteprima': quad_anteprima,

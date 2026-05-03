@@ -2647,11 +2647,11 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
 
 def bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati(azienda_id: int) -> set[int]:
     """
-    Bonifici già interamente imputati in quadratura (euristica + piano) **solo** su righe
-    documento in stato ``saldato`` (nessun orfano, nessun residuo sul bonifico da piano).
+    id di bonifici considerati **già quadrati** ai fini del wizard: in quadratura (euristica
+    + piano) risultano interamente imputati **solo** su righe documento in stato ``saldato``,
+    senza essere orfani e senza residuo sul bonifico da piano manuale.
 
-    Non ha senso includerli nel pool del wizard «Piano bonifici»: non c’è incasso da
-    ripartire diversamente finché non si cambia libro o piano.
+    Il passo 1 del piano mostra solo i bonifici **non** in questo insieme (ancora utilizzabili).
     """
     q = quadratura_proforma_parcelle_bonifici(azienda_id)
     orfani_ids = {b.pk for b in q["bonifici_orfani"]}
