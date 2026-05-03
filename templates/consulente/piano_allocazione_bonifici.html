@@ -85,6 +85,7 @@
       <table class="table table-sm table-hover align-middle mb-0">
         <thead>
           <tr>
+            <th class="text-nowrap">Data doc.</th>
             <th>Doc.</th>
             <th class="text-end">Dare</th>
             <th class="text-end">Residuo (anteprima)</th>
@@ -96,6 +97,7 @@
           {% if row.residuo > 0.01 %}
           {% with d=row.documento %}
           <tr>
+            <td class="text-nowrap small text-secondary">{% if d.data_documento %}{{ d.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
             <td class="small">{{ d.get_tipo_documento_display }} n. <span class="font-monospace">{{ d.numero_documento|default:"—" }}</span></td>
             <td class="text-end font-monospace small">€ {{ row.importo_dare|euro_it }}</td>
             <td class="text-end font-monospace small fw-semibold">€ {{ row.residuo|euro_it }}</td>
@@ -106,7 +108,7 @@
           {% endwith %}
           {% endif %}
           {% empty %}
-          <tr><td colspan="4" class="text-muted small">Nessun documento.</td></tr>
+          <tr><td colspan="5" class="text-muted small">Nessun documento.</td></tr>
           {% endfor %}
         </tbody>
       </table>
