@@ -22,6 +22,7 @@ from accounts.consulente_registro_studio import (
     elimina_piano_allocazione_bonifici_quadratura,
     quadratura_proforma_parcelle_bonifici,
     quadratura_proforma_parcelle_bonifici_anteprima_allocazione,
+    rimuovi_righe_piano_allocazione_per_bonifico,
     salva_piano_allocazione_bonifici_quadratura,
     applica_pdf_su_movimento_bonifico,
     bonifico_duplicato_elenco_ids,
@@ -1869,6 +1870,42 @@ class QuadraturaProformaBonificiTests(TestCase):
         self.assertFalse(PianoAllocazioneBonificiQuad.objects.filter(azienda=self.az).exists())
         q2 = quadratura_proforma_parcelle_bonifici(self.az.id)
         self.assertEqual(len(q2["bonifici_orfani"]), 2)
+
+    def test_rimuovi_righe_piano_per_bonifico(self):
+        doc = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="P-501",
+            data_documento=date(2025, 1, 6),
+            dare=Decimal("150.00"),
+            nome_file="d501.pdf",
+        )
+        b1 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 2, 3),
+            avere=Decimal("100.00"),
+            nome_file="b501a.pdf",
+            riferimento_pagamento="CRO-501A",
+        )
+        b2 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 2, 4),
+            avere=Decimal("50.00"),
+            nome_file="b501b.pdf",
+            riferimento_pagamento="CRO-501B",
+        )
+        u = get_user_model().objects.create_user("pallocstrip", "pstrip@t.it", "secret12345")
+        salva_piano_allocazione_bonifici_quadratura(self.az, [b1.pk, b2.pk], [(doc.pk, Decimal("150.00"))], u)
+        obj = PianoAllocazioneBonificiQuad.objects.get(azienda=self.az)
+        self.assertEqual(len(obj.righe), 2)
+        n = rimuovi_righe_piano_allocazione_per_bonifico(self.az.id, b1.pk, u)
+        self.assertEqual(n, 1)
+        obj.refresh_from_db()
+        self.assertEqual(len(obj.righe), 1)
+        self.assertEqual(int(obj.righe[0]["bonifico_id"]), b2.pk)
 
     def test_piano_allocazione_cap_allineato_se_bonifico_pool_sarebbe_auto_su_stesso_doc(self):
         """Il cap non deve usare la quadratura «piena»: altrimenti il bonifico del pool si auto-aggancia e il cap è 0."""

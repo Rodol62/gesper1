@@ -1698,7 +1698,8 @@ def consulente_pagamenti_rimuovi_pdf_movimento(request, movimento_id: int):
 @require_POST
 def consulente_pagamenti_elimina_movimento(request, movimento_id: int):
     """Elimina un movimento bonifico in avere (stessa azienda del partitario)."""
-    from .models import MovimentoRegistroStudioConsulente, PianoAllocazioneBonificiQuad
+    from .consulente_registro_studio import rimuovi_righe_piano_allocazione_per_bonifico
+    from .models import MovimentoRegistroStudioConsulente
 
     azienda, redir = _partitario_azienda_o_redirect(request)
     if redir:
@@ -1709,19 +1710,7 @@ def consulente_pagamenti_elimina_movimento(request, movimento_id: int):
     if mov is None:
         messages.error(request, "Bonifico non trovato.")
         return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
-    piano = PianoAllocazioneBonificiQuad.objects.filter(azienda=azienda).first()
-    if piano and piano.righe:
-        for r in piano.righe:
-            try:
-                if int(r.get("bonifico_id") or 0) == movimento_id:
-                    messages.error(
-                        request,
-                        "Questo bonifico è citato nel Piano allocazione bonifici. Elimina o aggiorna il piano "
-                        "(pagina «Piano bonifici → parcelle») prima di cancellare il movimento.",
-                    )
-                    return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
-            except (TypeError, ValueError):
-                continue
+    n_piano = rimuovi_righe_piano_allocazione_per_bonifico(azienda.id, movimento_id, request.user)
     pk_del = mov.pk
     if getattr(mov.file, "name", None):
         try:
@@ -1729,7 +1718,10 @@ def consulente_pagamenti_elimina_movimento(request, movimento_id: int):
         except OSError:
             pass
     mov.delete()
-    messages.success(request, f"Bonifico eliminato dal libro (movimento id {pk_del}). I saldi progressivi sono stati ricalcolati.")
+    msg = f"Bonifico eliminato dal libro (movimento id {pk_del}). I saldi progressivi sono stati ricalcolati."
+    if n_piano:
+        msg += f" Dal piano allocazione bonifici sono state rimosse automaticamente {n_piano} ripartizione/i che usavano questo bonifico."
+    messages.success(request, msg)
     return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
 
 

@@ -2955,6 +2955,35 @@ def salva_piano_allocazione_bonifici_quadratura(azienda, bon_ids_ordinati: list[
     obj.save()
 
 
+def rimuovi_righe_piano_allocazione_per_bonifico(azienda_id: int, bonifico_id: int, user) -> int:
+    """
+    Rimuove dal piano allocazione manuale tutte le righe JSON che citano ``bonifico_id``.
+    Usato prima di eliminare il movimento bonifico dal libro, così non serve svuotare il piano a mano.
+    Ritorna il numero di righe eliminate.
+    """
+    from .models import PianoAllocazioneBonificiQuad
+
+    obj = PianoAllocazioneBonificiQuad.objects.filter(azienda_id=azienda_id).first()
+    if not obj or not obj.righe:
+        return 0
+    old = list(obj.righe)
+    kept: list[dict] = []
+    for r in old:
+        try:
+            bid = int(r.get("bonifico_id") or 0)
+        except (TypeError, ValueError):
+            bid = 0
+        if bid != bonifico_id:
+            kept.append(r)
+    removed = len(old) - len(kept)
+    if removed <= 0:
+        return 0
+    obj.righe = kept
+    obj.aggiornato_da = user
+    obj.save(update_fields=["righe", "aggiornato_da"])
+    return removed
+
+
 def elimina_piano_allocazione_bonifici_quadratura(azienda_id: int) -> None:
     from .models import PianoAllocazioneBonificiQuad
 
