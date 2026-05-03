@@ -76,6 +76,7 @@ from .views_consulente import (
     consulente_posizione_libro_pdf,
     consulente_posizione_pagamenti,
     consulente_pagamenti_allega_pdf_movimento,
+    consulente_pagamenti_elimina_movimento,
     consulente_pagamenti_rimuovi_pdf_movimento,
     consulente_posizione_proforma,
     consulente_proforma_allega_pdf_movimento,
@@ -233,6 +234,11 @@ urlpatterns = [
         'consulente/posizione-contabile/pagamenti/rimuovi-pdf/<int:movimento_id>/',
         consulente_pagamenti_rimuovi_pdf_movimento,
         name='consulente_pagamenti_rimuovi_pdf_movimento',
+    ),
+    path(
+        'consulente/posizione-contabile/pagamenti/elimina/<int:movimento_id>/',
+        consulente_pagamenti_elimina_movimento,
+        name='consulente_pagamenti_elimina_movimento',
     ),
     path(
         'consulente/posizione-contabile/estratto-conto/',

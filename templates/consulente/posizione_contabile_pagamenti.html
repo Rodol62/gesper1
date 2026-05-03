@@ -176,7 +176,7 @@
   </div>
 
   <h2 class="gesper-pos-section-title"><i class="bi bi-bank me-1"></i>Bonifici registrati</h2>
-  <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> consente di collegare il bonifico a una proforma/parcella che in <a href="{% url 'consulente_posizione_quadratura' %}">Quadrature</a> risulta ancora con <strong>residuo da incassare</strong>: viene impostato il riferimento nel formato <code>numero|data|importo</code> usato dal libro (il CRO precedente viene sostituito).</p>
+  <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> consente di collegare il bonifico a una proforma/parcella che in <a href="{% url 'consulente_posizione_quadratura' %}">Quadrature</a> risulta ancora con <strong>residuo da incassare</strong>: viene impostato il riferimento nel formato <code>numero|data|importo</code> usato dal libro (il CRO precedente viene sostituito). <strong>Elimina bonifico</strong> (sotto) rimuove la riga dal libro: usare per duplicati da import errato; se il bonifico è nel <a href="{% url 'consulente_piano_allocazione_bonifici' %}">Piano bonifici</a>, va aggiornato il piano prima.</p>
   <p class="small text-muted mb-2">Per <strong>più bonifici</strong> da considerare come unico importo e ripartire sulle parcelle con residuo, usare <a href="{% url 'consulente_piano_allocazione_bonifici' %}">Piano bonifici → parcelle</a>.</p>
   <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
     <table class="table table-hover mb-0 align-middle table-gesper-libro">
@@ -214,6 +214,12 @@
                 {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
                 <button type="submit" class="btn btn-sm btn-outline-danger py-0 w-100">Rimuovi PDF</button>
               </form>
+              <form method="post" action="{% url 'consulente_pagamenti_elimina_movimento' r.pk %}" class="d-inline" data-no-upload-progress="1"
+                    onsubmit="return confirm('Eliminare DEFINITIVAMENTE dal libro questo bonifico? Movimento id {{ r.pk }}, importo € {{ r.avere|num_it:2 }}.');">
+                {% csrf_token %}
+                {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+                <button type="submit" class="btn btn-sm btn-danger py-0 w-100 mt-1">Elimina bonifico</button>
+              </form>
             </div>
             {% else %}
             <form method="post" action="{% url 'consulente_pagamenti_allega_pdf_movimento' r.pk %}" enctype="multipart/form-data" class="d-flex flex-column gap-1 gesper-multipart-upload"
@@ -222,6 +228,12 @@
               {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
               <input type="file" name="pdf" class="form-control form-control-sm py-0" accept="application/pdf,.pdf" required title="Distinta coerente con importo/data della riga">
               <button type="submit" class="btn btn-sm btn-primary py-0">Allega PDF</button>
+            </form>
+            <form method="post" action="{% url 'consulente_pagamenti_elimina_movimento' r.pk %}" class="d-inline" data-no-upload-progress="1"
+                  onsubmit="return confirm('Eliminare DEFINITIVAMENTE dal libro questo bonifico? Movimento id {{ r.pk }}, importo € {{ r.avere|num_it:2 }}.');">
+              {% csrf_token %}
+              {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+              <button type="submit" class="btn btn-sm btn-danger py-0 w-100 mt-1">Elimina bonifico</button>
             </form>
             {% endif %}
           </td>

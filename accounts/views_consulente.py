@@ -1696,6 +1696,46 @@ def consulente_pagamenti_rimuovi_pdf_movimento(request, movimento_id: int):
 @login_required
 @user_passes_test(_is_admin_o_consulente_partitario)
 @require_POST
+def consulente_pagamenti_elimina_movimento(request, movimento_id: int):
+    """Elimina un movimento bonifico in avere (stessa azienda del partitario)."""
+    from .models import MovimentoRegistroStudioConsulente, PianoAllocazioneBonificiQuad
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+    mov = MovimentoRegistroStudioConsulente.objects.filter(
+        pk=movimento_id, azienda=azienda, tipo_riga="bonifico"
+    ).first()
+    if mov is None:
+        messages.error(request, "Bonifico non trovato.")
+        return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+    piano = PianoAllocazioneBonificiQuad.objects.filter(azienda=azienda).first()
+    if piano and piano.righe:
+        for r in piano.righe:
+            try:
+                if int(r.get("bonifico_id") or 0) == movimento_id:
+                    messages.error(
+                        request,
+                        "Questo bonifico è citato nel Piano allocazione bonifici. Elimina o aggiorna il piano "
+                        "(pagina «Piano bonifici → parcelle») prima di cancellare il movimento.",
+                    )
+                    return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+            except (TypeError, ValueError):
+                continue
+    pk_del = mov.pk
+    if getattr(mov.file, "name", None):
+        try:
+            mov.file.delete(save=False)
+        except OSError:
+            pass
+    mov.delete()
+    messages.success(request, f"Bonifico eliminato dal libro (movimento id {pk_del}). I saldi progressivi sono stati ricalcolati.")
+    return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+@require_POST
 def consulente_proforma_rimuovi_pdf_movimento(request, movimento_id: int):
     from .consulente_registro_studio import ricalcola_saldi_progressivi
     from .models import MovimentoRegistroStudioConsulente
