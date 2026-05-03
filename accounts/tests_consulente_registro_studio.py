@@ -1423,6 +1423,13 @@ class QuadraturaProformaBonificiTests(TestCase):
         self.assertEqual(rip["tot_dare_proforma"], Decimal("0"))
         self.assertEqual(rip["tot_avere_bonifici_libro"], Decimal("40.00"))
         self.assertEqual(rip["differenza_dare_meno_avere"], Decimal("60.00"))
+        self.assertEqual(rip["tot_avere_attribuito_documenti"], Decimal("40.00"))
+        self.assertEqual(rip["avere_non_imputato_a_fatture"], Decimal("0"))
+        self.assertLessEqual(abs(rip["scarto_coerenza_sigma_diff"]), Decimal("0.02"))
+        self.assertEqual(
+            m["saldo_cumulativo_residui_finale"],
+            rip["differenza_dare_meno_avere"] + rip["avere_non_imputato_a_fatture"],
+        )
 
     def test_pipe_riferimento_collega_e_saldo(self):
         MovimentoRegistroStudioConsulente.objects.create(
@@ -1507,6 +1514,14 @@ class QuadraturaProformaBonificiTests(TestCase):
         q = quadratura_proforma_parcelle_bonifici(self.az.id)
         self.assertEqual(len(q["bonifici_orfani"]), 1)
         self.assertEqual(q["righe"][0]["stato"], "aperto")
+        m = mappa_quadratura_per_export_libro_movimenti(self.az.id)
+        rip = m["riepilogo_coerenza"]
+        self.assertLessEqual(abs(rip["scarto_coerenza_sigma_diff"]), Decimal("0.02"))
+        self.assertEqual(rip["avere_non_imputato_a_fatture"], Decimal("99.00"))
+        self.assertEqual(
+            m["saldo_cumulativo_residui_finale"],
+            rip["differenza_dare_meno_avere"] + rip["avere_non_imputato_a_fatture"],
+        )
 
     def test_causale_con_numero_collega_parziale(self):
         MovimentoRegistroStudioConsulente.objects.create(

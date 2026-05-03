@@ -2512,6 +2512,7 @@ def consulente_posizione_libro_pdf(request):
                 f"{_fmt_euro_pdf(dr)} / {_fmt_euro_pdf(ar)}",
             ]
         )
+    idx_bold0 = len(rip_rows)
     rip_rows.extend(
         [
             [
@@ -2528,9 +2529,22 @@ def consulente_posizione_libro_pdf(request):
             ],
         ]
     )
+    av_non_imp = (riepilogo_pdf.get("avere_non_imputato_a_fatture") or Decimal("0")).quantize(Decimal("0.01"))
+    rip_rows.append(
+        [
+            "Avere bonifici non ancora imputato alle fatture (totale avere − totale avere attribuito in quadratura)",
+            _fmt_euro_pdf(av_non_imp),
+        ]
+    )
+    scarto_sigma = (riepilogo_pdf.get("scarto_coerenza_sigma_diff") or Decimal("0")).quantize(Decimal("0.01"))
+    rip_rows.append(
+        [
+            "Verifica: Σ residui finale − differenza − avere non imputato (atteso ±0,02 €)",
+            _fmt_euro_pdf(scarto_sigma),
+        ]
+    )
 
     rip_table = Table(rip_rows, colWidths=[135 * mm, 35 * mm])
-    idx_bold0 = len(rip_rows) - 3
     rip_styles: list[tuple] = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1B3A5F")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -2540,7 +2554,7 @@ def consulente_posizione_libro_pdf(request):
         ("ALIGN", (1, 0), (1, -1), "RIGHT"),
         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
         ("FONTSIZE", (0, 1), (-1, -1), 8),
-        ("FONTNAME", (0, idx_bold0), (-1, len(rip_rows) - 1), "Helvetica-Bold"),
+        ("FONTNAME", (0, idx_bold0), (-1, idx_bold0 + 2), "Helvetica-Bold"),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#CBD5E1")),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
@@ -2552,30 +2566,26 @@ def consulente_posizione_libro_pdf(request):
     story.append(Spacer(1, 2 * mm))
     story.append(
         Paragraph(
-            "<b>Due conteggi diversi (è normale che non coincidano).</b> "
-            "<b>(1) Differenza</b> nella tabella sopra = totale dare documenti in quadratura "
-            "<b>meno</b> totale avere di tutti i bonifici in libro. Se esce <b>negativa</b> (es. EUR −96,91), "
-            "significa che in <b>totale</b> risultano registrati più bonifici che importo fatture "
-            "(proforma/parcella) considerato nell’incrocio: tipicamente credito / anticipi, oppure incassi "
-            "non ancora spalmati sulle fatture, bonifici orfani o righe fuori quadratura. "
-            "<b>(2) Saldo cumulativo residui (Σ residui)</b>, come in pagina Quadrature: è la "
-            "<b>somma progressiva</b>, fattura per fattura, di (dare della singola fattura − incassi "
-            "<i>attribuiti</i> a quella fattura dall’euristica o dal piano bonifici). "
-            "Misura <b>come</b> restano aperti i singoli titoli, non il «saldo di cassa» del libro né "
-            "l’opposto della differenza (1): potete avere differenza negativa e Σ residui ancora positivo "
-            "se parte dei bonifici non è ancora collegata alle parcelle che risultano scoperte.",
+            "<b>Lettura oggettiva.</b> La <b>differenza</b> (totale dare proforma/parcelle in quadratura "
+            "− totale avere bonifici in libro) indica se il consulente ha ancora credito verso l’azienda "
+            "(differenza <b>positiva</b>: risultano più fatture che bonifici registrati) o se l’azienda ha "
+            "versato <b>più</b> dei documenti considerati (differenza <b>negativa</b>). "
+            "Il <b>saldo cumulativo residui (Σ residui)</b> in Quadrature è la somma dei residui "
+            "fattura per fattura dopo l’attribuzione dei bonifici: deve soddisfare l’identità "
+            "<b>Σ residui = differenza + avere non imputato alle fatture</b> (ultime righe della tabella). "
+            "Quando tutto l’avere è imputato alle fatture, <b>Σ residui e differenza coincidono</b>. "
+            "Se la riga «Verifica» non è vicina a zero pur senza importi «non imputato», i dati sono "
+            "anomali: sospettare <b>righe duplicate</b> da vecchi import Excel o movimenti incoerenti.",
             meta_style,
         )
     )
     story.append(Spacer(1, 2 * mm))
     story.append(
         Paragraph(
-            "<b>Lettura del check.</b> Se tutto è allineato e non ci sono duplicati da vecchi Excel, "
-            "la <b>differenza</b> tende a zero «a regime»; il <b>Σ residui</b> tende a zero quando ogni "
-            "fattura risulta saldata in quadratura. Se i numeri non tornano: righe duplicate da import, "
-            "bonifici senza aggancio, fatture senza incasso corrispondente, rettifiche manuali, PDF non "
-            "allineati. Per il saldo classico <b>dare − avere</b> in ordine cronologico su tutte le righe "
-            "vedere la colonna <b>Saldo</b> nella pagina Libro movimenti (ultima riga), separato da questi totali.",
+            "<b>Saldo di libro separato.</b> Per il conteggio cronologico <b>dare − avere</b> su tutte le "
+            "righe (documenti, bonifici, rettifiche) vedere la colonna <b>Saldo</b> nella pagina "
+            "<b>Libro movimenti</b> (ultima riga): non coincide con la differenza sopra se ci sono "
+            "rettifiche o partite fuori dall’incrocio proforma/parcelle ↔ bonifici.",
             meta_style,
         )
     )
@@ -2584,24 +2594,33 @@ def consulente_posizione_libro_pdf(request):
 
     saldo_finale = saldo_finale_quad
     diff_q = (riepilogo_pdf.get("differenza_dare_meno_avere") or Decimal("0")).quantize(Decimal("0.01"))
+    scarto_q = (riepilogo_pdf.get("scarto_coerenza_sigma_diff") or Decimal("0")).quantize(Decimal("0.01"))
+    av_ni_q = (riepilogo_pdf.get("avere_non_imputato_a_fatture") or Decimal("0")).quantize(Decimal("0.01"))
+    if abs(scarto_q) > Decimal("0.05"):
+        avviso_scarto = (
+            f" <b>Attenzione:</b> la verifica aritmetica è {_fmt_euro_pdf(scarto_q)} (oltre ±0,05 €): "
+            "controllare duplicati da Excel e coerenza delle righe in libro."
+        )
+    else:
+        avviso_scarto = " Verifica aritmetica coerente con i totali interni di quadratura."
     if saldo_finale > Decimal("0.02"):
         saldo_msg = (
-            f"<b>Saldo cumulativo residui (Σ residui in Quadrature):</b> {_fmt_euro_pdf(saldo_finale)}. "
-            "Valore <b>positivo</b>: somma cumulata dei residui per fattura dopo l’attribuzione dei bonifici; "
-            "indica arretrato <b>sulle partite incrociate</b>, non necessariamente «manca ancora tanto in cassa» "
-            "rispetto alla differenza globale. "
-            f"<b>Differenza</b> (dare documenti − avere bonifici) nel riepilogo: {_fmt_euro_pdf(diff_q)}."
+            f"<b>Saldo cumulativo residui (Σ residui in Quadrature):</b> {_fmt_euro_pdf(saldo_finale)} "
+            f"(= differenza {_fmt_euro_pdf(diff_q)} + avere non imputato {_fmt_euro_pdf(av_ni_q)}). "
+            "Indica quanto resta aperto sulle singole fatture dopo l’attribuzione dei bonifici."
+            f"{avviso_scarto}"
         )
     elif saldo_finale < Decimal("-0.02"):
         saldo_msg = (
-            f"<b>Saldo cumulativo residui (Σ residui in Quadrature):</b> {_fmt_euro_pdf(abs(saldo_finale))} "
-            "a <b>credito</b> sul cumulo dei residui per fattura (eccedenze di incasso rispetto al dare attribuito). "
-            f"<b>Differenza</b> nel riepilogo: {_fmt_euro_pdf(diff_q)}."
+            f"<b>Saldo cumulativo residui (Σ residui in Quadrature):</b> {_fmt_euro_pdf(saldo_finale)} "
+            f"(differenza {_fmt_euro_pdf(diff_q)}, non imputato {_fmt_euro_pdf(av_ni_q)})."
+            f"{avviso_scarto}"
         )
     else:
         saldo_msg = (
-            f"Saldo cumulativo residui (Σ residui in Quadrature) pari a zero. "
-            f"<b>Differenza</b> nel riepilogo: {_fmt_euro_pdf(diff_q)}."
+            f"<b>Σ residui in Quadrature</b> pari a zero (differenza {_fmt_euro_pdf(diff_q)}, "
+            f"non imputato {_fmt_euro_pdf(av_ni_q)})."
+            f"{avviso_scarto}"
         )
     story.append(Spacer(1, 2 * mm))
     story.append(Paragraph(saldo_msg, meta_style))

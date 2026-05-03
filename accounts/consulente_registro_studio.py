@@ -2761,8 +2761,16 @@ def mappa_quadratura_per_export_libro_movimenti(azienda_id: int) -> dict:
     tot_dare_altro_doc = tot_dare_altro_doc.quantize(Decimal("0.01"))
     tot_dare_documenti_quad = (tot.get("totale_dare") or Decimal("0")).quantize(Decimal("0.01"))
     tot_avere_bonifici_libro = (tot.get("totale_avere_libro") or Decimal("0")).quantize(Decimal("0.01"))
+    tot_avere_attribuito_documenti = (tot.get("totale_avere_attribuito") or Decimal("0")).quantize(Decimal("0.01"))
     differenza_dare_meno_avere = (tot_dare_documenti_quad - tot_avere_bonifici_libro).quantize(Decimal("0.01"))
     tot_orfani_avere = (tot.get("totale_orfani_avere") or Decimal("0")).quantize(Decimal("0.01"))
+    avere_non_imputato_a_fatture = (tot_avere_bonifici_libro - tot_avere_attribuito_documenti).quantize(
+        Decimal("0.01")
+    )
+    # Σ residui finale = differenza + avere non ancora imputato alle fatture (orfani + quote non allocate)
+    scarto_coerenza_sigma_diff = (
+        saldo_cumulativo_finale - differenza_dare_meno_avere - avere_non_imputato_a_fatture
+    ).quantize(Decimal("0.01"))
 
     from django.db.models import Sum
 
@@ -2778,8 +2786,11 @@ def mappa_quadratura_per_export_libro_movimenti(azienda_id: int) -> dict:
         "tot_dare_altro_documento": tot_dare_altro_doc,
         "tot_dare_documenti_quadratura": tot_dare_documenti_quad,
         "tot_avere_bonifici_libro": tot_avere_bonifici_libro,
+        "tot_avere_attribuito_documenti": tot_avere_attribuito_documenti,
+        "avere_non_imputato_a_fatture": avere_non_imputato_a_fatture,
         "differenza_dare_meno_avere": differenza_dare_meno_avere,
         "tot_orfani_avere": tot_orfani_avere,
+        "scarto_coerenza_sigma_diff": scarto_coerenza_sigma_diff,
         "dare_rettifiche": dare_rettifiche,
         "avere_rettifiche": avere_rettifiche,
     }
