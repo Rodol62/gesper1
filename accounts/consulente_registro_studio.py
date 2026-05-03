@@ -2519,6 +2519,7 @@ def documenti_con_residuo_quadratura_per_select(azienda_id: int, q_quad: dict | 
     """
     Documenti proforma/parcella con **residuo da incassare** > 0 (pipe + piano), per l’aggancio in
     Pagamenti: esclude fatture già saldate; mostra parziali con importo residuo.
+    L’elenco è ordinato per **data documento** crescente (più vecchio prima), poi per id.
 
     Se ``q_quad`` è già il risultato di ``quadratura_proforma_parcelle_bonifici``, viene riusato
     (evita doppio calcolo nella stessa richiesta).
@@ -2539,8 +2540,12 @@ def documenti_con_residuo_quadratura_per_select(azienda_id: int, q_quad: dict | 
         ]
         if d.data_documento:
             pezzi.append(f"data doc. {d.data_documento.strftime('%d/%m/%Y')}")
-        rows.append({"id": d.pk, "label": " · ".join(pezzi)})
-    rows.sort(key=lambda x: (x["label"].lower(), x["id"]))
+        # Ordine elenco «A documento…»: dal documento più vecchio al più recente (poi id).
+        ord_data = d.data_documento if d.data_documento is not None else date.max
+        rows.append({"id": d.pk, "label": " · ".join(pezzi), "_ord": (ord_data, d.pk)})
+    rows.sort(key=lambda x: x["_ord"])
+    for r in rows:
+        del r["_ord"]
     return rows
 
 

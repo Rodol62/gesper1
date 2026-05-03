@@ -2076,6 +2076,37 @@ class AggancioManualeBonificoSelectTests(TestCase):
         self.assertEqual(meta4["badge"], "Aggancio")
         self.assertIn("gesper-bon-pag-attivi", meta4["classe"])
 
+    def test_documenti_residuo_select_ordine_cronologico(self):
+        """Elenco «A documento…»: parcelle/proforma con residuo ordinate per data doc. crescente."""
+        from accounts.consulente_registro_studio import documenti_con_residuo_quadratura_per_select
+
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="RECENTE",
+            data_documento=date(2024, 6, 1),
+            dare=Decimal("100.00"),
+            nome_file="recente.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="VECCHIO",
+            data_documento=date(2022, 1, 15),
+            dare=Decimal("80.00"),
+            nome_file="vecchio.pdf",
+            testo_estratto="x",
+        )
+        sel = documenti_con_residuo_quadratura_per_select(self.az.id)
+        self.assertEqual(len(sel), 2)
+        labels = [x["label"] for x in sel]
+        self.assertTrue(labels[0].startswith("Parcella"))
+        self.assertIn("VECCHIO", labels[0])
+        self.assertIn("RECENTE", labels[1])
+
     def test_documenti_residuo_select_esclude_saldato(self):
         from accounts.consulente_registro_studio import documenti_con_residuo_quadratura_per_select
 
