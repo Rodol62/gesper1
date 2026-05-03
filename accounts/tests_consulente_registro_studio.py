@@ -2033,6 +2033,49 @@ class AggancioManualeBonificoSelectTests(TestCase):
         txt = "Bonifico EUR 196,14 accreditato. CRO 58326812511."
         self.assertTrue(_distinta_pdf_coerente_bonifico_per_allegato_manuale(txt, mov))
 
+    def test_metadati_evidenza_bonifico_saldato_libero_pipe_rotto(self):
+        from accounts.consulente_registro_studio import (
+            metadati_evidenza_bonifico_pagamenti,
+            mappa_bonifico_documenti_stato_da_quadratura,
+        )
+
+        doc = SimpleNamespace(pk=1, numero_documento="224", get_tipo_documento_display=lambda: "Parcella")
+        bon_sald = SimpleNamespace(pk=10, riferimento_pagamento="224|2021-07-16|196.14")
+        q = {
+            "righe": [
+                {"documento": doc, "stato": "saldato", "bonifici": [{"bon": bon_sald, "quota": None}]},
+            ],
+        }
+        mappa = mappa_bonifico_documenti_stato_da_quadratura(q)
+        meta = metadati_evidenza_bonifico_pagamenti(bon_sald, q, mappa)
+        self.assertEqual(meta["badge"], "Saldato")
+        self.assertIn("gesper-bon-pag-saldati", meta["classe"])
+
+        bon_lib = SimpleNamespace(pk=11, riferimento_pagamento="CRO 12345678")
+        meta2 = metadati_evidenza_bonifico_pagamenti(bon_lib, q, mappa)
+        self.assertEqual(meta2["badge"], "")
+        self.assertIn("gesper-bon-pag-libero", meta2["classe"])
+
+        bon_pipe = SimpleNamespace(pk=12, riferimento_pagamento="999|2021-01-01|10.00")
+        meta3 = metadati_evidenza_bonifico_pagamenti(bon_pipe, q, mappa)
+        self.assertEqual(meta3["badge"], "Rif. non risolto")
+
+        doc_p = SimpleNamespace(pk=2, numero_documento="501", get_tipo_documento_display=lambda: "Parcella")
+        bon_parz = SimpleNamespace(pk=13, riferimento_pagamento="501|2024-03-01|45.25")
+        q2 = {
+            "righe": [
+                {
+                    "documento": doc_p,
+                    "stato": "parziale",
+                    "bonifici": [{"bon": bon_parz, "quota": Decimal("45.25")}],
+                },
+            ],
+        }
+        m2 = mappa_bonifico_documenti_stato_da_quadratura(q2)
+        meta4 = metadati_evidenza_bonifico_pagamenti(bon_parz, q2, m2)
+        self.assertEqual(meta4["badge"], "Aggancio")
+        self.assertIn("gesper-bon-pag-attivi", meta4["classe"])
+
     def test_documenti_residuo_select_esclude_saldato(self):
         from accounts.consulente_registro_studio import documenti_con_residuo_quadratura_per_select
 

@@ -2515,12 +2515,15 @@ def _allocazione_da_segmenti_pipe_espliciti(
     return out
 
 
-def documenti_con_residuo_quadratura_per_select(azienda_id: int) -> list[dict]:
+def documenti_con_residuo_quadratura_per_select(azienda_id: int, q_quad: dict | None = None) -> list[dict]:
     """
     Documenti proforma/parcella con **residuo da incassare** > 0 (pipe + piano), per l’aggancio in
     Pagamenti: esclude fatture già saldate; mostra parziali con importo residuo.
+
+    Se ``q_quad`` è già il risultato di ``quadratura_proforma_parcelle_bonifici``, viene riusato
+    (evita doppio calcolo nella stessa richiesta).
     """
-    q = quadratura_proforma_parcelle_bonifici(azienda_id)
+    q = q_quad if q_quad is not None else quadratura_proforma_parcelle_bonifici(azienda_id)
     rows: list[dict] = []
     for row in q["righe"]:
         res = row["residuo"]
@@ -2539,6 +2542,100 @@ def documenti_con_residuo_quadratura_per_select(azienda_id: int) -> list[dict]:
         rows.append({"id": d.pk, "label": " · ".join(pezzi)})
     rows.sort(key=lambda x: (x["label"].lower(), x["id"]))
     return rows
+
+
+def mappa_bonifico_documenti_stato_da_quadratura(q_quad: dict) -> dict[int, dict[int, str]]:
+    """
+    Per ogni bonifico presente nelle righe documento della quadratura (pipe + piano allocazione),
+    mappa ``bon_pk -> {doc_pk: stato}`` dove ``stato`` è quello della riga documento (saldato, parziale, …).
+    """
+    out: dict[int, dict[int, str]] = {}
+    for row in q_quad.get("righe") or []:
+        stato = (row.get("stato") or "").strip() or "aperto"
+        d = row.get("documento")
+        if d is None:
+            continue
+        dpk = int(d.pk)
+        for e in row.get("bonifici") or []:
+            b = e.get("bon")
+            if b is None:
+                continue
+            bpk = int(b.pk)
+            out.setdefault(bpk, {})[dpk] = stato
+    return out
+
+
+def metadati_evidenza_bonifico_pagamenti(bon, q_quad: dict, doc_stati_per_bon: dict[int, dict[int, str]]) -> dict[str, str]:
+    """
+    Dati per la tabella Pagamenti consulente: classe CSS, etichetta breve, tooltip.
+    """
+    segs = lista_triple_pipe_aggancio_da_riferimento(bon.riferimento_pagamento or "")
+    pipe_sembr_aggancio = bool(segs)
+    by_bon = doc_stati_per_bon.get(int(bon.pk)) or {}
+    if by_bon:
+        stati = set(by_bon.values())
+        numeri = []
+        for row in q_quad.get("righe") or []:
+            d = row.get("documento")
+            if d is None or int(d.pk) not in by_bon:
+                continue
+            n = (d.numero_documento or "").strip() or "—"
+            t = d.get_tipo_documento_display() if hasattr(d, "get_tipo_documento_display") else ""
+            numeri.append(f"{t} n.{n}".strip())
+        hint_doc = ", ".join(numeri[:4])
+        if len(numeri) > 4:
+            hint_doc += "…"
+        if stati <= {"saldato"}:
+            return {
+                "classe": "gesper-bon-pag-saldati",
+                "badge": "Saldato",
+                "title": (
+                    "Bonifico imputato in quadratura a documenti con incasso saldato. "
+                    f"Documenti: {hint_doc or '—'}."
+                ),
+            }
+        if "eccedenza" in stati:
+            return {
+                "classe": "gesper-bon-pag-attivi",
+                "badge": "Aggancio",
+                "title": (
+                    "Bonifico collegato in quadratura; almeno un documento risulta in eccedenza. "
+                    f"{hint_doc or '—'}."
+                ),
+            }
+        return {
+            "classe": "gesper-bon-pag-attivi",
+            "badge": "Aggancio",
+            "title": (
+                "Bonifico imputato a proforma/parcella con residuo ancora aperto o parziale. "
+                f"Documenti: {hint_doc or '—'}."
+            ),
+        }
+    if pipe_sembr_aggancio:
+        return {
+            "classe": "gesper-bon-pag-pipe-rotto",
+            "badge": "Rif. non risolto",
+            "title": (
+                "Il campo riferimento ha il formato di un aggancio manuale (num|data|importo) ma non risulta "
+                "coerente con i documenti in libro o con l’avere del bonifico."
+            ),
+        }
+    return {
+        "classe": "gesper-bon-pag-libero",
+        "badge": "",
+        "title": (
+            "Bonifico non ancora imputato in quadratura a parcelle/proforma (solo piano allocazione o "
+            "«Salva aggancio» creano il collegamento contabile)."
+        ),
+    }
+
+
+def annota_movimenti_bonifici_pagamenti_elenco(righe: list, q_quad: dict) -> None:
+    """Aggiunge a ogni movimento ``pagamenti_row_meta`` (dict) per template Pagamenti."""
+    mappa = mappa_bonifico_documenti_stato_da_quadratura(q_quad)
+    for bon in righe:
+        meta = metadati_evidenza_bonifico_pagamenti(bon, q_quad, mappa)
+        setattr(bon, "pagamenti_row_meta", meta)
 
 
 def documenti_proforma_parcella_libro_per_select(azienda_id: int) -> list[dict]:
