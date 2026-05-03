@@ -2690,6 +2690,8 @@ def mappa_quadratura_per_export_libro_movimenti(azienda_id: int) -> dict:
     nell’export libro (PDF/Excel): per ogni documento incassi attribuiti in quadratura e residuo;
     per ogni bonifico l’avere non ancora imputato alle parcelle/proforma; saldo cumulativo finale
     dei residui (ultima riga documento in ordine quadratura, come colonna «Σ residui» in UI).
+    Include ``riepilogo_coerenza`` (totali parcelle/proforma, bonifici, differenza, orfani, rettifiche)
+    per il blocco riepilogo nel PDF libro.
     """
     q = quadratura_proforma_parcelle_bonifici(azienda_id)
 
@@ -2739,10 +2741,54 @@ def mappa_quadratura_per_export_libro_movimenti(azienda_id: int) -> dict:
     else:
         saldo_cumulativo_finale = Decimal("0")
 
+    tot = q.get("totali") or {}
+    tot_dare_parcella = Decimal("0")
+    tot_dare_proforma = Decimal("0")
+    tot_dare_altro_doc = Decimal("0")
+    for row in righe_q:
+        d = row["documento"]
+        dd = (row.get("importo_dare") or getattr(d, "dare", None) or Decimal("0")).quantize(Decimal("0.01"))
+        t = (getattr(d, "tipo_documento", None) or "").strip()
+        if t == "parcella":
+            tot_dare_parcella += dd
+        elif t == "proforma":
+            tot_dare_proforma += dd
+        else:
+            tot_dare_altro_doc += dd
+
+    tot_dare_parcella = tot_dare_parcella.quantize(Decimal("0.01"))
+    tot_dare_proforma = tot_dare_proforma.quantize(Decimal("0.01"))
+    tot_dare_altro_doc = tot_dare_altro_doc.quantize(Decimal("0.01"))
+    tot_dare_documenti_quad = (tot.get("totale_dare") or Decimal("0")).quantize(Decimal("0.01"))
+    tot_avere_bonifici_libro = (tot.get("totale_avere_libro") or Decimal("0")).quantize(Decimal("0.01"))
+    differenza_dare_meno_avere = (tot_dare_documenti_quad - tot_avere_bonifici_libro).quantize(Decimal("0.01"))
+    tot_orfani_avere = (tot.get("totale_orfani_avere") or Decimal("0")).quantize(Decimal("0.01"))
+
+    from django.db.models import Sum
+
+    agg_rett = MovimentoRegistroStudioConsulente.objects.filter(
+        azienda_id=azienda_id, tipo_riga="rettifica"
+    ).aggregate(sd=Sum("dare"), sa=Sum("avere"))
+    dare_rettifiche = (agg_rett.get("sd") or Decimal("0")).quantize(Decimal("0.01"))
+    avere_rettifiche = (agg_rett.get("sa") or Decimal("0")).quantize(Decimal("0.01"))
+
+    riepilogo_coerenza = {
+        "tot_dare_parcella": tot_dare_parcella,
+        "tot_dare_proforma": tot_dare_proforma,
+        "tot_dare_altro_documento": tot_dare_altro_doc,
+        "tot_dare_documenti_quadratura": tot_dare_documenti_quad,
+        "tot_avere_bonifici_libro": tot_avere_bonifici_libro,
+        "differenza_dare_meno_avere": differenza_dare_meno_avere,
+        "tot_orfani_avere": tot_orfani_avere,
+        "dare_rettifiche": dare_rettifiche,
+        "avere_rettifiche": avere_rettifiche,
+    }
+
     return {
         "documento": doc_by_pk,
         "bonifico_residuo_avere": bon_residuo_avere,
         "saldo_cumulativo_residui_finale": saldo_cumulativo_finale,
+        "riepilogo_coerenza": riepilogo_coerenza,
     }
 
 

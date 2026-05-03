@@ -2283,6 +2283,7 @@ def consulente_posizione_libro_pdf(request):
     doc_quad = quad_libro["documento"]
     bon_residuo_quad = quad_libro["bonifico_residuo_avere"]
     saldo_finale_quad = quad_libro["saldo_cumulativo_residui_finale"]
+    riepilogo_pdf = quad_libro.get("riepilogo_coerenza") or {}
     buffer = BytesIO()
     timestamp_ref = timezone.localtime()
     data_ref = timestamp_ref.strftime('%d/%m/%Y')
@@ -2472,8 +2473,95 @@ def consulente_posizione_libro_pdf(request):
         *row_styles,
     ]))
     story.append(table)
+    story.append(Spacer(1, 4 * mm))
+    story.append(Paragraph("Riepilogo contabile (totali come in Quadrature)", title_style))
+
+    rip_rows: list[list] = [
+        ["Voce", "Importo"],
+        [
+            "Totale parcelle in dare (somma importi documenti tipo Parcella in libro)",
+            _fmt_euro_pdf(riepilogo_pdf.get("tot_dare_parcella", Decimal("0"))),
+        ],
+        [
+            "Totale proforma in dare (somma importi documenti tipo Proforma in libro)",
+            _fmt_euro_pdf(riepilogo_pdf.get("tot_dare_proforma", Decimal("0"))),
+        ],
+    ]
+    altro_d = riepilogo_pdf.get("tot_dare_altro_documento") or Decimal("0")
+    if abs(altro_d) > Decimal("0.005"):
+        rip_rows.append(
+            [
+                "Totale altri documenti in dare (tipo non classificato o altre partite in quadratura)",
+                _fmt_euro_pdf(altro_d),
+            ]
+        )
+    orf = riepilogo_pdf.get("tot_orfani_avere") or Decimal("0")
+    if orf > Decimal("0.02"):
+        rip_rows.append(
+            [
+                "Bonifici «orfani» (avere non collegato a nessuna fattura in quadratura)",
+                _fmt_euro_pdf(orf),
+            ]
+        )
+    dr = riepilogo_pdf.get("dare_rettifiche") or Decimal("0")
+    ar = riepilogo_pdf.get("avere_rettifiche") or Decimal("0")
+    if abs(dr) > Decimal("0.005") or abs(ar) > Decimal("0.005"):
+        rip_rows.append(
+            [
+                "Rettifiche manuali in libro (dare / avere, fuori dall’incrocio quadratura)",
+                f"{_fmt_euro_pdf(dr)} / {_fmt_euro_pdf(ar)}",
+            ]
+        )
+    rip_rows.extend(
+        [
+            [
+                "Totale dare documenti in quadratura (tutte le fatture considerate nell’incrocio)",
+                _fmt_euro_pdf(riepilogo_pdf.get("tot_dare_documenti_quadratura", Decimal("0"))),
+            ],
+            [
+                "Totale bonifici in avere (somma dei pagamenti registrati in libro)",
+                _fmt_euro_pdf(riepilogo_pdf.get("tot_avere_bonifici_libro", Decimal("0"))),
+            ],
+            [
+                "Differenza: totale dare documenti − totale avere bonifici",
+                _fmt_euro_pdf(riepilogo_pdf.get("differenza_dare_meno_avere", Decimal("0"))),
+            ],
+        ]
+    )
+
+    rip_table = Table(rip_rows, colWidths=[135 * mm, 35 * mm])
+    idx_bold0 = len(rip_rows) - 3
+    rip_styles: list[tuple] = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1B3A5F")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("ALIGN", (0, 0), (0, -1), "LEFT"),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), 8),
+        ("FONTNAME", (0, idx_bold0), (-1, len(rip_rows) - 1), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#CBD5E1")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+    rip_table.setStyle(TableStyle(rip_styles))
+    story.append(rip_table)
+    story.append(Spacer(1, 2 * mm))
+    story.append(
+        Paragraph(
+            "<b>Lettura del check.</b> In teoria, quando tutte le parcelle/proforma risultano incassate "
+            "e non ci sono bonifici orfani né import duplicati, la <b>differenza</b> tende ad avvicinarsi "
+            "a zero (o al netto di residui ancora aperti). Se i numeri «non tornano», controllare: "
+            "vecchi import Excel ancora presenti come righe duplicate, bonifici senza aggancio a fattura, "
+            "proforma/parcelle senza incasso corrispondente, rettifiche manuali o PDF non allineati al libro.",
+            meta_style,
+        )
+    )
     story.append(Spacer(1, 3 * mm))
-    story.append(Paragraph(f"Totale righe: {len(righe)}", meta_style))
+    story.append(Paragraph(f"Totale righe nell’elenco sopra: {len(righe)}", meta_style))
 
     saldo_finale = saldo_finale_quad
     if saldo_finale > 0:
