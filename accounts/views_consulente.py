@@ -1805,7 +1805,7 @@ def consulente_posizione_pagamenti(request):
         applica_aggancia_pdf_bonifici_a_libro,
         applica_upload_bonifici_pdf,
         bonifico_duplicato_elenco_ids,
-        documenti_proforma_parcella_libro_per_select,
+        documenti_con_residuo_quadratura_per_select,
         parse_importo_form,
         ricalcola_saldi_progressivi,
         riferimento_pipe_aggancio_bonifico_documenti_importi,
@@ -1862,9 +1862,12 @@ def consulente_posizione_pagamenti(request):
                 azienda=azienda,
                 tipo_riga="bonifico",
             )
-            consentiti = {o["id"] for o in documenti_proforma_parcella_libro_per_select(azienda.id)}
+            consentiti = {o["id"] for o in documenti_con_residuo_quadratura_per_select(azienda.id)}
             if not consentiti:
-                messages.error(request, "Non ci sono documenti proforma/parcella in libro.")
+                messages.error(
+                    request,
+                    "Non risultano proforma/parcelle con residuo da incassare: aggiorna gli agganci o verifica in Incassi.",
+                )
                 return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
             avere_b = (bon.avere or Decimal(0)).quantize(Decimal("0.01"))
             pairs: list = []
@@ -2043,7 +2046,7 @@ def consulente_posizione_pagamenti(request):
     )
     rep_bon = request.session.get(SESSION_REPORT_AGGANCIA_BONIFICI) or {}
     report_aggancia_csv_bonifici = bool(rep_bon.get('azienda_id') == azienda.id and rep_bon.get('rows'))
-    documenti_aggancio_select = documenti_proforma_parcella_libro_per_select(azienda.id)
+    documenti_aggancio_select = documenti_con_residuo_quadratura_per_select(azienda.id)
     return render(
         request,
         'consulente/posizione_contabile_pagamenti.html',

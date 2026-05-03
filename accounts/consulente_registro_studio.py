@@ -1313,6 +1313,58 @@ def _parsed_bonifico_compatibile_con_movimento(mov, parsed: EsitoParsingBonifico
     return True, "", success_hint
 
 
+def _testo_pdf_contiene_importo_coerente_con_avere(testo: str, avere: Decimal) -> bool:
+    """Cerca l’importo in avere (centesimi) nel testo grezzo della distinta (parser fallito)."""
+    if not testo or avere is None or avere <= 0:
+        return False
+    av = avere.quantize(Decimal("0.01"))
+    cents = int(av * 100)
+    if cents % 100 == 0:
+        whole = cents // 100
+        pats = [
+            rf"\b{whole}\s*[,.]\s*00\b",
+            rf"\b{whole}\b(?!\d)",
+        ]
+    else:
+        whole, frac = divmod(cents, 100)
+        pats = [
+            rf"\b{whole}\s*[,.]\s*{frac:02d}\b",
+            rf"\b{whole}\s*[,.]\s*{frac}\b",
+        ]
+    for p in pats:
+        if re.search(p, testo, re.I):
+            return True
+    return False
+
+
+def _riferimento_libro_ha_codice_lungo_in_testo_pdf(mov, testo: str) -> bool:
+    """CRO/TRN lunghi presenti sia nel riferimento in libro che nel testo PDF (senza parsing strutturato)."""
+    lr = (mov.riferimento_pagamento or "").strip()
+    if not lr or not testo:
+        return False
+    tc = re.sub(r"\s+", "", testo)
+    lr_c = re.sub(r"\s+", "", lr).upper()
+    for m in re.finditer(r"\d{9,}", lr):
+        s = m.group(0)
+        if s in tc or s in lr_c:
+            return True
+    return False
+
+
+def _distinta_pdf_coerente_bonifico_per_allegato_manuale(testo: str, mov) -> bool:
+    """
+    Per allegato singolo su riga già scelta: accetta se importo o codice lungo del riferimento in libro
+    compare nel testo estratto dalla distinta (evita falsi negativi quando ``parse_testo_bonifico_pdf`` non riempie i campi).
+    """
+    if not (testo or "").strip():
+        return False
+    if mov.avere and _testo_pdf_contiene_importo_coerente_con_avere(testo, mov.avere):
+        return True
+    if _riferimento_libro_ha_codice_lungo_in_testo_pdf(mov, testo):
+        return True
+    return False
+
+
 def _parsed_proforma_compatibile_con_movimento_documento(mov, parsed: EsitoParsingProforma) -> tuple[bool, str]:
     """Coerenza numero (+ data se presente in entrambi) tra PDF e riga documento scelta."""
     num_m = (mov.numero_documento or "").strip()
@@ -1367,6 +1419,9 @@ def applica_pdf_su_movimento_bonifico(
         testo, metodo = estrai_testo_da_pdf(path)
         parsed = parse_testo_bonifico_pdf(testo, nome)
         okc, why, hint_ok = _parsed_bonifico_compatibile_con_movimento(mov, parsed)
+        if not okc and why in ("dati", "riferimento"):
+            if _distinta_pdf_coerente_bonifico_per_allegato_manuale(testo, mov):
+                okc, why, hint_ok = True, "", "distinta_testo_coerente"
         if not okc:
             if why == "importo":
                 return [
@@ -2462,8 +2517,8 @@ def _allocazione_da_segmenti_pipe_espliciti(
 
 def documenti_con_residuo_quadratura_per_select(azienda_id: int) -> list[dict]:
     """
-    Documenti proforma/parcella con residuo da incassare > 0 (come in quadratura), per menu a tendina
-    in Pagamenti (aggancio manuale bonifico → documento).
+    Documenti proforma/parcella con **residuo da incassare** > 0 (pipe + piano), per l’aggancio in
+    Pagamenti: esclude fatture già saldate; mostra parziali con importo residuo.
     """
     q = quadratura_proforma_parcelle_bonifici(azienda_id)
     rows: list[dict] = []
@@ -2472,10 +2527,12 @@ def documenti_con_residuo_quadratura_per_select(azienda_id: int) -> list[dict]:
         if res <= Decimal("0.01"):
             continue
         d = row["documento"]
+        stato = row.get("stato") or ""
         pezzi = [
             d.get_tipo_documento_display(),
             f"n. {(d.numero_documento or '—').strip()}",
             f"residuo € {res.quantize(Decimal('0.01'))}",
+            str(stato),
         ]
         if d.data_documento:
             pezzi.append(f"data doc. {d.data_documento.strftime('%d/%m/%Y')}")

@@ -4,6 +4,7 @@ import tempfile
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -2022,8 +2023,18 @@ class AggancioManualeBonificoSelectTests(TestCase):
             email="aggman@test.it",
         )
 
-    def test_documenti_libro_select_include_saldato(self):
-        from accounts.consulente_registro_studio import documenti_proforma_parcella_libro_per_select
+    def test_distinta_heuristica_per_allegato_pdf_bonifico(self):
+        from accounts.consulente_registro_studio import _distinta_pdf_coerente_bonifico_per_allegato_manuale
+
+        mov = SimpleNamespace(
+            avere=Decimal("196.14"),
+            riferimento_pagamento="PARCELLA N. 224 DEL 16/07/2021 cro 58326812511",
+        )
+        txt = "Bonifico EUR 196,14 accreditato. CRO 58326812511."
+        self.assertTrue(_distinta_pdf_coerente_bonifico_per_allegato_manuale(txt, mov))
+
+    def test_documenti_residuo_select_esclude_saldato(self):
+        from accounts.consulente_registro_studio import documenti_con_residuo_quadratura_per_select
 
         MovimentoRegistroStudioConsulente.objects.create(
             azienda=self.az,
@@ -2044,10 +2055,8 @@ class AggancioManualeBonificoSelectTests(TestCase):
             riferimento_pagamento="900|2024-04-01|50.00",
             causale_pagamento="Incasso",
         )
-        sel = documenti_proforma_parcella_libro_per_select(self.az.id)
-        self.assertEqual(len(sel), 1)
-        self.assertIn("900", sel[0]["label"])
-        self.assertIn("saldato", sel[0]["label"].lower())
+        sel = documenti_con_residuo_quadratura_per_select(self.az.id)
+        self.assertEqual(len(sel), 0)
 
     def test_documenti_residuo_select_e_riferimento_pipe(self):
         from accounts.consulente_registro_studio import (
