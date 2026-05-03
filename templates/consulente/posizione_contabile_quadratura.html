@@ -34,13 +34,21 @@
     <div class="col-6 col-md-auto"><span class="text-uppercase fw-semibold">Σ dare</span> € {{ quad.totali.totale_dare|euro_it }}</div>
     <div class="col-6 col-md-auto"><span class="text-uppercase fw-semibold">Σ avere (libro)</span> € {{ quad.totali.totale_avere_libro|euro_it }}</div>
     <div class="col-12 col-md-auto"><span class="text-uppercase fw-semibold">Σ avere attribuito</span> € {{ quad.totali.totale_avere_attribuito|euro_it }} · <span class="text-uppercase fw-semibold">non attrib.</span> € {{ quad.totali.totale_orfani_avere|euro_it }}</div>
+    <div class="col-12 col-md-auto"><span class="text-uppercase fw-semibold">Bonif. con PDF riscontro</span> {{ quad.totali.bonifici_con_evidenza_pdf }} / {{ quad.totali.bonifici_n }} · <span class="text-uppercase fw-semibold">attrib. senza PDF</span> € {{ quad.totali.totale_avere_attribuito_senza_evidenza_pdf|euro_it }}{% if quad.totali.totale_orfani_avere_senza_evidenza_pdf %} · <span class="text-uppercase fw-semibold">orfani senza PDF</span> € {{ quad.totali.totale_orfani_avere_senza_evidenza_pdf|euro_it }}{% endif %}</div>
   </div>
+
+  {% if quad.totali.totale_avere_attribuito_senza_evidenza_pdf > 0 or quad.totali.totale_orfani_avere_senza_evidenza_pdf > 0 %}
+  <div class="alert alert-warning small mb-3 py-2" role="status">
+    Parte degli incassi risulta collegata a fatture <strong>senza PDF di riscontro</strong> sul bonifico (ricevuta, movimento da estratto conto o estratto conto caricati in <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a>). Senza uno di questi allegati non si può dimostrare al consulente di aver pagato: <strong>operativamente</strong> si considera il pagamento non comprovato e la parcella o la proforma restano da saldare finché non si allega la documentazione.
+  </div>
+  {% endif %}
 
   <p class="small text-muted border rounded px-2 py-2 mb-3" style="background:#f8fafc;line-height:1.4">
     <strong>Residuo documento</strong> = dare fattura − somma avere dei bonifici collegati (positivo = ancora da incassare rispetto a quella fattura; negativo = incassi superiori al dare attribuito).
     <strong>Saldo cumulativo residui</strong> = somma progressiva dei residui nell’ordine delle date documento (utile per vedere l’arretrato complessivo sulle sole fatture elencate).
     Il <strong>saldo di posizione</strong> complessivo resta quello del <a href="{% url 'consulente_posizione_libro' %}">libro movimenti</a> (include rettifiche e righe non collegate qui). Per allegare o sostituire PDF usa le azioni nelle pagine <a href="{% url 'consulente_posizione_proforma' %}">Proforma</a> e <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a>.
-    Se in causale compare <strong>proforma/parcella N e M del AAAA</strong> (es. «… PROFORMA 320 E 367 DEL 2021»), un solo bonifico viene <strong>imputato in sequenza</strong>: prima fino al dare della fattura citata per prima, poi il <strong>residuo</strong> sulla seconda (come in contabilità: si quadrano in cascata le due parcelle citate).
+    Se in causale compare <strong>proforma/parcella N e M del AAAA</strong> (es. «… PROFORMA 320 E 367 DEL 2021»), un solo bonifico viene <strong>imputato in sequenza</strong>: prima fino al dare della fattura citata per prima, poi il <strong>residuo</strong> sulla seconda (come in contabilità: si quadrano in cascata le due parcelle citate). Esempio reale BPSA: bonifico € 274,14 con dare in libro € 196,14 sulla 320 e € 78,00 sulla 367 → quote <strong>196,14 + 78,00 = 274,14</strong>. Il campo riferimento «BONIFICO BPSA|19/10/2021|274.14» da solo non basta: serve il <strong>testo distinta / causale</strong> (anche da PDF) con i due numeri, anche «proforma 320 e <strong>proforma</strong> 367 del …». Se nello stesso testo un’altra parcella ha dare uguale all’importo del bonifico (es. 246), quella prevale sull’imputazione a due righe. Se il bonifico è tutto sulla prima parcella ma supera il suo dare e in causale/distinta compaiono **due numeri** documento, la parte in eccesso viene spostata sulla riga il cui dare coincide con l’eccedenza (es. € 78 dalla 320 alla 367 sullo stesso BPSA).
+    <strong>Evidenza verso il consulente:</strong> ogni bonifico può avere un badge «con PDF» se in Pagamenti è stato caricato un file (ricevuta bonifico, movimento da estratto conto o estratto conto). Se manca, il quadrato numerico può risultare saldato ma <strong>non</strong> avete documentazione da esibire: in quel caso la riga può mostrare un avviso dedicato.
   </p>
 
   <div class="table-responsive border rounded-3 shadow-sm mb-4 overflow-hidden">
@@ -83,6 +91,9 @@
             {% elif row.stato == 'parziale' %}<span class="badge bg-warning text-dark">Parziale</span>
             {% elif row.stato == 'eccedenza' %}<span class="badge bg-info text-dark">Eccedenza</span>
             {% else %}<span class="badge bg-secondary">Aperto</span>{% endif %}
+            {% if row.saldato_ma_con_bonifici_senza_evidenza_pdf %}
+            <div class="mt-1"><span class="badge bg-warning text-dark" title="Quadratura numerica salda ma senza PDF sul bonifico collegato">Saldato senza riscontro PDF</span></div>
+            {% endif %}
           </td>
         </tr>
         {% if row.bonifici %}
@@ -91,13 +102,14 @@
             {% for entry in row.bonifici %}
               {% with b=entry.bon %}
               <div class="mb-2 d-flex flex-wrap align-items-center gap-2">
+                {% if entry.ha_riscontro %}<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">Con PDF riscontro</span>{% else %}<span class="badge bg-warning-subtle text-dark border border-warning">Senza PDF riscontro</span>{% endif %}
                 <span class="font-monospace">id {{ b.id }}</span>
                 <span>·</span>
                 <span>{% if b.data_documento %}{{ b.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</span>
                 <span>·</span>
                 <span class="font-monospace text-success">{% if entry.quota is not None %}€ {{ entry.quota|euro_it }} <span class="text-muted fw-normal">(quota su bonif. € {{ b.avere|euro_it }})</span>{% else %}€ {{ b.avere|euro_it }}{% endif %}</span>
                 {% if b.file %}
-                <a href="{{ b.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">PDF distinta</a>
+                <a href="{{ b.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">Apri PDF</a>
                 {% else %}
                 <a href="{% url 'consulente_posizione_pagamenti' %}" class="btn btn-sm btn-outline-secondary py-0">Pagamenti → allega</a>
                 {% endif %}
@@ -115,6 +127,22 @@
     </table>
   </div>
 
+  {% if quad.bonifici_ripartiti_multi_documento %}
+  <h2 class="h6 text-secondary mb-2">Bonifici ripartiti su più documenti</h2>
+  <p class="small text-muted mb-2">Stesso movimento in avere suddiviso in quote sulle fatture collegate (ordine come in tabella sopra). Verificate che la somma delle quote coincida con l’avere del bonifico.</p>
+  <div class="list-group list-group-flush border rounded-3 shadow-sm mb-4 small overflow-hidden">
+    {% for rip in quad.bonifici_ripartiti_multi_documento %}
+    {% with b=rip.bon %}
+    <div class="list-group-item py-2">
+      <div><strong>Bonifico id {{ b.id }}</strong> · {% if b.data_documento %}{{ b.data_documento|date:"d/m/Y" }}{% else %}—{% endif %} · avere <span class="font-monospace text-success">€ {{ rip.avere|euro_it }}</span></div>
+      <div class="mt-1 text-muted">{% for p in rip.parti %}doc. {{ p.numero_documento }} → <span class="font-monospace">€ {{ p.quota|euro_it }}</span>{% if not forloop.last %}; {% endif %}{% endfor %}</div>
+      <div class="font-monospace mt-1">Σ quote € {{ rip.somma_quote|euro_it }}{% if rip.coerente %} <span class="text-success small">(= avere bonifico)</span>{% else %} <span class="text-warning small">≠ avere: controllare dare in libro o causale</span>{% endif %}</div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {% if quad.bonifici_orfani %}
   <h2 class="h6 text-secondary mb-2">Bonifici senza documento riconosciuto</h2>
   <p class="small text-muted mb-2">Totale avere non attribuito a una fattura in tabella: <strong>€ {{ quad.totali.totale_orfani_avere|euro_it }}</strong></p>
@@ -125,6 +153,7 @@
           <th>id</th>
           <th>Data</th>
           <th class="text-end">Avere</th>
+          <th>Riscontro</th>
           <th style="min-width:7rem">PDF</th>
           <th>Riferimento / causale</th>
         </tr>
@@ -135,6 +164,7 @@
           <td class="font-monospace">{{ b.id }}</td>
           <td class="text-nowrap text-secondary">{% if b.data_documento %}{{ b.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
           <td class="text-end font-monospace gesper-libro-amt text-success">€ {{ b.avere|euro_it }}</td>
+          <td>{% if b.file %}<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle small">Con PDF</span>{% else %}<span class="badge bg-warning-subtle text-dark border border-warning small">Senza PDF</span>{% endif %}</td>
           <td>
             {% if b.file %}
             <a href="{{ b.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">Apri PDF</a>

@@ -14,6 +14,7 @@ from django.test import SimpleTestCase, TestCase
 from accounts.consulente_registro_studio import (
     EsitoParsingBonifico,
     EsitoParsingProforma,
+    bonifico_ha_riscontro_documentale_pagamento,
     quadratura_proforma_parcelle_bonifici,
     applica_pdf_su_movimento_bonifico,
     bonifico_duplicato_elenco_ids,
@@ -1405,6 +1406,41 @@ class QuadraturaProformaBonificiTests(TestCase):
         self.assertEqual(q["righe"][0]["stato"], "saldato")
         self.assertEqual(q["righe"][0]["residuo"], Decimal("0.00"))
         self.assertEqual(len(q["bonifici_orfani"]), 0)
+        self.assertFalse(q["righe"][0]["bonifici"][0]["ha_riscontro"])
+        self.assertEqual(q["totali"]["bonifici_senza_evidenza_pdf"], 1)
+        self.assertEqual(q["totali"]["totale_avere_attribuito_senza_evidenza_pdf"], Decimal("130.00"))
+        self.assertTrue(q["righe"][0]["saldato_ma_con_bonifici_senza_evidenza_pdf"])
+
+    def test_quadratura_bonifico_con_pdf_ha_riscontro(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="99",
+            data_documento=date(2024, 1, 10),
+            dare=Decimal("40.00"),
+            nome_file="d.pdf",
+            testo_estratto="x",
+        )
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2024, 1, 20),
+            avere=Decimal("40.00"),
+            nome_file="b.pdf",
+            riferimento_pagamento="PARCELLA 99|2024-01-10|40.00",
+        )
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                bon.file.save("ricevuta.pdf", ContentFile(b"%PDF-1.4 test"), save=True)
+        bon.refresh_from_db()
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertTrue(q["righe"][0]["bonifici"][0]["ha_riscontro"])
+        self.assertTrue(bonifico_ha_riscontro_documentale_pagamento(bon))
+        self.assertFalse(q["righe"][0]["saldato_ma_con_bonifici_senza_evidenza_pdf"])
+        self.assertEqual(q["totali"]["bonifici_con_evidenza_pdf"], 1)
+        self.assertEqual(q["totali"]["totale_avere_attribuito_senza_evidenza_pdf"], Decimal("0.00"))
 
     def test_bonifico_senza_documento_in_orfani(self):
         MovimentoRegistroStudioConsulente.objects.create(
@@ -1497,6 +1533,59 @@ class QuadraturaProformaBonificiTests(TestCase):
         self.assertEqual(b320["bon"].causale_pagamento, causale)
         self.assertEqual(b320["quota"], Decimal("100.00"))
         self.assertEqual(righe_per_num["367"]["bonifici"][0]["quota"], Decimal("174.14"))
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
+        rip = q["bonifici_ripartiti_multi_documento"][0]
+        self.assertTrue(rip["coerente"])
+        self.assertEqual(rip["somma_quote"], Decimal("274.14"))
+        nums_q = {p["numero_documento"]: p["quota"] for p in rip["parti"]}
+        self.assertEqual(nums_q["320"], Decimal("100.00"))
+        self.assertEqual(nums_q["367"], Decimal("174.14"))
+
+    def test_bpsa_stesso_bonifico_274_ripartito_196_14_e_78(self):
+        """Dare in libro 196,14 + 78,00 = avere bonifico 274,14 (stesso schema BPSA 320 e 367)."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="320",
+            data_documento=date(2021, 5, 10),
+            dare=Decimal("196.14"),
+            nome_file="pf320.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="367",
+            data_documento=date(2021, 6, 20),
+            dare=Decimal("78.00"),
+            nome_file="pf367.pdf",
+            testo_estratto="y",
+        )
+        causale = "BONIFICO A SALDO PROFORMA 320 E 367 DEL 2021"
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 10, 19),
+            avere=Decimal("274.14"),
+            nome_file="bpsa.pdf",
+            riferimento_pagamento="BONIFICO BPSA|2021-10-19|274.14",
+            causale_pagamento=causale,
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
+        self.assertEqual(righe_per_num["320"]["tot_bonifici"], Decimal("196.14"))
+        self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("78.00"))
+        self.assertEqual(righe_per_num["320"]["stato"], "saldato")
+        self.assertEqual(righe_per_num["367"]["stato"], "saldato")
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
+        rip = q["bonifici_ripartiti_multi_documento"][0]
+        self.assertTrue(rip["coerente"])
+        self.assertEqual(rip["somma_quote"], Decimal("274.14"))
+        nums_q = {p["numero_documento"]: p["quota"] for p in rip["parti"]}
+        self.assertEqual(nums_q["320"], Decimal("196.14"))
+        self.assertEqual(nums_q["367"], Decimal("78.00"))
 
     def test_due_proforma_imputazione_sequenziale_non_proporzionale(self):
         """Bonifico > prima parcella: si satura la prima, il resto va sulla seconda (non % sul dare)."""
@@ -1535,6 +1624,144 @@ class QuadraturaProformaBonificiTests(TestCase):
         self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("150.00"))
         self.assertEqual(righe_per_num["367"]["stato"], "parziale")
         self.assertEqual(righe_per_num["367"]["residuo"], Decimal("24.14"))
+
+    def test_causale_pdf_proforma_320_e_proforma_367_solo_in_testo_estratto(self):
+        """Id 78: i due numeri con doppia etichetta «… proforma 320 e proforma 367 …» nel PDF (testo_estratto)."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="320",
+            data_documento=date(2021, 5, 10),
+            dare=Decimal("196.14"),
+            nome_file="pf320.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="367",
+            data_documento=date(2021, 6, 20),
+            dare=Decimal("78.00"),
+            nome_file="pf367.pdf",
+            testo_estratto="y",
+        )
+        testo_pdf = (
+            "Disposizione bonifico EUR 274,14. "
+            "A saldo delle PROFORMA 320 E PROFORMA 367 DEL 2021."
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 10, 19),
+            avere=Decimal("274.14"),
+            nome_file="bpsa.pdf",
+            riferimento_pagamento="BONIFICO BPSA|2021-10-19|274.14",
+            causale_pagamento="",
+            testo_estratto=testo_pdf,
+            metodo_estrazione="pdfplumber",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
+        self.assertEqual(righe_per_num["320"]["tot_bonifici"], Decimal("196.14"))
+        self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("78.00"))
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
+
+    def test_citazione_320_e_proforma_367_ma_bonifico_su_parcella_246(self):
+        """Id 77: causale cita 320 e 367 ma l’importo coincide con la parcella 246 nel testo."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="320",
+            data_documento=date(2021, 5, 10),
+            dare=Decimal("100.00"),
+            nome_file="a.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="367",
+            data_documento=date(2021, 6, 20),
+            dare=Decimal("174.14"),
+            nome_file="b.pdf",
+            testo_estratto="y",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="246",
+            data_documento=date(2021, 8, 15),
+            dare=Decimal("212.78"),
+            nome_file="p246.pdf",
+            testo_estratto="z",
+        )
+        testo = (
+            "SALDO PROFORMA 320 E PROFORMA 367 BONIFICO BPSA. "
+            "Incasso PARCELLA 246 DEL 2021."
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 8, 30),
+            avere=Decimal("212.78"),
+            nome_file="bon77.pdf",
+            causale_pagamento=testo,
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
+        self.assertEqual(righe_per_num["246"]["tot_bonifici"], Decimal("212.78"))
+        self.assertEqual(righe_per_num["246"]["stato"], "saldato")
+        self.assertEqual(righe_per_num["320"]["tot_bonifici"], Decimal("0"))
+        self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("0"))
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 0)
+
+    def test_eccedenza_su_320_sposta_quota_su_367_stesso_bonifico_in_causale(self):
+        """€ 274,14 tutti sulla 320 (dare più vicino); causale cita 320 e 367; € 78 spostati sulla 367."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="320",
+            data_documento=date(2021, 9, 12),
+            dare=Decimal("196.14"),
+            nome_file="p320.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="367",
+            data_documento=date(2021, 10, 14),
+            dare=Decimal("78.00"),
+            nome_file="p367.pdf",
+            testo_estratto="y",
+        )
+        causale = (
+            "BONIFICO BPSA SALDO ORDINANZE N. 320 E N. 367 DEL 2021 "
+            "REGISTRAZIONE UNICA CONTABILE STUDIO"
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 10, 19),
+            avere=Decimal("274.14"),
+            nome_file="bpsa78.pdf",
+            riferimento_pagamento="BONIFICO BPSA|2021-10-19|274.14",
+            causale_pagamento=causale,
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
+        self.assertEqual(righe_per_num["320"]["tot_bonifici"], Decimal("196.14"))
+        self.assertEqual(righe_per_num["320"]["stato"], "saldato")
+        self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("78.00"))
+        self.assertEqual(righe_per_num["367"]["stato"], "saldato")
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
 
 
 class LibroNotaConsulenteDisplayTests(SimpleTestCase):

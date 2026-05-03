@@ -2094,8 +2094,12 @@ def _numero_documento_in_haystack(num: str, hay: str) -> bool:
 
 def _estrai_duo_numeri_proforma_parcella_con_e(hay: str) -> tuple[list[str] | None, int | None]:
     """
-    Riconosce testi tipo «… proforma 320 e 367 del 2021 …» (hay già minuscolo).
-    Restituisce (['320','367'], 2021) oppure (None, None) se il pattern non c’è.
+    Riconosce due numeri documento nel testo unificato (hay già minuscolo), in due forme:
+
+    - «… proforma 320 e 367 del 2021 …» (una sola etichetta prima del primo numero);
+    - «… proforma 320 e proforma 367 del 2021 …» (etichetta ripetuta, tipico causale in PDF distinta).
+
+    Restituisce (['320','367'], 2021) oppure (None, None).
     """
     if not hay:
         return None, None
@@ -2104,11 +2108,47 @@ def _estrai_duo_numeri_proforma_parcella_con_e(hay: str) -> tuple[list[str] | No
         hay,
         re.I,
     )
-    if not m:
+    if m:
+        y_raw = m.group(3)
+        anno = int(y_raw) if y_raw else None
+        return [m.group(1), m.group(2)], anno
+    m2 = re.search(
+        r"\b(?:pro[-\s]?forma|proforma|parcella|parchella)\s+(\d{1,8})\s+e\s+(?:pro[-\s]?forma|proforma|parcella|parchella)\s+(\d{1,8})(?:\s+del\s+(20\d{2}|19\d{2}))?\b",
+        hay,
+        re.I,
+    )
+    if not m2:
         return None, None
-    y_raw = m.group(3)
+    y_raw = m2.group(3)
     anno = int(y_raw) if y_raw else None
-    return [m.group(1), m.group(2)], anno
+    return [m2.group(1), m2.group(2)], anno
+
+
+def _doppia_proforma_soppressa_per_altra_parcella_stesso_avere(
+    hay: str,
+    avere: Decimal,
+    num_a: str,
+    num_b: str,
+    documenti: list,
+) -> bool:
+    """
+    Se nel testo compare un altro documento (numero non tra i due della coppia) il cui dare
+    coincide con l’avere del bonifico, non applicare la ripartita su due righe: tipico incasso
+    BPSA che in causale cita «saldo proforma 320 e proforma 367» ma l’importo va su una sola
+    parcella (es. 246) citata altrove nel testo/PDF.
+    """
+    pair = {num_a.casefold(), num_b.casefold()}
+    tol = Decimal("0.02")
+    for d in documenti:
+        nd = (d.numero_documento or "").strip()
+        if len(nd) < 2 or nd.casefold() in pair:
+            continue
+        if not _numero_documento_in_haystack(nd, hay):
+            continue
+        dare = d.dare or Decimal(0)
+        if abs((dare - avere).quantize(Decimal("0.01"))) <= tol:
+            return True
+    return False
 
 
 def _risolvi_documenti_per_numeri_e_anno_espliciti(
@@ -2170,14 +2210,74 @@ def _allocazione_bonifico_doppia_proforma_da_testo(
     nums, anno = _estrai_duo_numeri_proforma_parcella_con_e(hay)
     if not nums or len(nums) != 2:
         return None
+    tot = bon.avere or Decimal("0")
+    if tot > 0 and _doppia_proforma_soppressa_per_altra_parcella_stesso_avere(
+        hay, tot, nums[0], nums[1], documenti
+    ):
+        return None
     docs = _risolvi_documenti_per_numeri_e_anno_espliciti(documenti, nums, anno)
     if not docs or len(docs) != 2:
         return None
-    tot = bon.avere or Decimal("0")
     if tot <= 0:
         return None
     q0, q1 = _allocazione_sequenziale_avere_su_due_documenti(tot, docs[0], docs[1])
     return [(docs[0], q0), (docs[1], q1)]
+
+
+def _correggi_eccedenza_bonifico_su_secondo_documento_citato(
+    doc_assign: dict[int, list[dict]], documenti: list, bonifici: list
+) -> None:
+    """
+    Se un bonifico è stato attribuito per intero a un solo documento (es. «dare più vicino» con
+    più candidati) ma l’importo supera il dare di quella riga, e nella causale/distinta compaiono
+    anche **entrambi** i numeri di un altro documento il cui dare coincide con l’eccedenza
+    (importo − dare del documento «sbagliato»), sposta quella parte sul secondo documento.
+
+    Tipico: € 274,14 tutti sulla parcella 320 (dare € 196,14) mentre in testo si citano 320 e 367:
+    restano € 78,00 da imputare alla parcella 367 (dare € 78).
+    """
+    tol = Decimal("0.02")
+    for b in bonifici:
+        holders: list[tuple[object, dict]] = []
+        for d in documenti:
+            for e in doc_assign.get(d.pk, []):
+                if e["bon"].pk == b.pk:
+                    holders.append((d, e))
+        if len(holders) != 1:
+            continue
+        d_cur, e = holders[0]
+        tot_b = b.avere or Decimal("0")
+        q = e.get("quota")
+        attrib = q if q is not None else tot_b
+        dare_cur = d_cur.dare or Decimal(0)
+        if attrib <= dare_cur + tol:
+            continue
+        spill = (attrib - dare_cur).quantize(Decimal("0.01"))
+        hay = _haystack_bonifico_per_aggancio_testuale(b)
+        nd_cur = (d_cur.numero_documento or "").strip()
+        if len(nd_cur) < 2 or not _numero_documento_in_haystack(nd_cur, hay):
+            continue
+        best_d2 = None
+        ambiguous = False
+        for d2 in documenti:
+            if d2.pk == d_cur.pk:
+                continue
+            nd2 = (d2.numero_documento or "").strip()
+            if len(nd2) < 2 or not _numero_documento_in_haystack(nd2, hay):
+                continue
+            dare2 = d2.dare or Decimal(0)
+            if abs(dare2 - spill) > tol:
+                continue
+            if best_d2 is not None:
+                ambiguous = True
+                break
+            best_d2 = d2
+        if ambiguous or best_d2 is None:
+            continue
+        lst = doc_assign[d_cur.pk]
+        lst.remove(e)
+        lst.append({"bon": b, "quota": dare_cur})
+        doc_assign[best_d2.pk].append({"bon": b, "quota": spill})
 
 
 def _documenti_candidati_per_bonifico(azienda_id: int, bon, documenti: list) -> list:
@@ -2218,6 +2318,19 @@ def _documenti_candidati_per_bonifico(azienda_id: int, bon, documenti: list) -> 
     return out
 
 
+def bonifico_ha_riscontro_documentale_pagamento(mov) -> bool:
+    """
+    True se sul movimento bonifico è archiviato un PDF in portale (ricevuta bonifico,
+    distinta, movimento da estratto conto o estratto conto bancario caricato in Pagamenti).
+
+    Senza tale allegato non si ha evidenza documentale del pagamento: in sede di
+    dimostrazione verso il consulente si assume operativamente che il bonifico non sia
+    comprovato e che la parcella/proforma resti da pagare finché non si allega un PDF.
+    """
+    f = getattr(mov, "file", None)
+    return bool(f and getattr(f, "name", None))
+
+
 def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
     """
     Incrocia gli stessi movimenti ``documento`` e ``bonifico`` già in libro (registrati da
@@ -2227,8 +2340,17 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
     Restituisce righe per documento con bonifici attribuiti, residuo (dare − somma avere),
     saldo cumulativo dei residui in ordine cronologico documento, e bonifici senza documento
     riconosciuto. Se in causale/riferimento compaiono due numeri «proforma/parcella N e M del AAAA»,
-    lo stesso bonifico si imputa in **sequenza** (prima riga fino al suo dare, residuo sulla seconda).
-    Con più candidati generici si preferisce ancora il dare più vicino all’avere del bonifico.
+    lo stesso bonifico si imputa in **sequenza** (prima riga fino al suo dare, residuo sulla seconda),
+    nell’ordine dei numeri nel testo: es. avere € 274,14 con dare € 196,14 sulla 320 e € 78,00 sulla 367
+    dà quote € 196,14 + € 78,00 = € 274,14. Il testo della **distinta PDF** (``testo_estratto``) è
+    incluso nell’haystack come la causale. Sono riconosciute anche stringhe «proforma 320 e proforma
+    367 del …»; se però compare un **altro** numero documento il cui dare coincide con l’avere del
+    bonifico (es. parcella 246), non si applica la ripartita su due righe e vale l’aggancio unico.
+    Il riferimento «BONIFICO BPSA|data|importo» da solo non sostituisce il testo con i numeri.
+    Con più candidati generici si preferisce ancora il dare più vicino all’avere del bonifico;
+    se ciò genera **eccedenza** su una riga ma in testo compaiono due numeri documento e un solo
+    altro movimento ha dare uguale all’eccedenza, si **sposta** automaticamente quella quota sulla
+    seconda parcella/proforma citata (es. residuo € 78 dalla 320 alla 367).
     """
     from django.db.models import F
 
@@ -2271,6 +2393,12 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
                 best_key = k
         doc_assign[best.pk].append({"bon": b, "quota": None})
 
+    _correggi_eccedenza_bonifico_su_secondo_documento_citato(doc_assign, documenti, bonifici)
+
+    for lista in doc_assign.values():
+        for e in lista:
+            e["ha_riscontro"] = bonifico_ha_riscontro_documentale_pagamento(e["bon"])
+
     def _importo_attribuito_entry(entry: dict) -> Decimal:
         q = entry.get("quota")
         if q is not None:
@@ -2299,6 +2427,14 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
             stato = "parziale"
         else:
             stato = "eccedenza"
+        attrib_senza_pdf = sum(
+            (_importo_attribuito_entry(x) for x in bs if not x.get("ha_riscontro", True)),
+            start=Decimal("0"),
+        ).quantize(Decimal("0.01"))
+        saldato_ma_senza_evidenza = stato == "saldato" and any(
+            not x.get("ha_riscontro", True) and _importo_attribuito_entry(x) > Decimal("0.01")
+            for x in bs
+        )
         righe.append(
             {
                 "documento": d,
@@ -2308,14 +2444,62 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
                 "saldo_progressivo_residui": cum,
                 "stato": stato,
                 "importo_dare": dare,
+                "attribuito_senza_evidenza_pdf": attrib_senza_pdf,
+                "saldato_ma_con_bonifici_senza_evidenza_pdf": saldato_ma_senza_evidenza,
             }
         )
 
     tot_orfani = sum((b.avere or Decimal(0)) for b in orfani)
+    bonifici_con_evidenza_pdf = sum(1 for b in bonifici if bonifico_ha_riscontro_documentale_pagamento(b))
+    bonifici_senza_evidenza_pdf = len(bonifici) - bonifici_con_evidenza_pdf
+    tot_avere_attribuito_senza_evidenza = sum(
+        (
+            _importo_attribuito_entry(e)
+            for lista in doc_assign.values()
+            for e in lista
+            if not e.get("ha_riscontro", True)
+        ),
+        start=Decimal("0"),
+    ).quantize(Decimal("0.01"))
+    tot_orfani_senza_evidenza_avere = sum(
+        ((b.avere or Decimal(0)) for b in orfani if not bonifico_ha_riscontro_documentale_pagamento(b)),
+        start=Decimal("0"),
+    ).quantize(Decimal("0.01"))
+
+    by_bon: dict[int, list[tuple[str, Decimal]]] = {}
+    for d in documenti:
+        for e in doc_assign.get(d.pk, []):
+            q = _importo_attribuito_entry(e)
+            if q <= 0:
+                continue
+            nd = (d.numero_documento or "").strip() or "—"
+            bpk = e["bon"].pk
+            by_bon.setdefault(bpk, []).append((nd, q))
+
+    pk_to_bon = {b.pk: b for b in bonifici}
+    bonifici_ripartiti_multi_documento: list[dict] = []
+    for bon_pk, parti in by_bon.items():
+        if len(parti) < 2:
+            continue
+        b = pk_to_bon.get(bon_pk)
+        if b is None:
+            continue
+        somma = sum((q for _, q in parti), start=Decimal("0")).quantize(Decimal("0.01"))
+        avere_b = (b.avere or Decimal(0)).quantize(Decimal("0.01"))
+        bonifici_ripartiti_multi_documento.append(
+            {
+                "bon": b,
+                "parti": [{"numero_documento": n, "quota": q} for n, q in parti],
+                "somma_quote": somma,
+                "avere": avere_b,
+                "coerente": abs(somma - avere_b) <= Decimal("0.02"),
+            }
+        )
 
     return {
         "righe": righe,
         "bonifici_orfani": orfani,
+        "bonifici_ripartiti_multi_documento": bonifici_ripartiti_multi_documento,
         "totali": {
             "documenti_n": len(documenti),
             "bonifici_n": len(bonifici),
@@ -2323,6 +2507,10 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
             "totale_avere_libro": tot_avere_all,
             "totale_avere_attribuito": tot_avere_attribuito,
             "totale_orfani_avere": tot_orfani,
+            "bonifici_con_evidenza_pdf": bonifici_con_evidenza_pdf,
+            "bonifici_senza_evidenza_pdf": bonifici_senza_evidenza_pdf,
+            "totale_avere_attribuito_senza_evidenza_pdf": tot_avere_attribuito_senza_evidenza,
+            "totale_orfani_avere_senza_evidenza_pdf": tot_orfani_senza_evidenza_avere,
         },
     }
 
