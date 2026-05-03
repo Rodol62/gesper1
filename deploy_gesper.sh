@@ -1,5 +1,10 @@
 #!/bin/bash
-# Script di deploy sicuro per GESPER
+# Deploy rapido (solo check + scp cartelle + riavvio Gunicorn).
+#
+# Deploy completo in produzione (rsync, pip, migrate, collectstatic, restart): dalla root del repo
+#   ./deploy/deploy-gesper1-completo.sh
+# oppure solo sync remoto: ./deploy/remote-rsync-django-gesper1.sh
+# Vedi deploy/PROCEDURA_DEPLOY.md
 set -e
 
 LOCAL_DIR="/Applications/XAMPP/xamppfiles/htdocs/gesper"
