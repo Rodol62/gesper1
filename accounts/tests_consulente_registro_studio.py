@@ -1822,6 +1822,37 @@ class QuadraturaProformaBonificiTests(TestCase):
         q2 = quadratura_proforma_parcelle_bonifici(self.az.id)
         self.assertEqual(len(q2["bonifici_orfani"]), 2)
 
+    def test_piano_allocazione_cap_allineato_se_bonifico_pool_sarebbe_auto_su_stesso_doc(self):
+        """Il cap non deve usare la quadratura «piena»: altrimenti il bonifico del pool si auto-aggancia e il cap è 0."""
+        doc = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="221",
+            data_documento=date(2025, 4, 1),
+            dare=Decimal("130.00"),
+            nome_file="d221.pdf",
+        )
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 4, 15),
+            avere=Decimal("130.00"),
+            nome_file="b221.pdf",
+            riferimento_pagamento="PARCELLA 221|2025-04-01|130.00",
+        )
+        q_full = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(q_full["righe"][0]["stato"], "saldato")
+        self.assertEqual(q_full["righe"][0]["residuo"], Decimal("0.00"))
+
+        q_ante = quadratura_proforma_parcelle_bonifici_anteprima_allocazione(self.az.id, {bon.pk})
+        self.assertEqual(q_ante["righe"][0]["residuo"], Decimal("130.00"))
+
+        u = get_user_model().objects.create_user("pallocpipe221", "p221@t.it", "secret12345")
+        salva_piano_allocazione_bonifici_quadratura(self.az, [bon.pk], [(doc.pk, Decimal("130.00"))], u)
+        obj = PianoAllocazioneBonificiQuad.objects.get(azienda=self.az)
+        self.assertEqual(len(obj.righe), 1)
+
 
 class AggancioManualeBonificoSelectTests(TestCase):
     """Elenco documenti con residuo in quadratura e riferimento ``numero|data|avere`` (Pagamenti)."""

@@ -2647,12 +2647,18 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
 
 def _cap_residui_documenti_per_validazione_piano(azienda_id: int, bon_ids_pool: set[int]) -> dict[int, Decimal]:
     """
-    Residuo massimo imputabile per documento rispetto al pool: residuo di quadratura
-    complessivo + eventuali quote già nel piano solo per bonifici del pool (da sostituire).
+    Residuo massimo imputabile per documento rispetto al pool: stessa base della **anteprima**
+    wizard (``_quadratura…_core`` con ``extra_skip`` = pool), così i bonifici del pool non
+    ricevono abbinamento automatico nella stima del cap; poi si sommano le quote già nel piano
+    solo per bonifici del pool (da sostituire in questo salvataggio).
+
+    Usare la quadratura «completa» qui avrebbe effetto contrario: un bonifico del pool ancora
+    non in piano verrebbe attribuito in automatico e il cap risulterebbe 0 mentre in anteprima
+    il residuo resta aperto.
     """
     from .models import PianoAllocazioneBonificiQuad
 
-    q = quadratura_proforma_parcelle_bonifici(azienda_id)
+    q = _quadratura_proforma_parcelle_bonifici_core(azienda_id, extra_skip_bonifico_ids=frozenset(bon_ids_pool))
     cap: dict[int, Decimal] = {
         row["documento"].pk: (row["residuo"] or Decimal("0")).quantize(Decimal("0.01")) for row in q["righe"]
     }
