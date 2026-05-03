@@ -16,7 +16,8 @@ from accounts.consulente_registro_studio import (
     EsitoParsingBonifico,
     EsitoParsingProforma,
     bonifico_ha_riscontro_documentale_pagamento,
-    bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati,
+    bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura,
+    documenti_righe_quadratura_con_residuo_da_coprire,
     elimina_piano_allocazione_bonifici_quadratura,
     quadratura_proforma_parcelle_bonifici,
     quadratura_proforma_parcelle_bonifici_anteprima_allocazione,
@@ -1854,7 +1855,7 @@ class QuadraturaProformaBonificiTests(TestCase):
         obj = PianoAllocazioneBonificiQuad.objects.get(azienda=self.az)
         self.assertEqual(len(obj.righe), 1)
 
-    def test_bonifico_escluso_da_pool_se_imputato_solo_su_documento_saldato(self):
+    def test_bonifico_senza_disponibilita_utilizzabile_se_tutto_imputato_su_saldato(self):
         doc = MovimentoRegistroStudioConsulente.objects.create(
             azienda=self.az,
             tipo_riga="documento",
@@ -1872,8 +1873,8 @@ class QuadraturaProformaBonificiTests(TestCase):
             nome_file="b332.pdf",
             riferimento_pagamento="PARCELLA 332|2025-05-10|80.00",
         )
-        esclusi = bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati(self.az.id)
-        self.assertIn(bon.pk, esclusi)
+        util = bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura(self.az.id)
+        self.assertNotIn(bon.pk, util)
 
         orf = MovimentoRegistroStudioConsulente.objects.create(
             azienda=self.az,
@@ -1883,9 +1884,43 @@ class QuadraturaProformaBonificiTests(TestCase):
             nome_file="orphan.pdf",
             riferimento_pagamento="XYZ-NO-DOC",
         )
-        esclusi2 = bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati(self.az.id)
-        self.assertIn(bon.pk, esclusi2)
-        self.assertNotIn(orf.pk, esclusi2)
+        util2 = bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura(self.az.id)
+        self.assertNotIn(bon.pk, util2)
+        self.assertIn(orf.pk, util2)
+
+    def test_documenti_step2_solo_aperto_parziale_con_residuo(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="S1",
+            data_documento=date(2025, 6, 1),
+            dare=Decimal("50.00"),
+            nome_file="s1.pdf",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="S2",
+            data_documento=date(2025, 6, 2),
+            dare=Decimal("30.00"),
+            nome_file="s2.pdf",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 6, 10),
+            avere=Decimal("10.00"),
+            nome_file="b10.pdf",
+            causale_pagamento="Incasso parcella S1 quota",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        filtrate = documenti_righe_quadratura_con_residuo_da_coprire(q["righe"])
+        self.assertTrue(any(r["documento"].numero_documento == "S1" for r in filtrate))
+        self.assertTrue(any(r["documento"].numero_documento == "S2" for r in filtrate))
+        for r in filtrate:
+            self.assertIn(r["stato"], ("aperto", "parziale"))
 
 
 class AggancioManualeBonificoSelectTests(TestCase):

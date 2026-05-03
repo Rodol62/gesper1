@@ -2645,36 +2645,60 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
     return _quadratura_proforma_parcelle_bonifici_core(azienda_id)
 
 
-def bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati(azienda_id: int) -> set[int]:
+def bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura(azienda_id: int) -> set[int]:
     """
-    id di bonifici considerati **già quadrati** ai fini del wizard: in quadratura (euristica
-    + piano) risultano interamente imputati **solo** su righe documento in stato ``saldato``,
-    senza essere orfani e senza residuo sul bonifico da piano manuale.
+    id dei bonifici che in quadratura (euristica + piano) hanno ancora **avere non imputato**
+    alle parcelle/proforma (orfani = tutto l’avere; altrimenti avere − somma delle quote attribuite
+    sulle righe documento).
 
-    Il passo 1 del piano mostra solo i bonifici **non** in questo insieme (ancora utilizzabili).
+    Il passo 1 del wizard «Piano bonifici» elenca solo questi movimenti.
     """
     q = quadratura_proforma_parcelle_bonifici(azienda_id)
-    orfani_ids = {b.pk for b in q["bonifici_orfani"]}
-    residuo_piano_bon_ids = {
-        row["bon"].pk for row in (q.get("bonifici_residuo_post_piano_allocazione") or []) if row.get("bon")
-    }
 
-    bon_doc_stati: dict[int, set[str]] = {}
+    def _importo_attribuito_entry(entry: dict) -> Decimal:
+        qq = entry.get("quota")
+        if qq is not None:
+            return qq
+        return entry["bon"].avere or Decimal("0")
+
+    attribuito_per_bon: dict[int, Decimal] = {}
+    bon_per_pk: dict[int, object] = {}
     for row in q["righe"]:
-        stato = row["stato"]
         for e in row["bonifici"]:
             bpk = e["bon"].pk
-            bon_doc_stati.setdefault(bpk, set()).add(stato)
+            bon_per_pk[bpk] = e["bon"]
+            attribuito_per_bon[bpk] = attribuito_per_bon.get(bpk, Decimal("0")) + _importo_attribuito_entry(e)
+    for b in q["bonifici_orfani"]:
+        bon_per_pk[b.pk] = b
+    for row in q.get("bonifici_residuo_post_piano_allocazione") or []:
+        bon = row.get("bon")
+        if bon is not None:
+            bon_per_pk[bon.pk] = bon
 
-    excluded: set[int] = set()
-    for bpk, stati in bon_doc_stati.items():
-        if bpk in orfani_ids:
+    out: set[int] = set()
+    for bpk, b in bon_per_pk.items():
+        av = (b.avere or Decimal("0")).quantize(Decimal("0.01"))
+        used = attribuito_per_bon.get(bpk, Decimal("0")).quantize(Decimal("0.01"))
+        if av - used > Decimal("0.02"):
+            out.add(bpk)
+    return out
+
+
+def documenti_righe_quadratura_con_residuo_da_coprire(righe_quad: list[dict]) -> list[dict]:
+    """
+    Righe documento (come in ``quadratura_proforma_parcelle_bonifici`` ``righe``) con residuo
+    da incassare su proforma/parcella: stato ``aperto`` o ``parziale`` e residuo > 0.
+    Esclude ``saldato`` ed ``eccedenza``.
+    """
+    out: list[dict] = []
+    for row in righe_quad:
+        res = (row.get("residuo") or Decimal("0")).quantize(Decimal("0.01"))
+        if res <= Decimal("0.01"):
             continue
-        if bpk in residuo_piano_bon_ids:
+        if row.get("stato") not in ("aperto", "parziale"):
             continue
-        if stati and stati <= {"saldato"}:
-            excluded.add(bpk)
-    return excluded
+        out.append(row)
+    return out
 
 
 def _cap_residui_documenti_per_validazione_piano(azienda_id: int, bon_ids_pool: set[int]) -> dict[int, Decimal]:

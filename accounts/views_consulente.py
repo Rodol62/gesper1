@@ -1351,7 +1351,8 @@ def consulente_piano_allocazione_bonifici(request):
     from django.db.models import F
 
     from .consulente_registro_studio import (
-        bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati,
+        bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura,
+        documenti_righe_quadratura_con_residuo_da_coprire,
         elimina_piano_allocazione_bonifici_quadratura,
         parse_importo_form,
         quadratura_proforma_parcelle_bonifici_anteprima_allocazione,
@@ -1376,13 +1377,14 @@ def consulente_piano_allocazione_bonifici(request):
             F('data_documento').desc(nulls_last=True), '-importato_il', '-id'
         )
     )
-    _esclusi_solo_saldati = bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati(azienda.id)
-    bonifici_pool = [b for b in bonifici_all if b.pk not in _esclusi_solo_saldati]
+    _bon_util = bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura(azienda.id)
+    bonifici_pool = [b for b in bonifici_all if b.pk in _bon_util]
     piano_obj = PianoAllocazioneBonificiQuad.objects.filter(azienda=azienda).first()
     piano_count = len(piano_obj.righe) if piano_obj and piano_obj.righe else 0
 
     pool_ids: list[int] = []
     quad_anteprima = None
+    piano_step2_documenti: list = []
     step = 1
 
     if request.method == 'POST':
@@ -1413,6 +1415,7 @@ def consulente_piano_allocazione_bonifici(request):
                 pool_ids = sel
                 step = 2
                 quad_anteprima = quadratura_proforma_parcelle_bonifici_anteprima_allocazione(azienda.id, set(sel))
+                piano_step2_documenti = documenti_righe_quadratura_con_residuo_da_coprire(quad_anteprima["righe"])
         elif action == 'salva_piano':
             raw = (request.POST.get('bon_ids_ordinati') or '').strip()
             ids_order: list[int] = []
@@ -1451,6 +1454,7 @@ def consulente_piano_allocazione_bonifici(request):
                     quad_anteprima = quadratura_proforma_parcelle_bonifici_anteprima_allocazione(
                         azienda.id, set(ids_order)
                     )
+                    piano_step2_documenti = documenti_righe_quadratura_con_residuo_da_coprire(quad_anteprima["righe"])
                 else:
                     messages.success(
                         request,
@@ -1469,6 +1473,7 @@ def consulente_piano_allocazione_bonifici(request):
             'pool_ids': pool_ids,
             'pool_total': pool_total(pool_ids) if pool_ids else Decimal('0'),
             'quad_anteprima': quad_anteprima,
+            'piano_step2_documenti': piano_step2_documenti,
             'step': step,
             'piano_count': piano_count,
         },
