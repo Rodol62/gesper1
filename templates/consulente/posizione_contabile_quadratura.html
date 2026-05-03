@@ -40,7 +40,7 @@
     <strong>Residuo documento</strong> = dare fattura − somma avere dei bonifici collegati (positivo = ancora da incassare rispetto a quella fattura; negativo = incassi superiori al dare attribuito).
     <strong>Saldo cumulativo residui</strong> = somma progressiva dei residui nell’ordine delle date documento (utile per vedere l’arretrato complessivo sulle sole fatture elencate).
     Il <strong>saldo di posizione</strong> complessivo resta quello del <a href="{% url 'consulente_posizione_libro' %}">libro movimenti</a> (include rettifiche e righe non collegate qui). Per allegare o sostituire PDF usa le azioni nelle pagine <a href="{% url 'consulente_posizione_proforma' %}">Proforma</a> e <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a>.
-    Se in causale compare <strong>proforma/parcella N e M del AAAA</strong> (es. «… PROFORMA 320 E 367 DEL 2021»), un solo bonifico può essere <strong>ripartito in quota</strong> sulle due fatture in proporzione al loro dare.
+    Se in causale compare <strong>proforma/parcella N e M del AAAA</strong> (es. «… PROFORMA 320 E 367 DEL 2021»), un solo bonifico viene <strong>imputato in sequenza</strong>: prima fino al dare della fattura citata per prima, poi il <strong>residuo</strong> sulla seconda (come in contabilità: si quadrano in cascata le due parcelle citate).
   </p>
 
   <div class="table-responsive border rounded-3 shadow-sm mb-4 overflow-hidden">

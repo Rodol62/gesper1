@@ -14,7 +14,7 @@ import tempfile
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 # ── Estrazione testo ─────────────────────────────────────────────────────────
@@ -2141,36 +2141,31 @@ def _risolvi_documenti_per_numeri_e_anno_espliciti(
     return ris
 
 
-def _ripartisci_avere_tra_documenti(tot_avere: Decimal, documenti: list) -> list[Decimal]:
-    """Ripartisce ``tot_avere`` in proporzione al dare di ciascun documento (ultimo centesimo compensato)."""
-    if not documenti or tot_avere <= 0:
-        return []
-    dares = [max(d.dare or Decimal(0), Decimal(0)) for d in documenti]
-    s = sum(dares)
-    n = len(documenti)
-    if s <= 0:
-        base = (tot_avere / Decimal(n)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        out = [base] * n
-        drift = (tot_avere - sum(out)).quantize(Decimal("0.01"))
-        out[-1] = (out[-1] + drift).quantize(Decimal("0.01"))
-        return out
-    out: list[Decimal] = []
-    acc = Decimal("0")
-    for d in dares[:-1]:
-        part = (tot_avere * d / s).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        out.append(part)
-        acc += part
-    last = (tot_avere - acc).quantize(Decimal("0.01"))
-    out.append(last)
-    return out
+def _allocazione_sequenziale_avere_su_due_documenti(
+    tot_avere: Decimal, doc_primo: object, doc_secondo: object
+) -> tuple[Decimal, Decimal]:
+    """
+    Imputa l’avere del bonifico in ordine: fino al dare della prima parcella/proforma, poi il
+    residuo fino al dare della seconda (come in contabilità: si «saldano» in cascata le due
+    fatture citate nel testo del pagamento). Se l’avere supera la somma dei due dare, le due
+    quote coincidono con i due dare (eccedenza oltre non imputata a queste righe).
+    """
+    cap0 = max(doc_primo.dare or Decimal(0), Decimal(0))
+    cap1 = max(doc_secondo.dare or Decimal(0), Decimal(0))
+    rem = tot_avere
+    q0 = min(rem, cap0).quantize(Decimal("0.01"))
+    rem = (rem - q0).quantize(Decimal("0.01"))
+    q1 = min(rem, cap1).quantize(Decimal("0.01"))
+    return q0, q1
 
 
 def _allocazione_bonifico_doppia_proforma_da_testo(
     bon, hay: str, documenti: list
 ) -> list[tuple[object, Decimal]] | None:
     """
-    Un bonifico unico che in causale/riferimento indica due proforma/parcelle «N e M del AAAA»:
-    ripartisce l’avere proporzionalmente al dare delle due righe documento.
+    Bonifico unico con in causale/riferimento due proforma/parcelle «N e M del AAAA»:
+    imputazione **sequenziale** (prima riga fino al suo dare, residuo sulla seconda), nell’ordine
+    dei numeri estratti dal testo.
     """
     nums, anno = _estrai_duo_numeri_proforma_parcella_con_e(hay)
     if not nums or len(nums) != 2:
@@ -2181,10 +2176,8 @@ def _allocazione_bonifico_doppia_proforma_da_testo(
     tot = bon.avere or Decimal("0")
     if tot <= 0:
         return None
-    quotas = _ripartisci_avere_tra_documenti(tot, docs)
-    if len(quotas) != 2:
-        return None
-    return [(docs[0], quotas[0]), (docs[1], quotas[1])]
+    q0, q1 = _allocazione_sequenziale_avere_su_due_documenti(tot, docs[0], docs[1])
+    return [(docs[0], q0), (docs[1], q1)]
 
 
 def _documenti_candidati_per_bonifico(azienda_id: int, bon, documenti: list) -> list:
@@ -2234,8 +2227,8 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
     Restituisce righe per documento con bonifici attribuiti, residuo (dare − somma avere),
     saldo cumulativo dei residui in ordine cronologico documento, e bonifici senza documento
     riconosciuto. Se in causale/riferimento compaiono due numeri «proforma/parcella N e M del AAAA»,
-    lo stesso bonifico si ripartisce proporzionalmente al dare delle due righe. Con più candidati
-    generici si preferisce ancora il dare più vicino all’avere del bonifico.
+    lo stesso bonifico si imputa in **sequenza** (prima riga fino al suo dare, residuo sulla seconda).
+    Con più candidati generici si preferisce ancora il dare più vicino all’avere del bonifico.
     """
     from django.db.models import F
 
