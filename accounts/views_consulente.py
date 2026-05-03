@@ -1346,6 +1346,124 @@ def consulente_posizione_quadratura(request):
 
 @login_required
 @user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_piano_allocazione_bonifici(request):
+    """Wizard: pool di bonifici → importi su documenti con residuo; salva ripartizione in quadratura."""
+    from django.db.models import F
+
+    from .consulente_registro_studio import (
+        elimina_piano_allocazione_bonifici_quadratura,
+        parse_importo_form,
+        quadratura_proforma_parcelle_bonifici_anteprima_allocazione,
+        salva_piano_allocazione_bonifici_quadratura,
+    )
+    from .models import MovimentoRegistroStudioConsulente, PianoAllocazioneBonificiQuad
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+
+    def pool_total(ids: list[int]) -> Decimal:
+        if not ids:
+            return Decimal('0')
+        rows = MovimentoRegistroStudioConsulente.objects.filter(
+            pk__in=ids, azienda=azienda, tipo_riga='bonifico'
+        )
+        return sum((r.avere or Decimal('0')) for r in rows).quantize(Decimal('0.01'))
+
+    bonifici_all = list(
+        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda, tipo_riga='bonifico').order_by(
+            F('data_documento').desc(nulls_last=True), '-importato_il', '-id'
+        )
+    )
+    piano_obj = PianoAllocazioneBonificiQuad.objects.filter(azienda=azienda).first()
+    piano_count = len(piano_obj.righe) if piano_obj and piano_obj.righe else 0
+
+    pool_ids: list[int] = []
+    quad_anteprima = None
+    step = 1
+
+    if request.method == 'POST':
+        action = (request.POST.get('action') or '').strip()
+        if action == 'elimina_piano':
+            elimina_piano_allocazione_bonifici_quadratura(azienda.id)
+            messages.success(
+                request,
+                'Piano allocazione eliminato: i bonifici tornano ad essere abbinati solo dall’euristica testuale.',
+            )
+            return redirect('consulente_piano_allocazione_bonifici')
+        if action == 'anteprima':
+            id_set: set[int] = set()
+            for v in request.POST.getlist('bon_sel'):
+                try:
+                    id_set.add(int(v))
+                except ValueError:
+                    pass
+            sel = [b.pk for b in bonifici_all if b.pk in id_set]
+            if not sel:
+                messages.error(request, 'Selezionare almeno un bonifico.')
+            else:
+                pool_ids = sel
+                step = 2
+                quad_anteprima = quadratura_proforma_parcelle_bonifici_anteprima_allocazione(azienda.id, set(sel))
+        elif action == 'salva_piano':
+            raw = (request.POST.get('bon_ids_ordinati') or '').strip()
+            ids_order: list[int] = []
+            for part in raw.split(','):
+                part = part.strip()
+                if part.isdigit():
+                    ids_order.append(int(part))
+            ids_order = list(dict.fromkeys(ids_order))
+            pairs: list[tuple[int, Decimal]] = []
+            for k, v in request.POST.items():
+                if not k.startswith('imp_doc_'):
+                    continue
+                tail = k.removeprefix('imp_doc_')
+                if not tail.isdigit():
+                    continue
+                did = int(tail)
+                imp = parse_importo_form((v or '').strip())
+                if imp is not None and imp > 0:
+                    pairs.append((did, imp))
+            if not ids_order:
+                messages.error(request, 'Sessione non valida: tornare allo step bonifici.')
+            elif not pairs:
+                messages.error(request, 'Indicare almeno un importo da imputare su una riga documento.')
+            else:
+                try:
+                    salva_piano_allocazione_bonifici_quadratura(azienda, ids_order, pairs, request.user)
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    pool_ids = ids_order
+                    step = 2
+                    quad_anteprima = quadratura_proforma_parcelle_bonifici_anteprima_allocazione(
+                        azienda.id, set(ids_order)
+                    )
+                else:
+                    messages.success(
+                        request,
+                        'Piano salvato: in Quadrature le ripartizioni manuali si sommano all’euristica sui bonifici non inclusi nel piano.',
+                    )
+                    return redirect('consulente_piano_allocazione_bonifici')
+
+    return render(
+        request,
+        'consulente/piano_allocazione_bonifici.html',
+        {
+            'azienda': azienda,
+            'partitario_back': _partitario_back(request),
+            'posizione_nav': 'piano_bonifici',
+            'bonifici_all': bonifici_all,
+            'pool_ids': pool_ids,
+            'pool_total': pool_total(pool_ids) if pool_ids else Decimal('0'),
+            'quad_anteprima': quad_anteprima,
+            'step': step,
+            'piano_count': piano_count,
+        },
+    )
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
 def consulente_posizione_proforma(request):
     from django.db.models import F
 

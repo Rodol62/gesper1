@@ -6,6 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
@@ -15,7 +16,10 @@ from accounts.consulente_registro_studio import (
     EsitoParsingBonifico,
     EsitoParsingProforma,
     bonifico_ha_riscontro_documentale_pagamento,
+    elimina_piano_allocazione_bonifici_quadratura,
     quadratura_proforma_parcelle_bonifici,
+    quadratura_proforma_parcelle_bonifici_anteprima_allocazione,
+    salva_piano_allocazione_bonifici_quadratura,
     applica_pdf_su_movimento_bonifico,
     bonifico_duplicato_elenco_ids,
     _numeri_documento_aggancio_coerenti,
@@ -34,7 +38,12 @@ from accounts.consulente_registro_studio import (
     ricalcola_saldi_progressivi,
     ricalcola_totali_documenti_da_testo_estratto,
 )
-from accounts.models import ImportEstrattoContoStudio, MovimentoRegistroStudioConsulente, RigaEstrattoContoStudio
+from accounts.models import (
+    ImportEstrattoContoStudio,
+    MovimentoRegistroStudioConsulente,
+    PianoAllocazioneBonificiQuad,
+    RigaEstrattoContoStudio,
+)
 from anagrafiche.models import Azienda
 
 
@@ -1762,6 +1771,56 @@ class QuadraturaProformaBonificiTests(TestCase):
         self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("78.00"))
         self.assertEqual(righe_per_num["367"]["stato"], "saldato")
         self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
+
+    def test_piano_allocazione_pool_due_bonifici_su_un_documento(self):
+        doc = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="P-500",
+            data_documento=date(2025, 1, 5),
+            dare=Decimal("150.00"),
+            nome_file="d.pdf",
+        )
+        b1 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 2, 1),
+            avere=Decimal("100.00"),
+            nome_file="b1.pdf",
+            riferimento_pagamento="CRO-1-NO-DOC",
+        )
+        b2 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 2, 2),
+            avere=Decimal("50.00"),
+            nome_file="b2.pdf",
+            riferimento_pagamento="CRO-2-NO-DOC",
+        )
+        q0 = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q0["bonifici_orfani"]), 2)
+        self.assertEqual(q0["righe"][0]["stato"], "aperto")
+
+        q_ante = quadratura_proforma_parcelle_bonifici_anteprima_allocazione(self.az.id, {b1.pk, b2.pk})
+        self.assertEqual(q_ante["righe"][0]["residuo"], Decimal("150.00"))
+
+        u = get_user_model().objects.create_user("pallocquad", "pallocquad@t.it", "secret12345")
+        salva_piano_allocazione_bonifici_quadratura(self.az, [b1.pk, b2.pk], [(doc.pk, Decimal("150.00"))], u)
+        obj = PianoAllocazioneBonificiQuad.objects.get(azienda=self.az)
+        self.assertEqual(len(obj.righe), 2)
+
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(q["righe"][0]["stato"], "saldato")
+        self.assertEqual(q["righe"][0]["residuo"], Decimal("0.00"))
+        self.assertEqual(len(q["bonifici_orfani"]), 0)
+        self.assertEqual(len(q["bonifici_residuo_post_piano_allocazione"]), 0)
+        self.assertEqual(q["totali"]["totale_residui_avere_post_piano_allocazione"], Decimal("0.00"))
+
+        elimina_piano_allocazione_bonifici_quadratura(self.az.id)
+        self.assertFalse(PianoAllocazioneBonificiQuad.objects.filter(azienda=self.az).exists())
+        q2 = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q2["bonifici_orfani"]), 2)
 
 
 class AggancioManualeBonificoSelectTests(TestCase):

@@ -70,6 +70,7 @@ from .views_consulente import (
     consulente_registro_studio,
     consulente_posizione_contabile,
     consulente_posizione_quadratura,
+    consulente_piano_allocazione_bonifici,
     consulente_posizione_libro,
     consulente_posizione_libro_excel,
     consulente_posizione_libro_pdf,
@@ -205,6 +206,11 @@ urlpatterns = [
         'consulente/posizione-contabile/quadratura/',
         consulente_posizione_quadratura,
         name='consulente_posizione_quadratura',
+    ),
+    path(
+        'consulente/posizione-contabile/piano-bonifici/',
+        consulente_piano_allocazione_bonifici,
+        name='consulente_piano_allocazione_bonifici',
     ),
     path('consulente/posizione-contabile/proforma/', consulente_posizione_proforma, name='consulente_posizione_proforma'),
     path(

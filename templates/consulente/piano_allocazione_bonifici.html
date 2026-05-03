@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load format_it_tags %}
+{% block title %}Piano bonifici → parcelle — {{ azienda.nome }}{% endblock %}
+
+{% block extra_head %}
+{% include "consulente/_posizione_elenco_head_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3 gesper-libro-page gesper-libro-wrap" style="max-width:1100px;margin:0 auto">
+  <nav aria-label="breadcrumb" class="small mb-2">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url partitario_back.url_name %}">{{ partitario_back.label }}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_posizione_contabile' %}">Posizione contabile</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_posizione_quadratura' %}">Quadrature</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Piano bonifici</li>
+    </ol>
+  </nav>
+
+  <header class="gesper-libro-hero mb-3">
+    <h1><i class="bi bi-diagram-3 me-2"></i>Piano allocazione bonifici</h1>
+    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — pool di uno o più bonifici (ordine cronologico inverso dell’elenco Pagamenti) e importi sulle parcelle/proforma con residuo.</p>
+  </header>
+
+  {% include "consulente/posizione_contabile_subnav.html" %}
+
+  {% for m in messages %}
+  <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+
+  <p class="small text-muted border rounded px-2 py-2 mb-3" style="background:#f8fafc;line-height:1.45">
+    <strong>Come funziona.</strong> Al passo 1 si selezionano i bonifici da considerare come <strong>unico importo disponibile</strong> (somma in avere).
+    Al passo 2 compaiono i documenti con <strong>residuo da incassare</strong> calcolato <em>senza</em> attribuire automaticamente i bonifici del pool (restano attive l’euristica e eventuali altre righe già salvate nel piano).
+    Per ogni documento si indica l’importo da imputare: il sistema ripartisce in sequenza sui bonifici del pool (primo esaurito, poi il successivo).
+    Importi non assegnati restano disponibili sui bonifici (in Quadrature compare la sezione residuo sul piano). Si possono aggiungere altri bonifici in un salvataggio successivo (stesso principio).
+    Il piano sostituisce solo le ripartizioni relative ai bonifici inclusi in quel salvataggio; per azzerare tutto usare «Elimina piano».
+  </p>
+
+  {% if piano_count %}
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3 small">
+    <span class="text-secondary">Piano attuale: <strong>{{ piano_count }}</strong> righe ripartizione in quadratura.</span>
+    <form method="post" class="d-inline" onsubmit="return confirm('Eliminare tutto il piano allocazione manuale per questa azienda?');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="elimina_piano">
+      <button type="submit" class="btn btn-sm btn-outline-danger">Elimina piano</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if step == 1 %}
+  <form method="post" class="border rounded-3 shadow-sm p-3 mb-4">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="anteprima">
+    <h2 class="h6 text-secondary mb-2">1. Seleziona bonifici (pool)</h2>
+    <p class="small text-muted mb-2">Ordine di consumo: dall’alto verso il basso (data valuta / ingresso più recente prima).</p>
+    <div class="table-responsive" style="max-height:22rem">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead><tr><th style="width:2.5rem"></th><th>id</th><th>Data</th><th class="text-end">Avere</th><th>Riferimento</th></tr></thead>
+        <tbody>
+          {% for b in bonifici_all %}
+          <tr>
+            <td><input class="form-check-input" type="checkbox" name="bon_sel" value="{{ b.id }}" id="bon{{ b.id }}"></td>
+            <td class="font-monospace small"><label class="mb-0" for="bon{{ b.id }}">{{ b.id }}</label></td>
+            <td class="text-nowrap small">{% if b.data_documento %}{{ b.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td class="text-end font-monospace small text-success">€ {{ b.avere|euro_it }}</td>
+            <td class="small text-muted">{{ b.riferimento_pagamento|default:""|truncatechars:64 }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-muted small">Nessun bonifico in libro.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="submit" class="btn btn-primary mt-3">Avanti: documenti con residuo</button>
+  </form>
+  {% else %}
+  <form method="post" class="border rounded-3 shadow-sm p-3 mb-4">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="salva_piano">
+    <input type="hidden" name="bon_ids_ordinati" value="{% for bid in pool_ids %}{{ bid }}{% if not forloop.last %},{% endif %}{% endfor %}">
+    <h2 class="h6 text-secondary mb-2">2. Imputazioni sulle parcelle / proforma</h2>
+    <p class="small mb-2">Pool selezionato: <strong class="font-monospace">€ {{ pool_total|euro_it }}</strong> — id bonifici: {% for bid in pool_ids %}<span class="font-monospace">{{ bid }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+    <p class="small text-muted mb-3"><a href="{% url 'consulente_piano_allocazione_bonifici' %}">← Cambia pool bonifici</a></p>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Doc.</th>
+            <th class="text-end">Dare</th>
+            <th class="text-end">Residuo (anteprima)</th>
+            <th style="min-width:8rem" class="text-end">Importo da imputare</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in quad_anteprima.righe %}
+          {% if row.residuo > 0.01 %}
+          {% with d=row.documento %}
+          <tr>
+            <td class="small">{{ d.get_tipo_documento_display }} n. <span class="font-monospace">{{ d.numero_documento|default:"—" }}</span></td>
+            <td class="text-end font-monospace small">€ {{ row.importo_dare|euro_it }}</td>
+            <td class="text-end font-monospace small fw-semibold">€ {{ row.residuo|euro_it }}</td>
+            <td class="text-end">
+              <input type="text" class="form-control form-control-sm text-end font-monospace" name="imp_doc_{{ d.id }}" value="" placeholder="0,00" inputmode="decimal" autocomplete="off" style="max-width:7rem;margin-left:auto">
+            </td>
+          </tr>
+          {% endwith %}
+          {% endif %}
+          {% empty %}
+          <tr><td colspan="4" class="text-muted small">Nessun documento.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="submit" class="btn btn-primary mt-3">Salva piano in quadratura</button>
+  </form>
+  {% endif %}
+
+  <p class="small text-muted mb-0"><a href="{% url 'consulente_posizione_quadratura' %}">Torna alle Quadrature</a></p>
+</div>
+{% endblock %}

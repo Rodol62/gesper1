@@ -2368,7 +2368,27 @@ def bonifico_ha_riscontro_documentale_pagamento(mov) -> bool:
     return bool(f and getattr(f, "name", None))
 
 
-def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
+def _carica_righe_piano_allocazione_bonifici_quad(azienda_id: int) -> list[dict]:
+    from .models import PianoAllocazioneBonificiQuad
+
+    obj = PianoAllocazioneBonificiQuad.objects.filter(azienda_id=azienda_id).first()
+    if not obj:
+        return []
+    return list(obj.righe or [])
+
+
+def quadratura_proforma_parcelle_bonifici_anteprima_allocazione(azienda_id: int, pool_bonifico_ids: set[int]) -> dict:
+    """
+    Come ``quadratura_proforma_parcelle_bonifici`` ma i bonifici indicati non ricevono
+    abbinamento automatico (utile al wizard: pool in costruzione + piano già salvato).
+    """
+    return _quadratura_proforma_parcelle_bonifici_core(azienda_id, extra_skip_bonifico_ids=frozenset(pool_bonifico_ids))
+
+
+def _quadratura_proforma_parcelle_bonifici_core(
+    azienda_id: int,
+    extra_skip_bonifico_ids: frozenset[int] | None = None,
+) -> dict:
     """
     Incrocia gli stessi movimenti ``documento`` e ``bonifico`` già in libro (registrati da
     Proforma/parcelle e Pagamenti nel portale, con eventuali PDF allegati lì), con euristica
@@ -2393,6 +2413,18 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
 
     from .models import MovimentoRegistroStudioConsulente
 
+    extra_skip = extra_skip_bonifico_ids or frozenset()
+    piano_righe = _carica_righe_piano_allocazione_bonifici_quad(azienda_id)
+    skip_auto: set[int] = set(extra_skip)
+    for r in piano_righe:
+        bid = r.get("bonifico_id")
+        if bid is None:
+            continue
+        try:
+            skip_auto.add(int(bid))
+        except (TypeError, ValueError):
+            continue
+
     documenti = list(
         MovimentoRegistroStudioConsulente.objects.filter(azienda_id=azienda_id, tipo_riga="documento").order_by(
             F("data_documento").asc(nulls_last=True), "importato_il", "id"
@@ -2406,8 +2438,11 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
 
     doc_assign: dict[int, list[dict]] = {d.pk: [] for d in documenti}
     orfani: list = []
+    pk_to_bon = {b.pk: b for b in bonifici}
 
     for b in bonifici:
+        if b.pk in skip_auto:
+            continue
         hay = _haystack_bonifico_per_aggancio_testuale(b)
         doppia = _allocazione_bonifico_doppia_proforma_da_testo(b, hay, documenti)
         if doppia:
@@ -2431,6 +2466,23 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
         doc_assign[best.pk].append({"bon": b, "quota": None})
 
     _correggi_eccedenza_bonifico_su_secondo_documento_citato(doc_assign, documenti, bonifici)
+
+    for r in piano_righe:
+        try:
+            bid = int(r["bonifico_id"])
+            did = int(r["documento_id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        b = pk_to_bon.get(bid)
+        if b is None or did not in doc_assign:
+            continue
+        try:
+            q = Decimal(str(r.get("quota") or "0")).quantize(Decimal("0.01"))
+        except (InvalidOperation, ValueError, TypeError):
+            continue
+        if q <= Decimal("0"):
+            continue
+        doc_assign[did].append({"bon": b, "quota": q})
 
     for lista in doc_assign.values():
         for e in lista:
@@ -2503,6 +2555,41 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
         start=Decimal("0"),
     ).quantize(Decimal("0.01"))
 
+    bonifici_residuo_post_piano_allocazione: list[dict] = []
+    bons_in_piano: set[int] = set()
+    for r in piano_righe:
+        if r.get("bonifico_id") is None:
+            continue
+        try:
+            bons_in_piano.add(int(r["bonifico_id"]))
+        except (TypeError, ValueError):
+            continue
+    for bid in bons_in_piano:
+        b = pk_to_bon.get(bid)
+        if b is None:
+            continue
+        used = sum(
+            (
+                Decimal(str(r.get("quota") or "0"))
+                for r in piano_righe
+                if r.get("bonifico_id") is not None and int(r["bonifico_id"]) == bid
+            ),
+            start=Decimal("0"),
+        ).quantize(Decimal("0.01"))
+        av = (b.avere or Decimal("0")).quantize(Decimal("0.01"))
+        if used + Decimal("0.02") < av:
+            bonifici_residuo_post_piano_allocazione.append(
+                {
+                    "bon": b,
+                    "attribuito": used,
+                    "residuo": (av - used).quantize(Decimal("0.01")),
+                }
+            )
+    tot_residui_post_piano = sum(
+        (x["residuo"] for x in bonifici_residuo_post_piano_allocazione),
+        start=Decimal("0"),
+    ).quantize(Decimal("0.01"))
+
     by_bon: dict[int, list[tuple[str, Decimal]]] = {}
     for d in documenti:
         for e in doc_assign.get(d.pk, []):
@@ -2513,7 +2600,6 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
             bpk = e["bon"].pk
             by_bon.setdefault(bpk, []).append((nd, q))
 
-    pk_to_bon = {b.pk: b for b in bonifici}
     bonifici_ripartiti_multi_documento: list[dict] = []
     for bon_pk, parti in by_bon.items():
         if len(parti) < 2:
@@ -2536,6 +2622,7 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
     return {
         "righe": righe,
         "bonifici_orfani": orfani,
+        "bonifici_residuo_post_piano_allocazione": bonifici_residuo_post_piano_allocazione,
         "bonifici_ripartiti_multi_documento": bonifici_ripartiti_multi_documento,
         "totali": {
             "documenti_n": len(documenti),
@@ -2548,8 +2635,149 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
             "bonifici_senza_evidenza_pdf": bonifici_senza_evidenza_pdf,
             "totale_avere_attribuito_senza_evidenza_pdf": tot_avere_attribuito_senza_evidenza,
             "totale_orfani_avere_senza_evidenza_pdf": tot_orfani_senza_evidenza_avere,
+            "totale_residui_avere_post_piano_allocazione": tot_residui_post_piano,
         },
     }
+
+
+def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
+    """Incrocio documenti / bonifici in libro (euristica + eventuale piano allocazione manuale)."""
+    return _quadratura_proforma_parcelle_bonifici_core(azienda_id)
+
+
+def _cap_residui_documenti_per_validazione_piano(azienda_id: int, bon_ids_pool: set[int]) -> dict[int, Decimal]:
+    """
+    Residuo massimo imputabile per documento rispetto al pool: residuo di quadratura
+    complessivo + eventuali quote già nel piano solo per bonifici del pool (da sostituire).
+    """
+    from .models import PianoAllocazioneBonificiQuad
+
+    q = quadratura_proforma_parcelle_bonifici(azienda_id)
+    cap: dict[int, Decimal] = {
+        row["documento"].pk: (row["residuo"] or Decimal("0")).quantize(Decimal("0.01")) for row in q["righe"]
+    }
+    obj = PianoAllocazioneBonificiQuad.objects.filter(azienda_id=azienda_id).first()
+    if not obj:
+        return cap
+    for r in obj.righe or []:
+        try:
+            bid = int(r["bonifico_id"])
+            did = int(r["documento_id"])
+            qv = Decimal(str(r.get("quota") or "0")).quantize(Decimal("0.01"))
+        except (KeyError, TypeError, ValueError, InvalidOperation):
+            continue
+        if bid not in bon_ids_pool or qv <= 0:
+            continue
+        cap[did] = (cap.get(did, Decimal("0")) + qv).quantize(Decimal("0.01"))
+    return cap
+
+
+def costruisce_righe_piano_allocazione_bonifici_quad(
+    azienda_id: int,
+    bon_ids_ordinati: list[int],
+    allocazioni: list[tuple[int, Decimal]],
+) -> list[dict]:
+    """
+    Partendo da bonifici in ordine (FIFO sul pool), ripartisce le coppie (documento, importo)
+    in righe {documento_id, bonifico_id, quota} per JSON piano.
+    """
+    from .models import MovimentoRegistroStudioConsulente
+
+    if not bon_ids_ordinati:
+        raise ValueError("Selezionare almeno un bonifico nel pool.")
+    bons_qs = MovimentoRegistroStudioConsulente.objects.filter(
+        pk__in=bon_ids_ordinati, azienda_id=azienda_id, tipo_riga="bonifico"
+    )
+    by_id = {b.pk: b for b in bons_qs}
+    for i in bon_ids_ordinati:
+        if i not in by_id:
+            raise ValueError("Uno o più bonifici non appartengono a questa azienda o non sono in avere.")
+    bons = [by_id[i] for i in bon_ids_ordinati]
+    remaining = {b.pk: (b.avere or Decimal("0")).quantize(Decimal("0.01")) for b in bons}
+    pool = set(bon_ids_ordinati)
+    cap = _cap_residui_documenti_per_validazione_piano(azienda_id, pool)
+
+    alloc_by_doc: dict[int, Decimal] = {}
+    for doc_id, amt in allocazioni:
+        if amt is None or amt <= 0:
+            continue
+        amt = amt.quantize(Decimal("0.01"))
+        alloc_by_doc[doc_id] = (alloc_by_doc.get(doc_id, Decimal("0")) + amt).quantize(Decimal("0.01"))
+
+    for doc_id, tot_doc in alloc_by_doc.items():
+        max_r = cap.get(doc_id)
+        if max_r is None:
+            raise ValueError(f"Il documento id {doc_id} non risulta in partita con residuo utilizzabile.")
+        if tot_doc > max_r + Decimal("0.02"):
+            raise ValueError(
+                f"Sul documento id {doc_id} la somma richiesta ({tot_doc}) supera il residuo disponibile ({max_r})."
+            )
+
+    pool_total = sum((b.avere or Decimal("0")) for b in bons).quantize(Decimal("0.01"))
+    total_alloc = sum(alloc_by_doc.values(), start=Decimal("0")).quantize(Decimal("0.01"))
+    if total_alloc > pool_total + Decimal("0.02"):
+        raise ValueError(
+            f"La somma delle imputazioni (€ {total_alloc}) supera il pool bonifici selezionato (€ {pool_total})."
+        )
+
+    righe_out: list[dict] = []
+    for doc_id, amt in allocazioni:
+        if amt is None or amt <= 0:
+            continue
+        rem = amt.quantize(Decimal("0.01"))
+        doc = MovimentoRegistroStudioConsulente.objects.filter(
+            pk=doc_id, azienda_id=azienda_id, tipo_riga="documento"
+        ).first()
+        if doc is None:
+            raise ValueError(f"Documento id {doc_id} non valido.")
+        for b in bons:
+            if rem <= Decimal("0"):
+                break
+            avail = remaining[b.pk]
+            if avail <= Decimal("0"):
+                continue
+            take = min(rem, avail).quantize(Decimal("0.01"))
+            if take <= Decimal("0"):
+                continue
+            righe_out.append(
+                {
+                    "documento_id": doc.pk,
+                    "bonifico_id": b.pk,
+                    "quota": str(take),
+                }
+            )
+            remaining[b.pk] = (remaining[b.pk] - take).quantize(Decimal("0.01"))
+            rem = (rem - take).quantize(Decimal("0.01"))
+        if rem > Decimal("0.02"):
+            raise ValueError(
+                "Il pool bonifici non copre tutte le righe richieste: aumentare i bonifici o ridurre gli importi."
+            )
+    return righe_out
+
+
+def salva_piano_allocazione_bonifici_quadratura(azienda, bon_ids_ordinati: list[int], allocazioni: list[tuple[int, Decimal]], user) -> None:
+    from .models import PianoAllocazioneBonificiQuad
+
+    righe_new = costruisce_righe_piano_allocazione_bonifici_quad(azienda.id, bon_ids_ordinati, allocazioni)
+    pool = set(bon_ids_ordinati)
+    obj, _ = PianoAllocazioneBonificiQuad.objects.get_or_create(azienda=azienda, defaults={"righe": []})
+    kept: list[dict] = []
+    for r in obj.righe or []:
+        try:
+            bid = int(r["bonifico_id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if bid not in pool:
+            kept.append(r)
+    obj.righe = kept + righe_new
+    obj.aggiornato_da = user
+    obj.save()
+
+
+def elimina_piano_allocazione_bonifici_quadratura(azienda_id: int) -> None:
+    from .models import PianoAllocazioneBonificiQuad
+
+    PianoAllocazioneBonificiQuad.objects.filter(azienda_id=azienda_id).delete()
 
 
 def _estrai_riferimento_bonifico_excel(descrizione: str, documento: str, data_doc: date | None, imp: Decimal | None) -> str:

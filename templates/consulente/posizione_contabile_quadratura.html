@@ -20,6 +20,7 @@
     <h1><i class="bi bi-ui-checks-grid me-2"></i>Quadrature proforma / parcelle</h1>
     <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — stessi movimenti di <a class="text-white fw-semibold text-decoration-underline" href="{% url 'consulente_posizione_proforma' %}">Proforma / parcelle</a> e <a class="text-white fw-semibold text-decoration-underline" href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a> (PDF caricati lì)</p>
     <p class="gesper-libro-lead mb-0">Qui si incrociano solo le righe già in libro: documenti in dare e bonifici in avere, con i PDF allegati nelle due sezioni. L’abbinamento usa riferimento, causale e testo distinta (come in portale), non un file Excel separato su questa pagina.</p>
+    <p class="small mb-0 mt-2"><a class="text-white text-decoration-underline fw-semibold" href="{% url 'consulente_piano_allocazione_bonifici' %}">Piano bonifici → parcelle</a> — alternativa manuale: più bonifici come pool e importi sulle righe con residuo.</p>
   </header>
 
   {% include "consulente/posizione_contabile_subnav.html" %}
@@ -137,6 +138,20 @@
       <div><strong>Bonifico id {{ b.id }}</strong> · {% if b.data_documento %}{{ b.data_documento|date:"d/m/Y" }}{% else %}—{% endif %} · avere <span class="font-monospace text-success">€ {{ rip.avere|euro_it }}</span></div>
       <div class="mt-1 text-muted">{% for p in rip.parti %}doc. {{ p.numero_documento }} → <span class="font-monospace">€ {{ p.quota|euro_it }}</span>{% if not forloop.last %}; {% endif %}{% endfor %}</div>
       <div class="font-monospace mt-1">Σ quote € {{ rip.somma_quote|euro_it }}{% if rip.coerente %} <span class="text-success small">(= avere bonifico)</span>{% else %} <span class="text-warning small">≠ avere: controllare dare in libro o causale</span>{% endif %}</div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if quad.bonifici_residuo_post_piano_allocazione %}
+  <h2 class="h6 text-secondary mb-2">Residuo su bonifici inclusi nel piano manuale</h2>
+  <p class="small text-muted mb-2">Parte dell’avere di questi bonifici non è ancora stata imputata a una parcella/proforma nel <a href="{% url 'consulente_piano_allocazione_bonifici' %}">piano allocazione</a>. Totale residuo: <strong>€ {{ quad.totali.totale_residui_avere_post_piano_allocazione|euro_it }}</strong></p>
+  <div class="list-group list-group-flush border rounded-3 shadow-sm mb-4 small overflow-hidden">
+    {% for row in quad.bonifici_residuo_post_piano_allocazione %}
+    {% with b=row.bon %}
+    <div class="list-group-item py-2">
+      <div><strong>Bonifico id {{ b.id }}</strong> · avere € {{ b.avere|euro_it }} · già imputato € {{ row.attribuito|euro_it }} · <span class="text-warning">residuo € {{ row.residuo|euro_it }}</span></div>
     </div>
     {% endwith %}
     {% endfor %}

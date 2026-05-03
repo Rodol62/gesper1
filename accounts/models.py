@@ -1025,6 +1025,42 @@ class MovimentoRegistroStudioConsulente(models.Model):
         return f"{self.get_tipo_documento_display()} {self.numero_documento or self.nome_file} ({self.data_documento or '—'})"
 
 
+class PianoAllocazioneBonificiQuad(models.Model):
+    """
+    Ripartizione manuale per quadratura: più bonifici trattati come pool in ordine,
+    con quote esplicite (bonifico_id, documento_id, quota) oltre all’euristica testuale.
+    """
+
+    azienda = models.OneToOneField(
+        Azienda,
+        on_delete=models.CASCADE,
+        related_name='piano_allocazione_bonifici_quad',
+        verbose_name='Azienda',
+    )
+    righe = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name='Righe allocazione',
+        help_text='Lista di oggetti {documento_id, bonifico_id, quota (stringa decimale)}.',
+    )
+    aggiornato_il = models.DateTimeField(auto_now=True, verbose_name='Aggiornato il')
+    aggiornato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='piani_allocazione_bonifici_quad',
+        verbose_name='Aggiornato da',
+    )
+
+    class Meta:
+        verbose_name = 'Piano allocazione bonifici (quadratura)'
+        verbose_name_plural = 'Piani allocazione bonifici (quadratura)'
+
+    def __str__(self):
+        return f"Piano allocazione bonifici — {self.azienda_id} ({len(self.righe or [])} righe)"
+
+
 class ImportEstrattoContoStudio(models.Model):
     """Caricamento file Excel estratto conto banca / gestionale, righe collegate ai movimenti partitario."""
 

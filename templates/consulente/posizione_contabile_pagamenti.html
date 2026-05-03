@@ -177,6 +177,7 @@
 
   <h2 class="gesper-pos-section-title"><i class="bi bi-bank me-1"></i>Bonifici registrati</h2>
   <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> consente di collegare il bonifico a una proforma/parcella che in <a href="{% url 'consulente_posizione_quadratura' %}">Quadrature</a> risulta ancora con <strong>residuo da incassare</strong>: viene impostato il riferimento nel formato <code>numero|data|importo</code> usato dal libro (il CRO precedente viene sostituito).</p>
+  <p class="small text-muted mb-2">Per <strong>più bonifici</strong> da considerare come unico importo e ripartire sulle parcelle con residuo, usare <a href="{% url 'consulente_piano_allocazione_bonifici' %}">Piano bonifici → parcelle</a>.</p>
   <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
     <table class="table table-hover mb-0 align-middle table-gesper-libro">
       <thead>
