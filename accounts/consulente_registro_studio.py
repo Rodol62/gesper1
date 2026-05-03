@@ -2387,6 +2387,32 @@ def _parse_segmenti_pipe_aggancio_multiplo(riferimento: str) -> list[tuple[str, 
     return out
 
 
+def lista_triple_pipe_aggancio_da_riferimento(riferimento: str) -> list[tuple[str, str, Decimal]]:
+    """
+    Estrae le triple ``(prefisso_numero_documento, data_ISO_o_vuota, importo)`` usate per l’aggancio
+    esplicito da Pagamenti: più segmenti ``;`` oppure una sola ``num|YYYY-MM-DD|importo``.
+    """
+    s = (riferimento or "").strip()
+    if not s:
+        return []
+    if ";" in s:
+        parsed = _parse_segmenti_pipe_aggancio_multiplo(s)
+        return list(parsed) if parsed else []
+    bits = s.split("|")
+    if len(bits) != 3:
+        return []
+    num, d_raw, imp_raw = bits[0].strip(), bits[1].strip(), bits[2].strip()
+    imp = _parse_it_decimal(imp_raw.replace(" ", "").replace("\xa0", ""))
+    if imp is None or imp <= 0:
+        return []
+    d_iso = d_raw.strip()
+    if d_iso and not re.match(r"^\d{4}-\d{2}-\d{2}$", d_iso):
+        return []
+    if len(num) < 1:
+        return []
+    return [(num, d_iso, imp.quantize(Decimal("0.01")))]
+
+
 def _documento_per_aggancio_manuale_numero(azienda_id: int, num: str, data_iso: str, documenti: list):
     """
     Risolve un movimento documento da numero (e data documento ISO se indicata) tra i movimenti in libro.
@@ -2519,24 +2545,15 @@ def _quadratura_proforma_parcelle_bonifici_core(
     extra_skip_bonifico_ids: frozenset[int] | None = None,
 ) -> dict:
     """
-    Incrocia gli stessi movimenti ``documento`` e ``bonifico`` già in libro (registrati da
-    Proforma/parcelle e Pagamenti nel portale, con eventuali PDF allegati lì), con euristica
-    di collegamento su riferimento, causale e testo distinta.
+    Incrocia movimenti ``documento`` e ``bonifico`` in libro usando **solo**:
 
-    Restituisce righe per documento con bonifici attribuiti, residuo (dare − somma avere),
-    saldo cumulativo dei residui in ordine cronologico documento, e bonifici senza documento
-    riconosciuto. Se in causale/riferimento compaiono due numeri «proforma/parcella N e M del AAAA»,
-    lo stesso bonifico si imputa in **sequenza** (prima riga fino al suo dare, residuo sulla seconda),
-    nell’ordine dei numeri nel testo: es. avere € 274,14 con dare € 196,14 sulla 320 e € 78,00 sulla 367
-    dà quote € 196,14 + € 78,00 = € 274,14. Il testo della **distinta PDF** (``testo_estratto``) è
-    incluso nell’haystack come la causale. Sono riconosciute anche stringhe «proforma 320 e proforma
-    367 del …»; se però compare un **altro** numero documento il cui dare coincide con l’avere del
-    bonifico (es. parcella 246), non si applica la ripartita su due righe e vale l’aggancio unico.
-    Il riferimento «BONIFICO BPSA|data|importo» da solo non sostituisce il testo con i numeri.
-    Con più candidati generici si preferisce ancora il dare più vicino all’avere del bonifico;
-    se ciò genera **eccedenza** su una riga ma in testo compaiono due numeri documento e un solo
-    altro movimento ha dare uguale all’eccedenza, si **sposta** automaticamente quella quota sulla
-    seconda parcella/proforma citata (es. residuo € 78 dalla 320 alla 367).
+    - riferimenti in formato pipe esplicito da Pagamenti (``num|data|importo`` o più segmenti con ``;``),
+      con somma importi uguale all’avere del bonifico;
+    - eventuali righe del **piano allocazione bonifici** salvato in JSON (bonifici nel pool sono
+      esclusi dall’attribuzione automatica finché il piano non viene applicato qui).
+
+    Non si usa più l’euristica su causale, note o testo estratto dalla distinta: i bonifici senza
+    pipe valido restano tra i «non collegati» finché non si imposta l’aggancio in Pagamenti.
     """
     from django.db.models import F
 
@@ -2572,38 +2589,14 @@ def _quadratura_proforma_parcelle_bonifici_core(
     for b in bonifici:
         if b.pk in skip_auto:
             continue
-        sem = _parse_segmenti_pipe_aggancio_multiplo(b.riferimento_pagamento or "")
-        if sem is not None:
-            alloc_espl = _allocazione_da_segmenti_pipe_espliciti(azienda_id, b, documenti, sem)
+        segs = lista_triple_pipe_aggancio_da_riferimento(b.riferimento_pagamento or "")
+        if segs:
+            alloc_espl = _allocazione_da_segmenti_pipe_espliciti(azienda_id, b, documenti, segs)
             if alloc_espl:
                 for d, q in alloc_espl:
                     doc_assign[d.pk].append({"bon": b, "quota": q})
                 continue
-            orfani.append(b)
-            continue
-        hay = _haystack_bonifico_per_aggancio_testuale(b)
-        doppia = _allocazione_bonifico_doppia_proforma_da_testo(b, hay, documenti)
-        if doppia:
-            for d, q in doppia:
-                doc_assign[d.pk].append({"bon": b, "quota": q})
-            continue
-        cands = _documenti_candidati_per_bonifico(azienda_id, b, documenti)
-        if not cands:
-            orfani.append(b)
-            continue
-        if len(cands) == 1:
-            doc_assign[cands[0].pk].append({"bon": b, "quota": None})
-            continue
-        best = cands[0]
-        best_key = (abs((best.dare or Decimal(0)) - (b.avere or Decimal(0))), best.pk)
-        for d in cands[1:]:
-            k = (abs((d.dare or Decimal(0)) - (b.avere or Decimal(0))), d.pk)
-            if k < best_key:
-                best = d
-                best_key = k
-        doc_assign[best.pk].append({"bon": b, "quota": None})
-
-    _correggi_eccedenza_bonifico_su_secondo_documento_citato(doc_assign, documenti, bonifici)
+        orfani.append(b)
 
     for r in piano_righe:
         try:
@@ -2779,13 +2772,13 @@ def _quadratura_proforma_parcelle_bonifici_core(
 
 
 def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
-    """Incrocio documenti / bonifici in libro (euristica + eventuale piano allocazione manuale)."""
+    """Incrocio documenti / bonifici: solo riferimenti pipe espliciti e piano allocazione manuale."""
     return _quadratura_proforma_parcelle_bonifici_core(azienda_id)
 
 
 def bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura(azienda_id: int) -> set[int]:
     """
-    id dei bonifici che in quadratura (euristica + piano) hanno ancora **avere non imputato**
+    id dei bonifici che, con **pipe espliciti + piano**, hanno ancora **avere non imputato**
     alle parcelle/proforma (orfani = tutto l’avere; altrimenti avere − somma delle quote attribuite
     sulle righe documento).
 
@@ -2824,12 +2817,10 @@ def bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura(azienda_id: int) -
 
 def mappa_quadratura_per_export_libro_movimenti(azienda_id: int) -> dict:
     """
-    Dati allineati a ``quadratura_proforma_parcelle_bonifici`` per colonne «Pagato» / «Residuo»
-    nell’export libro (PDF/Excel): per ogni documento incassi attribuiti in quadratura e residuo;
+    Dati allineati a ``quadratura_proforma_parcelle_bonifici`` (pipe espliciti + piano) per colonne
+    «Pagato» / «Residuo» nell’export libro (PDF/Excel): per ogni documento incassi attribuiti e residuo;
     per ogni bonifico l’avere non ancora imputato alle parcelle/proforma; saldo cumulativo finale
-    dei residui (ultima riga documento in ordine quadratura, come colonna «Σ residui» in UI).
-    Include ``riepilogo_coerenza`` (totali parcelle/proforma, bonifici, differenza, orfani, rettifiche)
-    per il blocco riepilogo nel PDF libro.
+    dei residui. Include ``riepilogo_coerenza`` per il blocco riepilogo nel PDF libro.
     """
     q = quadratura_proforma_parcelle_bonifici(azienda_id)
 

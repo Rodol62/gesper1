@@ -1413,6 +1413,7 @@ class QuadraturaProformaBonificiTests(TestCase):
             avere=Decimal("40.00"),
             nome_file="bon77.pdf",
             causale_pagamento="Incasso parcella 77 quota",
+            riferimento_pagamento="77|2025-03-01|40.00",
         )
         m = mappa_quadratura_per_export_libro_movimenti(self.az.id)
         self.assertEqual(m["documento"][doc.pk]["tot_bonifici"], Decimal("40.00"))
@@ -1525,6 +1526,7 @@ class QuadraturaProformaBonificiTests(TestCase):
         )
 
     def test_causale_con_numero_collega_parziale(self):
+        """Aggancio esplicito pipe: incasso parziale rispetto al dare documento."""
         MovimentoRegistroStudioConsulente.objects.create(
             azienda=self.az,
             tipo_riga="documento",
@@ -1542,6 +1544,7 @@ class QuadraturaProformaBonificiTests(TestCase):
             avere=Decimal("40.00"),
             nome_file="bon77.pdf",
             causale_pagamento="Incasso parcella 77 quota",
+            riferimento_pagamento="77|2025-03-01|40.00",
         )
         q = quadratura_proforma_parcelle_bonifici(self.az.id)
         self.assertEqual(q["righe"][0]["stato"], "parziale")
@@ -1549,7 +1552,7 @@ class QuadraturaProformaBonificiTests(TestCase):
         self.assertEqual(len(q["bonifici_orfani"]), 0)
 
     def test_bonifico_unico_causale_due_proforma_e_del_anno(self):
-        """Es. BPSA: stesso avere ripartito su proforma 320 e 367 del 2021 (causale testuale)."""
+        """Stesso bonifico ripartito su due proforma tramite riferimento pipe esplicito."""
         MovimentoRegistroStudioConsulente.objects.create(
             azienda=self.az,
             tipo_riga="documento",
@@ -1577,7 +1580,7 @@ class QuadraturaProformaBonificiTests(TestCase):
             data_documento=date(2021, 10, 19),
             avere=Decimal("274.14"),
             nome_file="bpsa.pdf",
-            riferimento_pagamento="BONIFICO BPSA|2021-10-19|274.14",
+            riferimento_pagamento="320|2021-05-10|100.00;367|2021-06-20|174.14",
             causale_pagamento=causale,
         )
         q = quadratura_proforma_parcelle_bonifici(self.az.id)
@@ -1628,7 +1631,7 @@ class QuadraturaProformaBonificiTests(TestCase):
             data_documento=date(2021, 10, 19),
             avere=Decimal("274.14"),
             nome_file="bpsa.pdf",
-            riferimento_pagamento="BONIFICO BPSA|2021-10-19|274.14",
+            riferimento_pagamento="320|2021-05-10|196.14;367|2021-06-20|78.00",
             causale_pagamento=causale,
         )
         q = quadratura_proforma_parcelle_bonifici(self.az.id)
@@ -1674,6 +1677,7 @@ class QuadraturaProformaBonificiTests(TestCase):
             avere=Decimal("250.00"),
             nome_file="bon.pdf",
             causale_pagamento="SALDO PROFORMA 320 E 367 DEL 2021",
+            riferimento_pagamento="320|2021-05-10|100.00;367|2021-06-20|150.00",
         )
         q = quadratura_proforma_parcelle_bonifici(self.az.id)
         righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
@@ -1684,7 +1688,7 @@ class QuadraturaProformaBonificiTests(TestCase):
         self.assertEqual(righe_per_num["367"]["residuo"], Decimal("24.14"))
 
     def test_causale_pdf_proforma_320_e_proforma_367_solo_in_testo_estratto(self):
-        """Id 78: i due numeri con doppia etichetta «… proforma 320 e proforma 367 …» nel PDF (testo_estratto)."""
+        """Ripartizione esplicita pipe (il testo distinta resta archiviato ma non guida l’incrocio)."""
         MovimentoRegistroStudioConsulente.objects.create(
             azienda=self.az,
             tipo_riga="documento",
@@ -1715,7 +1719,7 @@ class QuadraturaProformaBonificiTests(TestCase):
             data_documento=date(2021, 10, 19),
             avere=Decimal("274.14"),
             nome_file="bpsa.pdf",
-            riferimento_pagamento="BONIFICO BPSA|2021-10-19|274.14",
+            riferimento_pagamento="320|2021-05-10|196.14;367|2021-06-20|78.00",
             causale_pagamento="",
             testo_estratto=testo_pdf,
             metodo_estrazione="pdfplumber",
@@ -1769,6 +1773,7 @@ class QuadraturaProformaBonificiTests(TestCase):
             avere=Decimal("212.78"),
             nome_file="bon77.pdf",
             causale_pagamento=testo,
+            riferimento_pagamento="246|2021-08-15|212.78",
         )
         q = quadratura_proforma_parcelle_bonifici(self.az.id)
         righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
@@ -1779,7 +1784,7 @@ class QuadraturaProformaBonificiTests(TestCase):
         self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 0)
 
     def test_eccedenza_su_320_sposta_quota_su_367_stesso_bonifico_in_causale(self):
-        """€ 274,14 tutti sulla 320 (dare più vicino); causale cita 320 e 367; € 78 spostati sulla 367."""
+        """Ripartizione esplicita su 320 e 367 (stesso bonifico, due parcelle)."""
         MovimentoRegistroStudioConsulente.objects.create(
             azienda=self.az,
             tipo_riga="documento",
@@ -1810,7 +1815,7 @@ class QuadraturaProformaBonificiTests(TestCase):
             data_documento=date(2021, 10, 19),
             avere=Decimal("274.14"),
             nome_file="bpsa78.pdf",
-            riferimento_pagamento="BONIFICO BPSA|2021-10-19|274.14",
+            riferimento_pagamento="320|2021-09-12|196.14;367|2021-10-14|78.00",
             causale_pagamento=causale,
         )
         q = quadratura_proforma_parcelle_bonifici(self.az.id)

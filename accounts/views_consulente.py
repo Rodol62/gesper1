@@ -1325,7 +1325,7 @@ def consulente_posizione_contabile(request):
 @login_required
 @user_passes_test(_is_admin_o_consulente_partitario)
 def consulente_posizione_quadratura(request):
-    """Quadratura euristica: ogni proforma/parcella vs bonifici collegati e saldi residui."""
+    """Stato incassi: documenti vs bonifici collegati solo tramite agganci espliciti (e piano manuale)."""
     from .consulente_registro_studio import quadratura_proforma_parcelle_bonifici
 
     azienda, redir = _partitario_azienda_o_redirect(request)
@@ -1407,7 +1407,7 @@ def consulente_piano_allocazione_bonifici(request):
             if not sel and id_set:
                 messages.warning(
                     request,
-                    'I bonifici selezionati risultano già tutti imputati solo su documenti saldati in quadratura: non sono disponibili per un nuovo pool.',
+                    'I bonifici selezionati risultano già tutti imputati solo su documenti saldati (pipe + piano): non sono disponibili per un nuovo pool.',
                 )
             elif not sel:
                 messages.error(request, 'Selezionare almeno un bonifico.')
@@ -1458,7 +1458,7 @@ def consulente_piano_allocazione_bonifici(request):
                 else:
                     messages.success(
                         request,
-                        'Piano salvato: in Quadrature le ripartizioni manuali si sommano all’euristica sui bonifici non inclusi nel piano.',
+                        'Piano salvato: le quote del piano si sommano agli agganci espliciti (riferimento pipe da Pagamenti) sui bonifici non inclusi nel pool.',
                     )
                     return redirect('consulente_piano_allocazione_bonifici')
 
@@ -2471,9 +2471,9 @@ def consulente_posizione_libro_pdf(request):
         story.append(Paragraph("Filtro elenco: " + ", ".join(filtro_frasi), meta_style))
     story.append(
         Paragraph(
-            "«Pagato» sui documenti = Σ incassi attribuiti in <b>Quadrature</b>; «Residuo (quad.)» = "
-            "residuo su fattura o, sui bonifici, avere non ancora imputato. "
-            "I totali di quadratura valgono su tutte le righe in libro, non solo sul periodo filtrato.",
+            "«Pagato» sui documenti = Σ incassi da <b>riferimento pipe</b> (Pagamenti) e da <b>piano allocazione</b>; "
+            "«Residuo (quad.)» = residuo su fattura o, sui bonifici, avere non ancora imputato. "
+            "I totali valgono su tutte le righe in libro, non solo sul periodo filtrato.",
             meta_style,
         )
     )
