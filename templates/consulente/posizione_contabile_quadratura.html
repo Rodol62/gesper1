@@ -18,9 +18,8 @@
 
   <header class="gesper-libro-hero mb-3">
     <h1><i class="bi bi-ui-checks-grid me-2"></i>Quadrature proforma / parcelle</h1>
-    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — stessi movimenti di <a class="text-white fw-semibold text-decoration-underline" href="{% url 'consulente_posizione_proforma' %}">Proforma / parcelle</a> e <a class="text-white fw-semibold text-decoration-underline" href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a> (PDF caricati lì)</p>
+    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — stessi movimenti di <strong>Proforma / parcelle</strong> e <strong>Pagamenti</strong> (PDF caricati in quelle sezioni)</p>
     <p class="gesper-libro-lead mb-0">Qui si incrociano solo le righe già in libro: documenti in dare e bonifici in avere, con i PDF allegati nelle due sezioni. L’abbinamento usa riferimento, causale e testo distinta (come in portale), non un file Excel separato su questa pagina.</p>
-    <p class="small mb-0 mt-2"><a class="text-white text-decoration-underline fw-semibold" href="{% url 'consulente_piano_allocazione_bonifici' %}">Piano bonifici → parcelle</a> — alternativa manuale: più bonifici come pool e importi sulle righe con residuo.</p>
   </header>
 
   {% include "consulente/posizione_contabile_subnav.html" %}
@@ -40,16 +39,16 @@
 
   {% if quad.totali.totale_avere_attribuito_senza_evidenza_pdf > 0 or quad.totali.totale_orfani_avere_senza_evidenza_pdf > 0 %}
   <div class="alert alert-warning small mb-3 py-2" role="status">
-    Parte degli incassi risulta collegata a fatture <strong>senza PDF di riscontro</strong> sul bonifico (ricevuta, movimento da estratto conto o estratto conto caricati in <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a>). Senza uno di questi allegati non si può dimostrare al consulente di aver pagato: <strong>operativamente</strong> si considera il pagamento non comprovato e la parcella o la proforma restano da saldare finché non si allega la documentazione.
+    Parte degli incassi risulta collegata a fatture <strong>senza PDF di riscontro</strong> sul bonifico (ricevuta, movimento da estratto conto o estratto conto caricati in <strong>Pagamenti</strong>). Senza uno di questi allegati non si può dimostrare al consulente di aver pagato: <strong>operativamente</strong> si considera il pagamento non comprovato e la parcella o la proforma restano da saldare finché non si allega la documentazione.
   </div>
   {% endif %}
 
   <p class="small text-muted border rounded px-2 py-2 mb-3" style="background:#f8fafc;line-height:1.4">
     <strong>Residuo documento</strong> = dare fattura − somma avere dei bonifici collegati (positivo = ancora da incassare rispetto a quella fattura; negativo = incassi superiori al dare attribuito).
     <strong>Saldo cumulativo residui</strong> = somma progressiva dei residui nell’ordine delle date documento (utile per vedere l’arretrato complessivo sulle sole fatture elencate).
-    Il <strong>saldo di posizione</strong> complessivo resta quello del <a href="{% url 'consulente_posizione_libro' %}">libro movimenti</a> (include rettifiche e righe non collegate qui). Per allegare o sostituire PDF usa le azioni nelle pagine <a href="{% url 'consulente_posizione_proforma' %}">Proforma</a> e <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a>.
+    Il <strong>saldo di posizione</strong> complessivo resta quello del <strong>libro movimenti</strong> (include rettifiche e righe non collegate qui). Per allegare o sostituire PDF usa le azioni nelle sezioni <strong>Proforma / parcelle</strong> e <strong>Pagamenti</strong>.
     Se in causale compare <strong>proforma/parcella N e M del AAAA</strong> (es. «… PROFORMA 320 E 367 DEL 2021»), un solo bonifico viene <strong>imputato in sequenza</strong>: prima fino al dare della fattura citata per prima, poi il <strong>residuo</strong> sulla seconda (come in contabilità: si quadrano in cascata le due parcelle citate). Esempio reale BPSA: bonifico € 274,14 con dare in libro € 196,14 sulla 320 e € 78,00 sulla 367 → quote <strong>196,14 + 78,00 = 274,14</strong>. Il campo riferimento «BONIFICO BPSA|19/10/2021|274.14» da solo non basta: serve il <strong>testo distinta / causale</strong> (anche da PDF) con i due numeri, anche «proforma 320 e <strong>proforma</strong> 367 del …». Se nello stesso testo un’altra parcella ha dare uguale all’importo del bonifico (es. 246), quella prevale sull’imputazione a due righe. Se il bonifico è tutto sulla prima parcella ma supera il suo dare e in causale/distinta compaiono **due numeri** documento, la parte in eccesso viene spostata sulla riga il cui dare coincide con l’eccedenza (es. € 78 dalla 320 alla 367 sullo stesso BPSA).
-    <strong>Evidenza verso il consulente:</strong> ogni bonifico può avere un badge «con PDF» se in Pagamenti è stato caricato un file (ricevuta bonifico, movimento da estratto conto o estratto conto). Se manca, il quadrato numerico può risultare saldato ma <strong>non</strong> avete documentazione da esibire: in quel caso la riga può mostrare un avviso dedicato.
+    <strong>Evidenza verso il consulente:</strong> ogni bonifico può avere un badge «con PDF» se nella sezione Pagamenti è stato caricato un file (ricevuta bonifico, movimento da estratto conto o estratto conto). Se manca, il quadrato numerico può risultare saldato ma <strong>non</strong> avete documentazione da esibire: in quel caso la riga può mostrare un avviso dedicato.
   </p>
 
   <div class="table-responsive border rounded-3 shadow-sm mb-4 overflow-hidden">
@@ -122,7 +121,7 @@
         </tr>
         {% endif %}
         {% empty %}
-        <tr><td colspan="10" class="text-muted py-4 text-center">Nessun documento proforma/parcella in libro. Aggiungili dalla pagina <a href="{% url 'consulente_posizione_proforma' %}">Proforma / parcelle</a>.</td></tr>
+        <tr><td colspan="10" class="text-muted py-4 text-center">Nessun documento proforma/parcella in libro. Aggiungili dalla sezione <strong>Proforma / parcelle</strong>.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -138,20 +137,6 @@
       <div><strong>Bonifico id {{ b.id }}</strong> · {% if b.data_documento %}{{ b.data_documento|date:"d/m/Y" }}{% else %}—{% endif %} · avere <span class="font-monospace text-success">€ {{ rip.avere|euro_it }}</span></div>
       <div class="mt-1 text-muted">{% for p in rip.parti %}doc. {{ p.numero_documento }} → <span class="font-monospace">€ {{ p.quota|euro_it }}</span>{% if not forloop.last %}; {% endif %}{% endfor %}</div>
       <div class="font-monospace mt-1">Σ quote € {{ rip.somma_quote|euro_it }}{% if rip.coerente %} <span class="text-success small">(= avere bonifico)</span>{% else %} <span class="text-warning small">≠ avere: controllare dare in libro o causale</span>{% endif %}</div>
-    </div>
-    {% endwith %}
-    {% endfor %}
-  </div>
-  {% endif %}
-
-  {% if quad.bonifici_residuo_post_piano_allocazione %}
-  <h2 class="h6 text-secondary mb-2">Residuo su bonifici inclusi nel piano manuale</h2>
-  <p class="small text-muted mb-2">Parte dell’avere di questi bonifici non è ancora stata imputata a una parcella/proforma nel <a href="{% url 'consulente_piano_allocazione_bonifici' %}">piano allocazione</a>. Totale residuo: <strong>€ {{ quad.totali.totale_residui_avere_post_piano_allocazione|euro_it }}</strong></p>
-  <div class="list-group list-group-flush border rounded-3 shadow-sm mb-4 small overflow-hidden">
-    {% for row in quad.bonifici_residuo_post_piano_allocazione %}
-    {% with b=row.bon %}
-    <div class="list-group-item py-2">
-      <div><strong>Bonifico id {{ b.id }}</strong> · avere € {{ b.avere|euro_it }} · già imputato € {{ row.attribuito|euro_it }} · <span class="text-warning">residuo € {{ row.residuo|euro_it }}</span></div>
     </div>
     {% endwith %}
     {% endfor %}

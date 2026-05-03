@@ -176,7 +176,7 @@
   </div>
 
   <h2 class="gesper-pos-section-title"><i class="bi bi-bank me-1"></i>Bonifici registrati</h2>
-  <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> consente di collegare il bonifico a una proforma/parcella che in <a href="{% url 'consulente_posizione_quadratura' %}">Quadrature</a> risulta ancora con <strong>residuo da incassare</strong>: viene impostato il riferimento nel formato <code>numero|data|importo</code> usato dal libro (il CRO precedente viene sostituito). <strong>Elimina bonifico</strong> (sotto) rimuove la riga dal libro; se quel bonifico compariva nel <a href="{% url 'consulente_piano_allocazione_bonifici' %}">Piano bonifici</a>, le relative ripartizioni vengono tolte automaticamente dal piano.</p>
+  <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> consente di collegare il bonifico a una proforma/parcella con <strong>residuo da incassare</strong> (stesso elenco usato per l’incrocio documenti–pagamenti): viene impostato il riferimento nel formato <code>numero|data|importo</code> usato dal libro (il CRO precedente viene sostituito). <strong>Elimina bonifico</strong> (sotto) rimuove la riga dal libro; se quel bonifico compariva nel <a href="{% url 'consulente_piano_allocazione_bonifici' %}">Piano bonifici</a>, le relative ripartizioni vengono tolte automaticamente dal piano.</p>
   <p class="small text-muted mb-2">Per <strong>più bonifici</strong> da considerare come unico importo e ripartire sulle parcelle con residuo, usare <a href="{% url 'consulente_piano_allocazione_bonifici' %}">Piano bonifici → parcelle</a>.</p>
   <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
     <table class="table table-hover mb-0 align-middle table-gesper-libro">
@@ -246,7 +246,7 @@
                 {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
                 <input type="hidden" name="action" value="aggancia_bonifico_a_documento">
                 <input type="hidden" name="bonifico_id" value="{{ r.pk }}">
-                <select name="documento_id" class="form-select form-select-sm mb-1" required title="Solo documenti con residuo in quadratura">
+                <select name="documento_id" class="form-select form-select-sm mb-1" required title="Solo documenti con residuo da incassare">
                   <option value="" disabled selected>— Scegli documento —</option>
                   {% for opt in documenti_residuo_select %}
                   <option value="{{ opt.id }}">{{ opt.label }}</option>
