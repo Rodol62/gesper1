@@ -2096,8 +2096,9 @@ def _documenti_candidati_per_bonifico(azienda_id: int, bon, documenti: list) -> 
     """
     Documenti proforma/parcella plausibilmente collegati a un bonifico.
 
-    Priorità: prefisso ``documento|data|importo`` (stesso schema import Excel / colonna documento),
-    altrimenti numero documento presente in causale / riferimento / note / testo distinta.
+    Priorità: prefisso ``documento|data|importo`` nel riferimento (stesso schema usato in libro
+    per alcune righe da riepilogo legacy), altrimenti numero documento in causale / riferimento /
+    note / testo estratto dalla distinta PDF caricata in Pagamenti.
     """
     riferimento = (bon.riferimento_pagamento or "").strip()
     if "|" in riferimento:
@@ -2131,13 +2132,14 @@ def _documenti_candidati_per_bonifico(azienda_id: int, bon, documenti: list) -> 
 
 def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
     """
-    Incrocia documenti (dare) e bonifici (avere) con euristica di collegamento.
+    Incrocia gli stessi movimenti ``documento`` e ``bonifico`` già in libro (registrati da
+    Proforma/parcelle e Pagamenti nel portale, con eventuali PDF allegati lì), con euristica
+    di collegamento su riferimento, causale e testo distinta.
 
     Restituisce righe per documento con bonifici attribuiti, residuo (dare − somma avere),
     saldo cumulativo dei residui in ordine cronologico documento, e bonifici senza documento
-    riconosciuto. L'attribuzione testuale può essere ambigua se più fatture condividono lo
-    stesso numero in causale: in caso di più candidati si sceglie il documento con importo
-    dare più vicino all'avere del bonifico.
+    riconosciuto. Con più candidati documento per un bonifico si preferisce il dare più vicino
+    all'avere del bonifico.
     """
     from django.db.models import F
 
