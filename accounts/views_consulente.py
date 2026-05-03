@@ -2552,11 +2552,30 @@ def consulente_posizione_libro_pdf(request):
     story.append(Spacer(1, 2 * mm))
     story.append(
         Paragraph(
-            "<b>Lettura del check.</b> In teoria, quando tutte le parcelle/proforma risultano incassate "
-            "e non ci sono bonifici orfani né import duplicati, la <b>differenza</b> tende ad avvicinarsi "
-            "a zero (o al netto di residui ancora aperti). Se i numeri «non tornano», controllare: "
-            "vecchi import Excel ancora presenti come righe duplicate, bonifici senza aggancio a fattura, "
-            "proforma/parcelle senza incasso corrispondente, rettifiche manuali o PDF non allineati al libro.",
+            "<b>Due conteggi diversi (è normale che non coincidano).</b> "
+            "<b>(1) Differenza</b> nella tabella sopra = totale dare documenti in quadratura "
+            "<b>meno</b> totale avere di tutti i bonifici in libro. Se esce <b>negativa</b> (es. EUR −96,91), "
+            "significa che in <b>totale</b> risultano registrati più bonifici che importo fatture "
+            "(proforma/parcella) considerato nell’incrocio: tipicamente credito / anticipi, oppure incassi "
+            "non ancora spalmati sulle fatture, bonifici orfani o righe fuori quadratura. "
+            "<b>(2) Saldo cumulativo residui (Σ residui)</b>, come in pagina Quadrature: è la "
+            "<b>somma progressiva</b>, fattura per fattura, di (dare della singola fattura − incassi "
+            "<i>attribuiti</i> a quella fattura dall’euristica o dal piano bonifici). "
+            "Misura <b>come</b> restano aperti i singoli titoli, non il «saldo di cassa» del libro né "
+            "l’opposto della differenza (1): potete avere differenza negativa e Σ residui ancora positivo "
+            "se parte dei bonifici non è ancora collegata alle parcelle che risultano scoperte.",
+            meta_style,
+        )
+    )
+    story.append(Spacer(1, 2 * mm))
+    story.append(
+        Paragraph(
+            "<b>Lettura del check.</b> Se tutto è allineato e non ci sono duplicati da vecchi Excel, "
+            "la <b>differenza</b> tende a zero «a regime»; il <b>Σ residui</b> tende a zero quando ogni "
+            "fattura risulta saldata in quadratura. Se i numeri non tornano: righe duplicate da import, "
+            "bonifici senza aggancio, fatture senza incasso corrispondente, rettifiche manuali, PDF non "
+            "allineati. Per il saldo classico <b>dare − avere</b> in ordine cronologico su tutte le righe "
+            "vedere la colonna <b>Saldo</b> nella pagina Libro movimenti (ultima riga), separato da questi totali.",
             meta_style,
         )
     )
@@ -2564,19 +2583,28 @@ def consulente_posizione_libro_pdf(request):
     story.append(Paragraph(f"Totale righe nell’elenco sopra: {len(righe)}", meta_style))
 
     saldo_finale = saldo_finale_quad
-    if saldo_finale > 0:
+    diff_q = (riepilogo_pdf.get("differenza_dare_meno_avere") or Decimal("0")).quantize(Decimal("0.01"))
+    if saldo_finale > Decimal("0.02"):
         saldo_msg = (
-            f"Saldo cumulativo residui (quadratura, come Σ residui in Quadrature): "
-            f"{_fmt_euro_pdf(saldo_finale)} — resta da incassare sulle fatture in elenco."
+            f"<b>Saldo cumulativo residui (Σ residui in Quadrature):</b> {_fmt_euro_pdf(saldo_finale)}. "
+            "Valore <b>positivo</b>: somma cumulata dei residui per fattura dopo l’attribuzione dei bonifici; "
+            "indica arretrato <b>sulle partite incrociate</b>, non necessariamente «manca ancora tanto in cassa» "
+            "rispetto alla differenza globale. "
+            f"<b>Differenza</b> (dare documenti − avere bonifici) nel riepilogo: {_fmt_euro_pdf(diff_q)}."
         )
-    elif saldo_finale < 0:
+    elif saldo_finale < Decimal("-0.02"):
         saldo_msg = (
-            f"Saldo cumulativo residui (quadratura): {_fmt_euro_pdf(abs(saldo_finale))} "
-            f"a credito (eccedenze rispetto al dare attribuito)."
+            f"<b>Saldo cumulativo residui (Σ residui in Quadrature):</b> {_fmt_euro_pdf(abs(saldo_finale))} "
+            "a <b>credito</b> sul cumulo dei residui per fattura (eccedenze di incasso rispetto al dare attribuito). "
+            f"<b>Differenza</b> nel riepilogo: {_fmt_euro_pdf(diff_q)}."
         )
     else:
-        saldo_msg = "Saldo cumulativo residui in quadratura pari a zero."
-    story.append(Paragraph(saldo_msg, title_style))
+        saldo_msg = (
+            f"Saldo cumulativo residui (Σ residui in Quadrature) pari a zero. "
+            f"<b>Differenza</b> nel riepilogo: {_fmt_euro_pdf(diff_q)}."
+        )
+    story.append(Spacer(1, 2 * mm))
+    story.append(Paragraph(saldo_msg, meta_style))
 
     doc.build(story, canvasmaker=NumberedCanvas)
 
