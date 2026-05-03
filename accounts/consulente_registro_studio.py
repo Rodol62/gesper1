@@ -2684,6 +2684,68 @@ def bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura(azienda_id: int) -
     return out
 
 
+def mappa_quadratura_per_export_libro_movimenti(azienda_id: int) -> dict:
+    """
+    Dati allineati a ``quadratura_proforma_parcelle_bonifici`` per colonne «Pagato» / «Residuo»
+    nell’export libro (PDF/Excel): per ogni documento incassi attribuiti in quadratura e residuo;
+    per ogni bonifico l’avere non ancora imputato alle parcelle/proforma; saldo cumulativo finale
+    dei residui (ultima riga documento in ordine quadratura, come colonna «Σ residui» in UI).
+    """
+    q = quadratura_proforma_parcelle_bonifici(azienda_id)
+
+    def _importo_attribuito_entry(entry: dict) -> Decimal:
+        qq = entry.get("quota")
+        if qq is not None:
+            return qq
+        return entry["bon"].avere or Decimal("0")
+
+    doc_by_pk: dict[int, dict] = {}
+    for row in q["righe"]:
+        d = row["documento"]
+        doc_by_pk[d.pk] = {
+            "residuo": (row.get("residuo") or Decimal("0")).quantize(Decimal("0.01")),
+            "tot_bonifici": (row.get("tot_bonifici") or Decimal("0")).quantize(Decimal("0.01")),
+            "saldo_progressivo_residui": (row.get("saldo_progressivo_residui") or Decimal("0")).quantize(
+                Decimal("0.01")
+            ),
+        }
+
+    attribuito_per_bon: dict[int, Decimal] = {}
+    for row in q["righe"]:
+        for e in row["bonifici"]:
+            bpk = e["bon"].pk
+            attribuito_per_bon[bpk] = attribuito_per_bon.get(bpk, Decimal("0")) + _importo_attribuito_entry(e)
+
+    from django.db.models import F
+
+    from .models import MovimentoRegistroStudioConsulente
+
+    bonifici_all = MovimentoRegistroStudioConsulente.objects.filter(
+        azienda_id=azienda_id, tipo_riga="bonifico"
+    ).order_by(F("data_documento").asc(nulls_last=True), "importato_il", "id")
+
+    bon_residuo_avere: dict[int, Decimal] = {}
+    for b in bonifici_all:
+        av = (b.avere or Decimal("0")).quantize(Decimal("0.01"))
+        used = attribuito_per_bon.get(b.pk, Decimal("0")).quantize(Decimal("0.01"))
+        diff = (av - used).quantize(Decimal("0.01"))
+        bon_residuo_avere[b.pk] = diff if diff > Decimal("0") else Decimal("0")
+
+    righe_q = q.get("righe") or []
+    if righe_q:
+        saldo_cumulativo_finale = (righe_q[-1].get("saldo_progressivo_residui") or Decimal("0")).quantize(
+            Decimal("0.01")
+        )
+    else:
+        saldo_cumulativo_finale = Decimal("0")
+
+    return {
+        "documento": doc_by_pk,
+        "bonifico_residuo_avere": bon_residuo_avere,
+        "saldo_cumulativo_residui_finale": saldo_cumulativo_finale,
+    }
+
+
 def documenti_righe_quadratura_con_residuo_da_coprire(righe_quad: list[dict]) -> list[dict]:
     """
     Righe documento (come in ``quadratura_proforma_parcelle_bonifici`` ``righe``) con residuo

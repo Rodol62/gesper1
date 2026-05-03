@@ -2170,7 +2170,12 @@ def consulente_posizione_libro_excel(request):
     if redir:
         return redir
 
+    from .consulente_registro_studio import mappa_quadratura_per_export_libro_movimenti
+
     righe = list(_qs_libro_movimenti_azienda(azienda, _libro_filter_params_from_request(request)))
+    quad_libro = mappa_quadratura_per_export_libro_movimenti(azienda.id)
+    doc_quad = quad_libro["documento"]
+    bon_residuo_quad = quad_libro["bonifico_residuo_avere"]
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -2178,7 +2183,7 @@ def consulente_posizione_libro_excel(request):
         return HttpResponse("Impossibile creare il file Excel.", status=500)
     ws.title = "Movimenti"
 
-    headers = ["Data", "Movimento", "Dettaglio", "Dare", "Avere", "Saldo", "Doc."]
+    headers = ["Data", "Movimento", "Dettaglio", "Dare", "Pagato (quad.)", "Residuo (quad.)", "Doc."]
     thin = Side(border_style='thin', color='D0D0D0')
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     h_fill = PatternFill('solid', fgColor='1B3A5F')
@@ -2205,13 +2210,25 @@ def consulente_posizione_libro_excel(request):
             num_doc = f"n. {r.numero_documento}" if r.numero_documento else ''
             dettaglio = f"{tipo_doc} {num_doc}".strip() or "—"
 
+        if r.tipo_riga == "documento":
+            qd = doc_quad.get(r.pk)
+            if qd is not None:
+                pagato_q = qd["tot_bonifici"]
+                residuo_q = qd["residuo"]
+            else:
+                pagato_q = r.avere or Decimal("0")
+                residuo_q = (r.dare or Decimal("0")) - pagato_q
+        else:
+            pagato_q = r.avere or Decimal("0")
+            residuo_q = bon_residuo_quad.get(r.pk, pagato_q)
+
         row = [
             r.data_documento.strftime('%d/%m/%Y') if r.data_documento else '',
             _safe_display(r, 'get_tipo_riga_display', 'tipo_riga'),
             dettaglio,
             float(r.dare or 0),
-            float(r.avere or 0),
-            float(r.saldo_progressivo or 0),
+            float(pagato_q),
+            float(residuo_q),
             "PDF" if getattr(r.file, "name", "") else "",
         ]
         fill = alt_fill if idx % 2 == 0 else None
@@ -2258,7 +2275,14 @@ def consulente_posizione_libro_pdf(request):
     if redir:
         return redir
 
-    righe = list(_qs_libro_movimenti_azienda(azienda, _libro_filter_params_from_request(request)))
+    from .consulente_registro_studio import mappa_quadratura_per_export_libro_movimenti
+
+    fp_pdf = _libro_filter_params_from_request(request)
+    righe = list(_qs_libro_movimenti_azienda(azienda, fp_pdf))
+    quad_libro = mappa_quadratura_per_export_libro_movimenti(azienda.id)
+    doc_quad = quad_libro["documento"]
+    bon_residuo_quad = quad_libro["bonifico_residuo_avere"]
+    saldo_finale_quad = quad_libro["saldo_cumulativo_residui_finale"]
     buffer = BytesIO()
     timestamp_ref = timezone.localtime()
     data_ref = timestamp_ref.strftime('%d/%m/%Y')
@@ -2351,17 +2375,24 @@ def consulente_posizione_libro_pdf(request):
     )
 
     story = [Spacer(1, 2 * mm)]
-    fp = _libro_filter_params_from_request(request)
     filtro_frasi: list[str] = []
-    if fp.get('anno'):
-        filtro_frasi.append(f"anno {fp['anno']}")
-    if fp.get('data_da'):
-        filtro_frasi.append(f"dal {fp['data_da']}")
-    if fp.get('data_a'):
-        filtro_frasi.append(f"al {fp['data_a']}")
+    if fp_pdf.get('anno'):
+        filtro_frasi.append(f"anno {fp_pdf['anno']}")
+    if fp_pdf.get('data_da'):
+        filtro_frasi.append(f"dal {fp_pdf['data_da']}")
+    if fp_pdf.get('data_a'):
+        filtro_frasi.append(f"al {fp_pdf['data_a']}")
     if filtro_frasi:
         story.append(Paragraph("Filtro elenco: " + ", ".join(filtro_frasi), meta_style))
-        story.append(Spacer(1, 2 * mm))
+    story.append(
+        Paragraph(
+            "«Pagato» sui documenti = Σ incassi attribuiti in <b>Quadrature</b>; «Residuo (quad.)» = "
+            "residuo su fattura o, sui bonifici, avere non ancora imputato. "
+            "I totali di quadratura valgono su tutte le righe in libro, non solo sul periodo filtrato.",
+            meta_style,
+        )
+    )
+    story.append(Spacer(1, 2 * mm))
 
     data = [[
         "Data",
@@ -2369,7 +2400,7 @@ def consulente_posizione_libro_pdf(request):
         "Dettaglio",
         "Da pagare",
         "Pagato",
-        "Saldo residuo",
+        "Residuo (quad.)",
         "Doc.",
     ]]
     row_styles: list[tuple] = []
@@ -2395,13 +2426,25 @@ def consulente_posizione_libro_pdf(request):
         else:
             row_styles.append(("BACKGROUND", (0, row_idx), (-1, row_idx), colors.HexColor("#F8FAFC")))
 
+        if r.tipo_riga == "documento":
+            qd = doc_quad.get(r.pk)
+            if qd is not None:
+                pagato_q = qd["tot_bonifici"]
+                residuo_q = qd["residuo"]
+            else:
+                pagato_q = r.avere or Decimal("0")
+                residuo_q = (r.dare or Decimal("0")) - (pagato_q)
+        else:
+            pagato_q = r.avere or Decimal("0")
+            residuo_q = bon_residuo_quad.get(r.pk, pagato_q)
+
         data.append([
             r.data_documento.strftime('%d/%m/%Y') if r.data_documento else "—",
             Paragraph(mov_label, mov_style),
             Paragraph(dettaglio_raw, det_style),
             _fmt_euro_pdf(r.dare),
-            _fmt_euro_pdf(r.avere),
-            _fmt_euro_pdf(r.saldo_progressivo),
+            _fmt_euro_pdf(pagato_q),
+            _fmt_euro_pdf(residuo_q),
             "PDF" if getattr(r.file, "name", "") else "—",
         ])
 
@@ -2432,13 +2475,19 @@ def consulente_posizione_libro_pdf(request):
     story.append(Spacer(1, 3 * mm))
     story.append(Paragraph(f"Totale righe: {len(righe)}", meta_style))
 
-    saldo_finale = righe[-1].saldo_progressivo if righe else Decimal("0")
+    saldo_finale = saldo_finale_quad
     if saldo_finale > 0:
-        saldo_msg = f"Resta da pagare: {_fmt_euro_pdf(saldo_finale)}"
+        saldo_msg = (
+            f"Saldo cumulativo residui (quadratura, come Σ residui in Quadrature): "
+            f"{_fmt_euro_pdf(saldo_finale)} — resta da incassare sulle fatture in elenco."
+        )
     elif saldo_finale < 0:
-        saldo_msg = f"Importo credito da compensare in conto nuove Proforma: {_fmt_euro_pdf(abs(saldo_finale))}"
+        saldo_msg = (
+            f"Saldo cumulativo residui (quadratura): {_fmt_euro_pdf(abs(saldo_finale))} "
+            f"a credito (eccedenze rispetto al dare attribuito)."
+        )
     else:
-        saldo_msg = "Saldo residuo pari a zero."
+        saldo_msg = "Saldo cumulativo residui in quadratura pari a zero."
     story.append(Paragraph(saldo_msg, title_style))
 
     doc.build(story, canvasmaker=NumberedCanvas)

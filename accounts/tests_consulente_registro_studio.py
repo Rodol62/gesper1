@@ -18,6 +18,7 @@ from accounts.consulente_registro_studio import (
     bonifico_ha_riscontro_documentale_pagamento,
     bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura,
     documenti_righe_quadratura_con_residuo_da_coprire,
+    mappa_quadratura_per_export_libro_movimenti,
     elimina_piano_allocazione_bonifici_quadratura,
     quadratura_proforma_parcelle_bonifici,
     quadratura_proforma_parcelle_bonifici_anteprima_allocazione,
@@ -1392,6 +1393,31 @@ class QuadraturaProformaBonificiTests(TestCase):
             indirizzo="Via Q 1",
             email="quad@test.it",
         )
+
+    def test_mappa_export_libro_allineata_a_quadratura(self):
+        doc = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="77",
+            data_documento=date(2025, 3, 1),
+            dare=Decimal("100.00"),
+            nome_file="doc77.pdf",
+            testo_estratto="t",
+        )
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 3, 15),
+            avere=Decimal("40.00"),
+            nome_file="bon77.pdf",
+            causale_pagamento="Incasso parcella 77 quota",
+        )
+        m = mappa_quadratura_per_export_libro_movimenti(self.az.id)
+        self.assertEqual(m["documento"][doc.pk]["tot_bonifici"], Decimal("40.00"))
+        self.assertEqual(m["documento"][doc.pk]["residuo"], Decimal("60.00"))
+        self.assertEqual(m["saldo_cumulativo_residui_finale"], Decimal("60.00"))
+        self.assertEqual(m["bonifico_residuo_avere"][bon.pk], Decimal("0"))
 
     def test_pipe_riferimento_collega_e_saldo(self):
         MovimentoRegistroStudioConsulente.objects.create(
