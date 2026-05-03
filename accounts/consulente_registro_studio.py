@@ -14,7 +14,7 @@ import tempfile
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 
 # ── Estrazione testo ─────────────────────────────────────────────────────────
@@ -2092,6 +2092,101 @@ def _numero_documento_in_haystack(num: str, hay: str) -> bool:
         return len(num) >= 3
 
 
+def _estrai_duo_numeri_proforma_parcella_con_e(hay: str) -> tuple[list[str] | None, int | None]:
+    """
+    Riconosce testi tipo «… proforma 320 e 367 del 2021 …» (hay già minuscolo).
+    Restituisce (['320','367'], 2021) oppure (None, None) se il pattern non c’è.
+    """
+    if not hay:
+        return None, None
+    m = re.search(
+        r"\b(?:pro[-\s]?forma|proforma|parcella|parchella)\s+(\d{1,8})\s+e\s+(\d{1,8})(?:\s+del\s+(20\d{2}|19\d{2}))?\b",
+        hay,
+        re.I,
+    )
+    if not m:
+        return None, None
+    y_raw = m.group(3)
+    anno = int(y_raw) if y_raw else None
+    return [m.group(1), m.group(2)], anno
+
+
+def _risolvi_documenti_per_numeri_e_anno_espliciti(
+    documenti: list, nums: list[str], anno: int | None
+) -> list | None:
+    """Un documento per ogni numero; se ``anno`` è noto, preferisce un solo match per anno documento."""
+    ris: list = []
+    seen: set[int] = set()
+    for num in nums:
+        cand = []
+        for d in documenti:
+            nd = (d.numero_documento or "").strip()
+            if not nd:
+                continue
+            if nd.casefold() == num.casefold() or _numeri_documento_aggancio_coerenti(nd, num):
+                cand.append(d)
+        if anno is not None:
+            cy = [d for d in cand if d.data_documento and d.data_documento.year == anno]
+            if len(cy) == 1:
+                cand = cy
+            elif len(cy) > 1:
+                return None
+        if len(cand) != 1:
+            return None
+        d0 = cand[0]
+        if d0.pk in seen:
+            return None
+        ris.append(d0)
+        seen.add(d0.pk)
+    return ris
+
+
+def _ripartisci_avere_tra_documenti(tot_avere: Decimal, documenti: list) -> list[Decimal]:
+    """Ripartisce ``tot_avere`` in proporzione al dare di ciascun documento (ultimo centesimo compensato)."""
+    if not documenti or tot_avere <= 0:
+        return []
+    dares = [max(d.dare or Decimal(0), Decimal(0)) for d in documenti]
+    s = sum(dares)
+    n = len(documenti)
+    if s <= 0:
+        base = (tot_avere / Decimal(n)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        out = [base] * n
+        drift = (tot_avere - sum(out)).quantize(Decimal("0.01"))
+        out[-1] = (out[-1] + drift).quantize(Decimal("0.01"))
+        return out
+    out: list[Decimal] = []
+    acc = Decimal("0")
+    for d in dares[:-1]:
+        part = (tot_avere * d / s).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        out.append(part)
+        acc += part
+    last = (tot_avere - acc).quantize(Decimal("0.01"))
+    out.append(last)
+    return out
+
+
+def _allocazione_bonifico_doppia_proforma_da_testo(
+    bon, hay: str, documenti: list
+) -> list[tuple[object, Decimal]] | None:
+    """
+    Un bonifico unico che in causale/riferimento indica due proforma/parcelle «N e M del AAAA»:
+    ripartisce l’avere proporzionalmente al dare delle due righe documento.
+    """
+    nums, anno = _estrai_duo_numeri_proforma_parcella_con_e(hay)
+    if not nums or len(nums) != 2:
+        return None
+    docs = _risolvi_documenti_per_numeri_e_anno_espliciti(documenti, nums, anno)
+    if not docs or len(docs) != 2:
+        return None
+    tot = bon.avere or Decimal("0")
+    if tot <= 0:
+        return None
+    quotas = _ripartisci_avere_tra_documenti(tot, docs)
+    if len(quotas) != 2:
+        return None
+    return [(docs[0], quotas[0]), (docs[1], quotas[1])]
+
+
 def _documenti_candidati_per_bonifico(azienda_id: int, bon, documenti: list) -> list:
     """
     Documenti proforma/parcella plausibilmente collegati a un bonifico.
@@ -2138,8 +2233,9 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
 
     Restituisce righe per documento con bonifici attribuiti, residuo (dare − somma avere),
     saldo cumulativo dei residui in ordine cronologico documento, e bonifici senza documento
-    riconosciuto. Con più candidati documento per un bonifico si preferisce il dare più vicino
-    all'avere del bonifico.
+    riconosciuto. Se in causale/riferimento compaiono due numeri «proforma/parcella N e M del AAAA»,
+    lo stesso bonifico si ripartisce proporzionalmente al dare delle due righe. Con più candidati
+    generici si preferisce ancora il dare più vicino all’avere del bonifico.
     """
     from django.db.models import F
 
@@ -2156,19 +2252,22 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
         )
     )
 
-    bon_to_cands: list[tuple[object, list]] = []
-    for b in bonifici:
-        bon_to_cands.append((b, _documenti_candidati_per_bonifico(azienda_id, b, documenti)))
-
-    doc_assign: dict[int, list] = {d.pk: [] for d in documenti}
+    doc_assign: dict[int, list[dict]] = {d.pk: [] for d in documenti}
     orfani: list = []
 
-    for b, cands in bon_to_cands:
+    for b in bonifici:
+        hay = _haystack_bonifico_per_aggancio_testuale(b)
+        doppia = _allocazione_bonifico_doppia_proforma_da_testo(b, hay, documenti)
+        if doppia:
+            for d, q in doppia:
+                doc_assign[d.pk].append({"bon": b, "quota": q})
+            continue
+        cands = _documenti_candidati_per_bonifico(azienda_id, b, documenti)
         if not cands:
             orfani.append(b)
             continue
         if len(cands) == 1:
-            doc_assign[cands[0].pk].append(b)
+            doc_assign[cands[0].pk].append({"bon": b, "quota": None})
             continue
         best = cands[0]
         best_key = (abs((best.dare or Decimal(0)) - (b.avere or Decimal(0))), best.pk)
@@ -2177,7 +2276,13 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
             if k < best_key:
                 best = d
                 best_key = k
-        doc_assign[best.pk].append(b)
+        doc_assign[best.pk].append({"bon": b, "quota": None})
+
+    def _importo_attribuito_entry(entry: dict) -> Decimal:
+        q = entry.get("quota")
+        if q is not None:
+            return q
+        return entry["bon"].avere or Decimal("0")
 
     righe: list[dict] = []
     cum = Decimal("0")
@@ -2187,7 +2292,7 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
 
     for d in documenti:
         bs = doc_assign.get(d.pk, [])
-        sum_av = sum((x.avere or Decimal(0)) for x in bs)
+        sum_av = sum(_importo_attribuito_entry(x) for x in bs)
         tot_avere_attribuito += sum_av
         dare = d.dare or Decimal("0")
         tot_dare += dare

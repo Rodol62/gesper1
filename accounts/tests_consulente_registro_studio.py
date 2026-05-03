@@ -1454,6 +1454,50 @@ class QuadraturaProformaBonificiTests(TestCase):
         self.assertEqual(q["righe"][0]["residuo"], Decimal("60.00"))
         self.assertEqual(len(q["bonifici_orfani"]), 0)
 
+    def test_bonifico_unico_causale_due_proforma_e_del_anno(self):
+        """Es. BPSA: stesso avere ripartito su proforma 320 e 367 del 2021 (causale testuale)."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="320",
+            data_documento=date(2021, 5, 10),
+            dare=Decimal("100.00"),
+            nome_file="pf320.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="367",
+            data_documento=date(2021, 6, 20),
+            dare=Decimal("174.14"),
+            nome_file="pf367.pdf",
+            testo_estratto="y",
+        )
+        causale = "VA A SALDARE LA PROFORMA 320 E 367 DEL 2021"
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 10, 19),
+            avere=Decimal("274.14"),
+            nome_file="bpsa.pdf",
+            riferimento_pagamento="BONIFICO BPSA|2021-10-19|274.14",
+            causale_pagamento=causale,
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q["bonifici_orfani"]), 0)
+        righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
+        self.assertEqual(righe_per_num["320"]["stato"], "saldato")
+        self.assertEqual(righe_per_num["367"]["stato"], "saldato")
+        self.assertEqual(righe_per_num["320"]["tot_bonifici"], Decimal("100.00"))
+        self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("174.14"))
+        b320 = righe_per_num["320"]["bonifici"][0]
+        self.assertEqual(b320["bon"].causale_pagamento, causale)
+        self.assertEqual(b320["quota"], Decimal("100.00"))
+        self.assertEqual(righe_per_num["367"]["bonifici"][0]["quota"], Decimal("174.14"))
+
 
 class LibroNotaConsulenteDisplayTests(SimpleTestCase):
     """Note libro: prefissi legacy «Import Excel» non mostrati in UI (solo display)."""
