@@ -16,6 +16,7 @@ from accounts.consulente_registro_studio import (
     EsitoParsingBonifico,
     EsitoParsingProforma,
     bonifico_ha_riscontro_documentale_pagamento,
+    bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati,
     elimina_piano_allocazione_bonifici_quadratura,
     quadratura_proforma_parcelle_bonifici,
     quadratura_proforma_parcelle_bonifici_anteprima_allocazione,
@@ -1852,6 +1853,39 @@ class QuadraturaProformaBonificiTests(TestCase):
         salva_piano_allocazione_bonifici_quadratura(self.az, [bon.pk], [(doc.pk, Decimal("130.00"))], u)
         obj = PianoAllocazioneBonificiQuad.objects.get(azienda=self.az)
         self.assertEqual(len(obj.righe), 1)
+
+    def test_bonifico_escluso_da_pool_se_imputato_solo_su_documento_saldato(self):
+        doc = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="332",
+            data_documento=date(2025, 5, 10),
+            dare=Decimal("80.00"),
+            nome_file="d332.pdf",
+        )
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 5, 20),
+            avere=Decimal("80.00"),
+            nome_file="b332.pdf",
+            riferimento_pagamento="PARCELLA 332|2025-05-10|80.00",
+        )
+        esclusi = bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati(self.az.id)
+        self.assertIn(bon.pk, esclusi)
+
+        orf = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 5, 21),
+            avere=Decimal("10.00"),
+            nome_file="orphan.pdf",
+            riferimento_pagamento="XYZ-NO-DOC",
+        )
+        esclusi2 = bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati(self.az.id)
+        self.assertIn(bon.pk, esclusi2)
+        self.assertNotIn(orf.pk, esclusi2)
 
 
 class AggancioManualeBonificoSelectTests(TestCase):

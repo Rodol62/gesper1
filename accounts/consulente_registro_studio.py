@@ -2645,6 +2645,38 @@ def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
     return _quadratura_proforma_parcelle_bonifici_core(azienda_id)
 
 
+def bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati(azienda_id: int) -> set[int]:
+    """
+    Bonifici già interamente imputati in quadratura (euristica + piano) **solo** su righe
+    documento in stato ``saldato`` (nessun orfano, nessun residuo sul bonifico da piano).
+
+    Non ha senso includerli nel pool del wizard «Piano bonifici»: non c’è incasso da
+    ripartire diversamente finché non si cambia libro o piano.
+    """
+    q = quadratura_proforma_parcelle_bonifici(azienda_id)
+    orfani_ids = {b.pk for b in q["bonifici_orfani"]}
+    residuo_piano_bon_ids = {
+        row["bon"].pk for row in (q.get("bonifici_residuo_post_piano_allocazione") or []) if row.get("bon")
+    }
+
+    bon_doc_stati: dict[int, set[str]] = {}
+    for row in q["righe"]:
+        stato = row["stato"]
+        for e in row["bonifici"]:
+            bpk = e["bon"].pk
+            bon_doc_stati.setdefault(bpk, set()).add(stato)
+
+    excluded: set[int] = set()
+    for bpk, stati in bon_doc_stati.items():
+        if bpk in orfani_ids:
+            continue
+        if bpk in residuo_piano_bon_ids:
+            continue
+        if stati and stati <= {"saldato"}:
+            excluded.add(bpk)
+    return excluded
+
+
 def _cap_residui_documenti_per_validazione_piano(azienda_id: int, bon_ids_pool: set[int]) -> dict[int, Decimal]:
     """
     Residuo massimo imputabile per documento rispetto al pool: stessa base della **anteprima**

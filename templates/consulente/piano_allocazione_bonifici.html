@@ -29,7 +29,7 @@
   {% endfor %}
 
   <p class="small text-muted border rounded px-2 py-2 mb-3" style="background:#f8fafc;line-height:1.45">
-    <strong>Come funziona.</strong> Al passo 1 si selezionano i bonifici da considerare come <strong>unico importo disponibile</strong> (somma in avere).
+    <strong>Come funziona.</strong> Al passo 1 si selezionano i bonifici da considerare come <strong>unico importo disponibile</strong> (somma in avere). Non sono selezionabili i movimenti già imputati in quadratura <strong>solo</strong> su documenti in stato saldato (sono elencati sotto in un riquadro richiudibile).
     Al passo 2 compaiono i documenti con <strong>residuo da incassare</strong> calcolato <em>senza</em> attribuire automaticamente i bonifici del pool (restano attive l’euristica e eventuali altre righe già salvate nel piano).
     Per ogni documento si indica l’importo da imputare: il sistema ripartisce in sequenza sui bonifici del pool (primo esaurito, poi il successivo).
     Importi non assegnati restano disponibili sui bonifici (in Quadrature compare la sezione residuo sul piano). Si possono aggiungere altri bonifici in un salvataggio successivo (stesso principio).
@@ -57,7 +57,7 @@
       <table class="table table-sm table-hover align-middle mb-0">
         <thead><tr><th style="width:2.5rem"></th><th>id</th><th>Data</th><th class="text-end">Avere</th><th>Riferimento</th></tr></thead>
         <tbody>
-          {% for b in bonifici_all %}
+          {% for b in bonifici_pool %}
           <tr>
             <td><input class="form-check-input" type="checkbox" name="bon_sel" value="{{ b.id }}" id="bon{{ b.id }}"></td>
             <td class="font-monospace small"><label class="mb-0" for="bon{{ b.id }}">{{ b.id }}</label></td>
@@ -66,12 +66,32 @@
             <td class="small text-muted">{{ b.riferimento_pagamento|default:""|truncatechars:64 }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="5" class="text-muted small">Nessun bonifico in libro.</td></tr>
+          <tr><td colspan="5" class="text-muted small">Nessun bonifico disponibile per un nuovo pool (tutti risultano già su documenti saldati in quadratura oppure non ci sono bonifici in libro).</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    <button type="submit" class="btn btn-primary mt-3">Avanti: documenti con residuo</button>
+    {% if bonifici_esclusi_solo_saldati %}
+    <details class="mt-2 small text-muted">
+      <summary style="cursor:pointer">Bonifici non selezionabili (già su parcelle/proforma <strong>saldati</strong> in quadratura) — {{ bonifici_esclusi_solo_saldati|length }}</summary>
+      <div class="table-responsive border rounded mt-2 bg-light" style="max-height:14rem">
+        <table class="table table-sm mb-0 align-middle">
+          <thead><tr><th>id</th><th>Data</th><th class="text-end">Avere</th><th>Riferimento</th></tr></thead>
+          <tbody>
+            {% for b in bonifici_esclusi_solo_saldati %}
+            <tr>
+              <td class="font-monospace">{{ b.id }}</td>
+              <td class="text-nowrap">{% if b.data_documento %}{{ b.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+              <td class="text-end font-monospace text-success">€ {{ b.avere|euro_it }}</td>
+              <td class="text-muted">{{ b.riferimento_pagamento|default:""|truncatechars:56 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% endif %}
+    <button type="submit" class="btn btn-primary mt-3" {% if not bonifici_pool %}disabled{% endif %}>Avanti: documenti con residuo</button>
   </form>
   {% else %}
   <form method="post" class="border rounded-3 shadow-sm p-3 mb-4">

@@ -1351,6 +1351,7 @@ def consulente_piano_allocazione_bonifici(request):
     from django.db.models import F
 
     from .consulente_registro_studio import (
+        bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati,
         elimina_piano_allocazione_bonifici_quadratura,
         parse_importo_form,
         quadratura_proforma_parcelle_bonifici_anteprima_allocazione,
@@ -1375,6 +1376,9 @@ def consulente_piano_allocazione_bonifici(request):
             F('data_documento').desc(nulls_last=True), '-importato_il', '-id'
         )
     )
+    _esclusi_solo_saldati = bonifico_ids_esclusi_selezione_pool_piano_su_solo_documenti_saldati(azienda.id)
+    bonifici_pool = [b for b in bonifici_all if b.pk not in _esclusi_solo_saldati]
+    bonifici_esclusi_solo_saldati = [b for b in bonifici_all if b.pk in _esclusi_solo_saldati]
     piano_obj = PianoAllocazioneBonificiQuad.objects.filter(azienda=azienda).first()
     piano_count = len(piano_obj.righe) if piano_obj and piano_obj.righe else 0
 
@@ -1398,8 +1402,13 @@ def consulente_piano_allocazione_bonifici(request):
                     id_set.add(int(v))
                 except ValueError:
                     pass
-            sel = [b.pk for b in bonifici_all if b.pk in id_set]
-            if not sel:
+            sel = [b.pk for b in bonifici_pool if b.pk in id_set]
+            if not sel and id_set:
+                messages.warning(
+                    request,
+                    'I bonifici selezionati risultano già tutti imputati solo su documenti saldati in quadratura: non sono disponibili per un nuovo pool.',
+                )
+            elif not sel:
                 messages.error(request, 'Selezionare almeno un bonifico.')
             else:
                 pool_ids = sel
@@ -1413,6 +1422,8 @@ def consulente_piano_allocazione_bonifici(request):
                 if part.isdigit():
                     ids_order.append(int(part))
             ids_order = list(dict.fromkeys(ids_order))
+            _pool_pk = {b.pk for b in bonifici_pool}
+            ids_order = [i for i in ids_order if i in _pool_pk]
             pairs: list[tuple[int, Decimal]] = []
             for k, v in request.POST.items():
                 if not k.startswith('imp_doc_'):
@@ -1425,7 +1436,10 @@ def consulente_piano_allocazione_bonifici(request):
                 if imp is not None and imp > 0:
                     pairs.append((did, imp))
             if not ids_order:
-                messages.error(request, 'Sessione non valida: tornare allo step bonifici.')
+                messages.error(
+                    request,
+                    'Sessione non valida o bonifici non più selezionabili: tornare allo step bonifici.',
+                )
             elif not pairs:
                 messages.error(request, 'Indicare almeno un importo da imputare su una riga documento.')
             else:
@@ -1452,7 +1466,8 @@ def consulente_piano_allocazione_bonifici(request):
             'azienda': azienda,
             'partitario_back': _partitario_back(request),
             'posizione_nav': 'piano_bonifici',
-            'bonifici_all': bonifici_all,
+            'bonifici_pool': bonifici_pool,
+            'bonifici_esclusi_solo_saldati': bonifici_esclusi_solo_saldati,
             'pool_ids': pool_ids,
             'pool_total': pool_total(pool_ids) if pool_ids else Decimal('0'),
             'quad_anteprima': quad_anteprima,
