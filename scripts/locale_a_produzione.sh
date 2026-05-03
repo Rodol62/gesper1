@@ -29,7 +29,7 @@ else
   fi
 fi
 
-REMOTE_HOST="${REMOTE_HOST:-root@94.177.201.223}"
+REMOTE_HOST="${REMOTE_HOST:-root@gesper1.plazapretoria.it}"
 # Radice progetto Django (coerente con WorkingDirectory di systemd gunicorn). Override: REMOTE_APP_DIR
 REMOTE_APP_DIR="${REMOTE_APP_DIR:-/var/www/gesper}"
 REMOTE_MEDIA_DIR="${REMOTE_MEDIA_DIR:-/var/www/media}"

@@ -17,7 +17,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-REMOTE_HOST="${REMOTE_HOST:-root@94.177.201.223}"
+REMOTE_HOST="${REMOTE_HOST:-root@gesper1.plazapretoria.it}"
 REMOTE_APP_DIR="${REMOTE_APP_DIR:-/var/www/gesper}"
 REMOTE_MEDIA_DIR="${REMOTE_MEDIA_DIR:-/var/www/media}"
 SSH_OPTS="${SSH_OPTS:-}"

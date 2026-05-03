@@ -3,7 +3,8 @@
 set -e
 
 LOCAL_DIR="/Applications/XAMPP/xamppfiles/htdocs/gesper"
-REMOTE="root@94.177.201.223"
+# Hostname: l’A record punta all’IP attuale della VPS (evitare IP obsoleto che va in timeout).
+REMOTE="${GESPER_DEPLOY_HOST:-root@gesper1.plazapretoria.it}"
 REMOTE_DIR="/var/www/gesper"
 
 # 1. Check sintassi locale
