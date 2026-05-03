@@ -176,6 +176,7 @@
   </div>
 
   <h2 class="gesper-pos-section-title"><i class="bi bi-bank me-1"></i>Bonifici registrati</h2>
+  <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> consente di collegare il bonifico a una proforma/parcella che in <a href="{% url 'consulente_posizione_quadratura' %}">Quadrature</a> risulta ancora con <strong>residuo da incassare</strong>: viene impostato il riferimento nel formato <code>numero|data|importo</code> usato dal libro (il CRO precedente viene sostituito).</p>
   <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
     <table class="table table-hover mb-0 align-middle table-gesper-libro">
       <thead>
@@ -185,6 +186,7 @@
           <th>Causale</th>
           <th class="text-end">Avere</th>
           <th>PDF bonifico</th>
+          <th class="text-nowrap" style="min-width:11rem">Aggancio</th>
         </tr>
       </thead>
       <tbody>
@@ -222,9 +224,31 @@
             </form>
             {% endif %}
           </td>
+          <td class="align-top small">
+            {% if documenti_residuo_select %}
+            <details class="border rounded px-2 py-1 bg-light">
+              <summary class="text-muted" style="cursor:pointer">A documento…</summary>
+              <form method="post" class="mt-2" data-no-upload-progress="1" onsubmit="return confirm('Impostare l’aggancio del bonifico id {{ r.pk }} al documento scelto? Il campo «Riferimento pagamento» verrà aggiornato (formato numero|data|importo).');">
+                {% csrf_token %}
+                {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+                <input type="hidden" name="action" value="aggancia_bonifico_a_documento">
+                <input type="hidden" name="bonifico_id" value="{{ r.pk }}">
+                <select name="documento_id" class="form-select form-select-sm mb-1" required title="Solo documenti con residuo in quadratura">
+                  <option value="" disabled selected>— Scegli documento —</option>
+                  {% for opt in documenti_residuo_select %}
+                  <option value="{{ opt.id }}">{{ opt.label }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-sm btn-outline-primary py-0">Salva</button>
+              </form>
+            </details>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="text-center text-muted py-5">Nessun bonifico in questo intervallo. Modifica i filtri o registra un pagamento sopra.</td></tr>
+        <tr><td colspan="6" class="text-center text-muted py-5">Nessun bonifico in questo intervallo. Modifica i filtri o registra un pagamento sopra.</td></tr>
         {% endfor %}
       </tbody>
     </table>

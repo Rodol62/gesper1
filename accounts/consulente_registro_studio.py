@@ -2318,6 +2318,43 @@ def _documenti_candidati_per_bonifico(azienda_id: int, bon, documenti: list) -> 
     return out
 
 
+def riferimento_pipe_aggancio_bonifico_documento(bon, doc) -> str:
+    """
+    Riferimento ``numero|data|avere`` (stesso schema usato da ``_documenti_candidati_per_bonifico``)
+    per agganciare esplicitamente un bonifico a un movimento documento in libro.
+    """
+    num = (doc.numero_documento or "").strip()
+    if len(num) < 1:
+        raise ValueError("numero documento vuoto")
+    dstr = doc.data_documento.isoformat() if doc.data_documento else ""
+    imp = (bon.avere or Decimal(0)).quantize(Decimal("0.01"))
+    return f"{num}|{dstr}|{imp}"[:160]
+
+
+def documenti_con_residuo_quadratura_per_select(azienda_id: int) -> list[dict]:
+    """
+    Documenti proforma/parcella con residuo da incassare > 0 (come in quadratura), per menu a tendina
+    in Pagamenti (aggancio manuale bonifico → documento).
+    """
+    q = quadratura_proforma_parcelle_bonifici(azienda_id)
+    rows: list[dict] = []
+    for row in q["righe"]:
+        res = row["residuo"]
+        if res <= Decimal("0.01"):
+            continue
+        d = row["documento"]
+        pezzi = [
+            d.get_tipo_documento_display(),
+            f"n. {(d.numero_documento or '—').strip()}",
+            f"residuo € {res.quantize(Decimal('0.01'))}",
+        ]
+        if d.data_documento:
+            pezzi.append(f"data doc. {d.data_documento.strftime('%d/%m/%Y')}")
+        rows.append({"id": d.pk, "label": " · ".join(pezzi)})
+    rows.sort(key=lambda x: (x["label"].lower(), x["id"]))
+    return rows
+
+
 def bonifico_ha_riscontro_documentale_pagamento(mov) -> bool:
     """
     True se sul movimento bonifico è archiviato un PDF in portale (ricevuta bonifico,

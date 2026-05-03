@@ -1764,6 +1764,51 @@ class QuadraturaProformaBonificiTests(TestCase):
         self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
 
 
+class AggancioManualeBonificoSelectTests(TestCase):
+    """Elenco documenti con residuo in quadratura e riferimento ``numero|data|avere`` (Pagamenti)."""
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Agg Man",
+            partita_iva="IT99887766554",
+            indirizzo="Via A 1",
+            email="aggman@test.it",
+        )
+
+    def test_documenti_residuo_select_e_riferimento_pipe(self):
+        from accounts.consulente_registro_studio import (
+            documenti_con_residuo_quadratura_per_select,
+            riferimento_pipe_aggancio_bonifico_documento,
+        )
+
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="501",
+            data_documento=date(2024, 3, 1),
+            dare=Decimal("90.00"),
+            nome_file="d501.pdf",
+            testo_estratto="x",
+        )
+        sel = documenti_con_residuo_quadratura_per_select(self.az.id)
+        self.assertEqual(len(sel), 1)
+        self.assertEqual(sel[0]["id"], MovimentoRegistroStudioConsulente.objects.get(numero_documento="501").pk)
+        self.assertIn("501", sel[0]["label"])
+        self.assertIn("90.00", sel[0]["label"])
+
+        doc = MovimentoRegistroStudioConsulente.objects.get(numero_documento="501", azienda=self.az)
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2024, 3, 20),
+            avere=Decimal("45.25"),
+            nome_file="b.pdf",
+            riferimento_pagamento="CRO-X",
+        )
+        self.assertEqual(riferimento_pipe_aggancio_bonifico_documento(bon, doc), "501|2024-03-01|45.25")
+
+
 class LibroNotaConsulenteDisplayTests(SimpleTestCase):
     """Note libro: prefissi legacy «Import Excel» non mostrati in UI (solo display)."""
 
