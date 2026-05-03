@@ -1324,6 +1324,28 @@ def consulente_posizione_contabile(request):
 
 @login_required
 @user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_posizione_quadratura(request):
+    """Quadratura euristica: ogni proforma/parcella vs bonifici collegati e saldi residui."""
+    from .consulente_registro_studio import quadratura_proforma_parcelle_bonifici
+
+    azienda, redir = _partitario_azienda_o_redirect(request)
+    if redir:
+        return redir
+    quad = quadratura_proforma_parcelle_bonifici(azienda.id)
+    return render(
+        request,
+        'consulente/posizione_contabile_quadratura.html',
+        {
+            'azienda': azienda,
+            'partitario_back': _partitario_back(request),
+            'posizione_nav': 'quadratura',
+            'quad': quad,
+        },
+    )
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
 def consulente_posizione_proforma(request):
     from django.db.models import F
 

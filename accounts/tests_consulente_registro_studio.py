@@ -14,6 +14,7 @@ from django.test import SimpleTestCase, TestCase
 from accounts.consulente_registro_studio import (
     EsitoParsingBonifico,
     EsitoParsingProforma,
+    quadratura_proforma_parcelle_bonifici,
     applica_pdf_su_movimento_bonifico,
     bonifico_duplicato_elenco_ids,
     _numeri_documento_aggancio_coerenti,
@@ -1367,6 +1368,91 @@ class UploadBonificoPdfDedupTests(TestCase):
             MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(),
             1,
         )
+
+
+class QuadraturaProformaBonificiTests(TestCase):
+    """Vista logica quadratura documenti ↔ bonifici."""
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Quad",
+            partita_iva="IT11122233344",
+            indirizzo="Via Q 1",
+            email="quad@test.it",
+        )
+
+    def test_pipe_riferimento_collega_e_saldo(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="182",
+            data_documento=date(2021, 6, 16),
+            dare=Decimal("130.00"),
+            nome_file="p.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 7, 1),
+            avere=Decimal("130.00"),
+            nome_file="b.xlsx",
+            riferimento_pagamento="PARCELLA 182|2021-06-16|130.00",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q["righe"]), 1)
+        self.assertEqual(q["righe"][0]["stato"], "saldato")
+        self.assertEqual(q["righe"][0]["residuo"], Decimal("0.00"))
+        self.assertEqual(len(q["bonifici_orfani"]), 0)
+
+    def test_bonifico_senza_documento_in_orfani(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="PF-X",
+            data_documento=date(2024, 1, 1),
+            dare=Decimal("50.00"),
+            nome_file="d.pdf",
+            testo_estratto="z",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2024, 2, 1),
+            avere=Decimal("99.00"),
+            nome_file="bon.pdf",
+            riferimento_pagamento="CRO987654321009988776655",
+            causale_pagamento="Bonifico generico senza numero fattura noto",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q["bonifici_orfani"]), 1)
+        self.assertEqual(q["righe"][0]["stato"], "aperto")
+
+    def test_causale_con_numero_collega_parziale(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="77",
+            data_documento=date(2025, 3, 1),
+            dare=Decimal("100.00"),
+            nome_file="doc77.pdf",
+            testo_estratto="t",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 3, 15),
+            avere=Decimal("40.00"),
+            nome_file="bon77.pdf",
+            causale_pagamento="Incasso parcella 77 quota",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(q["righe"][0]["stato"], "parziale")
+        self.assertEqual(q["righe"][0]["residuo"], Decimal("60.00"))
+        self.assertEqual(len(q["bonifici_orfani"]), 0)
 
 
 class LibroNotaConsulenteDisplayTests(SimpleTestCase):

@@ -69,6 +69,7 @@ from .views_consulente import (
     consulente_import_pdf_unico,
     consulente_registro_studio,
     consulente_posizione_contabile,
+    consulente_posizione_quadratura,
     consulente_posizione_libro,
     consulente_posizione_libro_excel,
     consulente_posizione_libro_pdf,
@@ -200,6 +201,11 @@ urlpatterns = [
     path('consulente/cud/', consulente_upload_cud, name='consulente_upload_cud'),
     path('consulente/import-pdf/', consulente_import_pdf_unico, name='consulente_import_pdf_unico'),
     path('consulente/posizione-contabile/', consulente_posizione_contabile, name='consulente_posizione_contabile'),
+    path(
+        'consulente/posizione-contabile/quadratura/',
+        consulente_posizione_quadratura,
+        name='consulente_posizione_quadratura',
+    ),
     path('consulente/posizione-contabile/proforma/', consulente_posizione_proforma, name='consulente_posizione_proforma'),
     path(
         'consulente/posizione-contabile/proforma/allega-pdf/<int:movimento_id>/',

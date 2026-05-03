@@ -2067,6 +2067,166 @@ def trova_movimento_documento_per_colonna_documento(azienda_id: int, doc_raw: st
     return None
 
 
+def _haystack_bonifico_per_aggancio_testuale(bon) -> str:
+    """Testo unificato (minuscolo) per cercare il numero documento in causale / riferimento / note / distinta."""
+    parts = [bon.causale_pagamento or "", bon.riferimento_pagamento or "", bon.note or ""]
+    te = getattr(bon, "testo_estratto", None) or ""
+    if te:
+        parts.append(te[:4000])
+    return " ".join(parts).lower()
+
+
+def _numero_documento_in_haystack(num: str, hay: str) -> bool:
+    num = (num or "").strip()
+    if len(num) < 2:
+        return False
+    hay = hay or ""
+    nl = num.lower()
+    if nl not in hay:
+        return False
+    if len(num) >= 4:
+        return True
+    try:
+        return bool(re.search(rf"(?<![0-9A-Za-z]){re.escape(num)}(?![0-9A-Za-z])", hay, re.I))
+    except re.error:
+        return len(num) >= 3
+
+
+def _documenti_candidati_per_bonifico(azienda_id: int, bon, documenti: list) -> list:
+    """
+    Documenti proforma/parcella plausibilmente collegati a un bonifico.
+
+    Priorità: prefisso ``documento|data|importo`` (stesso schema import Excel / colonna documento),
+    altrimenti numero documento presente in causale / riferimento / note / testo distinta.
+    """
+    riferimento = (bon.riferimento_pagamento or "").strip()
+    if "|" in riferimento:
+        head = riferimento.split("|", 1)[0].strip()
+        if head:
+            out: list = []
+            seen: set[int] = set()
+            m0 = trova_movimento_documento_per_colonna_documento(azienda_id, head)
+            if m0 is not None:
+                out.append(m0)
+                seen.add(m0.pk)
+            for d in documenti:
+                if d.pk in seen:
+                    continue
+                nd = (d.numero_documento or "").strip()
+                if nd and _numeri_documento_aggancio_coerenti(nd, head):
+                    out.append(d)
+                    seen.add(d.pk)
+            if out:
+                return out
+    hay = _haystack_bonifico_per_aggancio_testuale(bon)
+    out = []
+    for d in documenti:
+        nd = (d.numero_documento or "").strip()
+        if len(nd) < 2:
+            continue
+        if _numero_documento_in_haystack(nd, hay):
+            out.append(d)
+    return out
+
+
+def quadratura_proforma_parcelle_bonifici(azienda_id: int) -> dict:
+    """
+    Incrocia documenti (dare) e bonifici (avere) con euristica di collegamento.
+
+    Restituisce righe per documento con bonifici attribuiti, residuo (dare − somma avere),
+    saldo cumulativo dei residui in ordine cronologico documento, e bonifici senza documento
+    riconosciuto. L'attribuzione testuale può essere ambigua se più fatture condividono lo
+    stesso numero in causale: in caso di più candidati si sceglie il documento con importo
+    dare più vicino all'avere del bonifico.
+    """
+    from django.db.models import F
+
+    from .models import MovimentoRegistroStudioConsulente
+
+    documenti = list(
+        MovimentoRegistroStudioConsulente.objects.filter(azienda_id=azienda_id, tipo_riga="documento").order_by(
+            F("data_documento").asc(nulls_last=True), "importato_il", "id"
+        )
+    )
+    bonifici = list(
+        MovimentoRegistroStudioConsulente.objects.filter(azienda_id=azienda_id, tipo_riga="bonifico").order_by(
+            F("data_documento").asc(nulls_last=True), "importato_il", "id"
+        )
+    )
+
+    bon_to_cands: list[tuple[object, list]] = []
+    for b in bonifici:
+        bon_to_cands.append((b, _documenti_candidati_per_bonifico(azienda_id, b, documenti)))
+
+    doc_assign: dict[int, list] = {d.pk: [] for d in documenti}
+    orfani: list = []
+
+    for b, cands in bon_to_cands:
+        if not cands:
+            orfani.append(b)
+            continue
+        if len(cands) == 1:
+            doc_assign[cands[0].pk].append(b)
+            continue
+        best = cands[0]
+        best_key = (abs((best.dare or Decimal(0)) - (b.avere or Decimal(0))), best.pk)
+        for d in cands[1:]:
+            k = (abs((d.dare or Decimal(0)) - (b.avere or Decimal(0))), d.pk)
+            if k < best_key:
+                best = d
+                best_key = k
+        doc_assign[best.pk].append(b)
+
+    righe: list[dict] = []
+    cum = Decimal("0")
+    tot_dare = Decimal("0")
+    tot_avere_all = sum((x.avere or Decimal(0)) for x in bonifici)
+    tot_avere_attribuito = Decimal("0")
+
+    for d in documenti:
+        bs = doc_assign.get(d.pk, [])
+        sum_av = sum((x.avere or Decimal(0)) for x in bs)
+        tot_avere_attribuito += sum_av
+        dare = d.dare or Decimal("0")
+        tot_dare += dare
+        residuo = (dare - sum_av).quantize(Decimal("0.01"))
+        cum = (cum + residuo).quantize(Decimal("0.01"))
+        if residuo <= Decimal("0.01") and residuo >= Decimal("-0.01"):
+            stato = "saldato"
+        elif sum_av == 0:
+            stato = "aperto"
+        elif residuo > Decimal("0.01"):
+            stato = "parziale"
+        else:
+            stato = "eccedenza"
+        righe.append(
+            {
+                "documento": d,
+                "bonifici": bs,
+                "tot_bonifici": sum_av,
+                "residuo": residuo,
+                "saldo_progressivo_residui": cum,
+                "stato": stato,
+                "importo_dare": dare,
+            }
+        )
+
+    tot_orfani = sum((b.avere or Decimal(0)) for b in orfani)
+
+    return {
+        "righe": righe,
+        "bonifici_orfani": orfani,
+        "totali": {
+            "documenti_n": len(documenti),
+            "bonifici_n": len(bonifici),
+            "totale_dare": tot_dare,
+            "totale_avere_libro": tot_avere_all,
+            "totale_avere_attribuito": tot_avere_attribuito,
+            "totale_orfani_avere": tot_orfani,
+        },
+    }
+
+
 def _estrai_riferimento_bonifico_excel(descrizione: str, documento: str, data_doc: date | None, imp: Decimal | None) -> str:
     """CRO/TRN da descrizione, altrimenti chiave sintetica stabile."""
     desc = descrizione or ""
