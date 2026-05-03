@@ -176,7 +176,7 @@
   </div>
 
   <h2 class="gesper-pos-section-title"><i class="bi bi-bank me-1"></i>Bonifici registrati</h2>
-  <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> consente di collegare il bonifico a una proforma/parcella con <strong>residuo da incassare</strong> (stesso elenco usato per l’incrocio documenti–pagamenti): viene impostato il riferimento nel formato <code>numero|data|importo</code> usato dal libro (il CRO precedente viene sostituito). <strong>Elimina bonifico</strong> (sotto) rimuove la riga dal libro; se quel bonifico compariva nel <a href="{% url 'consulente_piano_allocazione_bonifici' %}">Piano bonifici</a>, le relative ripartizioni vengono tolte automaticamente dal piano.</p>
+  <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> elenca <strong>tutte</strong> le proforma/parcelle già in libro (con residuo e stato). Spuntare una o più righe e indicare l’importo attribuito a ciascuna: la <strong>somma degli importi</strong> deve coincidere con l’<strong>avere del bonifico</strong>. Con un solo documento l’importo deve essere uguale all’avere; con più documenti il riferimento salvato usa il formato <code>num|data|importo;num2|…</code> (il CRO precedente viene sostituito). <strong>Elimina bonifico</strong> (sotto) rimuove la riga dal libro; se quel bonifico compariva nel <a href="{% url 'consulente_piano_allocazione_bonifici' %}">Piano bonifici</a>, le relative ripartizioni vengono tolte automaticamente dal piano.</p>
   <p class="small text-muted mb-2">Per <strong>più bonifici</strong> da considerare come unico importo e ripartire sulle parcelle con residuo, usare <a href="{% url 'consulente_piano_allocazione_bonifici' %}">Piano bonifici → parcelle</a>.</p>
   <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
     <table class="table table-hover mb-0 align-middle table-gesper-libro">
@@ -238,21 +238,27 @@
             {% endif %}
           </td>
           <td class="align-top small">
-            {% if documenti_residuo_select %}
+            {% if documenti_aggancio_select %}
             <details class="border rounded px-2 py-1 bg-light">
               <summary class="text-muted" style="cursor:pointer">A documento…</summary>
-              <form method="post" class="mt-2" data-no-upload-progress="1" onsubmit="return confirm('Impostare l’aggancio del bonifico id {{ r.pk }} al documento scelto? Il campo «Riferimento pagamento» verrà aggiornato (formato numero|data|importo).');">
+              <form method="post" class="mt-2" data-no-upload-progress="1" onsubmit="return confirm('Aggiornare il riferimento pagamento del bonifico id {{ r.pk }} con gli importi indicati? (La somma deve coincidere con l’avere € {{ r.avere|num_it:2 }}.)');">
                 {% csrf_token %}
                 {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
                 <input type="hidden" name="action" value="aggancia_bonifico_a_documento">
                 <input type="hidden" name="bonifico_id" value="{{ r.pk }}">
-                <select name="documento_id" class="form-select form-select-sm mb-1" required title="Solo documenti con residuo da incassare">
-                  <option value="" disabled selected>— Scegli documento —</option>
-                  {% for opt in documenti_residuo_select %}
-                  <option value="{{ opt.id }}">{{ opt.label }}</option>
+                <p class="small text-muted mb-1">Avere bonifico: <strong>€ {{ r.avere|num_it:2 }}</strong></p>
+                <div class="border rounded px-2 py-1 mb-2" style="max-height:14rem;overflow-y:auto;background:#fff">
+                  {% for opt in documenti_aggancio_select %}
+                  <div class="d-flex flex-wrap align-items-center gap-2 py-1 border-bottom">
+                    <div class="form-check mb-0">
+                      <input class="form-check-input" type="checkbox" name="doc_agg" value="{{ opt.id }}" id="docagg-{{ r.pk }}-{{ opt.id }}">
+                      <label class="form-check-label small" for="docagg-{{ r.pk }}-{{ opt.id }}">{{ opt.label }}</label>
+                    </div>
+                    <input type="text" class="form-control form-control-sm font-monospace text-end ms-auto" name="imp_doc_{{ opt.id }}" value="" placeholder="0,00" inputmode="decimal" autocomplete="off" style="max-width:5.5rem" title="Importo su questo documento">
+                  </div>
                   {% endfor %}
-                </select>
-                <button type="submit" class="btn btn-sm btn-outline-primary py-0">Salva</button>
+                </div>
+                <button type="submit" class="btn btn-sm btn-outline-primary py-0">Salva aggancio</button>
               </form>
             </details>
             {% else %}

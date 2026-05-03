@@ -2331,6 +2331,109 @@ def riferimento_pipe_aggancio_bonifico_documento(bon, doc) -> str:
     return f"{num}|{dstr}|{imp}"[:160]
 
 
+def riferimento_pipe_aggancio_bonifico_documenti_importi(pairs: list[tuple[object, Decimal]]) -> str:
+    """
+    Riferimento su più documenti: ``num|YYYY-MM-DD|importo;num2|…|importo2`` (max 160 caratteri).
+    Usato da Pagamenti quando si ripartisce un bonifico su più proforma/parcelle.
+    """
+    if len(pairs) < 2:
+        raise ValueError("Per più documenti servono almeno due righe con importo.")
+    parts: list[str] = []
+    tot_chk = Decimal(0)
+    for doc, imp in pairs:
+        num = (doc.numero_documento or "").strip()
+        if len(num) < 1:
+            raise ValueError("numero documento vuoto")
+        impq = imp.quantize(Decimal("0.01"))
+        if impq <= 0:
+            raise ValueError("Ogni importo deve essere maggiore di zero.")
+        tot_chk += impq
+        dstr = doc.data_documento.isoformat() if doc.data_documento else ""
+        parts.append(f"{num}|{dstr}|{impq}")
+    s = ";".join(parts)
+    if len(s) > 160:
+        raise ValueError("Riferimento oltre 160 caratteri: ridurre i documenti o accorciare i numeri.")
+    if tot_chk <= 0:
+        raise ValueError("Somma importi non valida.")
+    return s
+
+
+def _parse_segmenti_pipe_aggancio_multiplo(riferimento: str) -> list[tuple[str, str, Decimal]] | None:
+    """
+    Formato esplicito su più documenti: «num|YYYY-MM-DD|importo;num2|…|importo2».
+    Restituisce una lista solo se c'è ``;`` e ogni segmento ha esattamente tre campi con importo > 0.
+    """
+    s = (riferimento or "").strip()
+    if ";" not in s:
+        return None
+    chunks = [c.strip() for c in s.split(";") if c.strip()]
+    if len(chunks) < 2:
+        return None
+    out: list[tuple[str, str, Decimal]] = []
+    for ch in chunks:
+        bits = ch.split("|")
+        if len(bits) != 3:
+            return None
+        num, d_raw, imp_raw = bits[0].strip(), bits[1].strip(), bits[2].strip()
+        imp = _parse_it_decimal(imp_raw.replace(" ", "").replace("\xa0", ""))
+        if imp is None or imp <= 0:
+            return None
+        d_iso = d_raw.strip()
+        if d_iso and not re.match(r"^\d{4}-\d{2}-\d{2}$", d_iso):
+            return None
+        if len(num) < 1:
+            return None
+        out.append((num, d_iso, imp.quantize(Decimal("0.01"))))
+    return out
+
+
+def _documento_per_aggancio_manuale_numero(azienda_id: int, num: str, data_iso: str, documenti: list):
+    """
+    Risolve un movimento documento da numero (e data documento ISO se indicata) tra i movimenti in libro.
+    """
+    num = (num or "").strip()
+    if len(num) < 1:
+        return None
+    want_date = None
+    if data_iso and re.match(r"^\d{4}-\d{2}-\d{2}$", data_iso):
+        want_date = date.fromisoformat(data_iso)
+    cands = []
+    for d in documenti:
+        nd = (d.numero_documento or "").strip()
+        if not nd:
+            continue
+        if nd.lower() != num.lower():
+            continue
+        if want_date is None or d.data_documento == want_date:
+            cands.append(d)
+    if len(cands) == 1:
+        return cands[0]
+    if len(cands) > 1 and want_date is not None:
+        for d in cands:
+            if d.data_documento == want_date:
+                return d
+    if len(cands) >= 1:
+        return cands[0]
+    return trova_movimento_documento_per_colonna_documento(azienda_id, num)
+
+
+def _allocazione_da_segmenti_pipe_espliciti(
+    azienda_id: int, bon, documenti: list, segs: list[tuple[str, str, Decimal]]
+) -> list[tuple[object, Decimal]] | None:
+    out: list[tuple[object, Decimal]] = []
+    tot = Decimal(0)
+    for num, d_iso, imp in segs:
+        d = _documento_per_aggancio_manuale_numero(azienda_id, num, d_iso, documenti)
+        if d is None:
+            return None
+        out.append((d, imp))
+        tot += imp
+    av = (bon.avere or Decimal(0)).quantize(Decimal("0.01"))
+    if abs(tot - av) > Decimal("0.02"):
+        return None
+    return out
+
+
 def documenti_con_residuo_quadratura_per_select(azienda_id: int) -> list[dict]:
     """
     Documenti proforma/parcella con residuo da incassare > 0 (come in quadratura), per menu a tendina
@@ -2353,6 +2456,32 @@ def documenti_con_residuo_quadratura_per_select(azienda_id: int) -> list[dict]:
         rows.append({"id": d.pk, "label": " · ".join(pezzi)})
     rows.sort(key=lambda x: (x["label"].lower(), x["id"]))
     return rows
+
+
+def documenti_proforma_parcella_libro_per_select(azienda_id: int) -> list[dict]:
+    """
+    Tutte le proforma/parcelle già in libro con residuo e stato (per aggancio manuale da Pagamenti),
+    inclusi documenti saldati o in eccedenza.
+    """
+    q = quadratura_proforma_parcelle_bonifici(azienda_id)
+    acc: list[tuple[date, int, dict]] = []
+    for row in q["righe"]:
+        d = row["documento"]
+        res = row["residuo"]
+        stato = row.get("stato") or ""
+        num = (d.numero_documento or "—").strip()
+        pezzi = [
+            d.get_tipo_documento_display(),
+            f"n. {num}",
+            f"residuo € {res.quantize(Decimal('0.01'))}",
+            str(stato),
+        ]
+        if d.data_documento:
+            pezzi.append(f"data doc. {d.data_documento.strftime('%d/%m/%Y')}")
+        sort_key = d.data_documento or date(1900, 1, 1)
+        acc.append((sort_key, d.pk, {"id": d.pk, "label": " · ".join(pezzi)}))
+    acc.sort(key=lambda t: (t[0], t[1]))
+    return [t[2] for t in acc]
 
 
 def bonifico_ha_riscontro_documentale_pagamento(mov) -> bool:
@@ -2442,6 +2571,15 @@ def _quadratura_proforma_parcelle_bonifici_core(
 
     for b in bonifici:
         if b.pk in skip_auto:
+            continue
+        sem = _parse_segmenti_pipe_aggancio_multiplo(b.riferimento_pagamento or "")
+        if sem is not None:
+            alloc_espl = _allocazione_da_segmenti_pipe_espliciti(azienda_id, b, documenti, sem)
+            if alloc_espl:
+                for d, q in alloc_espl:
+                    doc_assign[d.pk].append({"bon": b, "quota": q})
+                continue
+            orfani.append(b)
             continue
         hay = _haystack_bonifico_per_aggancio_testuale(b)
         doppia = _allocazione_bonifico_doppia_proforma_da_testo(b, hay, documenti)

@@ -2017,6 +2017,33 @@ class AggancioManualeBonificoSelectTests(TestCase):
             email="aggman@test.it",
         )
 
+    def test_documenti_libro_select_include_saldato(self):
+        from accounts.consulente_registro_studio import documenti_proforma_parcella_libro_per_select
+
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="900",
+            data_documento=date(2024, 4, 1),
+            dare=Decimal("50.00"),
+            nome_file="d900.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2024, 4, 10),
+            avere=Decimal("50.00"),
+            nome_file="b900.pdf",
+            riferimento_pagamento="900|2024-04-01|50.00",
+            causale_pagamento="Incasso",
+        )
+        sel = documenti_proforma_parcella_libro_per_select(self.az.id)
+        self.assertEqual(len(sel), 1)
+        self.assertIn("900", sel[0]["label"])
+        self.assertIn("saldato", sel[0]["label"].lower())
+
     def test_documenti_residuo_select_e_riferimento_pipe(self):
         from accounts.consulente_registro_studio import (
             documenti_con_residuo_quadratura_per_select,
@@ -2049,6 +2076,50 @@ class AggancioManualeBonificoSelectTests(TestCase):
             riferimento_pagamento="CRO-X",
         )
         self.assertEqual(riferimento_pipe_aggancio_bonifico_documento(bon, doc), "501|2024-03-01|45.25")
+
+    def test_riferimento_pipe_multiplo_quadratura(self):
+        from accounts.consulente_registro_studio import (
+            quadratura_proforma_parcelle_bonifici,
+            riferimento_pipe_aggancio_bonifico_documenti_importi,
+        )
+
+        d1 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="320",
+            data_documento=date(2021, 6, 1),
+            dare=Decimal("60.00"),
+            nome_file="a.pdf",
+            testo_estratto="x",
+        )
+        d2 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="367",
+            data_documento=date(2021, 6, 2),
+            dare=Decimal("70.00"),
+            nome_file="b.pdf",
+            testo_estratto="y",
+        )
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 7, 7),
+            avere=Decimal("130.00"),
+            nome_file="bon.pdf",
+            riferimento_pagamento="",
+        )
+        bon.riferimento_pagamento = riferimento_pipe_aggancio_bonifico_documenti_importi(
+            [(d1, Decimal("60.00")), (d2, Decimal("70.00"))]
+        )
+        bon.save(update_fields=["riferimento_pagamento"])
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q["righe"]), 2)
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
+        self.assertTrue(q["bonifici_ripartiti_multi_documento"][0]["coerente"])
+        self.assertEqual(q["bonifici_ripartiti_multi_documento"][0]["bon"].pk, bon.pk)
 
 
 class LibroNotaConsulenteDisplayTests(SimpleTestCase):

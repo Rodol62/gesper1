@@ -1805,9 +1805,10 @@ def consulente_posizione_pagamenti(request):
         applica_aggancia_pdf_bonifici_a_libro,
         applica_upload_bonifici_pdf,
         bonifico_duplicato_elenco_ids,
-        documenti_con_residuo_quadratura_per_select,
+        documenti_proforma_parcella_libro_per_select,
         parse_importo_form,
         ricalcola_saldi_progressivi,
+        riferimento_pipe_aggancio_bonifico_documenti_importi,
         riferimento_pipe_aggancio_bonifico_documento,
     )
     from .models import MovimentoRegistroStudioConsulente
@@ -1840,12 +1841,20 @@ def consulente_posizione_pagamenti(request):
         if action == 'aggancia_bonifico_a_documento':
             try:
                 bid = int((request.POST.get("bonifico_id") or "0").strip())
-                did = int((request.POST.get("documento_id") or "0").strip())
             except ValueError:
                 messages.error(request, "Dati non validi.")
                 return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
-            if did <= 0:
-                messages.error(request, "Selezionare una proforma o parcella con residuo da incassare.")
+            raw_ids = request.POST.getlist("doc_agg")
+            doc_ids: list[int] = []
+            for x in raw_ids:
+                try:
+                    doc_ids.append(int((x or "").strip()))
+                except ValueError:
+                    messages.error(request, "Selezione documenti non valida.")
+                    return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+            doc_ids = list(dict.fromkeys(doc_ids))
+            if not doc_ids:
+                messages.error(request, "Selezionare almeno una proforma o parcella e indicare l’importo su ciascuna.")
                 return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
             bon = get_object_or_404(
                 MovimentoRegistroStudioConsulente,
@@ -1853,32 +1862,75 @@ def consulente_posizione_pagamenti(request):
                 azienda=azienda,
                 tipo_riga="bonifico",
             )
-            doc = get_object_or_404(
-                MovimentoRegistroStudioConsulente,
-                pk=did,
-                azienda=azienda,
-                tipo_riga="documento",
-            )
-            consentiti = {o["id"] for o in documenti_con_residuo_quadratura_per_select(azienda.id)}
-            if doc.pk not in consentiti:
-                messages.warning(
+            consentiti = {o["id"] for o in documenti_proforma_parcella_libro_per_select(azienda.id)}
+            if not consentiti:
+                messages.error(request, "Non ci sono documenti proforma/parcella in libro.")
+                return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+            avere_b = (bon.avere or Decimal(0)).quantize(Decimal("0.01"))
+            pairs: list = []
+            tot_imp = Decimal(0)
+            for did in doc_ids:
+                if did not in consentiti:
+                    messages.warning(
+                        request,
+                        "Un documento selezionato non è tra le proforma/parcelle in libro. Aggiorna la pagina e riprova.",
+                    )
+                    return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+                doc = get_object_or_404(
+                    MovimentoRegistroStudioConsulente,
+                    pk=did,
+                    azienda=azienda,
+                    tipo_riga="documento",
+                )
+                imp = parse_importo_form((request.POST.get(f"imp_doc_{did}") or "").strip())
+                if imp is None or imp <= 0:
+                    messages.error(
+                        request,
+                        "Per ogni documento selezionato indicare un importo maggiore di zero (formato italiano, es. 130,00).",
+                    )
+                    return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+                imp = imp.quantize(Decimal("0.01"))
+                pairs.append((doc, imp))
+                tot_imp += imp
+            if abs(tot_imp - avere_b) > Decimal("0.02"):
+                messages.error(
                     request,
-                    "Il documento selezionato non risulta con residuo da incassare in quadratura (già saldato o non in elenco). Aggiorna la pagina e riprova.",
+                    f"La somma degli importi (€ {tot_imp}) deve coincidere con l’avere del bonifico (€ {avere_b}).",
                 )
                 return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
-            try:
-                rif = riferimento_pipe_aggancio_bonifico_documento(bon, doc)
-            except ValueError as exc:
-                messages.error(request, str(exc))
-                return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+            if len(pairs) == 1:
+                if abs(pairs[0][1] - avere_b) > Decimal("0.02"):
+                    messages.error(
+                        request,
+                        f"Con un solo documento l’importo deve coincidere con l’avere del bonifico (€ {avere_b}).",
+                    )
+                    return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+                try:
+                    rif = riferimento_pipe_aggancio_bonifico_documento(bon, pairs[0][0])
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+            else:
+                try:
+                    rif = riferimento_pipe_aggancio_bonifico_documenti_importi(pairs)
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
             bon.riferimento_pagamento = rif
             bon.save(update_fields=["riferimento_pagamento"])
             ricalcola_saldi_progressivi(azienda.id)
-            messages.success(
-                request,
-                f"Aggancio salvato: bonifico id {bon.pk} collegato a {doc.get_tipo_documento_display()} "
-                f"n. {(doc.numero_documento or '—').strip()}. Controllare in Quadrature.",
-            )
+            if len(pairs) == 1:
+                doc = pairs[0][0]
+                messages.success(
+                    request,
+                    f"Aggancio salvato: bonifico id {bon.pk} collegato a {doc.get_tipo_documento_display()} "
+                    f"n. {(doc.numero_documento or '—').strip()}.",
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Aggancio salvato: bonifico id {bon.pk} ripartito su {len(pairs)} documenti (riferimento aggiornato).",
+                )
             return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
         if action == 'aggiungi_bonifico':
             data_raw = (request.POST.get('data_valuta') or '').strip()
@@ -1991,7 +2043,7 @@ def consulente_posizione_pagamenti(request):
     )
     rep_bon = request.session.get(SESSION_REPORT_AGGANCIA_BONIFICI) or {}
     report_aggancia_csv_bonifici = bool(rep_bon.get('azienda_id') == azienda.id and rep_bon.get('rows'))
-    documenti_residuo_select = documenti_con_residuo_quadratura_per_select(azienda.id)
+    documenti_aggancio_select = documenti_proforma_parcella_libro_per_select(azienda.id)
     return render(
         request,
         'consulente/posizione_contabile_pagamenti.html',
@@ -2004,7 +2056,7 @@ def consulente_posizione_pagamenti(request):
             'report_aggancia_csv_bonifici': report_aggancia_csv_bonifici,
             'libro_filter': filter_params,
             'anni_disponibili': anni_disponibili,
-            'documenti_residuo_select': documenti_residuo_select,
+            'documenti_aggancio_select': documenti_aggancio_select,
         },
     )
 
