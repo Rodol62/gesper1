@@ -1325,7 +1325,7 @@ def consulente_posizione_contabile(request):
 @login_required
 @user_passes_test(_is_admin_o_consulente_partitario)
 def consulente_posizione_quadratura(request):
-    """Stato incassi: documenti vs bonifici collegati solo tramite agganci espliciti (e piano manuale)."""
+    """Stato incassi: documenti vs bonifici collegati tramite agganci espliciti (pipe da Pagamenti)."""
     from .consulente_registro_studio import quadratura_proforma_parcelle_bonifici
 
     azienda, redir = _partitario_azienda_o_redirect(request)
@@ -1347,137 +1347,27 @@ def consulente_posizione_quadratura(request):
 @login_required
 @user_passes_test(_is_admin_o_consulente_partitario)
 def consulente_piano_allocazione_bonifici(request):
-    """Wizard: pool di bonifici → importi su documenti con residuo; salva ripartizione in quadratura."""
-    from django.db.models import F
-
-    from .consulente_registro_studio import (
-        bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura,
-        documenti_righe_quadratura_con_residuo_da_coprire,
-        elimina_piano_allocazione_bonifici_quadratura,
-        parse_importo_form,
-        quadratura_proforma_parcelle_bonifici_anteprima_allocazione,
-        salva_piano_allocazione_bonifici_quadratura,
-    )
-    from .models import MovimentoRegistroStudioConsulente, PianoAllocazioneBonificiQuad
+    """
+    URL storico «Piano bonifici»: wizard dismesso — la ripartizione avviene solo da Pagamenti
+    («A documento…»). Resta solo la possibilità di eliminare un piano legacy (POST elimina_piano).
+    """
+    from .consulente_registro_studio import elimina_piano_allocazione_bonifici_quadratura
 
     azienda, redir = _partitario_azienda_o_redirect(request)
     if redir:
         return redir
-
-    def pool_total(ids: list[int]) -> Decimal:
-        if not ids:
-            return Decimal('0')
-        rows = MovimentoRegistroStudioConsulente.objects.filter(
-            pk__in=ids, azienda=azienda, tipo_riga='bonifico'
-        )
-        return sum((r.avere or Decimal('0')) for r in rows).quantize(Decimal('0.01'))
-
-    bonifici_all = list(
-        MovimentoRegistroStudioConsulente.objects.filter(azienda=azienda, tipo_riga='bonifico').order_by(
-            F('data_documento').desc(nulls_last=True), '-importato_il', '-id'
-        )
-    )
-    _bon_util = bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura(azienda.id)
-    bonifici_pool = [b for b in bonifici_all if b.pk in _bon_util]
-    piano_obj = PianoAllocazioneBonificiQuad.objects.filter(azienda=azienda).first()
-    piano_count = len(piano_obj.righe) if piano_obj and piano_obj.righe else 0
-
-    pool_ids: list[int] = []
-    quad_anteprima = None
-    piano_step2_documenti: list = []
-    step = 1
-
     if request.method == 'POST':
         action = (request.POST.get('action') or '').strip()
         if action == 'elimina_piano':
             elimina_piano_allocazione_bonifici_quadratura(azienda.id)
-            messages.success(
+            messages.success(request, 'Piano allocazione precedente eliminato.')
+        else:
+            messages.info(
                 request,
-                'Piano allocazione eliminato: i bonifici tornano ad essere abbinati solo dall’euristica testuale.',
+                'Il Piano bonifici non è più disponibile: usare Pagamenti e «A documento…» su ogni bonifico.',
             )
-            return redirect('consulente_piano_allocazione_bonifici')
-        if action == 'anteprima':
-            id_set: set[int] = set()
-            for v in request.POST.getlist('bon_sel'):
-                try:
-                    id_set.add(int(v))
-                except ValueError:
-                    pass
-            sel = [b.pk for b in bonifici_pool if b.pk in id_set]
-            if not sel and id_set:
-                messages.warning(
-                    request,
-                    'I bonifici selezionati risultano già tutti imputati solo su documenti saldati (pipe + piano): non sono disponibili per un nuovo pool.',
-                )
-            elif not sel:
-                messages.error(request, 'Selezionare almeno un bonifico.')
-            else:
-                pool_ids = sel
-                step = 2
-                quad_anteprima = quadratura_proforma_parcelle_bonifici_anteprima_allocazione(azienda.id, set(sel))
-                piano_step2_documenti = documenti_righe_quadratura_con_residuo_da_coprire(quad_anteprima["righe"])
-        elif action == 'salva_piano':
-            raw = (request.POST.get('bon_ids_ordinati') or '').strip()
-            ids_order: list[int] = []
-            for part in raw.split(','):
-                part = part.strip()
-                if part.isdigit():
-                    ids_order.append(int(part))
-            ids_order = list(dict.fromkeys(ids_order))
-            _pool_pk = {b.pk for b in bonifici_pool}
-            ids_order = [i for i in ids_order if i in _pool_pk]
-            pairs: list[tuple[int, Decimal]] = []
-            for k, v in request.POST.items():
-                if not k.startswith('imp_doc_'):
-                    continue
-                tail = k.removeprefix('imp_doc_')
-                if not tail.isdigit():
-                    continue
-                did = int(tail)
-                imp = parse_importo_form((v or '').strip())
-                if imp is not None and imp > 0:
-                    pairs.append((did, imp))
-            if not ids_order:
-                messages.error(
-                    request,
-                    'Sessione non valida o bonifici non più selezionabili: tornare allo step bonifici.',
-                )
-            elif not pairs:
-                messages.error(request, 'Indicare almeno un importo da imputare su una riga documento.')
-            else:
-                try:
-                    salva_piano_allocazione_bonifici_quadratura(azienda, ids_order, pairs, request.user)
-                except ValueError as exc:
-                    messages.error(request, str(exc))
-                    pool_ids = ids_order
-                    step = 2
-                    quad_anteprima = quadratura_proforma_parcelle_bonifici_anteprima_allocazione(
-                        azienda.id, set(ids_order)
-                    )
-                    piano_step2_documenti = documenti_righe_quadratura_con_residuo_da_coprire(quad_anteprima["righe"])
-                else:
-                    messages.success(
-                        request,
-                        'Piano salvato: le quote del piano si sommano agli agganci espliciti (riferimento pipe da Pagamenti) sui bonifici non inclusi nel pool.',
-                    )
-                    return redirect('consulente_piano_allocazione_bonifici')
-
-    return render(
-        request,
-        'consulente/piano_allocazione_bonifici.html',
-        {
-            'azienda': azienda,
-            'partitario_back': _partitario_back(request),
-            'posizione_nav': 'piano_bonifici',
-            'bonifici_pool': bonifici_pool,
-            'pool_ids': pool_ids,
-            'pool_total': pool_total(pool_ids) if pool_ids else Decimal('0'),
-            'quad_anteprima': quad_anteprima,
-            'piano_step2_documenti': piano_step2_documenti,
-            'step': step,
-            'piano_count': piano_count,
-        },
-    )
+        return redirect('consulente_posizione_pagamenti')
+    return redirect('consulente_posizione_pagamenti')
 
 
 @login_required
@@ -2479,7 +2369,7 @@ def consulente_posizione_libro_pdf(request):
     story.append(
         Paragraph(
             "<b>Saldo prog.</b> = saldo progressivo dare − avere sul libro (ordine cronologico). "
-            "<b>Pagato</b> / <b>Residuo (quad.)</b> da quadratura incassi (pipe + piano). "
+            "<b>Pagato</b> / <b>Residuo (quad.)</b> da quadratura incassi (riferimenti pipe da Pagamenti). "
             "Il riepilogo finale confronta solo <b>parcelle e proforma</b> con i <b>bonifici</b>.",
             meta_style,
         )

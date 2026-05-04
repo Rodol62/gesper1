@@ -19,7 +19,7 @@
   <header class="gesper-libro-hero mb-3">
     <h1><i class="bi bi-ui-checks-grid me-2"></i>Incassi su proforma e parcelle</h1>
     <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — lettura delle righe già in libro</p>
-    <p class="gesper-libro-lead mb-0">Ogni incasso su una fattura deriva dal <strong>riferimento pagamento in formato pipe</strong> impostato in <strong>Pagamenti</strong> (una o più triple <code>numero|data|importo</code>), più eventuali quote salvate nel <strong>Piano bonifici</strong>. Causale e testo distinta <strong>non</strong> collegano più automaticamente i bonifici alle fatture: per aggiornare gli accoppiamenti usare <strong>Pagamenti → A documento…</strong>.</p>
+    <p class="gesper-libro-lead mb-0">Ogni incasso su una fattura deriva dal <strong>riferimento pagamento in formato pipe</strong> impostato in <strong>Pagamenti</strong> (una o più triple <code>numero|data|importo</code>). Causale e testo distinta <strong>non</strong> collegano automaticamente i bonifici alle fatture: per aggiornare gli accoppiamenti usare <strong>Pagamenti → A documento…</strong>.</p>
   </header>
 
   {% include "consulente/posizione_contabile_subnav.html" %}
@@ -44,7 +44,7 @@
   {% endif %}
 
   <p class="small text-muted border rounded px-2 py-2 mb-3" style="background:#f8fafc;line-height:1.4">
-    <strong>Residuo documento</strong> = dare fattura − somma delle quote incassate attribuite tramite pipe (e piano). Stato <strong>Parziale</strong> = incassato in parte; <strong>Saldato</strong> = dare coperto; <strong>Eccedenza</strong> = incassi oltre il dare.
+    <strong>Residuo documento</strong> = dare fattura − somma delle quote incassate attribuite tramite pipe da Pagamenti. Stato <strong>Parziale</strong> = incassato in parte; <strong>Saldato</strong> = dare coperto; <strong>Eccedenza</strong> = incassi oltre il dare.
     <strong>Saldo cumulativo residui</strong> = somma progressiva dei residui nell’ordine delle date documento.
     Il <strong>saldo di posizione</strong> complessivo resta nel <strong>libro movimenti</strong> (include rettifiche e righe fuori da questa vista). Per allegare PDF usare <strong>Proforma / parcelle</strong> e <strong>Pagamenti</strong>.
     <strong>Riscontro consulente:</strong> badge «con / senza PDF» sul bonifico come in Pagamenti; senza PDF il saldo numerico può risultare completo ma manca la documentazione da esibire.

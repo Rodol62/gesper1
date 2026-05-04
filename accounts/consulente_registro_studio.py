@@ -2551,7 +2551,7 @@ def documenti_con_residuo_quadratura_per_select(azienda_id: int, q_quad: dict | 
 
 def mappa_bonifico_documenti_stato_da_quadratura(q_quad: dict) -> dict[int, dict[int, str]]:
     """
-    Per ogni bonifico presente nelle righe documento della quadratura (pipe + piano allocazione),
+    Per ogni bonifico presente nelle righe documento della quadratura (pipe da Pagamenti; eventuale piano JSON legacy),
     mappa ``bon_pk -> {doc_pk: stato}`` dove ``stato`` è quello della riga documento (saldato, parziale, …).
     """
     out: dict[int, dict[int, str]] = {}
@@ -2629,8 +2629,8 @@ def metadati_evidenza_bonifico_pagamenti(bon, q_quad: dict, doc_stati_per_bon: d
         "classe": "gesper-bon-pag-libero",
         "badge": "",
         "title": (
-            "Bonifico non ancora imputato in quadratura a parcelle/proforma (solo piano allocazione o "
-            "«Salva aggancio» creano il collegamento contabile)."
+            "Bonifico non ancora imputato in quadratura a parcelle/proforma: usare Pagamenti "
+            "«A documento…» e «Salva aggancio» (riferimento in formato num|data|importo)."
         ),
     }
 

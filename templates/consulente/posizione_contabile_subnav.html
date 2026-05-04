@@ -1,4 +1,4 @@
-{# Richiede: posizione_nav in ('hub','proforma','pagamenti','quadratura','piano_bonifici','libro') #}
+{# Richiede: posizione_nav in ('hub','proforma','pagamenti','quadratura','libro') #}
 <style>
 .gesper-help {
   border: 1px solid var(--bs-border-color, #dee2e6);
@@ -55,9 +55,6 @@
   </li>
   <li class="nav-item">
     <a class="nav-link py-1 px-2 {% if posizione_nav == 'quadratura' %}active{% endif %}" href="{% url 'consulente_posizione_quadratura' %}"><i class="bi bi-ui-checks-grid"></i> Incassi</a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link py-1 px-2 {% if posizione_nav == 'piano_bonifici' %}active{% endif %}" href="{% url 'consulente_piano_allocazione_bonifici' %}"><i class="bi bi-diagram-3"></i> Piano bonifici</a>
   </li>
   <li class="nav-item">
     <a class="nav-link py-1 px-2 {% if posizione_nav == 'libro' %}active{% endif %}" href="{% url 'consulente_posizione_libro' %}"><i class="bi bi-journal-text"></i> Movimenti</a>
