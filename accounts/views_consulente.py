@@ -2274,7 +2274,7 @@ def consulente_posizione_libro_excel(request):
         return HttpResponse("Impossibile creare il file Excel.", status=500)
     ws.title = "Movimenti"
 
-    headers = ["Data", "Movimento", "Dettaglio", "Dare", "Pagato (quad.)", "Residuo (quad.)", "Doc."]
+    headers = ["Data", "Movimento", "Dettaglio", "Dare", "Pagato (quad.)", "Residuo (quad.)", "Saldo prog.", "Doc."]
     thin = Side(border_style='thin', color='D0D0D0')
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     h_fill = PatternFill('solid', fgColor='1B3A5F')
@@ -2320,6 +2320,7 @@ def consulente_posizione_libro_excel(request):
             float(r.dare or 0),
             float(pagato_q),
             float(residuo_q),
+            float(r.saldo_progressivo or 0),
             "PDF" if getattr(r.file, "name", "") else "",
         ]
         fill = alt_fill if idx % 2 == 0 else None
@@ -2329,11 +2330,11 @@ def consulente_posizione_libro_excel(request):
             c.alignment = left
             if fill is not None:
                 c.fill = fill
-            if col in (4, 5, 6):
+            if col in (4, 5, 6, 7):
                 c.number_format = '#,##0.00'
                 c.alignment = Alignment(horizontal='right', vertical='center')
 
-    widths = [12, 18, 64, 13, 13, 13, 9]
+    widths = [12, 16, 52, 12, 12, 12, 12, 8]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -2373,7 +2374,6 @@ def consulente_posizione_libro_pdf(request):
     quad_libro = mappa_quadratura_per_export_libro_movimenti(azienda.id)
     doc_quad = quad_libro["documento"]
     bon_residuo_quad = quad_libro["bonifico_residuo_avere"]
-    saldo_finale_quad = quad_libro["saldo_cumulativo_residui_finale"]
     riepilogo_pdf = quad_libro.get("riepilogo_coerenza") or {}
     buffer = BytesIO()
     timestamp_ref = timezone.localtime()
@@ -2478,9 +2478,9 @@ def consulente_posizione_libro_pdf(request):
         story.append(Paragraph("Filtro elenco: " + ", ".join(filtro_frasi), meta_style))
     story.append(
         Paragraph(
-            "«Pagato» sui documenti = Σ incassi da <b>riferimento pipe</b> (Pagamenti) e da <b>piano allocazione</b>; "
-            "«Residuo (quad.)» = residuo su fattura o, sui bonifici, avere non ancora imputato. "
-            "I totali valgono su tutte le righe in libro, non solo sul periodo filtrato.",
+            "<b>Saldo prog.</b> = saldo progressivo dare − avere sul libro (ordine cronologico). "
+            "<b>Pagato</b> / <b>Residuo (quad.)</b> da quadratura incassi (pipe + piano). "
+            "Il riepilogo finale confronta solo <b>parcelle e proforma</b> con i <b>bonifici</b>.",
             meta_style,
         )
     )
@@ -2493,6 +2493,7 @@ def consulente_posizione_libro_pdf(request):
         "Da pagare",
         "Pagato",
         "Residuo (quad.)",
+        "Saldo prog.",
         "Doc.",
     ]]
     row_styles: list[tuple] = []
@@ -2537,22 +2538,23 @@ def consulente_posizione_libro_pdf(request):
             _fmt_euro_pdf(r.dare),
             _fmt_euro_pdf(pagato_q),
             _fmt_euro_pdf(residuo_q),
+            _fmt_euro_pdf(getattr(r, "saldo_progressivo", None)),
             "PDF" if getattr(r.file, "name", "") else "—",
         ])
 
     table = Table(
         data,
         repeatRows=1,
-        colWidths=[23 * mm, 25 * mm, 127 * mm, 24 * mm, 24 * mm, 24 * mm, 12 * mm],
+        colWidths=[21 * mm, 23 * mm, 99 * mm, 22 * mm, 22 * mm, 22 * mm, 24 * mm, 11 * mm],
     )
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1B3A5F")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("FONTSIZE", (0, 0), (-1, 0), 7.5),
         ("ALIGN", (0, 0), (2, -1), "LEFT"),
-        ("ALIGN", (3, 1), (5, -1), "RIGHT"),
-        ("ALIGN", (6, 1), (6, -1), "CENTER"),
+        ("ALIGN", (3, 1), (6, -1), "RIGHT"),
+        ("ALIGN", (7, 1), (7, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
         ("FONTSIZE", (0, 1), (-1, -1), 7.2),
@@ -2565,75 +2567,47 @@ def consulente_posizione_libro_pdf(request):
     ]))
     story.append(table)
     story.append(Spacer(1, 4 * mm))
-    story.append(Paragraph("Riepilogo contabile (totali come in Quadrature)", title_style))
+    story.append(Paragraph("Riepilogo — parcelle / proforma e bonifici", title_style))
+
+    tot_pf_par = (riepilogo_pdf.get("tot_dare_parcella_proforma") or Decimal("0")).quantize(Decimal("0.01"))
+    tot_bon = (riepilogo_pdf.get("tot_avere_bonifici_libro") or Decimal("0")).quantize(Decimal("0.01"))
+    diff_pp_bon = (tot_pf_par - tot_bon).quantize(Decimal("0.01"))
+    if diff_pp_bon > Decimal("0.02"):
+        voce_diff = "Importo ancora da versare (dare parcelle/proforma − bonifici)"
+    elif diff_pp_bon < Decimal("-0.02"):
+        voce_diff = "Credito azienda da compensare (bonifici oltre il totale parcelle/proforma)"
+    else:
+        voce_diff = "In pareggio (differenza entro ±0,02 €)"
+
+    saldo_prog_ultimo = (
+        (righe[-1].saldo_progressivo if righe else Decimal("0")) or Decimal("0")
+    ).quantize(Decimal("0.01"))
+    scarto_prog = (saldo_prog_ultimo - diff_pp_bon).quantize(Decimal("0.01"))
 
     rip_rows: list[list] = [
         ["Voce", "Importo"],
         [
-            "Totale parcelle in dare (somma importi documenti tipo Parcella in libro)",
-            _fmt_euro_pdf(riepilogo_pdf.get("tot_dare_parcella", Decimal("0"))),
+            "Totale dare parcelle e proforma (somma in libro)",
+            _fmt_euro_pdf(tot_pf_par),
         ],
         [
-            "Totale proforma in dare (somma importi documenti tipo Proforma in libro)",
-            _fmt_euro_pdf(riepilogo_pdf.get("tot_dare_proforma", Decimal("0"))),
+            "Totale bonifici effettuati (somma avere in libro)",
+            _fmt_euro_pdf(tot_bon),
+        ],
+        [voce_diff, _fmt_euro_pdf(diff_pp_bon)],
+        [
+            "Saldo progressivo (ultima riga dell’elenco sopra: dare − avere cumulato sul libro)",
+            _fmt_euro_pdf(saldo_prog_ultimo),
         ],
     ]
-    altro_d = riepilogo_pdf.get("tot_dare_altro_documento") or Decimal("0")
-    if abs(altro_d) > Decimal("0.005"):
+    if abs(scarto_prog) > Decimal("0.05"):
         rip_rows.append(
             [
-                "Totale altri documenti in dare (tipo non classificato o altre partite in quadratura)",
-                _fmt_euro_pdf(altro_d),
+                "Scarto: saldo progressivo − (dare parcella/proforma − bonifici) — "
+                "diverso se ci sono rettifiche, altri documenti o partite fuori da parcella/proforma",
+                _fmt_euro_pdf(scarto_prog),
             ]
         )
-    orf = riepilogo_pdf.get("tot_orfani_avere") or Decimal("0")
-    if orf > Decimal("0.02"):
-        rip_rows.append(
-            [
-                "Bonifici «orfani» (avere non collegato a nessuna fattura in quadratura)",
-                _fmt_euro_pdf(orf),
-            ]
-        )
-    dr = riepilogo_pdf.get("dare_rettifiche") or Decimal("0")
-    ar = riepilogo_pdf.get("avere_rettifiche") or Decimal("0")
-    if abs(dr) > Decimal("0.005") or abs(ar) > Decimal("0.005"):
-        rip_rows.append(
-            [
-                "Rettifiche manuali in libro (dare / avere, fuori dall’incrocio quadratura)",
-                f"{_fmt_euro_pdf(dr)} / {_fmt_euro_pdf(ar)}",
-            ]
-        )
-    idx_bold0 = len(rip_rows)
-    rip_rows.extend(
-        [
-            [
-                "Totale dare documenti in quadratura (tutte le fatture considerate nell’incrocio)",
-                _fmt_euro_pdf(riepilogo_pdf.get("tot_dare_documenti_quadratura", Decimal("0"))),
-            ],
-            [
-                "Totale bonifici in avere (somma dei pagamenti registrati in libro)",
-                _fmt_euro_pdf(riepilogo_pdf.get("tot_avere_bonifici_libro", Decimal("0"))),
-            ],
-            [
-                "Differenza: totale dare documenti − totale avere bonifici",
-                _fmt_euro_pdf(riepilogo_pdf.get("differenza_dare_meno_avere", Decimal("0"))),
-            ],
-        ]
-    )
-    av_non_imp = (riepilogo_pdf.get("avere_non_imputato_a_fatture") or Decimal("0")).quantize(Decimal("0.01"))
-    rip_rows.append(
-        [
-            "Avere bonifici non ancora imputato alle fatture (totale avere − totale avere attribuito in quadratura)",
-            _fmt_euro_pdf(av_non_imp),
-        ]
-    )
-    scarto_sigma = (riepilogo_pdf.get("scarto_coerenza_sigma_diff") or Decimal("0")).quantize(Decimal("0.01"))
-    rip_rows.append(
-        [
-            "Verifica: Σ residui finale − differenza − avere non imputato (atteso ±0,02 €)",
-            _fmt_euro_pdf(scarto_sigma),
-        ]
-    )
 
     rip_table = Table(rip_rows, colWidths=[135 * mm, 35 * mm])
     rip_styles: list[tuple] = [
@@ -2645,7 +2619,7 @@ def consulente_posizione_libro_pdf(request):
         ("ALIGN", (1, 0), (1, -1), "RIGHT"),
         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
         ("FONTSIZE", (0, 1), (-1, -1), 8),
-        ("FONTNAME", (0, idx_bold0), (-1, idx_bold0 + 2), "Helvetica-Bold"),
+        ("FONTNAME", (0, 3), (-1, 3), "Helvetica-Bold"),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#CBD5E1")),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
@@ -2657,64 +2631,12 @@ def consulente_posizione_libro_pdf(request):
     story.append(Spacer(1, 2 * mm))
     story.append(
         Paragraph(
-            "<b>Lettura oggettiva.</b> La <b>differenza</b> (totale dare proforma/parcelle in quadratura "
-            "− totale avere bonifici in libro) indica se il consulente ha ancora credito verso l’azienda "
-            "(differenza <b>positiva</b>: risultano più fatture che bonifici registrati) o se l’azienda ha "
-            "versato <b>più</b> dei documenti considerati (differenza <b>negativa</b>). "
-            "Il <b>saldo cumulativo residui (Σ residui)</b> in Quadrature è la somma dei residui "
-            "fattura per fattura dopo l’attribuzione dei bonifici: deve soddisfare l’identità "
-            "<b>Σ residui = differenza + avere non imputato alle fatture</b> (ultime righe della tabella). "
-            "Quando tutto l’avere è imputato alle fatture, <b>Σ residui e differenza coincidono</b>. "
-            "Se la riga «Verifica» non è vicina a zero pur senza importi «non imputato», i dati sono "
-            "anomali: sospettare <b>righe duplicate</b> da vecchi import Excel o movimenti incoerenti.",
+            f"Righe nell’elenco: {len(righe)}. "
+            "In assenza di rettifiche o altri documenti oltre a parcella/proforma, il <b>saldo progressivo</b> "
+            "in ultima riga coincide con la differenza (dare parcelle/proforma − bonifici).",
             meta_style,
         )
     )
-    story.append(Spacer(1, 2 * mm))
-    story.append(
-        Paragraph(
-            "<b>Saldo di libro separato.</b> Per il conteggio cronologico <b>dare − avere</b> su tutte le "
-            "righe (documenti, bonifici, rettifiche) vedere la colonna <b>Saldo</b> nella pagina "
-            "<b>Libro movimenti</b> (ultima riga): non coincide con la differenza sopra se ci sono "
-            "rettifiche o partite fuori dall’incrocio proforma/parcelle ↔ bonifici.",
-            meta_style,
-        )
-    )
-    story.append(Spacer(1, 3 * mm))
-    story.append(Paragraph(f"Totale righe nell’elenco sopra: {len(righe)}", meta_style))
-
-    saldo_finale = saldo_finale_quad
-    diff_q = (riepilogo_pdf.get("differenza_dare_meno_avere") or Decimal("0")).quantize(Decimal("0.01"))
-    scarto_q = (riepilogo_pdf.get("scarto_coerenza_sigma_diff") or Decimal("0")).quantize(Decimal("0.01"))
-    av_ni_q = (riepilogo_pdf.get("avere_non_imputato_a_fatture") or Decimal("0")).quantize(Decimal("0.01"))
-    if abs(scarto_q) > Decimal("0.05"):
-        avviso_scarto = (
-            f" <b>Attenzione:</b> la verifica aritmetica è {_fmt_euro_pdf(scarto_q)} (oltre ±0,05 €): "
-            "controllare duplicati da Excel e coerenza delle righe in libro."
-        )
-    else:
-        avviso_scarto = " Verifica aritmetica coerente con i totali interni di quadratura."
-    if saldo_finale > Decimal("0.02"):
-        saldo_msg = (
-            f"<b>Saldo cumulativo residui (Σ residui in Quadrature):</b> {_fmt_euro_pdf(saldo_finale)} "
-            f"(= differenza {_fmt_euro_pdf(diff_q)} + avere non imputato {_fmt_euro_pdf(av_ni_q)}). "
-            "Indica quanto resta aperto sulle singole fatture dopo l’attribuzione dei bonifici."
-            f"{avviso_scarto}"
-        )
-    elif saldo_finale < Decimal("-0.02"):
-        saldo_msg = (
-            f"<b>Saldo cumulativo residui (Σ residui in Quadrature):</b> {_fmt_euro_pdf(saldo_finale)} "
-            f"(differenza {_fmt_euro_pdf(diff_q)}, non imputato {_fmt_euro_pdf(av_ni_q)})."
-            f"{avviso_scarto}"
-        )
-    else:
-        saldo_msg = (
-            f"<b>Σ residui in Quadrature</b> pari a zero (differenza {_fmt_euro_pdf(diff_q)}, "
-            f"non imputato {_fmt_euro_pdf(av_ni_q)})."
-            f"{avviso_scarto}"
-        )
-    story.append(Spacer(1, 2 * mm))
-    story.append(Paragraph(saldo_msg, meta_style))
 
     doc.build(story, canvasmaker=NumberedCanvas)
 

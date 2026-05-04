@@ -1424,6 +1424,7 @@ class QuadraturaProformaBonificiTests(TestCase):
         rip = m["riepilogo_coerenza"]
         self.assertEqual(rip["tot_dare_parcella"], Decimal("100.00"))
         self.assertEqual(rip["tot_dare_proforma"], Decimal("0"))
+        self.assertEqual(rip["tot_dare_parcella_proforma"], Decimal("100.00"))
         self.assertEqual(rip["tot_avere_bonifici_libro"], Decimal("40.00"))
         self.assertEqual(rip["differenza_dare_meno_avere"], Decimal("60.00"))
         self.assertEqual(rip["tot_avere_attribuito_documenti"], Decimal("40.00"))

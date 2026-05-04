@@ -3047,6 +3047,7 @@ def mappa_quadratura_per_export_libro_movimenti(azienda_id: int) -> dict:
     tot_dare_parcella = tot_dare_parcella.quantize(Decimal("0.01"))
     tot_dare_proforma = tot_dare_proforma.quantize(Decimal("0.01"))
     tot_dare_altro_doc = tot_dare_altro_doc.quantize(Decimal("0.01"))
+    tot_dare_parcella_proforma = (tot_dare_parcella + tot_dare_proforma).quantize(Decimal("0.01"))
     tot_dare_documenti_quad = (tot.get("totale_dare") or Decimal("0")).quantize(Decimal("0.01"))
     tot_avere_bonifici_libro = (tot.get("totale_avere_libro") or Decimal("0")).quantize(Decimal("0.01"))
     tot_avere_attribuito_documenti = (tot.get("totale_avere_attribuito") or Decimal("0")).quantize(Decimal("0.01"))
@@ -3071,6 +3072,7 @@ def mappa_quadratura_per_export_libro_movimenti(azienda_id: int) -> dict:
     riepilogo_coerenza = {
         "tot_dare_parcella": tot_dare_parcella,
         "tot_dare_proforma": tot_dare_proforma,
+        "tot_dare_parcella_proforma": tot_dare_parcella_proforma,
         "tot_dare_altro_documento": tot_dare_altro_doc,
         "tot_dare_documenti_quadratura": tot_dare_documenti_quad,
         "tot_avere_bonifici_libro": tot_avere_bonifici_libro,
