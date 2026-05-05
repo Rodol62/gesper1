@@ -2628,7 +2628,11 @@ def riepilogo_assegnazioni_pipe_bonifico(azienda_id: int, bon, documenti: list) 
     for num, d_iso, imp in lista_triple_pipe_aggancio_da_riferimento(bon.riferimento_pagamento or ""):
         d = _documento_per_aggancio_manuale_numero(azienda_id, num, d_iso, documenti)
         if d is None:
-            parts.append(f"«{num}» € {num_it_str(imp, 2)} (doc. non risolto)")
+            parts.append(
+                f"«{(num or '').strip()}» € {num_it_str(imp, 2)} "
+                "(nessuna proforma/parcella in libro con questo numero — il testo prima del primo «|» "
+                "deve essere il numero documento in libro)"
+            )
         else:
             tipo = d.get_tipo_documento_display() if hasattr(d, "get_tipo_documento_display") else ""
             nn = (d.numero_documento or "—").strip()
@@ -2667,12 +2671,18 @@ def documenti_opzioni_aggancio_per_bonifico(azienda_id: int, bon, q_quad: dict) 
         res = res_all.get(pk, Decimal("0")).quantize(Decimal("0.01"))
         qv = quote.get(pk, Decimal("0")).quantize(Decimal("0.01"))
         cap = (res + qv).quantize(Decimal("0.01"))
+        dare_v = (row.get("importo_dare") or Decimal("0")).quantize(Decimal("0.01"))
+        tot_att = (row.get("tot_bonifici") or Decimal("0")).quantize(Decimal("0.01"))
         pezzi = [
             d.get_tipo_documento_display(),
             f"n. {(d.numero_documento or '—').strip()}",
+            f"dare € {num_it_str(dare_v, 2)}",
+            f"attribuito (tutti i bonifici) € {num_it_str(tot_att, 2)}",
             f"residuo € {num_it_str(res, 2)}",
             stato or "—",
         ]
+        if tot_att > dare_v + Decimal("0.02"):
+            pezzi.append("attribuito tot. superiore al dare")
         if qv > Decimal("0.01"):
             pezzi.append(f"da questo bon. € {num_it_str(qv, 2)}")
         if d.data_documento:
@@ -2769,16 +2779,17 @@ def metadati_evidenza_bonifico_pagamenti(bon, q_quad: dict, doc_stati_per_bon: d
                 "classe": "gesper-bon-pag-attivi",
                 "badge": "Aggancio",
                 "title": (
-                    "Bonifico collegato in quadratura; almeno un documento risulta in eccedenza. "
-                    f"{hint_doc or '—'}."
+                    "Bonifico collegato in quadratura; almeno un documento risulta in eccedenza (incassi oltre il dare). "
+                    f"Documenti: {hint_doc or '—'}. Apri «A documento…» per dare, attribuito, residuo e quote di questo bonifico."
                 ),
             }
         return {
             "classe": "gesper-bon-pag-attivi",
             "badge": "Aggancio",
             "title": (
-                "Bonifico imputato a proforma/parcella con residuo ancora aperto o parziale. "
-                f"Documenti: {hint_doc or '—'}."
+                "Bonifico imputato in quadratura a proforma/parcella con residuo ancora aperto o parziale su almeno un documento. "
+                f"Documenti: {hint_doc or '—'}. Apri «A documento…» per il dettaglio (residuo documento, importo attribuito a questo bonifico, "
+                "coerenza con il riferimento in formato num|data|importo)."
             ),
         }
     if pipe_sembr_aggancio:
@@ -2786,8 +2797,10 @@ def metadati_evidenza_bonifico_pagamenti(bon, q_quad: dict, doc_stati_per_bon: d
             "classe": "gesper-bon-pag-pipe-rotto",
             "badge": "Rif. non risolto",
             "title": (
-                "Il campo riferimento ha il formato di un aggancio manuale (num|data|importo) ma non risulta "
-                "coerente con i documenti in libro o con l’avere del bonifico."
+                "Il riferimento sembra una ripartizione «numero|data|importo» ma la quadratura non riesce "
+                "a collegare questo bonifico alle parcelle/proforma: di solito il «numero» non coincide con "
+                "nessun documento in libro, oppure la somma degli importi nel riferimento non coincide con "
+                "l’avere del bonifico. Apri «A documento…» per il dettaglio e correggi con «Salva aggancio»."
             ),
         }
     return {
@@ -2800,11 +2813,164 @@ def metadati_evidenza_bonifico_pagamenti(bon, q_quad: dict, doc_stati_per_bon: d
     }
 
 
-def annota_movimenti_bonifici_pagamenti_elenco(righe: list, q_quad: dict) -> None:
-    """Aggiunge a ogni movimento ``pagamenti_row_meta`` (dict) per template Pagamenti."""
+def _data_iso_pipe_label(d_iso: str) -> str:
+    d_iso = (d_iso or "").strip()
+    if d_iso and re.match(r"^\d{4}-\d{2}-\d{2}$", d_iso):
+        try:
+            return date.fromisoformat(d_iso).strftime("%d/%m/%Y")
+        except ValueError:
+            return d_iso
+    return d_iso or "—"
+
+
+def _quota_bonifico_su_documento_da_riga_bonifici(bs: list | None, bon_pk: int) -> Decimal:
+    """Somma importo attribuito a ``bon_pk`` nella lista ``bonifici`` di una riga quadratura."""
+    tot = Decimal("0")
+    for e in bs or []:
+        b = e.get("bon")
+        if b is None or int(b.pk) != bon_pk:
+            continue
+        qv = e.get("quota")
+        if qv is not None:
+            tot += qv
+        else:
+            tot += b.avere or Decimal("0")
+    return tot.quantize(Decimal("0.01"))
+
+
+def diagnosi_pipe_bonifico_pagamenti(azienda_id: int, bon, q_quad: dict) -> dict:
+    """
+    Dettaglio per Pagamenti: documenti collegati in quadratura a questo bonifico (badge «Aggancio» / «Saldato»),
+    più analisi del riferimento in formato pipe (segmenti non risolti, coerenza con l’avere, quote vs dare).
+    """
+    from accounts.formatting import num_it_str
+
+    avere = (bon.avere or Decimal("0")).quantize(Decimal("0.01"))
+    out: dict = {
+        "bloccata": False,
+        "segmenti_non_risolti": [],
+        "segmenti_risolti": [],
+        "documenti_quadratura": [],
+        "somma_pipe": Decimal("0"),
+        "avere": avere,
+        "coerenza_somma_avere": True,
+        "hint_title_extra": "",
+    }
+
+    row_by_pk: dict[int, dict] = {}
+    for row in q_quad.get("righe") or []:
+        d = row.get("documento")
+        if d is not None:
+            row_by_pk[int(d.pk)] = row
+
+    mappa_st = mappa_bonifico_documenti_stato_da_quadratura(q_quad)
+    bpk = int(bon.pk)
+    for dpk, stato_doc in (mappa_st.get(bpk) or {}).items():
+        row = row_by_pk.get(dpk)
+        if not row:
+            continue
+        d = row["documento"]
+        dare = (row.get("importo_dare") or Decimal("0")).quantize(Decimal("0.01"))
+        tot_att = (row.get("tot_bonifici") or Decimal("0")).quantize(Decimal("0.01"))
+        res = (row.get("residuo") or Decimal("0")).quantize(Decimal("0.01"))
+        q_bon = _quota_bonifico_su_documento_da_riga_bonifici(row.get("bonifici"), bpk)
+        out["documenti_quadratura"].append(
+            {
+                "etichetta": f"{d.get_tipo_documento_display()} n. {(d.numero_documento or '—').strip()}",
+                "stato": stato_doc,
+                "dare": dare,
+                "attribuito_tot": tot_att,
+                "residuo": res,
+                "quota_questo_bonifico": q_bon,
+                "attribuito_maggior_dare": tot_att > dare + Decimal("0.02"),
+                "quota_questo_bon_maggiore_dare": q_bon > dare + Decimal("0.02"),
+            }
+        )
+
+    hint_parts: list[str] = []
+    if out["documenti_quadratura"]:
+        if any(dq["stato"] == "parziale" for dq in out["documenti_quadratura"]):
+            hint_parts.append("Resta residuo da incassare su almeno un documento collegato a questo bonifico.")
+        if any(dq["stato"] == "eccedenza" for dq in out["documenti_quadratura"]):
+            hint_parts.append("Almeno un documento collegato è in eccedenza (incassi oltre il dare).")
+        if any(dq["attribuito_maggior_dare"] for dq in out["documenti_quadratura"]):
+            hint_parts.append("Su almeno un documento l’attribuito totale (tutti i bonifici) supera il dare.")
+        if any(dq["quota_questo_bon_maggiore_dare"] for dq in out["documenti_quadratura"]):
+            hint_parts.append("Su almeno un documento la quota attribuita a questo bonifico supera il dare.")
+
+    segs = lista_triple_pipe_aggancio_da_riferimento(bon.riferimento_pagamento or "")
+    if not segs:
+        out["hint_title_extra"] = " ".join(hint_parts).strip()
+        return out
+
+    documenti = [row["documento"] for row in q_quad.get("righe") or [] if row.get("documento")]
+
+    somma = sum((s[2] for s in segs), start=Decimal("0")).quantize(Decimal("0.01"))
+    out["somma_pipe"] = somma
+    out["coerenza_somma_avere"] = abs(somma - avere) <= Decimal("0.02")
+
+    alloc = _allocazione_da_segmenti_pipe_espliciti(azienda_id, bon, documenti, segs)
+    out["bloccata"] = alloc is None
+
+    non_risolti: list[str] = []
+    risolti: list[dict] = []
+    for num, d_iso, imp in segs:
+        doc = _documento_per_aggancio_manuale_numero(azienda_id, num, d_iso, documenti)
+        if doc is None:
+            non_risolti.append(
+                f"«{(num or '').strip()}» · data {_data_iso_pipe_label(d_iso)} · € {num_it_str(imp, 2)} — "
+                "nessuna proforma/parcella in libro con questo numero (o data non univoca)."
+            )
+        else:
+            row = row_by_pk.get(int(doc.pk)) or {}
+            dare = (row.get("importo_dare") or Decimal("0")).quantize(Decimal("0.01"))
+            tot_att = (row.get("tot_bonifici") or Decimal("0")).quantize(Decimal("0.01"))
+            res = (row.get("residuo") or Decimal("0")).quantize(Decimal("0.01"))
+            stato = (row.get("stato") or "").strip()
+            quota_supera_dare = imp > dare + Decimal("0.02")
+            risolti.append(
+                {
+                    "etichetta": f"{doc.get_tipo_documento_display()} n. {(doc.numero_documento or '—').strip()}",
+                    "quota_pipe": imp,
+                    "dare": dare,
+                    "attribuito_tot": tot_att,
+                    "residuo": res,
+                    "stato": stato,
+                    "quota_supera_dare": quota_supera_dare,
+                    "documento_in_eccedenza": stato == "eccedenza",
+                }
+            )
+
+    out["segmenti_non_risolti"] = non_risolti
+    out["segmenti_risolti"] = risolti
+
+    if non_risolti:
+        hint_parts.append(
+            "Almeno un segmento non punta a un documento in libro: il testo prima del primo «|» deve essere "
+            "il numero della proforma/parcella registrata in «Proforma / parcelle»."
+        )
+    if not out["coerenza_somma_avere"]:
+        hint_parts.append(
+            f"Somma importi nel riferimento € {num_it_str(somma, 2)} ≠ avere bonifico € {num_it_str(avere, 2)}."
+        )
+    if risolti and any(x.get("quota_supera_dare") for x in risolti):
+        hint_parts.append("In almeno un segmento l’importo indicato supera il dare del documento collegato.")
+    if risolti and any(x.get("documento_in_eccedenza") for x in risolti):
+        hint_parts.append("Un documento collegato risulta in eccedenza in quadratura (incassi oltre il dare).")
+
+    out["hint_title_extra"] = " ".join(hint_parts).strip()
+    return out
+
+
+def annota_movimenti_bonifici_pagamenti_elenco(righe: list, q_quad: dict, azienda_id: int) -> None:
+    """Aggiunge a ogni movimento ``pagamenti_row_meta`` e ``pagamenti_pipe_diagnosi`` per template Pagamenti."""
     mappa = mappa_bonifico_documenti_stato_da_quadratura(q_quad)
     for bon in righe:
-        meta = metadati_evidenza_bonifico_pagamenti(bon, q_quad, mappa)
+        meta = dict(metadati_evidenza_bonifico_pagamenti(bon, q_quad, mappa))
+        diag = diagnosi_pipe_bonifico_pagamenti(azienda_id, bon, q_quad)
+        setattr(bon, "pagamenti_pipe_diagnosi", diag)
+        if meta.get("badge") in ("Rif. non risolto", "Aggancio") and (diag.get("hint_title_extra") or "").strip():
+            meta["title"] = f"{meta['title']} {diag['hint_title_extra']}".strip()
         setattr(bon, "pagamenti_row_meta", meta)
 
 

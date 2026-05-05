@@ -28,6 +28,13 @@
     });
     var el = form.querySelector(".gesper-agg-live-sum");
     if (!el) return;
+    var pipeBloccata = form.getAttribute("data-pipe-bloccata") === "1";
+    if (pipeBloccata && sum < 0.02) {
+      el.textContent =
+        "Il riferimento salvato non risulta collegato in quadratura (vedi l’avviso sopra). " +
+        "Seleziona le parcelle/proforma corrette e importi che sommano all’avere per sostituire il riferimento.";
+      return;
+    }
     var delta = avere - sum;
     var txt = "Somma importi selezionati: € " + fmtIt(sum) + " — ";
     if (Math.abs(delta) < 0.02) txt += "coincide con l’avere del bonifico.";
@@ -217,7 +224,7 @@
   </div>
 
   <h2 class="gesper-pos-section-title"><i class="bi bi-bank me-1"></i>Bonifici registrati</h2>
-  <p class="small text-muted mb-2">La colonna <strong>Quadratura</strong> indica se il bonifico risulta già imputato in quadratura (riferimento da «Salva aggancio» in <strong>A documento…</strong>): <span class="badge bg-success gesper-bon-pag-badge-saldato">Saldato</span> = documenti collegati con incasso saldato; <span class="badge bg-primary gesper-bon-pag-badge-attivo">Aggancio</span> = collegato ma con residuo ancora aperto o parziale; <span class="badge bg-warning text-dark gesper-bon-pag-badge-warn">Rif. non risolto</span> = riferimento con formato aggancio ma non coerente col libro.</p>
+  <p class="small text-muted mb-2">La colonna <strong>Quadratura</strong> indica se il bonifico risulta già imputato in quadratura (riferimento da «Salva aggancio» in <strong>A documento…</strong>): <span class="badge bg-success gesper-bon-pag-badge-saldato">Saldato</span> = documenti collegati con incasso saldato; <span class="badge bg-primary gesper-bon-pag-badge-attivo">Aggancio</span> = collegato ma con residuo aperto/parziale o eccedenza su almeno un documento — apri «A documento…» per il riquadro con dare, quota di <em>questo</em> bonifico, attribuito totale e residuo; <span class="badge bg-warning text-dark gesper-bon-pag-badge-warn">Rif. non risolto</span> = pipe non collegabile in quadratura (numero documento errato o somma ≠ avere) — tooltip sul badge e stesso riquadro.</p>
   <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> elenca le proforma/parcelle con <strong>residuo da incassare</strong> (le fatture già saldate <strong>non</strong> compaiono, salvo se già collegate a <em>quel</em> bonifico per modificarne la ripartizione). Per ogni voce è indicato il massimo imputabile (residuo + eventuale quota già da questo bonifico). La <strong>somma</strong> degli importi selezionati deve coincidere con l’<strong>avere del bonifico</strong>; sotto il modulo compare l’anteprima in tempo reale. È visibile anche quanto è già citato nel riferimento e il <strong>residuo del bonifico</strong> ancora non ripartito nel riferimento. Con più documenti il riferimento salvato usa <code>num|data|importo;num2|…</code>. <strong>Allega PDF</strong> sulla riga bonifico: la distinta deve contenere almeno l’importo o il CRO coerente con la riga. <strong>Elimina bonifico</strong> (sotto) rimuove la riga dal libro.</p>
   <p class="small text-muted mb-2">Per <strong>più bonifici</strong>, ripetere l’aggancio su ciascuna riga bonifico (ogni bonifico ha il proprio «A documento…»).</p>
   <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
@@ -299,12 +306,48 @@
               {% endif %}
               <p class="small mb-1">Avere bonifico: <strong>€ {{ r.avere|num_it:2 }}</strong>
                 {% if r.pagamenti_gi_in_pipe %}
-                <span class="text-muted"> · Già ripartito nel riferimento: <strong>€ {{ r.pagamenti_gi_in_pipe|num_it:2 }}</strong></span>
+                <span class="text-muted"> · Già citato nel riferimento (testo pipe): <strong>€ {{ r.pagamenti_gi_in_pipe|num_it:2 }}</strong></span>
                 {% endif %}
-                <span class="text-muted"> · Residuo bonifico (non ancora nel riferimento): <strong class="text-dark">€ {{ r.pagamenti_residuo_bon|num_it:2 }}</strong></span>
+                <span class="text-muted"> · Ancora non citato nel riferimento: <strong class="text-dark">€ {{ r.pagamenti_residuo_bon|num_it:2 }}</strong></span>
+                <span class="d-block text-muted mt-1" style="font-size:.72rem">«Residuo bonifico» = avere − somma importi nel riferimento; se il pipe non è collegato in quadratura, la somma può coincidere con l’avere ma il badge resta «Rif. non risolto».</span>
               </p>
+              {% if r.pagamenti_pipe_diagnosi.documenti_quadratura or r.pagamenti_pipe_diagnosi.segmenti_non_risolti or r.pagamenti_pipe_diagnosi.segmenti_risolti or not r.pagamenti_pipe_diagnosi.coerenza_somma_avere %}
+              <div class="border border-warning rounded px-2 py-2 mb-2 small bg-white">
+                <div class="fw-semibold text-warning mb-1">Quadratura e riferimento</div>
+                {% if r.pagamenti_pipe_diagnosi.documenti_quadratura %}
+                <div class="fw-semibold text-secondary mb-1" style="font-size:.8rem">Documenti collegati a questo bonifico</div>
+                {% for dq in r.pagamenti_pipe_diagnosi.documenti_quadratura %}
+                <p class="mb-1">
+                  <strong>{{ dq.etichetta }}</strong> ({{ dq.stato }}) —
+                  dare € {{ dq.dare|num_it:2 }};
+                  quota <strong>questo</strong> bonifico € {{ dq.quota_questo_bonifico|num_it:2 }};
+                  attribuito totale (tutti i bonifici) € {{ dq.attribuito_tot|num_it:2 }};
+                  residuo documento € {{ dq.residuo|num_it:2 }}
+                  {% if dq.quota_questo_bon_maggiore_dare %}<span class="text-danger fw-semibold"> · quota bonifico &gt; dare</span>{% endif %}
+                  {% if dq.attribuito_maggior_dare %}<span class="text-danger fw-semibold"> · attribuito tot. &gt; dare</span>{% endif %}
+                </p>
+                {% endfor %}
+                {% endif %}
+                {% if not r.pagamenti_pipe_diagnosi.coerenza_somma_avere %}
+                <p class="mb-1 text-danger">Somma importi nel riferimento (€ {{ r.pagamenti_pipe_diagnosi.somma_pipe|num_it:2 }}) diversa dall’avere del bonifico (€ {{ r.pagamenti_pipe_diagnosi.avere|num_it:2 }}).</p>
+                {% endif %}
+                {% for linea in r.pagamenti_pipe_diagnosi.segmenti_non_risolti %}
+                <p class="mb-1 text-danger">{{ linea }}</p>
+                {% endfor %}
+                {% for seg in r.pagamenti_pipe_diagnosi.segmenti_risolti %}
+                <p class="mb-1">
+                  <strong>{{ seg.etichetta }}</strong> (riferimento pipe) — importo nel segmento € {{ seg.quota_pipe|num_it:2 }};
+                  dare € {{ seg.dare|num_it:2 }};
+                  attribuito in quadratura (tutti i bonifici) € {{ seg.attribuito_tot|num_it:2 }};
+                  residuo documento € {{ seg.residuo|num_it:2 }} ({{ seg.stato }})
+                  {% if seg.quota_supera_dare %}<span class="text-danger fw-semibold"> · importo nel segmento &gt; dare</span>{% endif %}
+                  {% if seg.documento_in_eccedenza %}<span class="text-danger fw-semibold"> · documento in eccedenza</span>{% endif %}
+                </p>
+                {% endfor %}
+              </div>
+              {% endif %}
               {% if r.documenti_aggancio_opts %}
-              <form method="post" class="mt-2 gesper-aggancia-bon-form" data-no-upload-progress="1" data-avere="{% localize off %}{{ r.avere|default:0 }}{% endlocalize %}" onsubmit="return confirm('Aggiornare il riferimento pagamento del bonifico id {{ r.pk }} con gli importi indicati? (La somma deve coincidere con l’avere € {{ r.avere|num_it:2 }}.)');">
+              <form method="post" class="mt-2 gesper-aggancia-bon-form" data-no-upload-progress="1" data-avere="{% localize off %}{{ r.avere|default:0 }}{% endlocalize %}" data-pipe-bloccata="{% if r.pagamenti_pipe_diagnosi.bloccata %}1{% else %}0{% endif %}" onsubmit="return confirm('Aggiornare il riferimento pagamento del bonifico id {{ r.pk }} con gli importi indicati? (La somma deve coincidere con l’avere € {{ r.avere|num_it:2 }}.)');">
                 {% csrf_token %}
                 {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
                 <input type="hidden" name="action" value="aggancia_bonifico_a_documento">
@@ -324,6 +367,9 @@
                 <button type="submit" class="btn btn-sm btn-outline-primary py-0">Salva aggancio</button>
               </form>
               {% else %}
+              {% if r.pagamenti_pipe_diagnosi.bloccata and r.pagamenti_pipe_diagnosi.segmenti_non_risolti %}
+              <p class="small text-secondary mb-1 mt-2">Non ci sono documenti selezionabili finché il riferimento non collega numeri esistenti in libro: correggere da Admin il movimento bonifico oppure caricare la proforma/parcella mancante.</p>
+              {% endif %}
               <p class="small text-warning mb-0 mt-2">Nessun documento in elenco: non c’è residuo da incassare e non risulta un aggancio già salvato su questo bonifico da modificare.</p>
               {% endif %}
             </details>

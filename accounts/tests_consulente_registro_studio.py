@@ -2034,6 +2034,48 @@ class AggancioManualeBonificoSelectTests(TestCase):
         txt = "Bonifico EUR 196,14 accreditato. CRO 58326812511."
         self.assertTrue(_distinta_pdf_coerente_bonifico_per_allegato_manuale(txt, mov))
 
+    def test_diagnosi_pipe_causale_non_numero_documento(self):
+        """Riferimento tipo «BONIFICO …|data|importo»: pipe parsabile ma numero non in libro → bloccata."""
+        from accounts.consulente_registro_studio import diagnosi_pipe_bonifico_pagamenti, quadratura_proforma_parcelle_bonifici
+
+        bon = SimpleNamespace(
+            pk=9001,
+            avere=Decimal("1000.00"),
+            riferimento_pagamento="BONIFICO BPSA|2022-07-28|1000.00",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        d = diagnosi_pipe_bonifico_pagamenti(self.az.id, bon, q)
+        self.assertTrue(d["bloccata"])
+        self.assertTrue(d["coerenza_somma_avere"])
+        self.assertEqual(len(d["segmenti_non_risolti"]), 1)
+        self.assertIn("BONIFICO BPSA", d["segmenti_non_risolti"][0])
+        self.assertEqual(len(d["segmenti_risolti"]), 0)
+        self.assertIn("libro", d["hint_title_extra"].lower())
+
+    def test_diagnosi_documenti_quadratura_aggancio_senza_pipe(self):
+        """Badge Aggancio: diagnosi elenca documenti collegati anche senza riferimento pipe."""
+        from accounts.consulente_registro_studio import diagnosi_pipe_bonifico_pagamenti
+
+        bon = SimpleNamespace(pk=77, avere=Decimal("40.00"), riferimento_pagamento="")
+        doc = SimpleNamespace(pk=501, numero_documento="P-1", get_tipo_documento_display=lambda: "Parcella")
+        q = {
+            "righe": [
+                {
+                    "documento": doc,
+                    "stato": "parziale",
+                    "importo_dare": Decimal("100.00"),
+                    "tot_bonifici": Decimal("60.00"),
+                    "residuo": Decimal("40.00"),
+                    "bonifici": [{"bon": bon, "quota": Decimal("40.00")}],
+                },
+            ],
+        }
+        d = diagnosi_pipe_bonifico_pagamenti(self.az.id, bon, q)
+        self.assertEqual(len(d["documenti_quadratura"]), 1)
+        self.assertEqual(d["documenti_quadratura"][0]["quota_questo_bonifico"], Decimal("40.00"))
+        self.assertEqual(d["documenti_quadratura"][0]["stato"], "parziale")
+        self.assertIn("residuo", d["hint_title_extra"].lower())
+
     def test_metadati_evidenza_bonifico_saldato_libero_pipe_rotto(self):
         from accounts.consulente_registro_studio import (
             metadati_evidenza_bonifico_pagamenti,

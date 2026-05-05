@@ -1962,7 +1962,7 @@ def consulente_posizione_pagamenti(request):
         av = (bon.avere or Decimal(0)).quantize(Decimal("0.01"))
         setattr(bon, "pagamenti_gi_in_pipe", tot_pipe)
         setattr(bon, "pagamenti_residuo_bon", max(Decimal(0), (av - tot_pipe).quantize(Decimal("0.01"))))
-    annota_movimenti_bonifici_pagamenti_elenco(righe, q_quad)
+    annota_movimenti_bonifici_pagamenti_elenco(righe, q_quad, azienda.id)
     return render(
         request,
         'consulente/posizione_contabile_pagamenti.html',
