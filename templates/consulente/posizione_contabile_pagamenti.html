@@ -1,9 +1,50 @@
 {% extends "base.html" %}
 {% load format_it_tags %}
+{% load l10n %}
 {% block title %}Posizione contabile — {{ azienda.nome }}{% endblock %}
 
 {% block extra_head %}
 {% include "consulente/_posizione_elenco_head_styles.html" %}
+<script>
+(function () {
+  function parseIt(s) {
+    if (!s) return 0;
+    s = String(s).trim().replace(/\u00a0/g, " ").replace(/\s/g, "");
+    if (!s) return 0;
+    s = s.replace(/\./g, "").replace(",", ".");
+    var n = parseFloat(s);
+    return isFinite(n) ? n : 0;
+  }
+  function fmtIt(n) {
+    return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function updateOne(form) {
+    var avere = parseFloat(form.getAttribute("data-avere")) || 0;
+    var sum = 0;
+    form.querySelectorAll(".gesper-agg-row").forEach(function (row) {
+      var cb = row.querySelector('input[type="checkbox"][name="doc_agg"]');
+      var inp = row.querySelector('input[name^="imp_doc_"]');
+      if (cb && cb.checked && inp) sum += parseIt(inp.value);
+    });
+    var el = form.querySelector(".gesper-agg-live-sum");
+    if (!el) return;
+    var delta = avere - sum;
+    var txt = "Somma importi selezionati: € " + fmtIt(sum) + " — ";
+    if (Math.abs(delta) < 0.02) txt += "coincide con l’avere del bonifico.";
+    else if (delta > 0) txt += "mancano ancora € " + fmtIt(delta) + " rispetto all’avere.";
+    else txt += "eccedono € " + fmtIt(-delta) + " rispetto all’avere.";
+    el.textContent = txt;
+  }
+  function bindForm(form) {
+    form.addEventListener("change", function () { updateOne(form); });
+    form.addEventListener("input", function () { updateOne(form); });
+    updateOne(form);
+  }
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("form.gesper-aggancia-bon-form").forEach(bindForm);
+  });
+})();
+</script>
 {% endblock %}
 
 {% block content %}
@@ -177,7 +218,7 @@
 
   <h2 class="gesper-pos-section-title"><i class="bi bi-bank me-1"></i>Bonifici registrati</h2>
   <p class="small text-muted mb-2">La colonna <strong>Quadratura</strong> indica se il bonifico risulta già imputato in quadratura (riferimento da «Salva aggancio» in <strong>A documento…</strong>): <span class="badge bg-success gesper-bon-pag-badge-saldato">Saldato</span> = documenti collegati con incasso saldato; <span class="badge bg-primary gesper-bon-pag-badge-attivo">Aggancio</span> = collegato ma con residuo ancora aperto o parziale; <span class="badge bg-warning text-dark gesper-bon-pag-badge-warn">Rif. non risolto</span> = riferimento con formato aggancio ma non coerente col libro.</p>
-  <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> elenca solo le proforma/parcelle con <strong>residuo da incassare</strong> (aperte o parziali; le già saldate non compaiono), in ordine cronologico. Su ciascuna riga selezionata indicare un importo <strong>non superiore al residuo</strong> mostrato in elenco; la <strong>somma</strong> deve coincidere con l’<strong>avere del bonifico</strong>. Con un solo documento l’importo deve essere uguale all’avere; con più documenti il riferimento salvato usa <code>num|data|importo;num2|…</code>. <strong>Allega PDF</strong> sulla riga bonifico: la distinta deve contenere almeno l’importo o il CRO coerente con la riga (se il messaggio di errore persiste, controllare data valuta e importo). <strong>Elimina bonifico</strong> (sotto) rimuove la riga dal libro.</p>
+  <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> elenca le proforma/parcelle con <strong>residuo da incassare</strong> (le fatture già saldate <strong>non</strong> compaiono, salvo se già collegate a <em>quel</em> bonifico per modificarne la ripartizione). Per ogni voce è indicato il massimo imputabile (residuo + eventuale quota già da questo bonifico). La <strong>somma</strong> degli importi selezionati deve coincidere con l’<strong>avere del bonifico</strong>; sotto il modulo compare l’anteprima in tempo reale. È visibile anche quanto è già citato nel riferimento e il <strong>residuo del bonifico</strong> ancora non ripartito nel riferimento. Con più documenti il riferimento salvato usa <code>num|data|importo;num2|…</code>. <strong>Allega PDF</strong> sulla riga bonifico: la distinta deve contenere almeno l’importo o il CRO coerente con la riga. <strong>Elimina bonifico</strong> (sotto) rimuove la riga dal libro.</p>
   <p class="small text-muted mb-2">Per <strong>più bonifici</strong>, ripetere l’aggancio su ciascuna riga bonifico (ogni bonifico ha il proprio «A documento…»).</p>
   <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
     <table class="table table-hover mb-0 align-middle table-gesper-libro">
@@ -251,32 +292,41 @@
             {% endif %}
           </td>
           <td class="align-top small">
-            {% if documenti_aggancio_select %}
             <details class="border rounded px-2 py-1 bg-light">
               <summary class="text-muted" style="cursor:pointer">A documento…</summary>
-              <form method="post" class="mt-2" data-no-upload-progress="1" onsubmit="return confirm('Aggiornare il riferimento pagamento del bonifico id {{ r.pk }} con gli importi indicati? (La somma deve coincidere con l’avere € {{ r.avere|num_it:2 }}.)');">
+              {% if r.pagamenti_pipe_riepilogo %}
+              <p class="small text-secondary mb-1 mt-2 border-bottom pb-1"><span class="text-muted">Già nel riferimento:</span> {{ r.pagamenti_pipe_riepilogo }}</p>
+              {% endif %}
+              <p class="small mb-1">Avere bonifico: <strong>€ {{ r.avere|num_it:2 }}</strong>
+                {% if r.pagamenti_gi_in_pipe %}
+                <span class="text-muted"> · Già ripartito nel riferimento: <strong>€ {{ r.pagamenti_gi_in_pipe|num_it:2 }}</strong></span>
+                {% endif %}
+                <span class="text-muted"> · Residuo bonifico (non ancora nel riferimento): <strong class="text-dark">€ {{ r.pagamenti_residuo_bon|num_it:2 }}</strong></span>
+              </p>
+              {% if r.documenti_aggancio_opts %}
+              <form method="post" class="mt-2 gesper-aggancia-bon-form" data-no-upload-progress="1" data-avere="{% localize off %}{{ r.avere|default:0 }}{% endlocalize %}" onsubmit="return confirm('Aggiornare il riferimento pagamento del bonifico id {{ r.pk }} con gli importi indicati? (La somma deve coincidere con l’avere € {{ r.avere|num_it:2 }}.)');">
                 {% csrf_token %}
                 {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
                 <input type="hidden" name="action" value="aggancia_bonifico_a_documento">
                 <input type="hidden" name="bonifico_id" value="{{ r.pk }}">
-                <p class="small text-muted mb-1">Avere bonifico: <strong>€ {{ r.avere|num_it:2 }}</strong></p>
+                <p class="small font-monospace text-secondary mb-1 gesper-agg-live-sum" aria-live="polite"></p>
                 <div class="border rounded px-2 py-1 mb-2" style="max-height:14rem;overflow-y:auto;background:#fff">
-                  {% for opt in documenti_aggancio_select %}
-                  <div class="d-flex flex-wrap align-items-center gap-2 py-1 border-bottom">
+                  {% for opt in r.documenti_aggancio_opts %}
+                  <div class="d-flex flex-wrap align-items-center gap-2 py-1 border-bottom gesper-agg-row" data-doc-id="{{ opt.id }}">
                     <div class="form-check mb-0">
-                      <input class="form-check-input" type="checkbox" name="doc_agg" value="{{ opt.id }}" id="docagg-{{ r.pk }}-{{ opt.id }}">
+                      <input class="form-check-input" type="checkbox" name="doc_agg" value="{{ opt.id }}" id="docagg-{{ r.pk }}-{{ opt.id }}"{% if opt.quota_esistente > 0 %} checked{% endif %}>
                       <label class="form-check-label small" for="docagg-{{ r.pk }}-{{ opt.id }}">{{ opt.label }}</label>
                     </div>
-                    <input type="text" class="form-control form-control-sm font-monospace text-end ms-auto" name="imp_doc_{{ opt.id }}" value="" placeholder="0,00" inputmode="decimal" autocomplete="off" style="max-width:5.5rem" title="Importo su questo documento (max residuo € {{ opt.residuo_cap|num_it:2 }})">
+                    <input type="text" class="form-control form-control-sm font-monospace text-end ms-auto" name="imp_doc_{{ opt.id }}" value="{{ opt.prefill_it }}" placeholder="0,00" inputmode="decimal" autocomplete="off" style="max-width:5.5rem" title="Importo su questo documento (max € {{ opt.residuo_cap|num_it:2 }})">
                   </div>
                   {% endfor %}
                 </div>
                 <button type="submit" class="btn btn-sm btn-outline-primary py-0">Salva aggancio</button>
               </form>
+              {% else %}
+              <p class="small text-warning mb-0 mt-2">Nessun documento in elenco: non c’è residuo da incassare e non risulta un aggancio già salvato su questo bonifico da modificare.</p>
+              {% endif %}
             </details>
-            {% else %}
-            <span class="text-muted">—</span>
-            {% endif %}
           </td>
         </tr>
         {% empty %}

@@ -2144,6 +2144,26 @@ class AggancioManualeBonificoSelectTests(TestCase):
         sel = documenti_con_residuo_quadratura_per_select(self.az.id)
         self.assertEqual(len(sel), 0)
 
+        from accounts.consulente_registro_studio import (
+            documenti_opzioni_aggancio_per_bonifico,
+            mappa_cap_aggancio_importo_per_documento,
+            quadratura_proforma_parcelle_bonifici,
+        )
+
+        doc = MovimentoRegistroStudioConsulente.objects.get(numero_documento="900", azienda=self.az)
+        bon = MovimentoRegistroStudioConsulente.objects.get(
+            tipo_riga="bonifico", riferimento_pagamento__startswith="900|", azienda=self.az
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        opts = documenti_opzioni_aggancio_per_bonifico(self.az.id, bon, q)
+        self.assertEqual(len(opts), 1)
+        self.assertEqual(opts[0]["id"], doc.pk)
+        self.assertEqual(opts[0]["quota_esistente"], Decimal("50.00"))
+        self.assertEqual(opts[0]["residuo_cap"], Decimal("50.00"))
+        documenti_list = [row["documento"] for row in q.get("righe") or [] if row.get("documento")]
+        caps = mappa_cap_aggancio_importo_per_documento(self.az.id, bon, q, documenti_list)
+        self.assertEqual(caps[doc.pk], Decimal("50.00"))
+
     def test_documenti_residuo_select_e_riferimento_pipe(self):
         from accounts.consulente_registro_studio import (
             documenti_con_residuo_quadratura_per_select,

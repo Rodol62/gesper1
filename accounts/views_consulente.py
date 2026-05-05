@@ -1698,11 +1698,13 @@ def consulente_posizione_pagamenti(request):
         applica_aggancia_pdf_bonifici_a_libro,
         applica_upload_bonifici_pdf,
         bonifico_duplicato_elenco_ids,
-        documenti_con_residuo_quadratura_per_select,
+        documenti_opzioni_aggancio_per_bonifico,
+        importo_totale_citato_in_pipe_bonifico,
         messaggio_se_importi_aggancio_superano_residui,
-        mappa_residuo_quadratura_documento_per_pk,
+        mappa_cap_aggancio_importo_per_documento,
         parse_importo_form,
         quadratura_proforma_parcelle_bonifici,
+        riepilogo_assegnazioni_pipe_bonifico,
         ricalcola_saldi_progressivi,
         riferimento_pipe_aggancio_bonifico_documenti_importi,
         riferimento_pipe_aggancio_bonifico_documento,
@@ -1759,12 +1761,14 @@ def consulente_posizione_pagamenti(request):
                 tipo_riga="bonifico",
             )
             q_agg = quadratura_proforma_parcelle_bonifici(azienda.id)
-            consentiti = {o["id"] for o in documenti_con_residuo_quadratura_per_select(azienda.id, q_agg)}
-            caps_residuo = mappa_residuo_quadratura_documento_per_pk(q_agg)
+            documenti_list = [row["documento"] for row in q_agg.get("righe") or [] if row.get("documento")]
+            consentiti = {o["id"] for o in documenti_opzioni_aggancio_per_bonifico(azienda.id, bon, q_agg)}
+            caps_residuo = mappa_cap_aggancio_importo_per_documento(azienda.id, bon, q_agg, documenti_list)
             if not consentiti:
                 messages.error(
                     request,
-                    "Non risultano proforma/parcelle con residuo da incassare: aggiorna gli agganci o verifica in Incassi.",
+                    "Nessun documento disponibile per questo bonifico: non c’è residuo da incassare e non risulta "
+                    "alcun aggancio già salvato sul bonifico da modificare.",
                 )
                 return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
             avere_b = (bon.avere or Decimal(0)).quantize(Decimal("0.01"))
@@ -1950,7 +1954,14 @@ def consulente_posizione_pagamenti(request):
     rep_bon = request.session.get(SESSION_REPORT_AGGANCIA_BONIFICI) or {}
     report_aggancia_csv_bonifici = bool(rep_bon.get('azienda_id') == azienda.id and rep_bon.get('rows'))
     q_quad = quadratura_proforma_parcelle_bonifici(azienda.id)
-    documenti_aggancio_select = documenti_con_residuo_quadratura_per_select(azienda.id, q_quad)
+    doc_list_q = [row["documento"] for row in q_quad.get("righe") or [] if row.get("documento")]
+    for bon in righe:
+        setattr(bon, "documenti_aggancio_opts", documenti_opzioni_aggancio_per_bonifico(azienda.id, bon, q_quad))
+        setattr(bon, "pagamenti_pipe_riepilogo", riepilogo_assegnazioni_pipe_bonifico(azienda.id, bon, doc_list_q))
+        tot_pipe = importo_totale_citato_in_pipe_bonifico(bon)
+        av = (bon.avere or Decimal(0)).quantize(Decimal("0.01"))
+        setattr(bon, "pagamenti_gi_in_pipe", tot_pipe)
+        setattr(bon, "pagamenti_residuo_bon", max(Decimal(0), (av - tot_pipe).quantize(Decimal("0.01"))))
     annota_movimenti_bonifici_pagamenti_elenco(righe, q_quad)
     return render(
         request,
@@ -1964,7 +1975,6 @@ def consulente_posizione_pagamenti(request):
             'report_aggancia_csv_bonifici': report_aggancia_csv_bonifici,
             'libro_filter': filter_params,
             'anni_disponibili': anni_disponibili,
-            'documenti_aggancio_select': documenti_aggancio_select,
         },
     )
 

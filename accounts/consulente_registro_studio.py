@@ -2529,10 +2529,10 @@ def documenti_con_residuo_quadratura_per_select(azienda_id: int, q_quad: dict | 
     rows: list[dict] = []
     for row in q["righe"]:
         res = row["residuo"]
-        if res <= Decimal("0.01"):
+        stato = (row.get("stato") or "").strip()
+        if res <= Decimal("0.01") or stato == "saldato":
             continue
         d = row["documento"]
-        stato = row.get("stato") or ""
         pezzi = [
             d.get_tipo_documento_display(),
             f"n. {(d.numero_documento or '—').strip()}",
@@ -2572,6 +2572,126 @@ def mappa_residuo_quadratura_documento_per_pk(q_quad: dict) -> dict[int, Decimal
         if res > Decimal("0.01"):
             out[int(d.pk)] = res
     return out
+
+
+def mappa_residuo_quadratura_tutti_documenti_per_pk(q_quad: dict) -> dict[int, Decimal]:
+    """Residuo di quadratura per ogni documento (anche se saldato / zero)."""
+    out: dict[int, Decimal] = {}
+    for row in q_quad.get("righe") or []:
+        d = row.get("documento")
+        if d is None:
+            continue
+        out[int(d.pk)] = (row.get("residuo") or Decimal("0")).quantize(Decimal("0.01"))
+    return out
+
+
+def mappa_quote_bonifico_su_documenti_da_pipe(azienda_id: int, bon, documenti: list) -> dict[int, Decimal]:
+    """Somma importi pipe per documento risolto (stesso bonifico)."""
+    by_pk: dict[int, Decimal] = {}
+    for num, d_iso, imp in lista_triple_pipe_aggancio_da_riferimento(bon.riferimento_pagamento or ""):
+        d = _documento_per_aggancio_manuale_numero(azienda_id, num, d_iso, documenti)
+        if d is None:
+            continue
+        pk = int(d.pk)
+        by_pk[pk] = (by_pk.get(pk, Decimal("0")) + imp).quantize(Decimal("0.01"))
+    return by_pk
+
+
+def mappa_cap_aggancio_importo_per_documento(
+    azienda_id: int, bon, q_quad: dict, documenti: list
+) -> dict[int, Decimal]:
+    """
+    Massimo imputabile su ciascun documento in «A documento…»: residuo di quadratura
+    + quota già attribuita da **questo** bonifico nel riferimento pipe (per consentire la modifica).
+    """
+    res_all = mappa_residuo_quadratura_tutti_documenti_per_pk(q_quad)
+    quote = mappa_quote_bonifico_su_documenti_da_pipe(azienda_id, bon, documenti)
+    caps: dict[int, Decimal] = {}
+    for pk in set(res_all.keys()) | set(quote.keys()):
+        caps[pk] = (res_all.get(pk, Decimal("0")) + quote.get(pk, Decimal("0"))).quantize(Decimal("0.01"))
+    return caps
+
+
+def importo_totale_citato_in_pipe_bonifico(bon) -> Decimal:
+    """Somma importi nelle triple pipe del riferimento (0 se assente o non parsabile)."""
+    segs = lista_triple_pipe_aggancio_da_riferimento(bon.riferimento_pagamento or "")
+    if not segs:
+        return Decimal("0")
+    return sum((t[2] for t in segs), start=Decimal("0")).quantize(Decimal("0.01"))
+
+
+def riepilogo_assegnazioni_pipe_bonifico(azienda_id: int, bon, documenti: list) -> str:
+    """Testo leggibile delle quote pipe (per riga bonifico in Pagamenti)."""
+    from accounts.formatting import num_it_str
+
+    parts: list[str] = []
+    for num, d_iso, imp in lista_triple_pipe_aggancio_da_riferimento(bon.riferimento_pagamento or ""):
+        d = _documento_per_aggancio_manuale_numero(azienda_id, num, d_iso, documenti)
+        if d is None:
+            parts.append(f"«{num}» € {num_it_str(imp, 2)} (doc. non risolto)")
+        else:
+            tipo = d.get_tipo_documento_display() if hasattr(d, "get_tipo_documento_display") else ""
+            nn = (d.numero_documento or "—").strip()
+            parts.append(f"{tipo} n. {nn} € {num_it_str(imp, 2)}")
+    return "; ".join(parts) if parts else ""
+
+
+def documenti_opzioni_aggancio_per_bonifico(azienda_id: int, bon, q_quad: dict) -> list[dict]:
+    """
+    Voci per «A documento…» su un bonifico: documenti con **residuo > 0** (fatture saldate escluse)
+    più documenti già presenti nel pipe di **questo** bonifico (per modifica anche se saldati solo
+    grazie a questo incasso). Ordine cronologico.
+    """
+    from accounts.formatting import num_it_str
+
+    documenti = [row["documento"] for row in q_quad.get("righe") or [] if row.get("documento")]
+    res_all = mappa_residuo_quadratura_tutti_documenti_per_pk(q_quad)
+    quote = mappa_quote_bonifico_su_documenti_da_pipe(azienda_id, bon, documenti)
+    row_by_pk: dict[int, dict] = {}
+    for row in q_quad.get("righe") or []:
+        d = row.get("documento")
+        if d is None:
+            continue
+        row_by_pk[int(d.pk)] = row
+
+    candidati = {pk for pk, res in res_all.items() if res > Decimal("0.01")} | set(quote.keys())
+    pks = sorted(candidati, key=lambda pk: (row_by_pk[pk]["documento"].data_documento or date.max, pk))
+
+    rows: list[dict] = []
+    for pk in pks:
+        row = row_by_pk.get(pk)
+        if not row:
+            continue
+        d = row["documento"]
+        stato = (row.get("stato") or "").strip()
+        res = res_all.get(pk, Decimal("0")).quantize(Decimal("0.01"))
+        qv = quote.get(pk, Decimal("0")).quantize(Decimal("0.01"))
+        cap = (res + qv).quantize(Decimal("0.01"))
+        pezzi = [
+            d.get_tipo_documento_display(),
+            f"n. {(d.numero_documento or '—').strip()}",
+            f"residuo € {num_it_str(res, 2)}",
+            stato or "—",
+        ]
+        if qv > Decimal("0.01"):
+            pezzi.append(f"da questo bon. € {num_it_str(qv, 2)}")
+        if d.data_documento:
+            pezzi.append(f"data doc. {d.data_documento.strftime('%d/%m/%Y')}")
+        prefill_it = num_it_str(qv, 2) if qv > Decimal("0") else ""
+        rows.append(
+            {
+                "id": d.pk,
+                "label": " · ".join(pezzi),
+                "residuo_cap": cap,
+                "prefill_it": prefill_it,
+                "quota_esistente": qv,
+                "_ord": (d.data_documento or date.max, d.pk),
+            }
+        )
+    rows.sort(key=lambda x: x["_ord"])
+    for r in rows:
+        del r["_ord"]
+    return rows
 
 
 def messaggio_se_importi_aggancio_superano_residui(
