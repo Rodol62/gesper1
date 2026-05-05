@@ -2107,6 +2107,17 @@ class AggancioManualeBonificoSelectTests(TestCase):
         self.assertTrue(labels[0].startswith("Parcella"))
         self.assertIn("VECCHIO", labels[0])
         self.assertIn("RECENTE", labels[1])
+        self.assertIn("residuo_cap", sel[0])
+        self.assertEqual(sel[0]["residuo_cap"], Decimal("80.00"))
+
+    def test_messaggio_importi_aggancio_superano_residuo(self):
+        from accounts.consulente_registro_studio import messaggio_se_importi_aggancio_superano_residui
+
+        doc = SimpleNamespace(pk=1, numero_documento="10", get_tipo_documento_display=lambda: "Parcella")
+        caps = {1: Decimal("50.00")}
+        self.assertIsNotNone(messaggio_se_importi_aggancio_superano_residui([(doc, Decimal("60"))], caps))
+        self.assertIsNone(messaggio_se_importi_aggancio_superano_residui([(doc, Decimal("50.00"))], caps))
+        self.assertIsNone(messaggio_se_importi_aggancio_superano_residui([(doc, Decimal("50.01"))], caps))
 
     def test_documenti_residuo_select_esclude_saldato(self):
         from accounts.consulente_registro_studio import documenti_con_residuo_quadratura_per_select

@@ -1691,12 +1691,16 @@ def consulente_posizione_pagamenti(request):
 
     from django.db.models import F
 
+    from django.db import transaction
+
     from .consulente_registro_studio import (
         annota_movimenti_bonifici_pagamenti_elenco,
         applica_aggancia_pdf_bonifici_a_libro,
         applica_upload_bonifici_pdf,
         bonifico_duplicato_elenco_ids,
         documenti_con_residuo_quadratura_per_select,
+        messaggio_se_importi_aggancio_superano_residui,
+        mappa_residuo_quadratura_documento_per_pk,
         parse_importo_form,
         quadratura_proforma_parcelle_bonifici,
         ricalcola_saldi_progressivi,
@@ -1754,7 +1758,9 @@ def consulente_posizione_pagamenti(request):
                 azienda=azienda,
                 tipo_riga="bonifico",
             )
-            consentiti = {o["id"] for o in documenti_con_residuo_quadratura_per_select(azienda.id)}
+            q_agg = quadratura_proforma_parcelle_bonifici(azienda.id)
+            consentiti = {o["id"] for o in documenti_con_residuo_quadratura_per_select(azienda.id, q_agg)}
+            caps_residuo = mappa_residuo_quadratura_documento_per_pk(q_agg)
             if not consentiti:
                 messages.error(
                     request,
@@ -1793,13 +1799,17 @@ def consulente_posizione_pagamenti(request):
                     f"La somma degli importi (€ {tot_imp}) deve coincidere con l’avere del bonifico (€ {avere_b}).",
                 )
                 return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+            if len(pairs) == 1 and abs(pairs[0][1] - avere_b) > Decimal("0.02"):
+                messages.error(
+                    request,
+                    f"Con un solo documento l’importo deve coincidere con l’avere del bonifico (€ {avere_b}).",
+                )
+                return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
+            err_cap = messaggio_se_importi_aggancio_superano_residui(pairs, caps_residuo)
+            if err_cap:
+                messages.error(request, err_cap)
+                return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
             if len(pairs) == 1:
-                if abs(pairs[0][1] - avere_b) > Decimal("0.02"):
-                    messages.error(
-                        request,
-                        f"Con un solo documento l’importo deve coincidere con l’avere del bonifico (€ {avere_b}).",
-                    )
-                    return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
                 try:
                     rif = riferimento_pipe_aggancio_bonifico_documento(bon, pairs[0][0])
                 except ValueError as exc:
@@ -1811,9 +1821,10 @@ def consulente_posizione_pagamenti(request):
                 except ValueError as exc:
                     messages.error(request, str(exc))
                     return _redirect_posizione_con_filtri_tabella_post(request, "consulente_posizione_pagamenti")
-            bon.riferimento_pagamento = rif
-            bon.save(update_fields=["riferimento_pagamento"])
-            ricalcola_saldi_progressivi(azienda.id)
+            with transaction.atomic():
+                bon.riferimento_pagamento = rif
+                bon.save(update_fields=["riferimento_pagamento"])
+                ricalcola_saldi_progressivi(azienda.id)
             if len(pairs) == 1:
                 doc = pairs[0][0]
                 messages.success(

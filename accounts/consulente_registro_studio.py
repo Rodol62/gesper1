@@ -2519,6 +2519,7 @@ def documenti_con_residuo_quadratura_per_select(azienda_id: int, q_quad: dict | 
     """
     Documenti proforma/parcella con **residuo da incassare** > 0 (pipe + piano), per l’aggancio in
     Pagamenti: esclude fatture già saldate; mostra parziali con importo residuo.
+    Ogni voce include ``residuo_cap`` (Decimal) per validazione e tooltip in maschera.
     L’elenco è ordinato per **data documento** crescente (più vecchio prima), poi per id.
 
     Se ``q_quad`` è già il risultato di ``quadratura_proforma_parcelle_bonifici``, viene riusato
@@ -2542,11 +2543,55 @@ def documenti_con_residuo_quadratura_per_select(azienda_id: int, q_quad: dict | 
             pezzi.append(f"data doc. {d.data_documento.strftime('%d/%m/%Y')}")
         # Ordine elenco «A documento…»: dal documento più vecchio al più recente (poi id).
         ord_data = d.data_documento if d.data_documento is not None else date.max
-        rows.append({"id": d.pk, "label": " · ".join(pezzi), "_ord": (ord_data, d.pk)})
+        res_cap = res.quantize(Decimal("0.01"))
+        rows.append(
+            {
+                "id": d.pk,
+                "label": " · ".join(pezzi),
+                "residuo_cap": res_cap,
+                "_ord": (ord_data, d.pk),
+            }
+        )
     rows.sort(key=lambda x: x["_ord"])
     for r in rows:
         del r["_ord"]
     return rows
+
+
+def mappa_residuo_quadratura_documento_per_pk(q_quad: dict) -> dict[int, Decimal]:
+    """
+    Residuo da incassare per ogni documento in quadratura (stesso criterio dell’elenco «A documento…»).
+    Usato per validare che gli importi indicati non superino il residuo disponibile.
+    """
+    out: dict[int, Decimal] = {}
+    for row in q_quad.get("righe") or []:
+        d = row.get("documento")
+        if d is None:
+            continue
+        res = (row.get("residuo") or Decimal("0")).quantize(Decimal("0.01"))
+        if res > Decimal("0.01"):
+            out[int(d.pk)] = res
+    return out
+
+
+def messaggio_se_importi_aggancio_superano_residui(
+    pairs: list[tuple[object, Decimal]],
+    caps: dict[int, Decimal],
+    eps: Decimal = Decimal("0.02"),
+) -> str | None:
+    """Se un importo supera il residuo del documento, messaggio d’errore utente; altrimenti ``None``."""
+    for doc, imp in pairs:
+        pk = int(doc.pk)
+        cap = caps.get(pk, Decimal("0")).quantize(Decimal("0.01"))
+        if imp > cap + eps:
+            num = (doc.numero_documento or "—").strip()
+            tipo = doc.get_tipo_documento_display() if hasattr(doc, "get_tipo_documento_display") else ""
+            iq = imp.quantize(Decimal("0.01"))
+            return (
+                f"L'importo indicato per {tipo} n. {num} (€ {iq}) supera il residuo disponibile in quadratura "
+                f"(€ {cap}). Aggiorna la pagina e verifica i totali."
+            )
+    return None
 
 
 def mappa_bonifico_documenti_stato_da_quadratura(q_quad: dict) -> dict[int, dict[int, str]]:
