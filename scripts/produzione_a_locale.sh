@@ -159,7 +159,17 @@ if [[ "$DO_MEDIA" == true ]]; then
     --exclude '.DS_Store' \
     -e "ssh ${SSH_OPTS} ${SSH_COMMON_OPTS}" \
     "${REMOTE_HOST}:${REMOTE_MEDIA_SYNC_PATH}" "${ROOT_DIR}/documento/media/"
-  echo "    Media allineati in: ${ROOT_DIR}/media/ e ${ROOT_DIR}/documento/media/ (MEDIA_ROOT dipende da settings.py)."
+  # XAMPP / layout tipico: settings.py usa htdocs/media/ se la cartella esiste (prima di gesper/media).
+  HTDOCS_MEDIA="$(cd "${ROOT_DIR}/.." && pwd)/media"
+  if [[ -d "${HTDOCS_MEDIA}" ]]; then
+    cp -R "${HTDOCS_MEDIA}" "${HTDOCS_MEDIA}.backup_pre_prod_pull_${TS}" 2>/dev/null || true
+  fi
+  mkdir -p "${HTDOCS_MEDIA}"
+  rsync -az --delete \
+    --exclude '.DS_Store' \
+    -e "ssh ${SSH_OPTS} ${SSH_COMMON_OPTS}" \
+    "${REMOTE_HOST}:${REMOTE_MEDIA_SYNC_PATH}" "${HTDOCS_MEDIA}/"
+  echo "    Media allineati in: ${ROOT_DIR}/media/, ${ROOT_DIR}/documento/media/ e ${HTDOCS_MEDIA}/ (MEDIA_ROOT in locale: vedi settings.py — spesso htdocs/media)."
 fi
 
 if [[ "$DO_STATIC" == true ]]; then

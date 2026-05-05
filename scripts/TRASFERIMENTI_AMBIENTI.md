@@ -39,7 +39,7 @@ REMOTE_DATA_ROOT=/var/www/gesper/documento bash scripts/produzione_a_locale.sh -
 
 (`--db-only` e `--media-only` da soli si escludono a vicenda se passati insieme; usa **`--data-only`** per DB + media in un colpo.)
 
-Lo script copia il DB in `gesper/db.sqlite3` **e** in `gesper/documento/db.sqlite3` (stesso contenuto), e i media sia in `media/` sia in `documento/media/`, così `settings.py` trova i file qualunque sia l’ordine di risoluzione dei path in locale.
+Lo script copia il DB in `gesper/db.sqlite3` **e** in `gesper/documento/db.sqlite3` (stesso contenuto), e i media in `gesper/media/`, `gesper/documento/media/` **e** `htdocs/media/` (su XAMPP `settings.py` usa spesso `htdocs/media` se la cartella esiste, prima della cartella `media` sotto il progetto).
 
 Opzioni utili:
 
