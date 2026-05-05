@@ -13,6 +13,7 @@ set -euo pipefail
 #   bash scripts/produzione_a_locale.sh --code-only
 #   bash scripts/produzione_a_locale.sh --db-only
 #   bash scripts/produzione_a_locale.sh --media-only
+#   bash scripts/produzione_a_locale.sh --data-only   # DB + media (senza codice/static)
 #
 # Se in produzione usi GESPER_DATA_ROOT (es. /var/www/gesper/documento o /var/www/documento),
 # imposta la stessa radice qui così DB e media coincidono con Django in produzione:
@@ -41,7 +42,7 @@ for arg in "$@"; do
     --help|-h)
       cat <<'EOF'
 Uso:
-  bash scripts/produzione_a_locale.sh [--yes] [--code-only|--db-only|--media-only]
+  bash scripts/produzione_a_locale.sh [--yes] [--code-only|--db-only|--media-only|--data-only]
 
 Variabili (opzionali):
   REMOTE_HOST              default: root@gesper1.plazapretoria.it
@@ -56,6 +57,7 @@ EOF
     --code-only) DO_CODE=true; DO_DB=false; DO_MEDIA=false; DO_STATIC=false ;;
     --db-only) DO_CODE=false; DO_DB=true; DO_MEDIA=false; DO_STATIC=false ;;
     --media-only) DO_CODE=false; DO_DB=false; DO_MEDIA=true; DO_STATIC=false ;;
+    --data-only) DO_CODE=false; DO_DB=true; DO_MEDIA=true; DO_STATIC=false ;;
     *)
       echo "Argomento non riconosciuto: $arg"
       exit 1

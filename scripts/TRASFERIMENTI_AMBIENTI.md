@@ -34,8 +34,10 @@ Se sulla VPS il database **non** è in `/var/www/gesper/db.sqlite3` ma sotto **`
 
 ```bash
 # Verifica sulla VPS: grep GESPER_DATA_ROOT /etc/gesper.env
-REMOTE_DATA_ROOT=/var/www/gesper/documento bash scripts/produzione_a_locale.sh --db-only --media-only --yes
+REMOTE_DATA_ROOT=/var/www/gesper/documento bash scripts/produzione_a_locale.sh --data-only --yes
 ```
+
+(`--db-only` e `--media-only` da soli si escludono a vicenda se passati insieme; usa **`--data-only`** per DB + media in un colpo.)
 
 Lo script copia il DB in `gesper/db.sqlite3` **e** in `gesper/documento/db.sqlite3` (stesso contenuto), e i media sia in `media/` sia in `documento/media/`, così `settings.py` trova i file qualunque sia l’ordine di risoluzione dei path in locale.
 
@@ -46,6 +48,7 @@ bash scripts/produzione_a_locale.sh --yes
 bash scripts/produzione_a_locale.sh --code-only
 bash scripts/produzione_a_locale.sh --db-only
 bash scripts/produzione_a_locale.sh --media-only
+bash scripts/produzione_a_locale.sh --data-only
 ```
 
 ## 3) Segnalazione ambiente operativo
