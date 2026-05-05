@@ -30,6 +30,15 @@ bash scripts/locale_a_produzione.sh --media-only
 bash scripts/produzione_a_locale.sh
 ```
 
+Se sulla VPS il database **non** è in `/var/www/gesper/db.sqlite3` ma sotto **`GESPER_DATA_ROOT`** (es. `/var/www/gesper/documento` come in `deploy/PROCEDURA_DEPLOY.md`), allinea **DB + media** così:
+
+```bash
+# Verifica sulla VPS: grep GESPER_DATA_ROOT /etc/gesper.env
+REMOTE_DATA_ROOT=/var/www/gesper/documento bash scripts/produzione_a_locale.sh --db-only --media-only --yes
+```
+
+Lo script copia il DB in `gesper/db.sqlite3` **e** in `gesper/documento/db.sqlite3` (stesso contenuto), e i media sia in `media/` sia in `documento/media/`, così `settings.py` trova i file qualunque sia l’ordine di risoluzione dei path in locale.
+
 Opzioni utili:
 
 ```bash
