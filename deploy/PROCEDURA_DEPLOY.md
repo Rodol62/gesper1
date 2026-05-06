@@ -138,15 +138,19 @@ Flusso consigliato: **modifiche solo in locale** (o branch), **commit/push** su 
 
 ### Pre-deploy (Mac)
 
-7. Dalla directory del repo:  
-   `GESPER_DEPLOY_HOST=root@gesper1.plazapretoria.it ./deploy/remote-rsync-django-gesper1.sh`  
-   (variabili opzionali: vedi commenti in cima a `deploy/remote-rsync-django-gesper1.sh`.)
-8. Controllare l’output: `migrate` senza errori, `collectstatic` ok, `systemctl is-active gesper` → **active**.
+7. **Deploy completo (definito nel repo):** dalla root del repo eseguire  
+   `GESPER_DEPLOY_HOST=root@gesper1.plazapretoria.it ./deploy/deploy-gesper1-completo.sh`  
+   Lo script esegue in sequenza: `manage.py check` locale, **`manage.py test rapporto_di_lavoro.tests`** (salta con `GESPER_DEPLOY_SKIP_TESTS=1`), poi delega a `remote-rsync-django-gesper1.sh` (rsync, pip, migrate, collectstatic, restart `gesper`). Variabili opzionali: commenti in cima a `deploy/deploy-gesper1-completo.sh` e `deploy/remote-rsync-django-gesper1.sh`.
+
+8. **Solo sync verso server** (senza suite test locale, ma con `check` dentro `remote-rsync`):  
+   `GESPER_DEPLOY_HOST=root@gesper1.plazapretoria.it ./deploy/remote-rsync-django-gesper1.sh`
+
+9. Controllare l’output del deploy: `migrate` senza errori, `collectstatic` ok, `systemctl is-active gesper` → **active**.
 
 ### Post-deploy (browser, ~2 min)
 
-9. Login area consulente + una pagina “pesante” (libro / pagamenti / proforma).
-10. Un flusso legato all’ultima modifica (es. allegato PDF bonifico, upload multipart documenti).
+10. Login area consulente + una pagina “pesante” (libro / pagamenti / proforma).
+11. Un flusso legato all’ultima modifica (es. allegato PDF bonifico, upload multipart documenti).
 
 <a id="sec-ruoli"></a>
 ## 1. Ruoli
@@ -269,6 +273,8 @@ sudo systemctl restart gesper
 ```bash
 GESPER_DEPLOY_HOST=root@gesper1.plazapretoria.it ./deploy/remote-rsync-django-gesper1.sh
 ```
+
+Per **check + test `rapporto_di_lavoro.tests` + stesso flusso remoto**, usare `./deploy/deploy-gesper1-completo.sh` (stesso host e variabili).
 
 Sincronizza il codice verso `/var/www/gesper` **senza** `--delete` e **esclude** tra l’altro `.venv`, `.git`, `db.sqlite3`, `media/`, `.env` (il server usa `/etc/gesper.env`). Poi `pip install`, `migrate`, `collectstatic`, `systemctl restart gesper`. Con **`GESPER_RSYNC_DRY_RUN=1`** viene solo simulato l’rsync e **non** si esegue nulla sul server (niente restart). Altre opzioni: `GESPER_SKIP_MIGRATE=1`, ecc. (vedi commenti nello script). PWA statica: resta `deploy/sync-pwa-and-collectstatic.sh` se usi `gesper-app` separato.
 
