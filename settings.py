@@ -61,8 +61,9 @@ SESSION_COOKIE_DOMAIN = None  # None per accettare qualsiasi dominio
 SESSION_COOKIE_AGE = 8 * 60 * 60  # 8 ore
 # Non scadere alla chiusura browser
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-# Aggiorna la scadenza ad ogni richiesta
-SESSION_SAVE_EVERY_REQUEST = True
+# False = salva la sessione solo se modificata (default Django). True forzava un UPDATE su SQLite
+# ad ogni richiesta e, con più tab/processi sullo stesso db.sqlite3, aumentava molto i «database is locked».
+SESSION_SAVE_EVERY_REQUEST = False
 
 # Vista personalizzata per errori CSRF (token scaduto)
 CSRF_FAILURE_VIEW = 'views.csrf_failure'
@@ -349,6 +350,8 @@ DATABASES = {
 	'default': {
 		'ENGINE': 'django.db.backends.sqlite3',
 		'NAME': _sqlite_database_path(),
+		# Attesa su lock (secondi); mitiga OperationalError «database is locked» in dev con più richieste/tab.
+		'OPTIONS': {'timeout': 60},
 	}
 }
 

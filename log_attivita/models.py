@@ -1,7 +1,12 @@
+import ipaddress
+import logging
 import traceback as tb_module
+
 from django.db import models
 from django.conf import settings
 from anagrafiche.models import Azienda
+
+_log_ip_logger = logging.getLogger(__name__)
 
 
 class LogAttivita(models.Model):
@@ -101,7 +106,7 @@ class LogErrore(models.Model):
             metodo = request.method
             if hasattr(request, 'user') and request.user.is_authenticated:
                 utente = request.user
-            ip = _get_ip(request)
+            ip = _client_ip_for_db(request)
         cls.objects.create(
             livello=livello,
             messaggio=str(messaggio),
@@ -118,3 +123,20 @@ def _get_ip(request):
     if x_forwarded:
         return x_forwarded.split(',')[0].strip()
     return request.META.get('REMOTE_ADDR')
+
+
+def _client_ip_for_db(request):
+    """Valore valido per GenericIPAddressField o None (evita eccezioni su stringhe proxy non-IP)."""
+    if not request:
+        return None
+    raw = _get_ip(request)
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    try:
+        return str(ipaddress.ip_address(s))
+    except ValueError:
+        _log_ip_logger.warning('Indirizzo IP client non valido per log (ignorato): %r', raw)
+        return None

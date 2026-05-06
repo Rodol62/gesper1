@@ -52,6 +52,7 @@ if _pd:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": _root / "db.sqlite3",
+            "OPTIONS": {"timeout": 60},
         }
     }
 else:
@@ -60,6 +61,7 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
+            "OPTIONS": {"timeout": 60},
         }
     }
 

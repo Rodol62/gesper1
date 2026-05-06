@@ -1,5 +1,16 @@
 from django.apps import AppConfig
+from django.db.backends.signals import connection_created
 from django.db.models.signals import post_save
+
+
+def _gesper_sqlite_pragmas(sender, connection, **kwargs):
+    if connection.vendor != 'sqlite':
+        return
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('PRAGMA journal_mode=WAL;')
+    except Exception:
+        pass
 
 
 class AccountsConfig(AppConfig):
@@ -7,6 +18,10 @@ class AccountsConfig(AppConfig):
     name = 'accounts'
 
     def ready(self):
+        connection_created.connect(
+            _gesper_sqlite_pragmas,
+            dispatch_uid='gesper_sqlite_journal_wal',
+        )
         # Signal: collegamento Dipendente ↔ Utente → gruppo e ruoli portale
         from . import signals_dipendente  # noqa: F401
         # Signal: allineamento dati anagrafici User/ProfiloCandidato/Dipendente

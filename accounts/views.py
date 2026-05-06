@@ -29,6 +29,9 @@ from django.db.models import Count, Q
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.conf import settings as django_settings
 from django.utils.http import url_has_allowed_host_and_scheme
+import logging
+
+logger_accounts = logging.getLogger(__name__)
 
 # --- UTILS ---
 def ensure_admin_supervisor():
@@ -659,9 +662,17 @@ def edit_profile(request):
 
 def logout_view(request):
     if request.user.is_authenticated:
-        registra_log(request.user, getattr(request.user, 'azienda', None), 'logout',
-                     descrizione=f'Uscita di {request.user.username}',
-                     request=request)
+        try:
+            registra_log(
+                request.user,
+                getattr(request.user, 'azienda', None),
+                'logout',
+                descrizione=f'Uscita di {request.user.username}',
+                request=request,
+            )
+        except Exception:
+            # Il logout non deve fallire per errori di logging (DB, IP proxy, ecc.)
+            logger_accounts.exception('registra_log su logout non riuscita')
     logout(request)
     # Non usare redirect('/') su www: la root è il sito Aruba; sempre pagina login GESPER.
     return redirect('login')

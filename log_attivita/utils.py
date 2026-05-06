@@ -1,9 +1,9 @@
-from .models import LogAttivita, _get_ip
+from .models import LogAttivita, _client_ip_for_db
 
 
 def registra_log(utente, azienda, operazione, descrizione='', oggetto_id=None, request=None):
     """Registra un'attività utente. Chiamabile da qualunque view."""
-    ip = _get_ip(request) if request else None
+    ip = _client_ip_for_db(request)
     LogAttivita.objects.create(
         utente=utente,
         azienda=azienda,
