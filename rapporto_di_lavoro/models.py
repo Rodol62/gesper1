@@ -13,6 +13,15 @@ from .utils_calcoli import calcola_netto_dipendente, calcola_costo_azienda, calc
 User = get_user_model()
 LUOGO_FIRMA_DEFAULT = 'Palermo'
 
+# Superminimo nel motore busta/simulatore: mensilità di riferimento **a tempo pieno** (Sm_ref); il tipo contratto applica la % part-time.
+HELP_SUPERMINIMO_MENSILE_RIF_FT = (
+	'Misura fissa concordata di riferimento a tempo pieno (€/mese, imponibile). '
+	'È la fonte dati per busta e simulatore: il coefficiente part-time del tipo contratto determina '
+	'l’importo mensile in cedolino (× % PT) e la quota €/h sul divisore CCNL. '
+	'Compilare sul contratto e sulla proposta quando previsto. '
+	'Concorre a 13ª/14ª, TFR, INPS, ferie/permessi e trattamento economico; non è bonus una tantum.'
+)
+
 
 class TipoContratto(models.Model):
 	TIPO_CHOICES = [
@@ -104,12 +113,8 @@ class RapportoDiLavoro(models.Model):
 		max_digits=10,
 		decimal_places=2,
 		default=0,
-		verbose_name='Superminimo mensile',
-		help_text=(
-			'Importo retributivo concordato oltre i minimi tabellari CCNL (€/mese, imponibile). '
-			'Entra in tredicesima/quattordicesima, TFR, INPS, ferie/permessi, malattia/maternità e trattamento economico; '
-			'non è bonus una tantum — resta stabile fino a modifica contrattuale.'
-		),
+		verbose_name='Superminimo (rif. tempo pieno, €/mese)',
+		help_text=HELP_SUPERMINIMO_MENSILE_RIF_FT,
 	)
 	tredicesima = models.BooleanField(default=True)
 	quattordicesima = models.BooleanField(default=False)
@@ -556,12 +561,8 @@ class PropostaAssunzione(models.Model):
 		max_digits=10,
 		decimal_places=2,
 		default=0,
-		verbose_name='Superminimo mensile',
-		help_text=(
-			'Importo retributivo concordato oltre i minimi tabellari CCNL (€/mese, imponibile). '
-			'Entra in tredicesima/quattordicesima, TFR, INPS, ferie/permessi, malattia/maternità e trattamento economico; '
-			'non è bonus una tantum — resta stabile fino a modifica.'
-		),
+		verbose_name='Superminimo (rif. tempo pieno, €/mese)',
+		help_text=HELP_SUPERMINIMO_MENSILE_RIF_FT,
 	)
 	indennita_mensile = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	tredicesima = models.BooleanField(default=True, help_text='Mensilità aggiuntiva pagata a dicembre (CCNL FIPE)')

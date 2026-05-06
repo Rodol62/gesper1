@@ -166,7 +166,7 @@
       <div class="col-md-6 mb-3">
         <label class="form-label" for="{{ form.superminimo_mensile.id_for_label }}">{{ form.superminimo_mensile.label }} (€/mese)</label>
         {{ form.superminimo_mensile }}
-        <small class="text-muted d-block">Oltre il minimo tabellare CCNL; imponibile, stabile (13ª/14ª, TFR, INPS, ferie/permessi, malattia/maternità). Lasciare 0 se non previsto.</small>
+        <small class="text-muted d-block">Riferimento a tempo pieno: è la fonte per busta e simulatore (in cedolino si applica la % part-time del tipo contratto). Imponibile, stabile. 0 se non previsto.</small>
         {% if form.superminimo_mensile.errors %}<div class="text-danger small">{{ form.superminimo_mensile.errors }}</div>{% endif %}
       </div>
     </div>

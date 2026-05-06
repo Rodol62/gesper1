@@ -151,6 +151,7 @@ def calcola_detrazioni(imponibile, anno=None, num_familiari: int = 0):
 
         check_date = _date(anno_ref, 6, 1)
         fasce = DetrazioneLavoroDipendente.objects.filter(
+            anno=anno_ref,
             attivo=True,
             data_validita_da__lte=check_date,
         ).filter(

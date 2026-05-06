@@ -12,6 +12,19 @@ from django.db.models import Q
 from .models import AddendumContrattuale, ParametroCCNLTurismo, ParametroScattiAnnuali, RapportoDiLavoro
 
 
+def _parametro_valido_nel_mese(parametro: ParametroCCNLTurismo | None, primo: date, ultimo: date) -> bool:
+    """Verifica intersezione tra validità parametro e mese richiesto."""
+    if parametro is None or not getattr(parametro, "attivo", False):
+        return False
+    da = getattr(parametro, "decorrenza_validita_da", None)
+    a = getattr(parametro, "decorrenza_validita_a", None)
+    if da and da > ultimo:
+        return False
+    if a and a < primo:
+        return False
+    return True
+
+
 def rapporto_sottoscritto_attivo_nel_mese(
     *,
     dipendente,
@@ -51,17 +64,17 @@ def risolvi_parametro_ccnl_per_mese(
     {'proposta_origine','addendum','tabella_livello','tabella_fallback'}.
     """
     livello = (livello_fallback or '').strip()
+    ultimo = date(
+        data_primo_giorno_mese.year,
+        data_primo_giorno_mese.month,
+        calendar.monthrange(data_primo_giorno_mese.year, data_primo_giorno_mese.month)[1],
+    )
     if rapporto:
         proposta = getattr(rapporto, 'proposta_origine', None)
         if proposta is not None and getattr(proposta, 'parametro_ccnl_id', None):
             pc = proposta.parametro_ccnl
-            if pc is not None:
+            if _parametro_valido_nel_mese(pc, data_primo_giorno_mese, ultimo):
                 return pc, 'proposta_origine'
-        ultimo = date(
-            data_primo_giorno_mese.year,
-            data_primo_giorno_mese.month,
-            calendar.monthrange(data_primo_giorno_mese.year, data_primo_giorno_mese.month)[1],
-        )
         add = (
             AddendumContrattuale.objects.filter(
                 rapporto=rapporto,
@@ -72,7 +85,11 @@ def risolvi_parametro_ccnl_per_mese(
             .order_by('-data_decorrenza', '-id')
             .first()
         )
-        if add is not None and add.parametro_ccnl_id:
+        if (
+            add is not None
+            and add.parametro_ccnl_id
+            and _parametro_valido_nel_mese(add.parametro_ccnl, data_primo_giorno_mese, ultimo)
+        ):
             return add.parametro_ccnl, 'addendum'
         livello = (rapporto.livello_ccnl or livello or '').strip()
 
@@ -83,7 +100,10 @@ def risolvi_parametro_ccnl_per_mese(
         ParametroCCNLTurismo.objects.filter(
             attivo=True,
             livello=livello,
-            decorrenza_validita_da__lte=data_primo_giorno_mese,
+            decorrenza_validita_da__lte=ultimo,
+        )
+        .filter(
+            Q(decorrenza_validita_a__isnull=True) | Q(decorrenza_validita_a__gte=data_primo_giorno_mese),
         )
         .order_by('-decorrenza_validita_da')
         .first()
@@ -94,6 +114,10 @@ def risolvi_parametro_ccnl_per_mese(
 
 
 def superminimo_da_rapporto_o_ruolo(*, rapporto: RapportoDiLavoro | None, ruolo_superminimo) -> Decimal:
+    """
+    Superminimo mensile di riferimento **a tempo pieno** da ``RapportoDiLavoro.superminimo_mensile``
+    (o da ruolo in simulazioni organico). Il motore applica il coefficiente part-time.
+    """
     if rapporto is not None:
         try:
             return Decimal(str(rapporto.superminimo_mensile or 0)).quantize(Decimal('0.01'))

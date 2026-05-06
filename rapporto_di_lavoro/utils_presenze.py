@@ -4,12 +4,10 @@ Utilizzato da Simulatore Paga e Simulazione annua per importare
 automaticamente i dati dal calendario presenze.
 """
 from __future__ import annotations
-from datetime import date, time
+from datetime import date
 from decimal import Decimal
 
 _Q2 = Decimal('0.01')
-_NOTTE_INIZIO = time(22, 0)
-_NOTTE_FINE   = time(6, 0)
 
 
 def get_presenze_mese_aggregato(
@@ -27,22 +25,12 @@ def get_presenze_mese_aggregato(
     Se ``data_da`` / ``data_a`` sono valorizzati, filtra le presenze in quell'intervallo
     (es. intersezione con il periodo contrattuale nel mese), coerente con il riepilogo presenze.
 
-    Classificazione straordinari (ore_straordinario > 0):
-      domenica/festivo + notte  → ore_straord_nott_fest
-      domenica                  → ore_straord_domenica
-      festivo (non domenica)    → ore_straord_festivo
-      notte (22:00-06:00)       → ore_straord_notturno
-      altrimenti                → ore_straord_diurno
-
-    Ore domenicali: ore effettive lavorate in domenica (magg. % su lordo)
-    Ore festive:    ore effettive lavorate in festività (non domenica)
-    Ore ordinarie retribuite: base oraria retribuita del mese (ore effettive
-      lavorate al netto delle ore registrate come straordinario), usata dal
-      motore in modalita' ore effettive.
-      Le ore domenicali/festive restano valorizzate separatamente per
-      applicare la sola maggiorazione in aggiunta alla base.
+    La classificazione delle ore (ordinarie, domenicali, festive e straordinari
+    per tipologia) e' delegata al core di ``presenze.utils`` per mantenere una
+    sola regola di business in tutta l'applicazione.
     """
     from presenze.models import Presenza
+    from presenze.utils import ore_std_giornaliere_contratto, _aggregazione_mensile_core
     from .utils_calendario import get_festivita_mese
 
     # Festivi nazionali + aziendali, escluse le domeniche (già conteggiate separatamente)
@@ -64,77 +52,23 @@ def get_presenze_mese_aggregato(
     if data_a is not None:
         presenze = presenze.filter(data__lte=data_a)
 
-    ore_straord_diurno    = Decimal('0')
-    ore_straord_notturno  = Decimal('0')
-    ore_straord_festivo   = Decimal('0')
-    ore_straord_domenica  = Decimal('0')
-    ore_straord_nott_fest = Decimal('0')
-    ore_domenicali        = Decimal('0')
-    ore_festivi_lav       = Decimal('0')
-    ore_ordinarie_retribuite = Decimal('0')
-    giorni_assenza        = Decimal('0')
-    giorni_ferie          = Decimal('0')
-    ore_permessi          = Decimal('0')
-
-    for p in presenze:
-        is_domenica = p.data.weekday() == 6
-        is_festivo  = p.data in festivi_dates
-
-        if p.causale == 'A':
-            giorni_assenza += 1
-            continue
-        if p.causale == 'F':
-            giorni_ferie += 1
-            continue
-        if p.causale == 'PE':
-            ore_permessi += Decimal(str(p.ore_lavorate() or 0)).quantize(_Q2)
-            continue
-
-        # Ore domenicali: ogni ora lavorata in domenica vale la maggiorazione
-        if is_domenica and p.causale not in ('R', 'A', 'F', 'PE', 'M', 'INF', 'MAT', 'CIG'):
-            ore_domenicali += Decimal(str(p.ore_lavorate() or 0)).quantize(_Q2)
-
-        # Ore festive: ore lavorate in festività nazionale/aziendale (non domenica)
-        if (is_festivo or p.causale == 'FE') and not is_domenica:
-            ore_festivi_lav += Decimal(str(p.ore_lavorate() or 0)).quantize(_Q2)
-
-        # Straordinari: ore aggiuntive oltre il contratto
-        ore_st = Decimal(str(p.ore_straordinario or 0)).quantize(_Q2)
-        if ore_st > 0:
-            is_notte = (
-                (p.ora_entrata is not None and p.ora_entrata >= _NOTTE_INIZIO) or
-                (p.ora_uscita  is not None and p.ora_uscita  <= _NOTTE_FINE)
-            )
-            if (is_festivo or is_domenica) and is_notte:
-                ore_straord_nott_fest += ore_st
-            elif is_domenica:
-                ore_straord_domenica += ore_st
-            elif is_festivo:
-                ore_straord_festivo += ore_st
-            elif is_notte:
-                ore_straord_notturno  += ore_st
-            else:
-                ore_straord_diurno    += ore_st
-
-        # Base ore effettive del mese: tutte le ore lavorate (incluse dom/fest),
-        # al netto delle sole ore classificate come straordinario.
-        ol = Decimal(str(p.ore_lavorate() or 0)).quantize(_Q2)
-        part = ol - ore_st
-        if part > 0:
-            ore_ordinarie_retribuite += part
+    # Classificazione ore centralizzata e coerente con il modulo Presenze:
+    # separa sempre ordinario / domeniche / festivi / straord. per categoria.
+    ore_std = ore_std_giornaliere_contratto(dipendente, azienda, anno, mese)
+    acc = _aggregazione_mensile_core(presenze, festivi_dates, ore_std)
 
     return {
-        'ore_straord_diurno':     ore_straord_diurno,
-        'ore_straord_notturno':   ore_straord_notturno,
-        'ore_straord_festivo':    ore_straord_festivo,
-        'ore_straord_domenica':   ore_straord_domenica,
-        'ore_straord_nott_fest':  ore_straord_nott_fest,
-        'ore_domenicali':         ore_domenicali,
-        'ore_festivi_lavorati':   ore_festivi_lav,
-        'ore_ordinarie_retribuite': ore_ordinarie_retribuite,
-        'giorni_assenza_ingiust': giorni_assenza,
-        'giorni_ferie_godute':    giorni_ferie,
-        'ore_permessi_goduti':    ore_permessi,
+        'ore_straord_diurno':     Decimal(str(acc.get('ore_straord_diurno', 0))).quantize(_Q2),
+        'ore_straord_notturno':   Decimal(str(acc.get('ore_straord_notturno', 0))).quantize(_Q2),
+        'ore_straord_festivo':    Decimal(str(acc.get('ore_straord_festivo', 0))).quantize(_Q2),
+        'ore_straord_domenica':   Decimal(str(acc.get('ore_straord_domenica', 0))).quantize(_Q2),
+        'ore_straord_nott_fest':  Decimal(str(acc.get('ore_straord_nott_fest', 0))).quantize(_Q2),
+        'ore_domenicali':         Decimal(str(acc.get('ore_domenicali', 0))).quantize(_Q2),
+        'ore_festivi_lavorati':   Decimal(str(acc.get('ore_festivi', 0))).quantize(_Q2),
+        'ore_ordinarie_retribuite': Decimal(str(acc.get('ore_ordinarie', 0))).quantize(_Q2),
+        'giorni_assenza_ingiust': Decimal(str(acc.get('giorni_assenza_ingiust', 0))).quantize(_Q2),
+        'giorni_ferie_godute':    Decimal(str(acc.get('giorni_ferie_godute', 0))).quantize(_Q2),
+        'ore_permessi_goduti':    Decimal(str(acc.get('ore_permessi_goduti', 0))).quantize(_Q2),
     }
 
 

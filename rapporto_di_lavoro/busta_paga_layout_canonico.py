@@ -86,8 +86,11 @@ INTESTAZIONE_RIGA_3: Final[Tuple[CampoLayout, ...]] = (
 INTESTAZIONE_RIGA_RETRIBUZIONE: Final[Tuple[CampoLayout, ...]] = (
     CampoLayout("paga_base", "Paga base"),
     CampoLayout("contingenza", "Contingenza"),
+    CampoLayout("el_dis_san", "EL.DIS.SAN"),
     CampoLayout("scatti_anzianita", "Scatti anz."),
-    CampoLayout("retribuzione_oraria_contrattuale", "Retr. oraria contr."),
+    CampoLayout("superminimo_orario", "Superminimo"),
+    CampoLayout("el_dis_bil", "EL.DIS.BIL"),
+    CampoLayout("retribuzione_oraria_contrattuale", "Retr. oraria di fatto"),
     CampoLayout("retribuzione_giornaliera_contrattuale", "Retrib. giorn. contr."),
 )
 
@@ -291,14 +294,34 @@ def costruisci_riepilogo_simulatore_da_risultato(r: dict[str, Any]) -> dict[str,
     paga_base_int = _dget(r, 'paga_base')
     cont_int = _dget(r, 'contingenza')
     scatto_int = _dget(r, 'scatto')
+    el_san_s = '—'
+    el_bil_s = '—'
+    sm_or_s = '—'
     if usa_div_orario:
-        # Con divisore 172/173,33 il part-time impatta le ore lavorate, non la €/h tabellare.
+        # Con divisore 172/173,33 le voci CCNL in €/h restano su base FT; il superminimo segue
+        # Sm_ref × coeff (misura fissa a tempo pieno rapportata al part-time).
         _hb = _dget(r, 'oraria_tabellare_paga_base')
         _hc = _dget(r, 'oraria_tabellare_contingenza')
         _hs = _dget(r, 'oraria_tabellare_scatto')
+        _hes = _dget(r, 'oraria_tabellare_el_dis_san')
+        _heb = _dget(r, 'oraria_tabellare_el_dis_bil')
+        _hsm = _dget(r, 'oraria_tabellare_superminimo')
         paga_base_int = f'{_fmt_num(_hb, 4)} €/h' if _hb is not None else '—'
         cont_int = f'{_fmt_num(_hc, 4)} €/h' if _hc is not None else '—'
         scatto_int = f'{_fmt_num(_hs, 4)} €/h' if _hs is not None else '—'
+
+        def _h_or_zero(v) -> Decimal:
+            try:
+                return Decimal(str(v or 0))
+            except Exception:
+                return Decimal('0')
+
+        if _hes is not None and _h_or_zero(_hes) > 0:
+            el_san_s = f'{_fmt_num(_hes, 4)} €/h'
+        if _heb is not None and _h_or_zero(_heb) > 0:
+            el_bil_s = f'{_fmt_num(_heb, 4)} €/h'
+        if _hsm is not None and _h_or_zero(_hsm) > 0:
+            sm_or_s = f'{_fmt_num(_hsm, 4)} €/h'
     else:
         paga_base_int = f'€ {_fmt_euro(paga_base_int)}'
         cont_int = f'€ {_fmt_euro(cont_int)}'
@@ -320,7 +343,10 @@ def costruisci_riepilogo_simulatore_da_risultato(r: dict[str, Any]) -> dict[str,
         'livello': (_dget(r, 'ccnl_livello') or '—') or '—',
         'paga_base': paga_base_int,
         'contingenza': cont_int,
+        'el_dis_san': el_san_s,
         'scatti_anzianita': scatto_int,
+        'superminimo_orario': sm_or_s,
+        'el_dis_bil': el_bil_s,
         'retribuzione_oraria_contrattuale': f'{_fmt_num(rof, 4)} €/h' if rof is not None else '—',
         'retribuzione_giornaliera_contrattuale': f'€ {_fmt_euro(pg)}' if pg is not None else '—',
     }

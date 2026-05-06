@@ -271,6 +271,7 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
     <div class="sim-sidebar">
     <form method="post">
       {% csrf_token %}
+      <input type="hidden" name="ore_ordinarie_escludono_dom_fest" value="{{ form_data.ore_ordinarie_escludono_dom_fest|default:'0' }}">
       <div class="card">
         <div class="card-header py-2 fw-bold" style="background:var(--c-primary);color:#fff;font-size:var(--sz-sm)">
           <i class="bi bi-sliders me-1"></i> Parametri scenario
@@ -450,14 +451,28 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
 
           <div class="row g-1 mb-2">
             <div class="col-6">
-              <label class="form-label-xs">Superminimo €</label>
+              <label class="form-label-xs">Superminimo (rif. t.p. €/mese)</label>
               <input type="number" name="superminimo" min="0" step="0.01" class="form-control form-control-sm"
-                     value="{{ form_data.superminimo|default:'0' }}">
+                     value="{{ form_data.superminimo|default:'0' }}"
+                     title="Stesso valore del contratto: mensilità a tempo pieno; con «Dati da contratto» viene preso dal rapporto.">
+              <small class="text-muted d-block" style="font-size:.58rem">Da contratto/proposta; il motore applica la % part-time.</small>
             </div>
             <div class="col-6">
               <label class="form-label-xs">Ind. turno €</label>
               <input type="number" name="indennita_turno" min="0" step="0.01" class="form-control form-control-sm"
                      value="{{ form_data.indennita_turno|default:'0' }}">
+            </div>
+            <div class="col-6">
+              <label class="form-label-xs">Competenze extra non imponibili €</label>
+              <input type="number" name="competenze_extra_non_imponibili" min="0" step="0.01" class="form-control form-control-sm"
+                     value="{{ form_data.competenze_extra_non_imponibili|default:'0' }}">
+              <small class="text-muted" style="font-size:.58rem">Es. bonus in busta non soggetto a INPS/IRPEF del mese.</small>
+            </div>
+            <div class="col-6">
+              <label class="form-label-xs">Trattenute extra mese €</label>
+              <input type="number" name="trattenute_extra_mese" min="0" step="0.01" class="form-control form-control-sm"
+                     value="{{ form_data.trattenute_extra_mese|default:'0' }}">
+              <small class="text-muted" style="font-size:.58rem">Es. pignoramento, rate addizionali, altre trattenute extra.</small>
             </div>
           </div>
 
@@ -711,6 +726,17 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
 
     {% if simulatore_riepilogo_cedolino_canonico and cedolino_riepilogo %}
     {% include 'rapporto_di_lavoro/_simulatore_riepilogo_cedolino_canonico.html' %}
+    {% endif %}
+
+    {% if risultato and risultato.oraria_ordinario_da_competenza %}
+    <div class="alert alert-light border py-2 px-3 mb-2 small" style="font-size:.72rem">
+      <strong>€/h da competenza ordinaria</strong> (come colonna <em>BASE</em> riga 8001 su molti cedolini):
+      <span class="fw-semibold">{{ risultato.oraria_ordinario_da_competenza|num_it:5 }}</span> €/h
+      <span class="text-muted">=</span> € {{ risultato.imp_ordinario_ore|euro_it }} ÷ {{ risultato.ore_ordinarie_retribuite|floatformat:2 }} h
+      <span class="text-muted d-block mt-1" style="font-size:.68rem">
+        La <strong>Retribuzione oraria di fatto</strong> in rubrica (ROEL) resta <strong>{{ risultato.retribuzione_oraria_di_fatto|num_it:4 }}</strong> €/h (somma voci tabellari ÷ divisore). Il gestionale può mostrare entrambi: non sono la stessa definizione.
+      </span>
+    </div>
     {% endif %}
 
     <div class="alert alert-secondary border-0 py-2 px-3 mb-2 small no-print" role="region">
@@ -994,7 +1020,7 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
           <div class="rline"><span class="lbl">Imponibile /mese</span><span class="val">€ {{ risultato.imponibile_m|euro_it }}</span></div>
           <div class="rline"><span class="lbl">Imponibile /anno (×12)</span><span class="val">€ {{ risultato.imponibile_ann|euro_it }}</span></div>
           <div class="rline neg"><span class="lbl">IRPEF lorda</span><span class="val">€ {{ risultato.irpef_lorda|euro_it }}</span></div>
-          <div class="rline pos"><span class="lbl">Detrazioni (art. 13)</span><span class="val">+ € {{ risultato.detrazioni|abs_num|euro_it }}</span></div>
+          <div class="rline pos"><span class="lbl">Detrazioni (art. 13 + fam. stima)</span><span class="val">+ € {{ risultato.detrazioni|abs_num|euro_it }}</span></div>
           <div class="rline total neg mb-2"><span class="lbl">IRPEF netta</span><span class="val">− € {{ risultato.irpef_netta|abs_num|euro_it }}</span></div>
           {% if risultato.ti %}
           <div class="rline pos"><span class="lbl">+ TI DL 3/2020</span><span class="val">+ € {{ risultato.ti|abs_num|euro_it }}</span></div>
@@ -1004,6 +1030,17 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
           {% endif %}
           <div class="rline"><span class="lbl text-muted">Addiz. reg. Sicilia /mese</span><span class="val text-muted">€ {{ risultato.add_reg_m|euro_it }}</span></div>
           <div class="rline"><span class="lbl text-muted">Addiz. com. /mese</span><span class="val text-muted">€ {{ risultato.add_com_m|euro_it }}</span></div>
+          <details class="mt-2 pt-2 border-top text-muted" style="font-size:.65rem">
+            <summary class="cursor-pointer">Perché può differire dal cedolino dello studio paghe</summary>
+            <ul class="mb-0 mt-1 ps-3">
+              <li>Base fiscale = <strong>lordo imponibile INPS</strong> (competenze del mese + eventuali 13ª/14ª in busta se spuntate), meno INPS dip.</li>
+              <li>Il simulatore usa <strong>reddito ×12</strong> e tabelle interne (IRPEF, detrazioni, TI, L.207, addizionali): il software di pagamento può usare <strong>progressivi annuali</strong>, arrotondamenti o parametri diversi.</li>
+              <li><strong>Detrazioni:</strong> la riga sopra è solo <strong>lavoro dipendente (art. 13) + stima familiari (art. 12)</strong>; il bonus <strong>L.207/2024</strong>, se trattato come detrazione IRPEF in modalità cedolino, è sulla riga dedicata ma <strong>concorre comunque</strong> a ridurre l’IRPEF netta (come sul cedolino diviso in più codici).</li>
+              <li>Se il profilo ha <strong>0 familiari a carico</strong> e in busta risultano detrazioni per carichi familiari, allineare il dato anagrafico o attendersi uno scarto.</li>
+              <li>Il campo «Competenze extra <strong>non</strong> imponibili» non entra nell’imponibile (solo sul netto).</li>
+              <li>Altri importi imponibili non inseriti nel form (premi, indennità speciali, conguagli, ecc.) non sono nel motore.</li>
+            </ul>
+          </details>
         </div>
       </div>
       </div>
@@ -1225,6 +1262,8 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
         if (d.ore_ordinarie_retribuite != null && d.ore_ordinarie_retribuite !== undefined) {
           _set('ore_ordinarie_retribuite', d.ore_ordinarie_retribuite);
         }
+        const flg = document.querySelector('[name="ore_ordinarie_escludono_dom_fest"]');
+        if (flg) flg.value = '1';
         infoEl.innerHTML = '<span style="color:green"><i class="bi bi-check2"></i> Dati caricati dal registro presenze</span>';
       } catch (err) {
         infoEl.textContent = 'Errore di rete: ' + err.message;
@@ -1264,6 +1303,9 @@ details.sim-cedolino-details[open] > summary::after { content: ' −'; }
     if (d.data_inizio_rapporto) _setVal('data_inizio_rapporto', d.data_inizio_rapporto);
     _setVal('data_fine_rapporto', d.data_fine_rapporto || '');
     if (d.superminimo != null) _setVal('superminimo', d.superminimo);
+    if (d.competenze_extra_non_imponibili != null) _setVal('competenze_extra_non_imponibili', d.competenze_extra_non_imponibili);
+    if (d.trattenute_extra_mese != null) _setVal('trattenute_extra_mese', d.trattenute_extra_mese);
+    if (d.ore_ordinarie_escludono_dom_fest != null) _setVal('ore_ordinarie_escludono_dom_fest', d.ore_ordinarie_escludono_dom_fest);
     if (d.divisore) _setVal('divisore', d.divisore);
     if (d.dipendente_id) _setVal('dipendente_id', d.dipendente_id);
     const r13 = document.getElementById('r13imp');

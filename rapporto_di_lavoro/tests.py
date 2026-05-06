@@ -110,6 +110,44 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
         self.assertEqual(r['paga_oraria'], Decimal('12.5000'))
         self.assertEqual(r['paga_base'], Decimal('860.00'))
 
+    def test_superminimo_sm_ref_ft_oraria_effetto_part_time(self):
+        """Sm_ref = mensilità superminimo a tempo pieno; €/h in rubrica = (Sm_ref × coeff) / 172."""
+        cp = _parametro_ccnl_test(ccnl='FIPE Pubblici Esercizi')
+        tipo_pt = SimpleNamespace(coefficiente_ore=Decimal('0.6'))
+        sm_ref = (Decimal('4.26') * Decimal('172') / Decimal('0.6')).quantize(Decimal('0.01'))
+        r0 = calcola_busta_paga_mese(
+            parametro_ccnl=cp,
+            tipo_contratto=tipo_pt,
+            anno=2026,
+            mese=1,
+            divisore_str='172',
+            mensilita_contrattuale_piena=True,
+            superminimo=Decimal('0'),
+            scatto_anzianita=Decimal('0'),
+            indennita_turno=Decimal('0'),
+            indennita_extra=Decimal('0'),
+            ccnl_obj=None,
+        )
+        r1 = calcola_busta_paga_mese(
+            parametro_ccnl=cp,
+            tipo_contratto=tipo_pt,
+            anno=2026,
+            mese=1,
+            divisore_str='172',
+            mensilita_contrattuale_piena=True,
+            superminimo=sm_ref,
+            scatto_anzianita=Decimal('0'),
+            indennita_turno=Decimal('0'),
+            indennita_extra=Decimal('0'),
+            ccnl_obj=None,
+        )
+        self.assertEqual(r1['oraria_tabellare_superminimo'], Decimal('4.2600'))
+        self.assertEqual(
+            r1['retribuzione_oraria_di_fatto'],
+            (r0['retribuzione_oraria_di_fatto'] + Decimal('4.2600')).quantize(Decimal('0.0001')),
+        )
+        self.assertEqual(r1['superminimo'], (sm_ref * Decimal('0.6')).quantize(Decimal('0.01')))
+
     def test_allineamento_excel_1021_49_522_37_scatto_90_percento(self):
         cp = _parametro_ccnl_test(
             paga_base_mensile=Decimal('1021.49'),
@@ -352,6 +390,33 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
             r['imp_ordinario_ore'],
             (ore_o * Decimal('9.1651')).quantize(Decimal('0.01')),
         )
+        self.assertEqual(
+            r['oraria_ordinario_da_competenza'],
+            (r['imp_ordinario_ore'] / ore_o).quantize(Decimal('0.0001')),
+        )
+
+    def test_modalita_ore_include_indennita_ccnl_in_lordo_imponibile(self):
+        """Con ore effettive e divisore 172: l’indennità CCNL mensile è imponibile ma fuori dalla ROF €/h."""
+        cp = _parametro_ccnl_test(indennita_mensile=Decimal('100.00'))
+        ore_o = Decimal('10')
+        r = calcola_busta_paga_mese(
+            parametro_ccnl=cp,
+            tipo_contratto=None,
+            anno=2026,
+            mese=1,
+            divisore_str='172',
+            ore_ordinarie_retribuite=ore_o,
+            modalita_ore_effettive=True,
+            mensilita_contrattuale_piena=True,
+            superminimo=Decimal('0'),
+            scatto_anzianita=Decimal('0'),
+            indennita_turno=Decimal('0'),
+            indennita_extra=Decimal('0'),
+            ccnl_obj=None,
+        )
+        imp_o = (ore_o * r['retribuzione_oraria_di_fatto']).quantize(Decimal('0.01'))
+        self.assertEqual(r['indennita'], Decimal('100.00'))
+        self.assertEqual(r['lordo_mensile'], (imp_o + Decimal('100.00')).quantize(Decimal('0.01')))
 
     def test_straordinario_diurno_sulla_retribuzione_oraria_di_fatto(self):
         cp = _parametro_ccnl_test()
@@ -397,6 +462,40 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
         # 0,10 €/h × 172 h × coeff 1 × frazione 1
         self.assertEqual(by_cod['EL_DIS_SAN']['importo'], Decimal('17.20'))
         self.assertEqual(by_cod['EL_DIS_BIL']['importo'], Decimal('8.60'))
+
+
+class MotorePagaDetrazioniCedolinoTests(TestCase):
+    """Con L207 in detrazione IRPEF (cedolino), ``detrazioni`` resta solo art. 13 (+ stima fam.); L207 è voce a parte."""
+
+    def test_cedolino_l207_detrazione_non_gonfia_campo_detrazioni(self):
+        cp = _parametro_ccnl_test()
+        r = calcola_busta_paga_mese(
+            parametro_ccnl=cp,
+            tipo_contratto=None,
+            anno=2026,
+            mese=2,
+            divisore_str='172',
+            mensilita_contrattuale_piena=True,
+            superminimo=Decimal('0'),
+            scatto_anzianita=Decimal('0'),
+            indennita_turno=Decimal('0'),
+            indennita_extra=Decimal('0'),
+            ccnl_obj=None,
+            fiscale_modalita_cedolino=True,
+            l207_percentuale_imponibile=Decimal('0.02'),
+            l207_come_detrazione_irpef=True,
+            ti_l207_non_cumulabili=True,
+        )
+        d_art13 = Decimal(str(calcola_detrazioni(
+            float(r['imponibile_m']), anno=2026, num_familiari=0,
+        ))).quantize(Decimal('0.01'))
+        self.assertEqual(r['detrazioni'], d_art13)
+        self.assertGreater(r['l207'], Decimal('0'))
+        irpef_attesa = max(
+            r['irpef_lorda'] - r['detrazioni'] - r['l207'],
+            Decimal('0'),
+        ).quantize(Decimal('0.01'))
+        self.assertEqual(r['irpef_netta'], irpef_attesa)
 
 
 class PropostaStatoPolicyTests(TestCase):
@@ -707,7 +806,7 @@ class BustaPagaLayoutCanonicoTests(TestCase):
             ids_campi_intestazione,
         )
 
-        self.assertEqual(len(ids_campi_intestazione()), 18)
+        self.assertEqual(len(ids_campi_intestazione()), 21)
         sez = elenco_sezioni_con_campi()
         self.assertEqual(len(sez), 7)
         ore = next(x for x in sez if x[0].value == 'ore_lavorate')

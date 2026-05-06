@@ -136,7 +136,9 @@ def _json_prefill_da_contratto_dipendente(request, dip_id: int, anno: int, mese:
             'errore': f'Parametro CCNL non trovato per livello «{(rapporto.livello_ccnl or "").strip() or "?"}».',
         }
     tc = rapporto.tipo_contratto
-    sm = superminimo_da_rapporto_o_ruolo(rapporto=rapporto, ruolo_superminimo=Decimal('0'))
+    sm_contr = superminimo_da_rapporto_o_ruolo(
+        rapporto=rapporto, ruolo_superminimo=Decimal('0'),
+    ).quantize(Q2)
     div = _divisore_tabellare_da_parametro_ccnl(cp)
     if not div:
         div = '172'
@@ -148,7 +150,7 @@ def _json_prefill_da_contratto_dipendente(request, dip_id: int, anno: int, mese:
     scatti_db = build_scatti_db(_ccnl_obj, anno) if _ccnl_obj else {}
     scatto_m = calcola_scatto_totale_maturato(livello_eff, anni_srv, scatti_db).quantize(Q2)
 
-    return {
+    payload = {
         'ok': True,
         'fonte': 'contratto',
         'messaggio': f'Contratto {rapporto.numero_contratto} — livello {rapporto.livello_ccnl}',
@@ -158,13 +160,168 @@ def _json_prefill_da_contratto_dipendente(request, dip_id: int, anno: int, mese:
         'dipendente_id': str(dip.pk),
         'data_inizio_rapporto': rapporto.data_inizio_rapporto.isoformat(),
         'data_fine_rapporto': rapporto.data_fine_rapporto.isoformat() if rapporto.data_fine_rapporto else '',
-        'superminimo': str(sm),
+        'superminimo': str(sm_contr),
         'divisore': div,
         'usa_dati_contratto': '1',
         'rateo_13_mensile_in_imponibile': '1' if rapporto.tredicesima_rateo_mensile_in_imponibile else '0',
         'rateo_14_mensile_in_imponibile': '1' if rapporto.quattordicesima_rateo_mensile_in_imponibile else '0',
         'scatto_maturato_mese_hint': str(scatto_m),
     }
+    try:
+        from documenti.models import CedolinoMotoreV4
+
+        ced = (
+            CedolinoMotoreV4.objects
+            .filter(dipendente_id=dip.pk, anno=anno, mese=mese)
+            .order_by('-id')
+            .prefetch_related('voci')
+            .first()
+        )
+        if ced is not None:
+            _sm_da_ced = False
+            voci_by_cod = {}
+            for vv in ced.voci.all():
+                key = (vv.codice or '').strip()
+                if key:
+                    voci_by_cod.setdefault(key, []).append(vv)
+
+            def _sum_ore(*codes: str) -> Decimal:
+                tot = Decimal('0')
+                for code in codes:
+                    for row in voci_by_cod.get(code, []):
+                        tot += Decimal(str(row.ore_gg or 0))
+                return tot.quantize(Q2)
+
+            def _sum_imp(*codes: str) -> Decimal:
+                tot = Decimal('0')
+                for code in codes:
+                    for row in voci_by_cod.get(code, []):
+                        tot += Decimal(str(row.importo or 0))
+                return tot.quantize(Q2)
+
+            def _sum_ore_desc_contains(*needles: str) -> Decimal:
+                nrm = tuple((n or '').strip().lower() for n in needles if (n or '').strip())
+                if not nrm:
+                    return Decimal('0.00')
+                tot = Decimal('0')
+                for rows in voci_by_cod.values():
+                    for row in rows:
+                        desc = (row.descrizione or '').strip().lower()
+                        if all(tok in desc for tok in nrm):
+                            tot += Decimal(str(row.ore_gg or 0))
+                return tot.quantize(Q2)
+
+            coeff = Decimal(str(tc.coefficiente_ore or 1))
+            div_dec = Decimal(str(div))
+
+            def _dced(x) -> Decimal:
+                try:
+                    return Decimal(str(x or 0))
+                except Exception:
+                    return Decimal('0')
+
+            # €/h in cedolino = (Sm_ref × coeff) / divisore → Sm_ref mensile = (h × divisore) / coeff
+            super_h = _dced(getattr(ced, 'superminimo_imp', 0))
+            if sm_contr <= 0 and super_h > 0 and div_dec > 0 and coeff > 0:
+                sm_m_ref = (super_h * div_dec / coeff).quantize(Q2) if coeff < Decimal('1') else (super_h * div_dec).quantize(Q2)
+                payload['superminimo'] = str(sm_m_ref)
+                _sm_da_ced = True
+            elif sm_contr <= 0 and div_dec > Decimal('30') and coeff > 0:
+                # Cedolino importato: a volte EL.SAN / scatti / superminimo non sono in colonna (0 in DB)
+                # ma «retrib. di fatto» è corretta — ricostruisci il superminimo orario come residuo.
+                rof_ced = _dced(getattr(ced, 'retrib_di_fatto', 0) or getattr(ced, 'retr_oraria_att', 0))
+                if rof_ced > 0:
+                    h_pb = _dced(ced.paga_base)
+                    h_ct = _dced(ced.contingenza)
+                    h_es = _dced(ced.el_dis_san)
+                    if h_es <= 0:
+                        h_es = _dced(getattr(cp, 'elemento_distinto_sanita', 0))
+                    h_eb = _dced(ced.el_dis_bil)
+                    if h_eb <= 0:
+                        h_eb = _dced(getattr(cp, 'elemento_distinto_bilateralita', 0))
+                    h_sc = _dced(ced.scatti_anz_imp)
+                    if h_sc <= 0 and scatto_m > 0:
+                        h_sc = (scatto_m / div_dec).quantize(Q4)
+                    base_oraria = (h_pb + h_ct + h_es + h_sc + h_eb).quantize(Q4)
+                    super_h_res = (rof_ced - base_oraria).quantize(Q4)
+                    if super_h_res > Decimal('0.005'):
+                        sm_m_ref = (
+                            (super_h_res * div_dec / coeff).quantize(Q2)
+                            if coeff < Decimal('1')
+                            else (super_h_res * div_dec).quantize(Q2)
+                        )
+                        payload['superminimo'] = str(sm_m_ref)
+                        _sm_da_ced = True
+            ore_ord = _sum_ore('8001')
+            ore_dom = _sum_ore('8010', '8011')
+            if ore_ord > 0:
+                payload['ore_ordinarie_retribuite'] = str(ore_ord)
+            if ore_dom > 0:
+                payload['ore_domenicali'] = str(ore_dom)
+            ore_fest = _sum_ore('8020')
+            if ore_fest > 0:
+                payload['ore_festivi_lavorati'] = str(ore_fest)
+            ore_st_nott = _sum_ore('8030')
+            if ore_st_nott <= 0:
+                ore_st_nott = _sum_ore_desc_contains('straord', 'nott')
+            if ore_st_nott > 0:
+                payload['ore_straord_notturno'] = str(ore_st_nott)
+
+            ore_st_dom = _sum_ore_desc_contains('straord', 'domen')
+            ore_st_fest = _sum_ore_desc_contains('straord', 'festiv')
+            ore_st_nf = _sum_ore_desc_contains('straord', 'nott', 'fest')
+            # Straord. diurno: fallback su altre competenze 80xx non mappate esplicitamente.
+            # Se il codice ha descrizione "straord." prova a tenere una distinzione minima.
+            ore_st_diur = Decimal('0')
+            for code, rows in voci_by_cod.items():
+                if not (code.isdigit() and 8000 <= int(code) <= 8099):
+                    continue
+                if code in {'8001', '8010', '8011', '8020', '8030'}:
+                    continue
+                for row in rows:
+                    desc = (row.descrizione or '').strip().lower()
+                    ore = Decimal(str(row.ore_gg or 0))
+                    if ore <= 0:
+                        continue
+                    if 'straord' in desc:
+                        if 'nott' in desc and 'fest' in desc:
+                            ore_st_nf += ore
+                        elif 'domen' in desc:
+                            ore_st_dom += ore
+                        elif 'fest' in desc:
+                            ore_st_fest += ore
+                        elif 'nott' in desc:
+                            ore_st_nott += ore
+                        else:
+                            ore_st_diur += ore
+            if ore_st_diur > 0:
+                payload['ore_straord_diurno'] = str(ore_st_diur.quantize(Q2))
+            if ore_st_dom > 0:
+                payload['ore_straord_domenica'] = str(ore_st_dom.quantize(Q2))
+            if ore_st_fest > 0:
+                payload['ore_straord_festivo'] = str(ore_st_fest.quantize(Q2))
+            if ore_st_nf > 0:
+                payload['ore_straord_nott_fest'] = str(ore_st_nf.quantize(Q2))
+            if ore_ord > 0 or ore_dom > 0 or ore_fest > 0:
+                payload['ore_ordinarie_escludono_dom_fest'] = '1'
+            l207_bonus = _sum_imp('9824')
+            trattenute_extra = _sum_imp('1800', '1802', '9250')
+            if l207_bonus > 0:
+                payload['competenze_extra_non_imponibili'] = str(l207_bonus)
+            if trattenute_extra > 0:
+                payload['trattenute_extra_mese'] = str(trattenute_extra)
+            _msg_ced = (
+                f'Contratto {rapporto.numero_contratto} — livello {rapporto.livello_ccnl} · '
+                f'dati cedolino importato {mese:02d}/{anno}'
+            )
+            if _sm_da_ced:
+                _msg_ced += (
+                    ' · Superminimo stimato da cedolino (valorizzare «Superminimo» sul contratto come fonte ufficiale).'
+                )
+            payload['messaggio'] = _msg_ced
+    except Exception:
+        pass
+    return payload
 
 
 def _json_prefill_da_proposta(request, proposta_id: int, anno: int, mese: int) -> dict:
@@ -354,6 +511,9 @@ def simulatore_paga(request):
         # Voci variabili dal form
         superminimo     = Decimal(_get('superminimo', '0') or '0').quantize(Q2)
         indennita_turno = Decimal(_get('indennita_turno', '0') or '0').quantize(Q2)
+        comp_extra_non_imp = Decimal(_get('competenze_extra_non_imponibili', '0') or '0').quantize(Q2)
+        trattenute_extra = Decimal(_get('trattenute_extra_mese', '0') or '0').quantize(Q2)
+        ore_distinte_dom_fest = _get('ore_ordinarie_escludono_dom_fest', '0') == '1'
 
         def _ore(key): return Decimal(_get(key, '0') or '0').quantize(Q2)
         ore_sd  = _ore('ore_straord_diurno')
@@ -425,7 +585,9 @@ def simulatore_paga(request):
             coeff = Decimal(str(tc.coefficiente_ore or 1))
             data_inizio = rapporto.data_inizio_rapporto
             data_fine = rapporto.data_fine_rapporto
-            superminimo = superminimo_da_rapporto_o_ruolo(rapporto=rapporto, ruolo_superminimo=Decimal('0'))
+            superminimo = superminimo_da_rapporto_o_ruolo(
+                rapporto=rapporto, ruolo_superminimo=Decimal('0'),
+            ).quantize(Q2)
             r13_imp_m = bool(rapporto.tredicesima_rateo_mensile_in_imponibile)
             r14_imp_m = bool(rapporto.quattordicesima_rateo_mensile_in_imponibile)
             anni_srv = anni_di_servizio(rapporto.data_inizio_rapporto, primo_m)
@@ -464,6 +626,48 @@ def simulatore_paga(request):
             except (ValueError, TypeError):
                 dip_scheda_anagrafica = None
 
+        # ── Auto-import presenze reali quando il dipendente e' selezionato ───
+        # Se tutte le ore/assenze sono ancora a zero, usa il registro presenze del mese
+        # per evitare il fallback al calendario teorico (gg ord. × h/gg).
+        _tutti_zero = (
+            ore_sd == 0 and ore_sn == 0 and ore_sf == 0 and ore_sdom == 0 and ore_snf == 0
+            and ore_ord_ret == 0 and ore_dom == 0 and ore_fest == 0
+            and gg_assenza == 0 and gg_ferie == 0 and ore_perm == 0
+        )
+        if dip_id_raw and _tutti_zero:
+            try:
+                from anagrafiche.models import Dipendente
+                from .utils_presenze import get_presenze_mese_aggregato
+
+                _dip_for_pres = Dipendente.objects.get(pk=int(dip_id_raw))
+                _agg_pres = get_presenze_mese_aggregato(_dip_for_pres, anno, mese, azienda or _dip_for_pres.azienda)
+                ore_sd = Decimal(str(_agg_pres.get('ore_straord_diurno', 0))).quantize(Q2)
+                ore_sn = Decimal(str(_agg_pres.get('ore_straord_notturno', 0))).quantize(Q2)
+                ore_sf = Decimal(str(_agg_pres.get('ore_straord_festivo', 0))).quantize(Q2)
+                ore_sdom = Decimal(str(_agg_pres.get('ore_straord_domenica', 0))).quantize(Q2)
+                ore_snf = Decimal(str(_agg_pres.get('ore_straord_nott_fest', 0))).quantize(Q2)
+                ore_ord_ret = Decimal(str(_agg_pres.get('ore_ordinarie_retribuite', 0))).quantize(Q2)
+                ore_dom = Decimal(str(_agg_pres.get('ore_domenicali', 0))).quantize(Q2)
+                ore_fest = Decimal(str(_agg_pres.get('ore_festivi_lavorati', 0))).quantize(Q2)
+                gg_assenza = Decimal(str(_agg_pres.get('giorni_assenza_ingiust', 0))).quantize(Q2)
+                gg_ferie = Decimal(str(_agg_pres.get('giorni_ferie_godute', 0))).quantize(Q2)
+                ore_perm = Decimal(str(_agg_pres.get('ore_permessi_goduti', 0))).quantize(Q2)
+                form_flat['ore_straord_diurno'] = str(ore_sd)
+                form_flat['ore_straord_notturno'] = str(ore_sn)
+                form_flat['ore_straord_festivo'] = str(ore_sf)
+                form_flat['ore_straord_domenica'] = str(ore_sdom)
+                form_flat['ore_straord_nott_fest'] = str(ore_snf)
+                form_flat['ore_ordinarie_retribuite'] = str(ore_ord_ret)
+                form_flat['ore_domenicali'] = str(ore_dom)
+                form_flat['ore_festivi_lavorati'] = str(ore_fest)
+                form_flat['giorni_assenza_ingiust'] = str(gg_assenza)
+                form_flat['giorni_ferie_godute'] = str(gg_ferie)
+                form_flat['ore_permessi_goduti'] = str(ore_perm)
+                form_flat['ore_ordinarie_escludono_dom_fest'] = '1'
+                ore_distinte_dom_fest = True
+            except Exception:
+                pass
+
         # ── Auto-calcolo dal calendario se ore non inserite ───────────────────
         # Domenicali: delegate al motore (usa calendario + chiusure aziendali).
         # Festivi: ore/gg = h settimanali tabellari × coeff. part-time ÷ 6 (stesso criterio del motore busta).
@@ -480,6 +684,7 @@ def simulatore_paga(request):
             ore_fest = (Decimal(str(_n_fest)) * _ore_gg).quantize(Q2)
 
         # ── Chiamata al motore paga condiviso ─────────────────────────────────
+        _modalita_ore_effettive = (ore_ord_ret > 0)
         r = calcola_busta_paga_mese(
             parametro_ccnl=cp,
             tipo_contratto=tc,
@@ -493,6 +698,8 @@ def simulatore_paga(request):
             scatto_anzianita=scatto_anzianita,
             indennita_extra=indennita_extra,
             indennita_turno=indennita_turno,
+            competenze_extra_non_imponibili=comp_extra_non_imp,
+            trattenute_extra_mese=trattenute_extra,
             contratto_esclude_tredicesima=contratto_esclude_13,
             contratto_esclude_quattordicesima=contratto_esclude_14,
             ore_straord_diurno=ore_sd,
@@ -509,7 +716,11 @@ def simulatore_paga(request):
             rateo_13_mensile_in_imponibile=r13_imp_m,
             rateo_14_mensile_in_imponibile=r14_imp_m,
             ore_ordinarie_retribuite=ore_ord_ret,
-            modalita_ore_effettive=(ore_ord_ret > 0),
+            modalita_ore_effettive=_modalita_ore_effettive,
+            # Se le ore ordinarie escludono domeniche/festivi, le relative righe
+            # devono contenere il compenso completo (base + maggiorazione).
+            domenicale_compenso_completo=(not _modalita_ore_effettive) or ore_distinte_dom_fest,
+            festivo_compenso_completo=(not _modalita_ore_effettive) or ore_distinte_dom_fest,
             mensilita_contrattuale_piena=True,
             num_familiari_a_carico=num_fam_fisc,
             regione_residenza=regione_fisc,
@@ -572,8 +783,23 @@ def simulatore_paga(request):
                 ),
                 'row_kind': 'subtotal_rof',
             })
-        if r['superminimo']:
-            voci.append({'nome': 'Superminimo', 'importo': r['superminimo'], 'inps': True, 'irpef': True, 'note': 'Individuale/aziendale'})
+        if r.get('superminimo') and Decimal(str(r['superminimo'])) > 0:
+            _hsm = r.get('oraria_tabellare_superminimo')
+            try:
+                _hsm_q = Decimal(str(_hsm)).quantize(Q4) if _hsm is not None else None
+            except Exception:
+                _hsm_q = None
+            _note_sm = (
+                'Importo mensile fisso in busta; €/h = quota effetto part-time (Sm_ref × % PT ÷ divisore CCNL).'
+            )
+            voci.append({
+                'nome': 'Superminimo',
+                'importo': r['superminimo'],
+                'oraria_tab': _hsm_q,
+                'inps': True,
+                'irpef': True,
+                'note': _note_sm,
+            })
         if r['indennita_turno']:
             voci.append({'nome': 'Indennità turno', 'importo': r['indennita_turno'], 'inps': True, 'irpef': True, 'note': 'Turni notturni/speciali'})
         # Straordinari — solo se ore > 0

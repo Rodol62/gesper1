@@ -202,6 +202,7 @@ def calcola_busta_paga_mese(
     auto_ore_domenicali_da_calendario: bool = True,
     modalita_ore_effettive: bool = False,
     domenicale_compenso_completo: bool = True,
+    festivo_compenso_completo: bool = False,
     fiscale_modalita_cedolino: bool = False,
     l207_percentuale_imponibile: Decimal | None = None,
     ti_l207_non_cumulabili: bool = False,
@@ -239,6 +240,16 @@ def calcola_busta_paga_mese(
 
     **Domenicale lavorato:** default ``domenicale_compenso_completo=True`` → importo = ore × ROEL × (1 + magg. %).
     Con ``False`` → solo maggiorazione: ore × ROEL × magg. % (base tabellare già nel lordo mensile).
+
+    **Festivo lavorato:** con ``festivo_compenso_completo=True`` applica ore × ROEL × (1 + magg. %).
+    Con ``False`` applica solo la maggiorazione.
+
+    **Superminimo:** ``superminimo`` è la mensilità di riferimento **a tempo pieno** (misura fissa);
+    in busta e nella €/h mostrata per part-time si applica il ``coefficiente_ore`` del tipo contratto
+    (es. €/h effettiva = (Sm_ref × coeff) / 172).
+
+    Con ore ordinarie retribuite > 0, ``oraria_ordinario_da_competenza`` = ``imp_ordinario_ore`` ÷ ore
+    (rapporto dopo arrotondamento della competenza ordinaria; confrontabile alla BASE riga 8001).
 
     Returns full result dict with: voci, lordo, netto, contributi, ratei, f24, costo azienda.
     """
@@ -421,13 +432,15 @@ def calcola_busta_paga_mese(
         (_paga_ft_tab_solo + _c_m + _e_m + _i_m) * coeff
     ).quantize(Q2)
 
-    # Riferimento tabellare mese (FT × pro-rata giorni): somma delle stesse voci usate per le €/h tab. (/divisore).
+    # Superminimo: ``superminimo`` è la mensilità di riferimento a tempo pieno (misura fissa contrattuale);
+    # in busta concorre per ``superminimo * coeff * frazione``. La €/h in rubrica (part-time) è
+    # (Sm_ref × coeff × pro-rata) ÷ divisore, es. 4,26 = (7,10 €/h equivalente FT) × 60 %.
     _sm_arg = Decimal(str(superminimo or 0))
-    _sm_ft_tab = (_sm_arg / coeff).quantize(Q6) if coeff > 0 else _sm_arg
+    _sm_ref_tab = _sm_arg.quantize(Q6)
     _somma_tabellare_ft = (_paga_ft_tab_solo + _c_m + _e_m + _i_m + _scatto_mens_ft).quantize(Q2)
     if divisore_dec > Decimal('30'):
         _somma_tabellare_ft = (
-            _somma_tabellare_ft + _sm_ft_tab + _eds_mens_ft + _edb_mens_ft
+            _somma_tabellare_ft + _sm_ref_tab + _eds_mens_ft + _edb_mens_ft
         ).quantize(Q2)
     lordo_tabellare_ft_equiv = (_somma_tabellare_ft * frazione).quantize(Q2)
     tabellare_gap_ft = Decimal('0')
@@ -453,8 +466,9 @@ def calcola_busta_paga_mese(
         # Retribuzione oraria di fatto = Σ (voce tabellare FT × pro-rata giorni ÷ ore contrattuali 172 o 173,33).
         # Include EDR finché distinto (dal 2024 in FIPE è azzerato perché assorbito in contingenza), superminimo,
         # EL.DIS.SAN e EL.DIS.BIL (da €/h tabellare × ore contrattuali ÷ ore = €/h, con pro-rata sul mese).
+        _sm_coeff = (coeff if coeff > 0 else Decimal('1'))
         h_oraria_superminimo = (
-            ((_sm_ft_tab * fr) / div).quantize(Q4) if _sm_ft_tab > 0 else Decimal('0')
+            ((_sm_ref_tab * _sm_coeff * fr) / div).quantize(Q4) if _sm_ref_tab > 0 else Decimal('0')
         )
         h_oraria_el_dis_san = ((_eds_mens_ft * fr) / div).quantize(Q4) if _eds_mens_ft > 0 else Decimal('0')
         h_oraria_el_dis_bil = ((_edb_mens_ft * fr) / div).quantize(Q4) if _edb_mens_ft > 0 else Decimal('0')
@@ -559,7 +573,10 @@ def calcola_busta_paga_mese(
         imp_dom_magg = (ore_domenicali * paga_oraria * (1 + magg_dom_p)).quantize(Q2)
     else:
         imp_dom_magg = (ore_domenicali * paga_oraria * magg_dom_p).quantize(Q2)
-    imp_fest_magg = (ore_festivi    * paga_oraria * magg_fest_p).quantize(Q2)
+    if festivo_compenso_completo:
+        imp_fest_magg = (ore_festivi * paga_oraria * (1 + magg_fest_p)).quantize(Q2)
+    else:
+        imp_fest_magg = (ore_festivi * paga_oraria * magg_fest_p).quantize(Q2)
     tot_dom_fest  = (imp_dom_magg + imp_fest_magg).quantize(Q2)
 
     # ── Assenze ingiustificate ────────────────────────────────────────────────
@@ -572,13 +589,25 @@ def calcola_busta_paga_mese(
 
     # ── Lordo competenze mensili (rubrica; 13ª/14ª ratei si sommano sotto per base INPS)
     imp_ordinario_ore = (ore_ordinarie_retribuite * paga_oraria).quantize(Q2)
+    # Rapporto competenze ÷ ore (dopo arrotondamento importo riga): allineabile alla colonna BASE riga 8001
+    # su molti cedolini (Teamsystem / ecc.), spesso diverso dalla sola ROF tabellare Σ÷divisore.
+    oraria_ordinario_da_competenza = None
+    _ore_ord_dec = Decimal(str(ore_ordinarie_retribuite or 0))
+    if _ore_ord_dec > 0:
+        oraria_ordinario_da_competenza = (imp_ordinario_ore / _ore_ord_dec).quantize(Q4)
     if modalita_ore_effettive and ore_ordinarie_retribuite > 0:
         # Base su ore effettive: ROF × ore (componenti tabellari incluse nella retrib. oraria di fatto) + voci
         # fuori dalla somma €/h (turno, extra) + maggiorazioni. Superminimo / EL.DIS.* non si sommano di nuovo
         # (già nella €/h); con 0 ore ordinarie restano le sole voci mensili tabellari + accessori.
         if divisore_dec > Decimal('30'):
+            # Indennità CCNL tabellare (``indennita``): è in ``lordo_base`` ma **non** nella ROF €/h
+            # (``retribuzione_oraria_di_fatto``); in busta resta voce mensile imponibile. Va sommata al lordo
+            # competenze quando l’ordinario è solo «ore × ROF», altrimenti l’imponibile INPS/IRPEF resta sotto
+            # al cedolino reale.
+            _ind_tab_m = indennita.quantize(Q2) if indennita and indennita > 0 else Decimal('0')
             lordo_mensile = (
                 imp_ordinario_ore
+                + _ind_tab_m
                 + indennita_turno_r
                 + indennita_extra_r
                 + tot_straord
@@ -665,12 +694,14 @@ def calcola_busta_paga_mese(
 
     # Modalità cedolino: L207 trattato come detrazione IRPEF (non come credito netto)
     if fiscale_modalita_cedolino and l207_come_detrazione_irpef:
-        detrazioni_tot_m = (detrazioni_m + l207).quantize(Q2)
-        irpef_netta_m = max(irpef_lorda_m - detrazioni_tot_m, Decimal('0')).quantize(Q2)
+        # L207 in detrazione IRPEF (come molti cedolini): non sommare L207 alla voce
+        # «detrazioni» in output — resta solo art. 13 TUIR (+ stima fam. art. 12), così
+        # il confronto con la riga cedolino è coerente; L207 resta su riga dedicata in UI.
+        detrazioni_per_irpef_m = (detrazioni_m + l207).quantize(Q2)
+        irpef_netta_m = max(irpef_lorda_m - detrazioni_per_irpef_m, Decimal('0')).quantize(Q2)
         netto_base = (lordo_imponibile_inps_m - inps_dip - irpef_netta_m).quantize(Q2)
         crediti_imposta = ti.quantize(Q2)
         netto_totale = (netto_base + ti).quantize(Q2)
-        detrazioni_m = detrazioni_tot_m
     else:
         irpef_netta_m = max(irpef_lorda_m - detrazioni_m, Decimal('0')).quantize(Q2)
         netto_base = (lordo_imponibile_inps_m - inps_dip - irpef_netta_m).quantize(Q2)
@@ -859,10 +890,12 @@ def calcola_busta_paga_mese(
         'imp_sd': imp_sd, 'imp_sn': imp_sn, 'imp_sf': imp_sf, 'imp_snf': imp_snf,
         'imp_sdom': imp_sdom,
         'imp_ordinario_ore': imp_ordinario_ore,
+        'oraria_ordinario_da_competenza': oraria_ordinario_da_competenza,
         'tot_straord': tot_straord,
         'ore_ordinarie_retribuite': ore_ordinarie_retribuite,
         'modalita_ore_effettive': modalita_ore_effettive,
         'domenicale_compenso_completo': domenicale_compenso_completo,
+        'festivo_compenso_completo': festivo_compenso_completo,
         'ore_straord_diurno': ore_straord_diurno, 'ore_straord_notturno': ore_straord_notturno,
         'ore_straord_festivo': ore_straord_festivo, 'ore_straord_domenica': ore_straord_domenica,
         'ore_straord_nott_fest': ore_straord_nott_fest,

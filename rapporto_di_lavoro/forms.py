@@ -550,6 +550,11 @@ class RapportoDiLavoroForm(forms.ModelForm):
             'Giorni di permesso annui sul contratto; il motore «Calcolatore ferie e ROL» in presenze usa le ore annuali '
             'da normativa CCNL e rapporto (allineate a proposta/contratto).'
         )
+        if 'superminimo_mensile' in self.fields:
+            self.fields['superminimo_mensile'].help_text = (
+                'Misura fissa di riferimento a tempo pieno (€/mese). Fonte per busta e simulatore: '
+                'importo in cedolino = questo valore × coefficiente part-time del tipo contratto.'
+            )
 
     def clean(self):
         cleaned_data = super().clean()

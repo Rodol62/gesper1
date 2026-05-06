@@ -198,7 +198,13 @@
       </a>
     </div>
 
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap justify-content-end">
+      {% if is_admin_hr %}
+      <a href="{% url 'seleziona_dipendente_presenza' %}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.95);color:#1b3a5f;border:1px solid rgba(255,255,255,.5);font-size:.78rem;font-weight:700">
+        <i class="bi bi-pencil-square"></i> Gestione presenze
+      </a>
+      {% endif %}
       <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:"d" }}"
          class="btn btn-sm" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.3);font-size:.78rem">
         <i class="bi bi-table"></i> Riepilogo
@@ -209,6 +215,12 @@
       </a>
     </div>
   </div>
+
+  {% if sola_lettura %}
+  <div class="alert alert-light border py-2 small mb-2" role="status">
+    <i class="bi bi-eye"></i> <strong>Sola lettura.</strong> Per modificare o correggere le presenze rivolgersi all’ufficio del personale (HR), che usa la gestione presenze dal menu applicativo.
+  </div>
+  {% endif %}
 
   <div class="row g-2 align-items-start cal-layout-row">
   <div class="col-12 col-xl-8 col-lg-7 cal-grid-col">
@@ -871,7 +883,8 @@
                 <span id="turno-nota" style="font-size:.62rem;color:#856404;display:none">T2/T3 preserva T1</span>
               </div>
               <p class="text-muted mb-0" style="font-size:.58rem;line-height:1.3">
-                <strong>Applica</strong> sostituisce entrata/uscita (e per il 1° turno causale/note) sui giorni selezionati; gli altri turni dello stesso giorno restano quelli già salvati nel DB.
+                <strong>Applica</strong> dal <strong>1° turno</strong>: aggiorna causale, note e orario T1; per assenze, ferie, malattia, riposo e le altre causali <em>senza</em> rilevazione oraria (tutto ciò che non è presenza/smartworking/straordinario/FE con ore) vengono anche azzerati <strong>2° e 3° turno</strong> sullo stesso giorno.
+                Dal <strong>2°/3° turno</strong> si modificano solo quelle fasce (T1 e causale restano come già salvati).
                 Gli orari della barra sono ricordati in questo browser tra i mesi. I giorni fuori contratto restano esclusi.
               </p>
 

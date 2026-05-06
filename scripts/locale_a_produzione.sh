@@ -12,6 +12,9 @@ set -euo pipefail
 #   bash scripts/locale_a_produzione.sh --code-only
 #   bash scripts/locale_a_produzione.sh --db-only
 #   bash scripts/locale_a_produzione.sh --media-only
+#
+# Se in produzione Django usa GESPER_DATA_ROOT (vedi /etc/gesper.env sulla VPS), allinea DB + media:
+#   REMOTE_DATA_ROOT=/var/www/gesper/documento bash scripts/locale_a_produzione.sh --yes
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${ROOT_DIR}"
@@ -33,6 +36,8 @@ REMOTE_HOST="${REMOTE_HOST:-root@gesper1.plazapretoria.it}"
 # Radice progetto Django (coerente con WorkingDirectory di systemd gunicorn). Override: REMOTE_APP_DIR
 REMOTE_APP_DIR="${REMOTE_APP_DIR:-/var/www/gesper}"
 REMOTE_MEDIA_DIR="${REMOTE_MEDIA_DIR:-/var/www/media}"
+# Se valorizzata (= GESPER_DATA_ROOT in produzione): DB → $REMOTE_DATA_ROOT/db.sqlite3, media → $REMOTE_DATA_ROOT/media/
+REMOTE_DATA_ROOT="${REMOTE_DATA_ROOT:-}"
 SSH_OPTS="${SSH_OPTS:-}"
 SSH_COMMON_OPTS="-o ConnectTimeout=10 -o ControlMaster=auto -o ControlPersist=15m -o ControlPath=$HOME/.ssh/cm-%r@%h:%p"
 
@@ -47,6 +52,12 @@ for arg in "$@"; do
       cat <<'EOF'
 Uso:
   bash scripts/locale_a_produzione.sh [--yes] [--code-only|--db-only|--media-only]
+
+Variabili (opzionali):
+  REMOTE_HOST        default: root@gesper1.plazapretoria.it
+  REMOTE_APP_DIR     default: /var/www/gesper
+  REMOTE_MEDIA_DIR   default: /var/www/media (solo se REMOTE_DATA_ROOT è vuota)
+  REMOTE_DATA_ROOT   es. /var/www/gesper/documento = GESPER_DATA_ROOT in produzione
 EOF
       exit 0
       ;;
@@ -61,12 +72,24 @@ EOF
   esac
 done
 
+if [[ -n "${REMOTE_DATA_ROOT}" ]]; then
+  REMOTE_DB_PATH="${REMOTE_DATA_ROOT%/}/db.sqlite3"
+  REMOTE_MEDIA_SYNC_PATH="${REMOTE_DATA_ROOT%/}/media/"
+else
+  REMOTE_DB_PATH="${REMOTE_APP_DIR%/}/db.sqlite3"
+  REMOTE_MEDIA_SYNC_PATH="${REMOTE_MEDIA_DIR%/}/"
+fi
+
 bash scripts/segnala_ambiente.sh locale >/dev/null
 echo "[LOCALE] Avvio sincronizzazione verso PRODUZIONE"
 echo "[PRODUZIONE] Destinazione: ${REMOTE_HOST}"
 echo "  APP:         ${REMOTE_APP_DIR}"
 echo "  MEDIA orig.: ${LOCAL_MEDIA_DIR}"
-echo "  MEDIA dest.: ${REMOTE_MEDIA_DIR}"
+echo "  DB dest.:    ${REMOTE_DB_PATH}"
+echo "  MEDIA dest.: ${REMOTE_MEDIA_SYNC_PATH}"
+if [[ -n "${REMOTE_DATA_ROOT}" ]]; then
+  echo "  (REMOTE_DATA_ROOT impostata — DB e media nella radice dati unificata)"
+fi
 
 if [[ "$AUTO_YES" != true ]]; then
   echo ""
@@ -95,6 +118,7 @@ if [[ "$DO_CODE" == true ]]; then
   rsync -az --delete \
     --exclude '.git/' \
     --exclude '.venv/' \
+    --exclude 'venv/' \
     --exclude '__pycache__/' \
     --exclude '*.pyc' \
     --exclude 'db.sqlite3' \
@@ -112,23 +136,25 @@ if [[ "$DO_DB" == true ]]; then
   echo "[2/4] Backup + sync DB locale -> produzione"
   TS="$(date +%F_%H%M%S)"
   ssh ${SSH_OPTS} ${SSH_COMMON_OPTS} "${REMOTE_HOST}" \
-    "if [ -f '${REMOTE_APP_DIR}/db.sqlite3' ]; then cp -f '${REMOTE_APP_DIR}/db.sqlite3' '${REMOTE_APP_DIR}/db.sqlite3.bak_${TS}'; fi"
+    "if [ -n '${REMOTE_DATA_ROOT}' ]; then install -d -m 0755 '${REMOTE_DATA_ROOT%/}'; fi; \
+     if [ -f '${REMOTE_DB_PATH}' ]; then cp -f '${REMOTE_DB_PATH}' '${REMOTE_DB_PATH}.bak_${TS}'; fi"
   rsync -az \
     -e "ssh ${SSH_OPTS} ${SSH_COMMON_OPTS}" \
-    "${ROOT_DIR}/db.sqlite3" "${REMOTE_HOST}:${REMOTE_APP_DIR}/db.sqlite3.new"
+    "${ROOT_DIR}/db.sqlite3" "${REMOTE_HOST}:${REMOTE_DB_PATH}.new"
   ssh ${SSH_OPTS} ${SSH_COMMON_OPTS} "${REMOTE_HOST}" \
-    "mv -f '${REMOTE_APP_DIR}/db.sqlite3.new' '${REMOTE_APP_DIR}/db.sqlite3' && \
-     (id www-data >/dev/null 2>&1 && chown www-data:www-data '${REMOTE_APP_DIR}/db.sqlite3' || true) && \
-     chmod 664 '${REMOTE_APP_DIR}/db.sqlite3' || true"
+    "mv -f '${REMOTE_DB_PATH}.new' '${REMOTE_DB_PATH}' && \
+     (id www-data >/dev/null 2>&1 && chown www-data:www-data '${REMOTE_DB_PATH}' || true) && \
+     chmod 664 '${REMOTE_DB_PATH}' || true"
 fi
 
 if [[ "$DO_MEDIA" == true ]]; then
   [[ -d "${LOCAL_MEDIA_DIR}" ]] || { echo "ERRORE: cartella media locale non trovata: ${LOCAL_MEDIA_DIR}"; exit 1; }
-  echo "[3/4] Sync MEDIA locale -> produzione (${LOCAL_MEDIA_DIR} -> ${REMOTE_MEDIA_DIR})"
+  echo "[3/4] Sync MEDIA locale -> produzione (${LOCAL_MEDIA_DIR} -> ${REMOTE_MEDIA_SYNC_PATH})"
+  ssh ${SSH_OPTS} ${SSH_COMMON_OPTS} "${REMOTE_HOST}" "install -d -m 0755 '${REMOTE_MEDIA_SYNC_PATH%/}'"
   rsync -az --delete \
     --exclude '.DS_Store' \
     -e "ssh ${SSH_OPTS} ${SSH_COMMON_OPTS}" \
-    "${LOCAL_MEDIA_DIR}/" "${REMOTE_HOST}:${REMOTE_MEDIA_DIR}/"
+    "${LOCAL_MEDIA_DIR}/" "${REMOTE_HOST}:${REMOTE_MEDIA_SYNC_PATH}"
 fi
 
 echo "[4/4] Post-deploy produzione (migrate, collectstatic, check, restart)"

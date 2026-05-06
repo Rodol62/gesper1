@@ -886,6 +886,18 @@ def _min_tra(t1, t2) -> int:
 _CAUSALI_ORE_LAVORATE = frozenset(('P', 'ST', 'SMART', 'FE'))
 
 
+def _azzera_turni_secondo_e_terzo_se_causale_giorno_intero(p: Presenza) -> None:
+    """
+    Per causali che non registro ore da fascia (ferie, malattia, permesso senza orario, assenza,
+    riposo, CIG, …): la variazione vale sull’intera giornata — elimina 2° e 3° turno così non restano
+    solo le prime fasce aggiornate dal massivo o dal form.
+    """
+    if p.causale in _CAUSALI_ORE_LAVORATE:
+        return
+    p.ora_entrata2 = p.ora_uscita2 = None
+    p.ora_entrata3 = p.ora_uscita3 = None
+
+
 def _minuti_turni_presenza(p) -> tuple[int, int, int]:
     """
     Minuti per turno (T1, T2, T3) con deduplica degli intervalli identici.
@@ -1523,6 +1535,7 @@ def salva_giorno(request, dipendente_id):
         p.azienda = azienda
         if not p.registrata_da:
             p.registrata_da = request.user
+        _azzera_turni_secondo_e_terzo_se_causale_giorno_intero(p)
         _ricalcola_straordinario(p, azienda)
         p.save()
         registra_log(
@@ -1576,8 +1589,7 @@ def salva_multiplo(request, dipendente_id):
     ora_uscita  = _parse_ora_hhmm(request.POST.get('ora_uscita'))
 
     # Per turno 1: azzera orari se la causale non prevede entrata/uscita
-    causali_con_orario = {'P', 'ST', 'SMART', 'FE'}
-    if turno == '1' and causale not in causali_con_orario:
+    if turno == '1' and causale not in _CAUSALI_ORE_LAVORATE:
         ora_entrata = None
         ora_uscita  = None
 
@@ -1631,8 +1643,8 @@ def salva_multiplo(request, dipendente_id):
             return JsonResponse({'ok': False, 'error': msg, 'bloccato': True}, status=403)
 
     n_created = n_updated = 0
-    # Transazione + lock righe esistenti: si applicano i nuovi orari sullo stato DB aggiornato;
-    # T2/T3 aggiornano solo quel turno (gli altri turni restano quelli già salvati).
+    # Transazione + lock righe esistenti: T2/T3 aggiornano solo quel turno (T1/causale invariati).
+    # Con turno 1, causali senza rilevazione oraria azzerano anche 2° e 3° turno (giorno intero).
     with transaction.atomic():
         locked_by_data = {}
         if valid_dates:
@@ -1679,6 +1691,7 @@ def salva_multiplo(request, dipendente_id):
                 presenza.ora_entrata = ora_entrata
                 presenza.ora_uscita = ora_uscita
                 presenza.note = note
+                _azzera_turni_secondo_e_terzo_se_causale_giorno_intero(presenza)
 
             _ricalcola_straordinario(presenza, azienda)
 

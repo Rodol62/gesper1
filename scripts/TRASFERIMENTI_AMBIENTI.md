@@ -24,6 +24,12 @@ bash scripts/locale_a_produzione.sh --db-only
 bash scripts/locale_a_produzione.sh --media-only
 ```
 
+Se in produzione è impostato **`GESPER_DATA_ROOT`** (es. su gesper1: `grep GESPER_DATA_ROOT /etc/gesper.env`), passa la stessa radice così DB e media finiscono dove usa Django:
+
+```bash
+REMOTE_DATA_ROOT=/var/www/gesper/documento bash scripts/locale_a_produzione.sh --yes
+```
+
 ## 2) Da PRODUZIONE a LOCALE
 
 ```bash
