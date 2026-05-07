@@ -971,7 +971,8 @@ class TestMotorePagaAdmin(admin.ModelAdmin):
 	def _simulatore_view(self, request):
 		"""Simulatore completo paga mensile — calcolo inline senza salvataggio su DB."""
 		from django.shortcuts import render
-		from .models import ParametroCCNLTurismo, TipoContratto, CCNL, ParametroContributi, ParametroRatei
+		from .models import ParametroCCNLTurismo, TipoContratto, CCNL, ParametroRatei
+		from .utils_motore_paga import risolvi_parametro_contributi_ccnl
 		from .utils_calcoli import (
 			calcola_irpef_lorda, calcola_detrazioni,
 			calcola_trattamento_integrativo, calcola_bonus_l207_2024,
@@ -1160,11 +1161,17 @@ class TestMotorePagaAdmin(admin.ModelAdmin):
 				inail_p    = Decimal('0.0074')
 
 				if _ccnl_obj:
-					pc = ParametroContributi.objects.filter(ccnl=_ccnl_obj, anno=anno, tipo_contributo='inps', attivo=True).first()
+					pc = risolvi_parametro_contributi_ccnl(
+						ccnl_obj=_ccnl_obj, anno=anno, tipo_contributo='inps',
+						azienda=azienda, mese=mese,
+					)
 					if pc:
 						inps_dip_p = (pc.aliquota_dipendente / 100).quantize(Decimal('0.0001'))
 						inps_az_p  = (pc.aliquota_azienda    / 100).quantize(Decimal('0.0001'))
-					pc2 = ParametroContributi.objects.filter(ccnl=_ccnl_obj, anno=anno, tipo_contributo='inail', attivo=True).first()
+					pc2 = risolvi_parametro_contributi_ccnl(
+						ccnl_obj=_ccnl_obj, anno=anno, tipo_contributo='inail',
+						azienda=azienda, mese=mese,
+					)
 					if pc2:
 						inail_p = (pc2.aliquota_azienda / 100).quantize(Decimal('0.0001'))
 

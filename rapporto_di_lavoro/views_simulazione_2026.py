@@ -17,7 +17,6 @@ from .models import (
     ParametroCCNLTurismo,
     ParametroMaggiorazione,
     ParametroScattiAnnuali,
-    ParametroContributi,
     ParametroRatei,
     TipoContratto,
     SimulazioneOrganico,
@@ -32,6 +31,7 @@ from .utils_calcoli import (
     calcola_addizionale_comunale_stima,
 )
 from .services_simulazione import invoca_calcola_busta_paga_mese
+from .utils_motore_paga import risolvi_parametro_contributi_ccnl
 from .utils_calendario import get_giorni_lavorativi_mese as _get_gg_lav_mese
 from .risoluzione_contratto_motore import calcola_scatto_totale_maturato as _calcola_scatto_totale
 
@@ -1170,13 +1170,18 @@ def _calcola_simulazione_2026(request):
     inps_dip_perc = Decimal('0.0936')  # CCNL FIPE: 9.19% IVS + ~0.17% EBT/FSBT
     inail_perc    = Decimal('0.0074')
     if _ccnl:
-        _pc_inps = ParametroContributi.objects.filter(
-            ccnl=_ccnl, anno=anno, tipo_contributo='inps', attivo=True).first()
+        # Stessa risoluzione categoria/validità del motore busta (evita aliquote «a caso»).
+        _pc_inps = risolvi_parametro_contributi_ccnl(
+            ccnl_obj=_ccnl, anno=anno, tipo_contributo='inps',
+            azienda=azienda_operativa, mese=1,
+        )
         if _pc_inps:
             inps_az_perc  = _pc_inps.aliquota_azienda   / Decimal('100')
             inps_dip_perc = _pc_inps.aliquota_dipendente / Decimal('100')
-        _pc_inail = ParametroContributi.objects.filter(
-            ccnl=_ccnl, anno=anno, tipo_contributo='inail', attivo=True).first()
+        _pc_inail = risolvi_parametro_contributi_ccnl(
+            ccnl_obj=_ccnl, anno=anno, tipo_contributo='inail',
+            azienda=azienda_operativa, mese=1,
+        )
         if _pc_inail:
             inail_perc = _pc_inail.aliquota_azienda / Decimal('100')
 

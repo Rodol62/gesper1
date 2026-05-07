@@ -10,11 +10,89 @@ import calendar as _cal_mod
 from datetime import date
 from decimal import Decimal
 
+from django.db.models import Q
+
 from .motori_canonici import MOTORE_PAGA_CANONICO_ORIGINE
 
 Q2 = Decimal('0.01')
 Q4 = Decimal('0.0001')
 Q6 = Decimal('0.000001')
+
+
+def _dimensione_numerica_da_azienda(azienda) -> int:
+    """Coerente con ``views._stima_dimensione_azienda``: sintesi dipendenti per fascia contributiva."""
+    if not azienda:
+        return 1
+    tipologia = getattr(azienda, 'tipologia_dimensionale', None)
+    if tipologia == 'piccola':
+        return 10
+    if tipologia == 'media':
+        return 30
+    if tipologia == 'grande':
+        return 80
+    try:
+        return max(1, int(azienda.dipendenti.count()))
+    except Exception:
+        return 1
+
+
+def _categorie_contributive_in_ordine(azienda) -> list[str]:
+    """Stesso ordine di ``_carica_regole_contributive_da_db`` (piccola/media/grande ristorazione)."""
+    d = _dimensione_numerica_da_azienda(azienda)
+    if d <= 15:
+        prim = 'piccola_ristorazione'
+    elif d <= 50:
+        prim = 'media_ristorazione'
+    else:
+        prim = 'grande_ristorazione'
+    out: list[str] = []
+    seen: set[str] = set()
+    for c in (prim, 'piccola_ristorazione', 'media_ristorazione', 'grande_ristorazione'):
+        if c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out
+
+
+def risolvi_parametro_contributi_ccnl(
+    *,
+    ccnl_obj,
+    anno: int,
+    tipo_contributo: str,
+    azienda,
+    mese: int,
+):
+    """
+    Una riga ``ParametroContributi`` per tipo (inps/inail), fascia dimensionale e validità nel mese.
+
+    Prima del filtro per ``categoria`` e ``data_validita_*``, con più righe per anno il motore
+    usava ``.first()`` senza categoria: in produzione poteva applicare aliquote INPS/INAIL della
+    fascia sbagliata (record arbitrario).
+    """
+    if not ccnl_obj:
+        return None
+    from .models import ParametroContributi
+
+    ultimo_gg = _cal_mod.monthrange(int(anno), int(mese))[1]
+    data_rif = date(int(anno), int(mese), ultimo_gg)
+
+    for cat in _categorie_contributive_in_ordine(azienda):
+        row = (
+            ParametroContributi.objects.filter(
+                ccnl=ccnl_obj,
+                anno=int(anno),
+                tipo_contributo=tipo_contributo,
+                categoria=cat,
+                attivo=True,
+                data_validita_da__lte=data_rif,
+            )
+            .filter(Q(data_validita_a__isnull=True) | Q(data_validita_a__gte=data_rif))
+            .order_by('-data_validita_da')
+            .first()
+        )
+        if row:
+            return row
+    return None
 
 
 def ccnl_fipe_edr_assorbito_in_contingenza(parametro_ccnl, ccnl_obj=None) -> bool:
@@ -276,7 +354,6 @@ def calcola_busta_paga_mese(
     """
     from .models import (
         ParametroCCNLTurismo,
-        ParametroContributi,
         ParametroRatei,
         ParametroMaggiorazione,
         VoceRetributiva,
@@ -690,13 +767,15 @@ def calcola_busta_paga_mese(
     inps_az_p  = Decimal('0.2931')
     inail_p    = Decimal('0.0074')
     if ccnl_obj:
-        pc = ParametroContributi.objects.filter(
-            ccnl=ccnl_obj, anno=anno, tipo_contributo='inps', attivo=True).first()
+        pc = risolvi_parametro_contributi_ccnl(
+            ccnl_obj=ccnl_obj, anno=anno, tipo_contributo='inps', azienda=azienda, mese=mese,
+        )
         if pc:
             inps_dip_p = (pc.aliquota_dipendente / 100).quantize(Q4)
             inps_az_p  = (pc.aliquota_azienda    / 100).quantize(Q4)
-        pc2 = ParametroContributi.objects.filter(
-            ccnl=ccnl_obj, anno=anno, tipo_contributo='inail', attivo=True).first()
+        pc2 = risolvi_parametro_contributi_ccnl(
+            ccnl_obj=ccnl_obj, anno=anno, tipo_contributo='inail', azienda=azienda, mese=mese,
+        )
         if pc2:
             inail_p = (pc2.aliquota_azienda / 100).quantize(Q4)
 

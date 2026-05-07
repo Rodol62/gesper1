@@ -51,6 +51,15 @@ Scostamenti residui dopo l’allineamento dei dati indicano divergenze di **impl
 o di **interpretazione** rispetto al software del consulente, da analizzare voce per voce,
 non differenze arbitrarie di «due mondi» di parametri.
 
+Parametri INPS/INAIL in anagrafica
+----------------------------------
+``ParametroContributi`` è univoco per ``(ccnl, anno, tipo_contributo, categoria, data_validita_da)``.
+Il motore busta risolve la riga con
+:func:`rapporto_di_lavoro.utils_motore_paga.risolvi_parametro_contributi_ccnl`:
+fascia ``categoria`` derivata da ``Azienda.tipologia_dimensionale`` (e conteggio dipendenti),
+più controllo di validità nel mese del cedolino. Senza questo filtro, con più righe per anno
+si poteva applicare un record **casuale** e ottenere aliquote previdenziali errate in produzione.
+
 Prestazioni (loop simulazioni / proposte)
 -----------------------------------------
 Evitare query ridondanti su ``ParametroRatei`` / ``CCNL`` nei loop esterni attorno al
