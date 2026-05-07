@@ -1475,6 +1475,8 @@ def _calcola_simulazione_2026(request):
                 rapporto=rap_sim, ruolo_superminimo=ruolo.get('superminimo')
             )
 
+            _reg_res = (ruolo.get('regione') or 'sicilia').strip() or 'sicilia'
+
             _r = invoca_calcola_busta_paga_mese(
                 log_prefix='SIMULAZIONE_2026',
                 parametro_ccnl=parametro,
@@ -1503,6 +1505,7 @@ def _calcola_simulazione_2026(request):
                 modalita_ore_effettive=use_modalita_ore,
                 auto_ore_domenicali_da_calendario=not use_modalita_ore,
                 ccnl_obj=_ccnl,
+                regione_residenza=_reg_res,
                 contratto_esclude_tredicesima=bool(rap_sim is not None and rap_sim.tredicesima is False),
                 contratto_esclude_quattordicesima=bool(
                     rap_sim is not None and rap_sim.quattordicesima is False
@@ -1617,8 +1620,14 @@ def _calcola_simulazione_2026(request):
                 if pagamento_13_unit > 0:
                     pagamento_13_inps_dip = (pagamento_13_unit * inps_dip_perc).quantize(Decimal('0.01'))
                     pagamento_13_inps_az  = (pagamento_13_unit * inps_az_perc).quantize(Decimal('0.01'))
+                    # IRPEF incrementale 13ª: stesso anno fiscale e stessa aliquota INPS dip. del motore
+                    # (prima: anno di sistema + 9,36% fisso → scostamenti vs cedolino / motore).
                     _irpef_con_13 = Decimal(str(
-                        calcola_netto_dipendente(lordo_unit + pagamento_13_unit)['irpef_netta']
+                        calcola_netto_dipendente(
+                            lordo_unit + pagamento_13_unit,
+                            anno=anno,
+                            aliquota_inps_dip=float(inps_dip_perc),
+                        )['irpef_netta']
                     ))
                     pagamento_13_irpef = max(Decimal('0'), _irpef_con_13 - irpef_unit).quantize(Decimal('0.01'))
                     pagamento_13_netto = (
@@ -1634,7 +1643,11 @@ def _calcola_simulazione_2026(request):
                     pagamento_14_inps_dip = (pagamento_14_unit * inps_dip_perc).quantize(Decimal('0.01'))
                     pagamento_14_inps_az  = (pagamento_14_unit * inps_az_perc).quantize(Decimal('0.01'))
                     _irpef_con_14 = Decimal(str(
-                        calcola_netto_dipendente(lordo_unit + pagamento_14_unit)['irpef_netta']
+                        calcola_netto_dipendente(
+                            lordo_unit + pagamento_14_unit,
+                            anno=anno,
+                            aliquota_inps_dip=float(inps_dip_perc),
+                        )['irpef_netta']
                     ))
                     pagamento_14_irpef = max(Decimal('0'), _irpef_con_14 - irpef_unit).quantize(Decimal('0.01'))
                     pagamento_14_netto = (

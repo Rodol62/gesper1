@@ -211,12 +211,16 @@ BUSTE_PAGA_PDF_PASSWORDS = (
 def _sqlite_database_path() -> Path:
 	"""Percorso DB SQLite.
 
-	Ordine:
-	1) GESPER_SQLITE_PATH se impostata.
-	2) gesper/db.sqlite3 se esiste (dev / VPS legacy nel repo).
-	3) documento/db.sqlite3 (GESPER_DATA_ROOT) se esiste.
-	4) htdocs/db.sqlite3 se esiste (XAMPP vecchio).
-	5) Nuovo database: documento/db.sqlite3 (stessa radice di media/archivio).
+	Ordine (allineato a produzione: DB sotto ``GESPER_DATA_ROOT``):
+	1) ``GESPER_SQLITE_PATH`` se impostata (override esplicito).
+	2) ``GESPER_DATA_ROOT/db.sqlite3`` se il file esiste — stesso criterio di
+	   ``settings_production`` quando ``GESPER_DATA_ROOT`` è valorizzata.
+	3) ``gesper/db.sqlite3`` se esiste (legacy dev / copia nel repo).
+	4) ``htdocs/db.sqlite3`` se esiste (XAMPP vecchio).
+	5) Default nuovo DB: ``GESPER_DATA_ROOT/db.sqlite3``.
+
+	Nota storica: in passato il punto (3) aveva priorità sul (2), quindi con *due* file
+	presenti la simulazione locale leggeva dati diversi dalla VPS. Ora la radice dati vince.
 
 	Nota: usare il file sotto htdocs mentre il server gira in sandbox / permessi limitati
 	causa spesso *attempt to write a readonly database* (sessioni Django incluse).
@@ -224,13 +228,13 @@ def _sqlite_database_path() -> Path:
 	env = os.environ.get('GESPER_SQLITE_PATH')
 	if env:
 		return Path(env).expanduser().resolve()
-	base = BASE_DIR / 'db.sqlite3'
 	data_db = GESPER_DATA_ROOT / 'db.sqlite3'
+	base = BASE_DIR / 'db.sqlite3'
 	legacy = _HTDOCS_PARENT / 'db.sqlite3'
-	if base.exists():
-		return base
 	if data_db.exists():
 		return data_db
+	if base.exists():
+		return base
 	if legacy.exists():
 		return legacy
 	return data_db

@@ -65,6 +65,26 @@ Percorsi da non usare come sostituti del motore busta (stime semplificate / lega
   stime rapide, non rappresentano la busta mensile completa del motore canonico.
 - Proprietà convenienza su modelli (es. netto da solo lordo tabellare) non
   sostituiscono ``calcola_busta_paga_mese`` per simulazioni o conciliazione.
+
+Parità simulazione locale / produzione
+--------------------------------------
+Il motore **non** applica formule diverse in base a ``DEBUG`` o al tipo di deploy:
+gli importi dipendono quasi sempre da **contesto e database**, non dal branch «prod vs dev».
+
+Per ottenere gli stessi numeri in locale che in produzione servono, al minimo:
+
+- **Stesso file SQLite** (o stesso dump dei parametri): in produzione ``settings_production``
+  usa ``GESPER_DATA_ROOT/db.sqlite3``. In sviluppo, ``settings.py`` sceglie lo stesso file
+  se esiste sotto ``GESPER_DATA_ROOT`` (default ``documento/``), altrimenti il legacy
+  ``gesper/db.sqlite3``. Se in locale avevi *due* copie del DB, verificare con
+  ``diagnostica_ambiente_simulazione`` quale path è **effettivo**. Due DB diversi ⇒ parametri
+  e anagrafiche diverse.
+- **Stessa azienda operativa in sessione** e stesso dipendente/contratto/mese simulato.
+- **Stessi dati di presenza / ROF** se la simulazione li legge dal ruolo organico o dalla griglia mensile.
+
+Per un confronto rapido tra ambienti: ``python manage.py diagnostica_ambiente_simulazione``
+(su ciascuna macchina o dopo aver copiato il DB) stampa path effettivo del DB e conteggi
+indicativi sui parametri motore.
 """
 
 from __future__ import annotations

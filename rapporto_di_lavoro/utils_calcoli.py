@@ -210,28 +210,31 @@ def calcola_detrazioni(imponibile, anno=None, num_familiari: int = 0):
     return round((detrazioni_lav_annue + det_familiari_annue) / 12, 2)
 
 
-def calcola_netto_dipendente(lordo):
+def calcola_netto_dipendente(
+    lordo,
+    *,
+    anno=None,
+    num_familiari: int = 0,
+    aliquota_inps_dip=None,
+):
     """
-    Calcola il netto mensile per il dipendente.
-    
+    Calcola il netto mensile per il dipendente (schema semplificato rispetto al motore busta completo).
+
     Args:
-        lordo (Decimal): Stipendio lordo mensile
-        
+        lordo: stipendio lordo mensile imponibile INPS/IRPEF (stesso ordine di grandezza del motore).
+        anno: anno fiscale di riferimento (scaglioni IRPEF e detrazioni da DB); default anno di sistema.
+        num_familiari: detrazioni art. 12 TUIR (stima).
+        aliquota_inps_dip: quota INPS dip. (es. 0.0936); se None usa ``ALIQUOTA_INPS_DIP`` (FIPE).
+
     Returns:
-        dict: Dizionario con dettaglio calcoli
-            - inps_dipendente: Contributi INPS dipendente
-            - imponibile: Imponibile fiscale
-            - irpef_lorda: IRPEF lorda
-            - detrazioni: Detrazioni fiscali
-            - irpef_netta: IRPEF effettiva da versare
-            - netto: Netto in busta paga
+        dict con inps_dipendente, imponibile, irpef_lorda, detrazioni, irpef_netta, netto.
     """
     lordo_float = float(lordo)
-    
-    inps_dip = calcola_inps_dipendente(lordo_float)
+    aliq = float(aliquota_inps_dip) if aliquota_inps_dip is not None else ALIQUOTA_INPS_DIP
+    inps_dip = round(lordo_float * aliq, 2)
     imponibile = calcola_imponibile_fiscale(lordo_float, inps_dip)
-    irpef_lorda = calcola_irpef_lorda(imponibile)
-    detrazioni = calcola_detrazioni(imponibile)
+    irpef_lorda = calcola_irpef_lorda(imponibile, anno=anno)
+    detrazioni = calcola_detrazioni(imponibile, anno=anno, num_familiari=num_familiari)
     irpef_netta = max(irpef_lorda - detrazioni, 0)
 
     netto = lordo_float - inps_dip - irpef_netta
@@ -242,7 +245,7 @@ def calcola_netto_dipendente(lordo):
         "irpef_lorda": round(irpef_lorda, 2),
         "detrazioni": round(detrazioni, 2),
         "irpef_netta": round(irpef_netta, 2),
-        "netto": round(netto, 2)
+        "netto": round(netto, 2),
     }
 
 
