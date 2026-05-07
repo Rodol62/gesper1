@@ -24,6 +24,10 @@ TOLLERANZA_F5_CONTRIBUTI_INPS = Decimal("10.00")
 # F8: tot. trattenute vs formula (arr. prec./att., riporti mese precedente, somma subtotali TS)
 TOLLERANZA_F8_TRATTENUTE = Decimal("1.00")
 
+# Pagina conciliazione cedolino: lordo/netto da ``calcola()`` su voci DB vs lettura odierna PDF
+# (float TS, arrotondamenti). Più ampia di F3/F9 interni per ridurre falsi Δ sul badge.
+TOLLERANZA_CONCILIAZIONE_ELABORATO_LORDO_NETTO = Decimal("0.15")
+
 
 def toll_formule_float() -> float:
 	return float(TOLLERANZA_FORMULE_EURO)

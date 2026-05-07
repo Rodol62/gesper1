@@ -149,3 +149,179 @@ class DocumentoTenantAccessTests(TestCase):
 			caricato_da=self.hr_a1,
 		)
 		self.assertTrue(doc.file.name.startswith('contratti/'))
+
+
+class CedolinoRofProbeTests(TestCase):
+	def test_ha_rof_da_retr_oraria(self):
+		from decimal import Decimal
+		from types import SimpleNamespace
+
+		from documenti.cedolino_conciliazione_motore_paga import cedolino_motore_v4_ha_rof_per_conciliazione
+
+		v4 = SimpleNamespace(retr_oraria_att=Decimal("12.5"), retrib_di_fatto=None)
+		self.assertTrue(cedolino_motore_v4_ha_rof_per_conciliazione(v4))
+
+	def test_no_rof(self):
+		from types import SimpleNamespace
+
+		from documenti.cedolino_conciliazione_motore_paga import cedolino_motore_v4_ha_rof_per_conciliazione
+
+		v4 = SimpleNamespace(retr_oraria_att=None, retrib_di_fatto=None)
+		self.assertFalse(cedolino_motore_v4_ha_rof_per_conciliazione(v4))
+
+
+class ConciliazioneChecksTests(TestCase):
+	def test_solo_f5_conta_come_formula_bloccante_tipica(self):
+		from types import SimpleNamespace
+
+		from documenti.cedolino_conciliazione_checks import formula_ko_bloccanti_da_checks
+
+		ch_f8 = SimpleNamespace(ok=False, campo="F8 · Tot. Trattenute")
+		ch_f3 = SimpleNamespace(ok=False, campo="F3 · Totale Lordo")
+		ch_f4 = SimpleNamespace(ok=False, campo="F4 · Imponibile Contributivo (voci vs PDF)")
+		ch_f9 = SimpleNamespace(ok=False, campo="F9 · Netto Busta")
+		ch_f5 = SimpleNamespace(ok=False, campo="F5 · Contributi Sociali INPS")
+		self.assertEqual(formula_ko_bloccanti_da_checks([ch_f8]), 0)
+		self.assertEqual(formula_ko_bloccanti_da_checks([ch_f8, ch_f3]), 0)
+		self.assertEqual(formula_ko_bloccanti_da_checks([ch_f3, ch_f4, ch_f9]), 0)
+		self.assertEqual(formula_ko_bloccanti_da_checks([ch_f5]), 1)
+		self.assertEqual(formula_ko_bloccanti_da_checks([ch_f3, ch_f5]), 1)
+
+
+class ConciliazioneMappingTsTests(TestCase):
+	"""Alias codici TeamSystem → chiavi motore per confronto voci."""
+
+	def test_codice_ts8020_8030_e_addiz_abbrev(self):
+		from types import SimpleNamespace
+
+		from documenti.cedolino_conciliazione_motore_paga import _codice_motore_per_voce_cedolino
+
+		self.assertEqual(
+			_codice_motore_per_voce_cedolino(SimpleNamespace(codice="8020", descrizione="Festivo"), []),
+			"MAGG_DOM_FEST",
+		)
+		self.assertEqual(
+			_codice_motore_per_voce_cedolino(SimpleNamespace(codice="8030", descrizione="Notturno"), []),
+			"STRAORD_NOTTURNO",
+		)
+		self.assertEqual(
+			_codice_motore_per_voce_cedolino(SimpleNamespace(codice="800", descrizione="Add reg"), []),
+			"CED_ADDIZ_REGIONALE",
+		)
+		self.assertEqual(
+			_codice_motore_per_voce_cedolino(SimpleNamespace(codice="1812", descrizione="Acconto add com"), []),
+			"CED_ADDIZ_COMUNALE",
+		)
+
+	def test_somma_8001_include_nc_e_somma_duplicate(self):
+		from decimal import Decimal
+		from types import SimpleNamespace
+
+		from documenti.cedolino_conciliazione_motore_paga import _somma_importi_voci_codici
+
+		voci = [
+			SimpleNamespace(codice="8001", tipo="COMPETENZA", importo=Decimal("100.00")),
+			SimpleNamespace(codice="8001", tipo="N/C", importo=Decimal("50.00")),
+			SimpleNamespace(codice="8001", tipo="TRATTENUTA", importo=Decimal("999.00")),
+			SimpleNamespace(codice="8002", tipo="COMPETENZA", importo=Decimal("1.00")),
+		]
+		self.assertEqual(_somma_importi_voci_codici(voci, frozenset({"8001"})), Decimal("150.00"))
+
+	def test_allinea_8020_ricava_ore_festivi(self):
+		from decimal import Decimal
+		from types import SimpleNamespace
+
+		from documenti.cedolino_conciliazione_motore_paga import allinea_kwargs_calcolo_a_dati_cedolino_v4
+
+		v4 = SimpleNamespace(
+			pk=None,
+			retr_oraria_att=Decimal("10.00"),
+			retrib_di_fatto=None,
+			imp_irpef_mese=None,
+		)
+		voci = [SimpleNamespace(codice="8020", tipo="COMPETENZA", importo=Decimal("120.00"), descrizione="")]
+		kw_in = {"ore_festivi": Decimal("0"), "modalita_ore_effettive": False}
+		kw_out, meta = allinea_kwargs_calcolo_a_dati_cedolino_v4(v4, kw_in, voci_prefetched=voci)
+		self.assertTrue(meta.get("attivo"))
+		self.assertEqual(kw_out.get("festivo_compenso_completo"), True)
+		self.assertEqual(kw_out.get("ore_festivi"), Decimal("10.00"))
+
+
+class ConciliazioneCalendarioRuoloTests(TestCase):
+	"""Soglia 01/03/2026 per uso calendario ruolo organico in conciliazione motore paga."""
+
+	def test_marzo_2026_usa_calendario(self):
+		from documenti.cedolino_conciliazione_motore_paga import usa_calendario_ruolo_organico_in_conciliazione
+
+		self.assertTrue(usa_calendario_ruolo_organico_in_conciliazione(2026, 3))
+
+	def test_febbraio_2026_non_usa(self):
+		from documenti.cedolino_conciliazione_motore_paga import usa_calendario_ruolo_organico_in_conciliazione
+
+		self.assertFalse(usa_calendario_ruolo_organico_in_conciliazione(2026, 2))
+
+	def test_dicembre_2025_non_usa(self):
+		from documenti.cedolino_conciliazione_motore_paga import usa_calendario_ruolo_organico_in_conciliazione
+
+		self.assertFalse(usa_calendario_ruolo_organico_in_conciliazione(2025, 12))
+
+
+class InferNaturaBustaTests(TestCase):
+	"""Doppia busta stesso mese (ordinaria + tredicesima): chiave ``natura_busta`` distinta."""
+
+	def test_infer_tredicesima_da_voce_report(self):
+		from documenti.natura_busta_utils import infer_natura_busta_per_busta
+
+		rep = {
+			"tipo_cedolino": "Ordinario",
+			"voci_retributive": [
+				{"descrizione": "LIQUIDAZIONE TREDICESIMA ANNO 2025", "codice": "9999", "tipo": "Competenza"},
+			],
+		}
+		self.assertEqual(
+			infer_natura_busta_per_busta(documento=None, report=rep, tipo_cedolino_motore="ORDINARIO"),
+			"TREDICESIMA",
+		)
+
+	def test_infer_ordinaria_se_solo_acconto_in_voce(self):
+		from documenti.natura_busta_utils import infer_natura_busta_per_busta
+
+		rep = {
+			"tipo_cedolino": "Ordinario",
+			"voci_retributive": [
+				{"descrizione": "ACCONTO 13ª SU ORDINARIO", "codice": "8001", "tipo": "Competenza"},
+			],
+		}
+		self.assertEqual(
+			infer_natura_busta_per_busta(documento=None, report=rep, tipo_cedolino_motore="ORDINARIO"),
+			"ORDINARIA",
+		)
+
+	def test_infer_quattordicesima_da_voce_report(self):
+		from documenti.natura_busta_utils import infer_natura_busta_per_busta
+
+		rep = {
+			"tipo_cedolino": "Ordinario",
+			"voci_retributive": [
+				{"descrizione": "LIQUIDAZIONE QUATTORDICESIMA 2024-2025", "codice": "9998", "tipo": "Competenza"},
+			],
+		}
+		self.assertEqual(
+			infer_natura_busta_per_busta(documento=None, report=rep, tipo_cedolino_motore="ORDINARIO"),
+			"QUATTORDICESIMA",
+		)
+
+	def test_infer_quattordicesima_prima_di_tredicesima_se_entrambe_in_blob(self):
+		from documenti.natura_busta_utils import infer_natura_busta_per_busta
+
+		rep = {
+			"tipo_cedolino": "Ordinario",
+			"dati_dipendente": {"Nota": "Riferimento TREDICESIMA maturata"},
+			"voci_retributive": [
+				{"descrizione": "SALDO QUATTORDICESIMA", "codice": "X", "tipo": "Competenza"},
+			],
+		}
+		self.assertEqual(
+			infer_natura_busta_per_busta(documento=None, report=rep, tipo_cedolino_motore="ORDINARIO"),
+			"QUATTORDICESIMA",
+		)

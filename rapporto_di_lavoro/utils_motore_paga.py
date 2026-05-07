@@ -1,11 +1,16 @@
 """
 Motore paga mensile — calcolo busta paga completo.
 Condiviso tra Simulatore Paga e Simulazione annua.
+
+Riferimento architetturale (motori canonici / cosa non duplicare):
+:mod:`rapporto_di_lavoro.motori_canonici`.
 """
 from __future__ import annotations
 import calendar as _cal_mod
 from datetime import date
 from decimal import Decimal
+
+from .motori_canonici import MOTORE_PAGA_CANONICO_ORIGINE
 
 Q2 = Decimal('0.01')
 Q4 = Decimal('0.0001')
@@ -47,18 +52,21 @@ def anno_efficace_parametro_ratei(ccnl_obj, anno_riferimento: int, parametro_ccn
         return int(anno_riferimento)
     from .models import ParametroRatei
 
-    qs = ParametroRatei.objects.filter(ccnl=ccnl_obj, attivo=True)
-    if qs.filter(anno=int(anno_riferimento)).exists():
+    # Una sola query: gli anni disponibili; la scelta resta identica a prima (exists + max).
+    annos = set(
+        ParametroRatei.objects.filter(ccnl=ccnl_obj, attivo=True).values_list('anno', flat=True)
+    )
+    if not annos:
         return int(anno_riferimento)
+    ar = int(anno_riferimento)
+    if ar in annos:
+        return ar
     dec = getattr(parametro_ccnl, 'decorrenza_validita_da', None)
     if dec:
         ay = int(dec.year)
-        if qs.filter(anno=ay).exists():
+        if ay in annos:
             return ay
-    last = qs.order_by('-anno').values_list('anno', flat=True).first()
-    if last is not None:
-        return int(last)
-    return int(anno_riferimento)
+    return int(max(annos))
 
 
 def ricava_parametri_proposta_contrattuale(
@@ -124,12 +132,16 @@ def ricava_parametri_proposta_contrattuale(
     tredicesima = False
     quattordicesima = False
     if ccnl_obj:
-        tredicesima = ParametroRatei.objects.filter(
-            ccnl=ccnl_obj, anno=anno_ratei, tipo_rateo='tredicesima', attivo=True
-        ).exists()
-        quattordicesima = ParametroRatei.objects.filter(
-            ccnl=ccnl_obj, anno=anno_ratei, tipo_rateo='quattordicesima', attivo=True
-        ).exists()
+        tipi_rateo = set(
+            ParametroRatei.objects.filter(
+                ccnl=ccnl_obj,
+                anno=anno_ratei,
+                attivo=True,
+                tipo_rateo__in=('tredicesima', 'quattordicesima'),
+            ).values_list('tipo_rateo', flat=True)
+        )
+        tredicesima = 'tredicesima' in tipi_rateo
+        quattordicesima = 'quattordicesima' in tipi_rateo
 
     giorni_ferie_annuali = 26
     giorni_permesso_annuali = 3
@@ -172,7 +184,7 @@ def ricava_parametri_proposta_contrattuale(
         'quattordicesima': quattordicesima,
         'giorni_ferie_annuali': giorni_ferie_annuali,
         'giorni_permesso_annuali': giorni_permesso_annuali,
-        'motore_origine': 'motore_paga_canonico_default',
+        'motore_origine': MOTORE_PAGA_CANONICO_ORIGINE,
         'calendario_origine': risultato.get('calendario_motore_id', 'calendario_lavorativo_aziendale_v1'),
     }
 

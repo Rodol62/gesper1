@@ -18,6 +18,10 @@ Riferimenti normativi 2024-2026:
   prevale ``formula_calcolo`` su ``BonusFiscale`` se valorizzata.
 - INPS CCNL FIPE: Circ. INPS n. 15/2025 — aliquota dipendente 9,36%
   (IVS 9,19% + EBT/FSBT 0,17%); azienda ~29,31% totale oneri previdenziali.
+
+Per busta mensile completa, simulazioni e conciliazione lato «nostro» calcolo
+usare :mod:`rapporto_di_lavoro.utils_motore_paga` (vedi :mod:`rapporto_di_lavoro.motori_canonici`);
+questo modulo resta utilità fiscale/contributiva a grana più grossa o richiamata dal motore busta.
 """
 from datetime import date as _date
 from decimal import Decimal

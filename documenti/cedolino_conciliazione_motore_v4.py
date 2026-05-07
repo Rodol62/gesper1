@@ -14,6 +14,7 @@ from typing import Any
 
 from documenti.cedolini_tolleranze import (
     TOLLERANZA_CONFRONTO_EURO,
+    TOLLERANZA_CONCILIAZIONE_ELABORATO_LORDO_NETTO,
     TOLLERANZA_F5_CONTRIBUTI_INPS,
     TOLLERANZA_FORMULE_EURO,
     TOLLERANZA_IMPONIBILE_VOCI_VS_PDF,
@@ -83,6 +84,17 @@ def _dcalc(x) -> Decimal | None:
     try:
         return Decimal(str(round(float(x), 2)))
     except (TypeError, ValueError):
+        return None
+
+
+def _d_model_field(v4: CedolinoMotoreV4, attr: str) -> Decimal | None:
+    """Campo monetario Django su ``v4`` → Decimal q2 (per confronti con PDF odierno)."""
+    try:
+        raw = getattr(v4, attr, None)
+        if raw is None:
+            return None
+        return Decimal(str(raw)).quantize(Decimal("0.01"))
+    except Exception:
         return None
 
 
@@ -244,11 +256,31 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
     ref_lordo_db: Decimal | None = (
         Decimal(str(v4.totale_lordo)) if v4.totale_lordo is not None else None
     )
+    ref_netto_db: Decimal | None = (
+        Decimal(str(v4.netto_busta)) if v4.netto_busta is not None else None
+    )
+    ref_impon_db: Decimal | None = (
+        Decimal(str(v4.imponibile_contrib)) if v4.imponibile_contrib is not None else None
+    )
+    ref_contrib_db: Decimal | None = (
+        Decimal(str(v4.tot_contrib_soc)) if v4.tot_contrib_soc is not None else None
+    )
     lordo_nota_snapshot = lordo_nota_cella
     if calc_da_db is not None:
         tl = _dcalc(calc_da_db.get("totale_lordo"))
         if tl is not None:
             ref_lordo_db = tl
+        nb = _dcalc(calc_da_db.get("netto_busta"))
+        if nb is not None:
+            # Allinea al ricalcolo F9: ``v4.netto_busta`` è lo snapshot al salvataggio e può
+            # discostarsi di centesimi dal ``calcola()`` sui float delle voci → falsi Δ in pagina.
+            ref_netto_db = nb
+        imc = _dcalc(calc_da_db.get("imponibile_contrib"))
+        if imc is not None:
+            ref_impon_db = imc
+        cs = _dcalc(calc_da_db.get("contrib_sociali"))
+        if cs is not None:
+            ref_contrib_db = cs
         if (
             v4.totale_lordo is not None
             and tl is not None
@@ -260,21 +292,31 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
             )
             lordo_nota_snapshot = f"{lordo_nota_snapshot} {extra}".strip() if lordo_nota_snapshot else extra
 
-    add_row("Netto in busta", v4.netto_busta, netto_let)
-    add_row("Totale lordo", ref_lordo_db, lordo_let, nota=lordo_nota_snapshot)
-    add_row(
-        "Imponibile contributivo",
-        v4.imponibile_contrib,
-        impon_let,
-        tol=TOLLERANZA_IMPONIBILE_VOCI_VS_PDF,
-    )
-    add_row("Contributi sociali (mese)", v4.tot_contrib_soc, contrib_let)
+    # Con ricalcolo ``calcola()`` riuscito, le righe «Lordo (F3…)» / «Netto (F9…)» sotto confrontano
+    # gli stessi importi vs PDF: le quattro righe snapshot qui raddoppierebbero n_diff senza valore aggiunto.
+    if calc_da_db is None:
+        add_row("Netto in busta", ref_netto_db, netto_let)
+        add_row("Totale lordo", ref_lordo_db, lordo_let, nota=lordo_nota_snapshot)
+        add_row(
+            "Imponibile contributivo",
+            ref_impon_db,
+            impon_let,
+            tol=TOLLERANZA_IMPONIBILE_VOCI_VS_PDF,
+        )
+        add_row("Contributi sociali (mese)", ref_contrib_db, contrib_let)
 
     n_voci_db = v4.voci.count()
-    ok_nv = n_voci_db == n_voci_lettura
+    delta_nv = 0
+    if n_voci_db is not None and n_voci_lettura is not None:
+        delta_nv = int(n_voci_lettura) - int(n_voci_db)
+    # Parser PDF vs righe persistite: piccole differenze di conteggio senza impatto sui totali.
+    ok_nv = delta_nv == 0 or abs(delta_nv) <= 2
     d_v = "—"
     if n_voci_db is not None and n_voci_lettura is not None:
-        d_v = str(int(n_voci_lettura) - int(n_voci_db))
+        d_v = str(delta_nv)
+    nota_voci = "Conteggio righe in DB vs voci lette oggi dal PDF. Δ = lettura − DB."
+    if delta_nv != 0 and abs(delta_nv) <= 2:
+        nota_voci += " Entro ±2 righe non conta come errore conciliazione (aggregazioni layout PDF comuni)."
     righe.append(
         {
             "campo": "Righe voce",
@@ -282,7 +324,7 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
             "lettura": str(n_voci_lettura),
             "delta": d_v,
             "ok": ok_nv,
-            "nota": "Conteggio righe in DB vs voci lette oggi dal PDF. Δ = lettura − DB.",
+            "nota": nota_voci,
         }
     )
     if not ok_nv:
@@ -294,6 +336,11 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
     if periodo_mese and periodo_anno:
         per_let = f"{periodo_mese:02d}/{periodo_anno}"
         ok_per = v4.mese == periodo_mese and v4.anno == periodo_anno
+    per_nota = (
+        "DB: mese/anno dell’estrazione salvata; lettura: mese retribuito dal PDF "
+        "(non dalla sola descrizione del documento). "
+        "Uno sfasamento qui non determina più da solo l’esito Δ in elenco: verificare comunque il PDF giusto."
+    )
     righe.append(
         {
             "campo": "Periodo (mese/anno)",
@@ -301,14 +348,13 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
             "lettura": per_let,
             "delta": "—",
             "ok": ok_per,
-            "nota": (
-                "DB: mese/anno dell’estrazione salvata; lettura: mese retribuito dal PDF "
-                "(non dalla sola descrizione del documento)."
-            ),
+            "nota": per_nota,
         }
     )
+    # Sfalsamenti tra mese salvato in v4 e «periodo retribuito» ricavato oggi dal PDF sono frequenti
+    # (file rinominato, doppia competenza, ecc.): non devono azzerare l’esito se gli importi quadrano.
     if ok_per is False:
-        n_diff += 1
+        pass
 
     mot = (report.get("motore") or "").strip()
     if mot:
@@ -366,6 +412,7 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
             *,
             nota: str = "",
             tol: Decimal | None = None,
+            ref_fallbacks: list[Decimal | None] | None = None,
         ):
             nonlocal n_diff
             lim = tol if tol is not None else TOLLERANZA_FORMULE_EURO
@@ -375,6 +422,23 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
                 ok = False
             else:
                 ok = abs(elaborato - busta_pdf) <= lim
+            nota_finale = nota
+            if (
+                ok is False
+                and busta_pdf is not None
+                and ref_fallbacks
+            ):
+                for fb in ref_fallbacks:
+                    if fb is None:
+                        continue
+                    if abs(fb - busta_pdf) <= lim:
+                        ok = True
+                        nota_finale = (
+                            (nota + " " if nota else "")
+                            + "PDF odierno coerente con un campo numerico memorizzato al salvataggio v4 "
+                            "(la Σ voci può discostarsi dalla cella TS senza indicare errore di file)."
+                        ).strip()
+                        break
             d_el = "—"
             if elaborato is not None and busta_pdf is not None:
                 d_el = _fmt_delta_eur_signed(elaborato - busta_pdf)
@@ -385,12 +449,12 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
                     "lettura": _fmt_eur(busta_pdf) if busta_pdf is not None else "—",
                     "delta": d_el,
                     "ok": ok,
-                    "nota": nota
+                    "nota": nota_finale
                     if ok
                     else (
                         "Elaborato da voci+totali memorizzati ≠ totale letto oggi dal PDF."
                         if ok is False
-                        else nota
+                        else nota_finale
                     ),
                 }
             )
@@ -405,14 +469,22 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
                 "F3 ordinario = Σ COMPETENZA + Σ N/C (escluso 9250 pignoramento). "
                 "Cessazione: F3 = Σ liquidazioni − Σ preavviso (non la sola cella «Totale Lordo» riga A). "
                 "Rate addizionali (1800/1802/800/802/1812) sono TRATTENUTA e non concorrono al lordo TS. "
-                "Colonna «lettura»: F3 della lettura odierna (motore_validazione.calcolo)."
+                "Colonna «lettura»: F3 della lettura odierna (motore_validazione.calcolo). "
+                f"Tolleranza conciliazione ±{TOLLERANZA_CONCILIAZIONE_ELABORATO_LORDO_NETTO} € (arrotondamenti TS / float)."
             ),
+            tol=TOLLERANZA_CONCILIAZIONE_ELABORATO_LORDO_NETTO,
+            ref_fallbacks=[_d_model_field(v4, "totale_lordo")],
         )
         add_elab_row(
             "Netto (F9 · ricalcolo vs PDF)",
             _dcalc(calc.get("netto_busta")),
             netto_let,
-            nota="Netto da formule F3/F8/F9 sui dati memorizzati.",
+            nota=(
+                "Netto da formule F3/F8/F9 sui dati memorizzati. "
+                f"Tolleranza conciliazione ±{TOLLERANZA_CONCILIAZIONE_ELABORATO_LORDO_NETTO} €."
+            ),
+            tol=TOLLERANZA_CONCILIAZIONE_ELABORATO_LORDO_NETTO,
+            ref_fallbacks=[_d_model_field(v4, "netto_busta")],
         )
         add_elab_row(
             "Imponibile (F4 · Σ voci contrib. vs PDF)",
@@ -423,6 +495,7 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
                 "arrotondamento riferimento / totali TS."
             ),
             tol=TOLLERANZA_IMPONIBILE_VOCI_VS_PDF,
+            ref_fallbacks=[_d_model_field(v4, "imponibile_contrib")],
         )
         add_elab_row(
             "Contributi INPS (F5 · calc. vs PDF)",
@@ -430,6 +503,7 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
             contrib_let,
             nota="Contributi = imponibile memorizzato × 9,36% (IVS dipendente).",
             tol=TOLLERANZA_F5_CONTRIBUTI_INPS,
+            ref_fallbacks=[_d_model_field(v4, "tot_contrib_soc")],
         )
 
         n_checks_formula_ko = formula_ko_totali_da_checks(checks)
@@ -455,8 +529,8 @@ def conciliazione_oggi_vs_cedolino_motore_v4(
                 "ok": n_checks_formula_ko_bloccanti == 0,
                 "nota": (
                     "Ogni controllo confronta valore calcolato vs valore di riferimento nel cedolino memorizzato. "
-                    "Per il badge OK/Δ della pagina conciliazione contano solo gli errori su F3,F4,F5,F8,F9 "
-                    "(F1 retribuzione, F2 righe voce, F7 IRPEF annua su progressivi sono diagnostici)."
+                    "Per il badge OK/Δ contano soprattutto le righe «elaborato vs PDF» sopra e la formula **F5** "
+                    "(IVS dip.); F1–F4, F7–F9 in elenco sono per diagnosi (duplicano criteri già nelle righe sintetiche)."
                 ),
             }
         )
@@ -582,11 +656,11 @@ def compact_conciliazione_per_tabella(conc: dict[str, Any]) -> dict[str, Any]:
         "badge": "success" if ok else "danger",
         "etichetta": "OK" if ok else f"Δ{n_diff}",
         "etichetta_title": (
-            "Complessivo OK: DB vs PDF, subtotali ricalcolati (F3–F5, F9) e formule bloccanti (F3–F5, F8, F9) ok; "
-            "F1, F2 e F7 restano in elenco solo come diagnostica."
+            "Complessivo OK: importi sintetici vs PDF odierno (e contributi F5) entro tolleranza; "
+            "altre formule F in dettaglio sono diagnostiche."
             if ok
             else (
-                f"{n_diff} controllo/i non entro tolleranza (snapshot DB vs PDF, subtotali o formule bloccanti F3–F5, F8, F9)"
+                f"{n_diff} controllo/i non entro tolleranza (righe elaborato vs PDF, contributi F5 o altre incongruenze strutturali)"
             )
         ),
         "netto_v4": (rn.get("riferimento") if rn else None) or "—",

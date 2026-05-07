@@ -7,6 +7,9 @@ devono basarsi su questa catena per avere gli stessi netto/lordo/report tra UI, 
 Ordine: (1) motore posizionale v4 (``try_busta_v4_bundle``); (2) legacy testo + merge analizza/Claude.
 
 Rimemorizzazione massiva dopo deploy: ``python manage.py ricalcola_buste_acquisizione``.
+
+Allineamento motori: stringhe ``motore`` / costanti descritte in
+``rapporto_di_lavoro.motori_canonici`` (cedolino v4 vs legacy testo).
 """
 
 from __future__ import annotations

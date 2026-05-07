@@ -7,7 +7,6 @@ from datetime import datetime
 from django.utils import timezone
 
 from .models import CCNL
-from .utils_calcoli import calcola_completo
 from .utils_motore_paga import calcola_busta_paga_mese
 
 
@@ -198,46 +197,48 @@ def calcola_base_simulazione_motore_unico(
 	data_fine,
 	lordo_fallback,
 ):
-	"""Usa il motore canonico busta paga; fallback legacy in caso di errore."""
-	try:
-		ccnl_fipe = CCNL.objects.filter(sigla='FIPE').first()
-		divisore = str(round(float(parametro.ore_mensili))) if getattr(parametro, 'ore_mensili', None) else '26'
-		simulazione = calcola_busta_paga_mese(
-			parametro_ccnl=parametro,
-			tipo_contratto=tipo_contratto,
-			anno=anno,
-			mese=mese,
-			azienda=azienda,
-			data_inizio_rapporto=data_inizio,
-			data_fine_rapporto=data_fine,
-			divisore_str=divisore,
-			ccnl_obj=ccnl_fipe,
-			num_familiari_a_carico=0,
-			regione_residenza='Sicilia',
-			rateo_13_mensile_in_imponibile=False,
-			rateo_14_mensile_in_imponibile=False,
-		)
-		return {
-			'lordo_mensile': simulazione.get('lordo_mensile', Decimal('0.00')),
-			'netto': {
-				'netto': simulazione.get('netto_totale', Decimal('0.00')),
-				'inps_dipendente': simulazione.get('inps_dip', Decimal('0.00')),
-				'irpef_lorda': simulazione.get('irpef_lorda', Decimal('0.00')),
-				'detrazioni': simulazione.get('detrazioni', Decimal('0.00')),
-				'irpef_netta': simulazione.get('irpef_netta', Decimal('0.00')),
-			},
-			'costo_azienda': {
-				'inps_azienda': simulazione.get('inps_az', Decimal('0.00')),
-				'tfr': simulazione.get('tfr_m', Decimal('0.00')),
-				'rateo_13': simulazione.get('rat13_m', Decimal('0.00')),
-				'rateo_14': simulazione.get('rat14_m', Decimal('0.00')),
-			},
-		}
-	except Exception:
-		logger.exception(
-			"[SIMULAZIONE_MOTORE_UNICO] Fallback a calcolo legacy (livello=%s, anno=%s, mese=%s)",
-			getattr(parametro, 'livello', ''),
-			anno,
-			mese,
-		)
-		return calcola_completo(lordo_fallback)
+	"""
+	Facciata simulazioni organico / viste: **solo** motore busta paga canonico
+	(:func:`calcola_busta_paga_mese` via :func:`invoca_calcola_busta_paga_mese`).
+
+	Nessun fallback su ``utils_calcoli.calcola_completo`` — in caso di errore
+	sale l'eccezione dopo il log, così non si mescolano due modelli di calcolo.
+
+	``lordo_fallback`` resta solo per compatibilità firma chiamanti storici; non
+	viene più usato per calcoli alternativi.
+	"""
+	_ = lordo_fallback
+	ccnl_fipe = CCNL.objects.filter(sigla='FIPE').first()
+	divisore = str(round(float(parametro.ore_mensili))) if getattr(parametro, 'ore_mensili', None) else '26'
+	simulazione = invoca_calcola_busta_paga_mese(
+		log_prefix='SIMULAZIONE_BASE',
+		parametro_ccnl=parametro,
+		tipo_contratto=tipo_contratto,
+		anno=anno,
+		mese=mese,
+		azienda=azienda,
+		data_inizio_rapporto=data_inizio,
+		data_fine_rapporto=data_fine,
+		divisore_str=divisore,
+		ccnl_obj=ccnl_fipe,
+		num_familiari_a_carico=0,
+		regione_residenza='Sicilia',
+		rateo_13_mensile_in_imponibile=False,
+		rateo_14_mensile_in_imponibile=False,
+	)
+	return {
+		'lordo_mensile': simulazione.get('lordo_mensile', Decimal('0.00')),
+		'netto': {
+			'netto': simulazione.get('netto_totale', Decimal('0.00')),
+			'inps_dipendente': simulazione.get('inps_dip', Decimal('0.00')),
+			'irpef_lorda': simulazione.get('irpef_lorda', Decimal('0.00')),
+			'detrazioni': simulazione.get('detrazioni', Decimal('0.00')),
+			'irpef_netta': simulazione.get('irpef_netta', Decimal('0.00')),
+		},
+		'costo_azienda': {
+			'inps_azienda': simulazione.get('inps_az', Decimal('0.00')),
+			'tfr': simulazione.get('tfr_m', Decimal('0.00')),
+			'rateo_13': simulazione.get('rat13_m', Decimal('0.00')),
+			'rateo_14': simulazione.get('rat14_m', Decimal('0.00')),
+		},
+	}

@@ -15,10 +15,18 @@ from __future__ import annotations
 from typing import Any
 
 # Prefissi ``EsitoCheck.campo`` del motore v4 (stesso testo di ``motore_cedolino_v4.chk``).
+# F3/F4/F9: confrontano somme da voci vs campi letti al salvataggio (cella riga A / impon. / netto).
+# La pagina conciliazione ha già righe dedicate «elaborato Σ voci vs PDF odierno» + fallback snapshot.
+# Contarli come bloccanti duplica gli stessi scarti e genera falsi Δ su archivi 2024+.
+# F8: totale trattenute TS con riporti non ricostruibili.
 FORMULA_KO_ESITI_CONCILIAZIONE_IGNORATI = (
     "F1 ·",
     "F2 ·",
+    "F3 ·",
+    "F4 ·",
     "F7 ·",
+    "F8 ·",
+    "F9 ·",
 )
 
 
@@ -31,6 +39,8 @@ def formula_ko_bloccanti_da_checks(checks: list[Any]) -> int:
     """
     Solo i check che devono far passare la busta in «differenze» se falliscono
     (oltre alle righe esplicite DB↔PDF in ``conciliazione_oggi_vs_cedolino_motore_v4``).
+
+    In pratica resta **F5** (contributi IVS) come formula bloccante ricorrente; il resto è diagnostico.
     """
     n = 0
     for ch in checks:

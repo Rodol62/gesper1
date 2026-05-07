@@ -33,6 +33,37 @@ logger = logging.getLogger(__name__)
 
 Q2 = Decimal("0.01")
 
+# Primo giorno **inclusivo** da cui il ``calendario_mensile`` su ``RuoloOrganico2026`` entra nei kwargs
+# del motore busta in conciliazione (stesso criterio ``primo_m >= DATA_...`` → marzo 2026 sì).
+# Motivo esclusivo della soglia: **prima** del 01/03/2026 il calendario presenze in Gesper non era
+# ancora allineato con quello del consulente. Con ROF valorizzato su ``CedolinoMotoreV4`` si omette la
+# griglia mensile del ruolo organico (ore da ``allinea_kwargs_calcolo_a_dati_cedolino_v4``). Se il v4
+# non ha ROF (buste archivio incomplete), si **ripiega** sulla griglia ruolo come prima della soglia,
+# per evitare motore a ore zero e conciliazioni tutte in errore.
+DATA_INIZIO_USO_CALENDARIO_RUOLO_CONCILIAZIONE = date(2026, 3, 1)
+
+
+def cedolino_motore_v4_ha_rof_per_conciliazione(v4: CedolinoMotoreV4) -> bool:
+    """True se su ``v4`` c'è ROF / retrib. di fatto usabile per ricavare ore da riga 8001."""
+    for attr in ("retr_oraria_att", "retrib_di_fatto"):
+        val = getattr(v4, attr, None)
+        if val is None:
+            continue
+        try:
+            if Decimal(str(val)) > 0:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def usa_calendario_ruolo_organico_in_conciliazione(anno: int, mese: int) -> bool:
+    """
+    True se per la competenza ``(anno, mese)`` il ``calendario_mensile`` del ruolo organico
+    concorre ai kwargs del motore busta in conciliazione (dal 01/03/2026 inclusivo).
+    """
+    return date(int(anno), int(mese), 1) >= DATA_INIZIO_USO_CALENDARIO_RUOLO_CONCILIAZIONE
+
 # Chiavi sintetiche confronto (cedolino TS → grandezze motore non presenti in ``voci_classificate``)
 _CED_TS8001_COMPOSITO = "CED_TS8001_COMPOSITO"
 _CED_ADDIZ_REGIONALE = "CED_ADDIZ_REGIONALE"
@@ -52,14 +83,21 @@ _CODICI_MOTORE_COMPOSITO_TS8001 = (
 )
 
 # Codice riga cedolino (numerico TeamSystem o equivalente) → codice voce motore / bucket confronto
+# 8020/8030: stessa semantica di ``rapporto_di_lavoro.utils_presenze`` (festivo lavorato vs notturno).
+# PDF abbreviati possono usare 800/802 al posto di 1800/1802 (vedi ``documenti.motore_cedolino_v4.CODICI``).
 _CODICE_TS_A_BUCKET: dict[str, str] = {
     "8010": "MAGG_DOM_FEST",
     "8011": "MAGG_DOM_FEST",
+    "8020": "MAGG_DOM_FEST",
+    "8030": "STRAORD_NOTTURNO",
     "9824": "BONUS_L207_2024",
     "9825": "BONUS_L207_2024",
     "8001": _CED_TS8001_COMPOSITO,
     "1800": _CED_ADDIZ_REGIONALE,
+    "800": _CED_ADDIZ_REGIONALE,
     "1802": _CED_ADDIZ_COMUNALE,
+    "802": _CED_ADDIZ_COMUNALE,
+    "1812": _CED_ADDIZ_COMUNALE,
     "9250": _CED_TRATTENUTE_EXTRA,
     "9251": _CED_TRATTENUTE_EXTRA,
 }
@@ -70,6 +108,28 @@ def _d(v) -> Decimal:
         return Decimal(str(v or 0)).quantize(Q2)
     except Exception:
         return Decimal("0.00")
+
+
+# Tipi da escludere quando si sommano importi «competenza» da righe TS (8001, 801x, 8020, …).
+_TIPI_ESCLUSI_DA_COMPETENZA_IMPORTO = frozenset({"TRATTENUTA", "PREVIDENZA"})
+
+
+def _somma_importi_voci_codici(
+    voci: list,
+    codici: set[str] | frozenset[str],
+) -> Decimal:
+    """Somma ``importo`` delle righe il cui ``codice`` è in ``codici`` (mai TRATTENUTA/PREVIDENZA)."""
+    tot = Decimal("0")
+    want = {str(c).strip() for c in codici}
+    for voce in voci:
+        c = (voce.codice or "").strip()
+        if c not in want:
+            continue
+        t = (voce.tipo or "").strip().upper()
+        if t in _TIPI_ESCLUSI_DA_COMPETENZA_IMPORTO:
+            continue
+        tot += _d(voce.importo)
+    return tot.quantize(Q2)
 
 
 def _fmt_eur_it(d: Decimal) -> str:
@@ -133,8 +193,12 @@ def allinea_kwargs_calcolo_a_dati_cedolino_v4(
     Copia ``kwargs_calcolo`` del motore busta paga e lo avvicina ai numeri già presenti sul cedolino v4.
 
     Obiettivo: stessa ROF/orario di busta, trattenute non presenti sul ruolo, stima L207 coerente con
-    la riga cedolino, trattenute addizionali da righe 1800/1802 (o campi ``addiz_*`` su ``v4`` se valorizzati),
-    forzando nel motore ``forza_add_reg_m`` / ``forza_add_com_m`` (con adeguamento del netto erogato).
+    la riga cedolino, trattenute addizionali da righe 1800/1802 (e varianti abbreviate PDF 800/802,
+    acconto comunale 1812), ore festivo/notturno da importi 8020/8030 quando c’è ROF, forzando nel motore
+    ``forza_add_reg_m`` / ``forza_add_com_m`` (con adeguamento del netto erogato).
+
+    Per competenze **prima** di ``DATA_INIZIO_USO_CALENDARIO_RUOLO_CONCILIAZIONE`` questo passo è la
+    principale fonte ore/ROF rispetto al PDF, perché il calendario ruolo organico non alimenta i kwargs.
 
     Restituisce ``(kwargs_allineati, meta_pannello)`` — ``meta_pannello`` è solo informativa (chiavi applicate).
     """
@@ -164,14 +228,10 @@ def allinea_kwargs_calcolo_a_dati_cedolino_v4(
         meta["chiavi"].append("forza_paga_oraria")
         meta["chiavi"].append("superminimo_a_zero_con_rof_cedolino")
 
-    imp8001 = Decimal("0")
-    imp8010 = Decimal("0")
-    for voce in voci:
-        c = (voce.codice or "").strip()
-        if c == "8001" and (voce.tipo or "").upper() == "COMPETENZA":
-            imp8001 = _d(voce.importo)
-        if c in ("8010", "8011") and (voce.tipo or "").upper() == "COMPETENZA":
-            imp8010 += _d(voce.importo)
+    imp8001 = _somma_importi_voci_codici(voci, frozenset({"8001"}))
+    imp8010 = _somma_importi_voci_codici(voci, frozenset({"8010", "8011"}))
+    imp8020 = _somma_importi_voci_codici(voci, frozenset({"8020"}))
+    imp8030 = _somma_importi_voci_codici(voci, frozenset({"8030"}))
     if rof_d > 0 and imp8001 > 0:
         ore_ord_ced = (imp8001 / rof_d).quantize(Q2)
         if ore_ord_ced > 0:
@@ -186,8 +246,28 @@ def allinea_kwargs_calcolo_a_dati_cedolino_v4(
         den = (rof_d * (Decimal("1") + magg_dom)).quantize(Q2)
         if den > 0:
             kw["ore_domenicali"] = (imp8010 / den).quantize(Q2)
+            kw["domenicale_compenso_completo"] = True
             meta["attivo"] = True
             meta["chiavi"].append("ore_domenicali_da_ced801x_div_rof")
+    if rof_d > 0 and imp8020 > 0:
+        # Riga TS 8020: stesso uso di ``utils_presenze`` (festivo lavorato). Assumiamo compenso «pieno»
+        # ore × ROF × (1 + 20 %) come su molti cedolini FIPE (allineato a ``festivo_compenso_completo``).
+        magg_fest = Decimal("0.20")
+        den_f = (rof_d * (Decimal("1") + magg_fest)).quantize(Q2)
+        if den_f > 0:
+            kw["ore_festivi"] = (imp8020 / den_f).quantize(Q2)
+            kw["festivo_compenso_completo"] = True
+            kw["auto_ore_domenicali_da_calendario"] = False
+            meta["attivo"] = True
+            meta["chiavi"].append("ore_festivi_da_ced8020_div_rof")
+    if rof_d > 0 and imp8030 > 0:
+        magg_nott = Decimal("0.30")
+        den_n = (rof_d * (Decimal("1") + magg_nott)).quantize(Q2)
+        if den_n > 0:
+            kw["ore_straord_notturno"] = (imp8030 / den_n).quantize(Q2)
+            kw["auto_ore_domenicali_da_calendario"] = False
+            meta["attivo"] = True
+            meta["chiavi"].append("ore_straord_notturno_da_ced8030_div_rof")
 
     tratt_extra = Decimal("0")
     for voce in voci:
@@ -224,9 +304,9 @@ def allinea_kwargs_calcolo_a_dati_cedolino_v4(
         cod = (voce.codice or "").strip()
         if (voce.tipo or "").upper() != "TRATTENUTA":
             continue
-        if cod == "1800":
+        if cod in ("1800", "800"):
             add_reg_ced += _d(voce.importo)
-        elif cod == "1802":
+        elif cod in ("1802", "802", "1812"):
             add_com_ced += _d(voce.importo)
     if add_reg_ced <= 0:
         try:
@@ -289,6 +369,12 @@ def risolvi_contesto_calcolo_motore_paga(
     Allineamento a ``presenze.views._build_rows_scostamento_fiscale`` dove possibile
     (ruolo organico, calendario mensile, scatti tabellari). Passa anche comune/provincia/regione da
     anagrafica dipendente (residenza o domicilio se diverso) per le addizionali IRPEF del motore.
+
+    Per competenze **prima** del 01/03/2026: se il cedolino v4 espone **ROF** si **omette** la griglia
+    mensile del ruolo organico (presenze non allineate al consulente; ore da PDF via
+    ``allinea_kwargs_calcolo_a_dati_cedolino_v4``). Se **manca** ROF su v4 (archivio incompleto) si
+    **ripiega** sulla griglia ruolo come prima, per non lasciare il motore senza ore. Dal **01/03/2026
+    inclusivo** la griglia ruolo è sempre la fonte operativa quando presente.
     """
     from anagrafiche.models import Dipendente
 
@@ -395,9 +481,25 @@ def risolvi_contesto_calcolo_motore_paga(
         data_fine_eff = ruolo.data_fine
 
     cal_m: dict = {}
+    cal_m_full: dict = {}
     if ruolo is not None:
         raw_cal = ruolo.calendario_mensile or {}
-        cal_m = raw_cal.get(str(mese), raw_cal.get(mese, {})) or {}
+        cal_m_full = raw_cal.get(str(mese), raw_cal.get(mese, {})) or {}
+
+    # modalita_griglia_ruolo: diagnostica admin (vedi ``render_confronto_motore_paga_html``).
+    modalita_griglia_ruolo = "nessuna"
+    if ruolo is not None:
+        if usa_calendario_ruolo_organico_in_conciliazione(anno, mese):
+            cal_m = cal_m_full
+            modalita_griglia_ruolo = "piena" if cal_m else "nessuna"
+        elif cedolino_motore_v4_ha_rof_per_conciliazione(v4):
+            cal_m = {}
+            modalita_griglia_ruolo = "omessa_cedolino_rof"
+        elif cal_m_full:
+            cal_m = cal_m_full
+            modalita_griglia_ruolo = "fallback_senza_rof"
+        else:
+            cal_m = {}
 
     ore_ord = _d(cal_m.get("ore_ordinarie_retribuite", 0))
     superminimo_eff = superminimo_da_rapporto_o_ruolo(
@@ -472,6 +574,8 @@ def risolvi_contesto_calcolo_motore_paga(
         "rapporto_id": getattr(rapporto, "pk", None),
         "ruolo_organico_id": getattr(ruolo, "pk", None),
         "livello_eff": livello_eff,
+        "usa_calendario_ruolo_organico": usa_calendario_ruolo_organico_in_conciliazione(anno, mese),
+        "modalita_griglia_ruolo": modalita_griglia_ruolo,
     }
 
 
@@ -634,6 +738,8 @@ def confronto_cedolino_motore_paga(
             "rapporto_id": ctx.get("rapporto_id"),
             "ruolo_organico_id": ctx.get("ruolo_organico_id"),
             "livello_eff": ctx.get("livello_eff"),
+            "usa_calendario_ruolo_organico": ctx.get("usa_calendario_ruolo_organico"),
+            "modalita_griglia_ruolo": ctx.get("modalita_griglia_ruolo"),
             "allineamento_input_cedolino_v4": meta_allinea,
         },
         "righe_voci": righe_voci,
@@ -674,6 +780,26 @@ def render_confronto_motore_paga_html(data: dict[str, Any]) -> str:
             "allinea input cedolino: <code>"
             + escape(", ".join(str(x) for x in al["chiavi"]))
             + "</code>"
+        )
+    mgr = meta.get("modalita_griglia_ruolo") or ""
+    if meta.get("usa_calendario_ruolo_organico") is True:
+        meta_bits.append(
+            "griglia mensile ruolo organico: <strong>usata</strong> "
+            "(dal 01/03/2026 inclusivo; presenze considerate allineabili al consulente)"
+        )
+    elif mgr == "omessa_cedolino_rof":
+        meta_bits.append(
+            "griglia mensile ruolo organico: <strong>omessa</strong> "
+            "(pre 01/03/2026; ROF su cedolino v4 — ore da PDF / allineamento, non da simulazione organico)"
+        )
+    elif mgr == "fallback_senza_rof":
+        meta_bits.append(
+            "griglia mensile ruolo organico: <strong>fallback</strong> "
+            "(pre 01/03/2026 ma ROF assente su v4 — si riusa la griglia storica per evitare motore a ore zero)"
+        )
+    elif meta.get("usa_calendario_ruolo_organico") is False and mgr == "nessuna":
+        meta_bits.append(
+            "griglia mensile ruolo organico: <strong>non disponibile</strong> (nessun dato mese su ruolo organico)"
         )
     head = "<p class='help'>" + " · ".join(meta_bits) + "</p>"
 

@@ -1112,6 +1112,7 @@ def _calcola_simulazione_2026(request):
 
     ruoli_config = _build_ruoli_config(request)
     tipi_contratto = TipoContratto.objects.filter(attivo=True).order_by('nome')
+    tipi_contratto_by_id = {tc.id: tc for tc in tipi_contratto}
 
     # Cache parametri CCNL per mese: usa la versione con la decorrenza più recente
     # non superiore al primo giorno del mese (es. gen-mag 2026 → vers.2025-06,
@@ -1199,26 +1200,32 @@ def _calcola_simulazione_2026(request):
             _giorni_rol_ccnl = Decimal(str(_ccnl.giorni_rol_base))
     coeff_ferie_db    = (_giorni_ferie_ccnl / (Decimal('26') * Decimal('12'))).quantize(Decimal('0.000001'))
     coeff_permessi_db = (_giorni_rol_ccnl   / (Decimal('26') * Decimal('12'))).quantize(Decimal('0.000001'))
-    # Override da ParametroRatei se presenti nel DB
+    # Override da ParametroRatei se presenti nel DB (una query, stessa semantica .first() per tipo)
     if _ccnl:
-        _r_tfr = ParametroRatei.objects.filter(
-            ccnl=_ccnl, anno=anno, tipo_rateo='tfr', attivo=True).first()
+        _ratei_row_by_tipo = {}
+        for _pr in (
+            ParametroRatei.objects.filter(
+                ccnl=_ccnl,
+                anno=anno,
+                attivo=True,
+                tipo_rateo__in=('tfr', 'tredicesima', 'quattordicesima', 'ferie', 'permessi'),
+            ).order_by('tipo_rateo', 'id')
+        ):
+            if _pr.tipo_rateo not in _ratei_row_by_tipo:
+                _ratei_row_by_tipo[_pr.tipo_rateo] = _pr
+        _r_tfr = _ratei_row_by_tipo.get('tfr')
         if _r_tfr:
             coeff_tfr_db = _r_tfr.coefficiente / Decimal('100')
-        _r_13 = ParametroRatei.objects.filter(
-            ccnl=_ccnl, anno=anno, tipo_rateo='tredicesima', attivo=True).first()
+        _r_13 = _ratei_row_by_tipo.get('tredicesima')
         if _r_13:
             coeff_13_db = _r_13.coefficiente / Decimal('12')
-        _r_14 = ParametroRatei.objects.filter(
-            ccnl=_ccnl, anno=anno, tipo_rateo='quattordicesima', attivo=True).first()
+        _r_14 = _ratei_row_by_tipo.get('quattordicesima')
         if _r_14:
             coeff_14_db = _r_14.coefficiente / Decimal('12')
-        _r_ferie = ParametroRatei.objects.filter(
-            ccnl=_ccnl, anno=anno, tipo_rateo='ferie', attivo=True).first()
+        _r_ferie = _ratei_row_by_tipo.get('ferie')
         if _r_ferie:
             coeff_ferie_db = (_r_ferie.coefficiente / Decimal('100'))
-        _r_perm = ParametroRatei.objects.filter(
-            ccnl=_ccnl, anno=anno, tipo_rateo='permessi', attivo=True).first()
+        _r_perm = _ratei_row_by_tipo.get('permessi')
         if _r_perm:
             coeff_permessi_db = (_r_perm.coefficiente / Decimal('100'))
 
@@ -1238,6 +1245,31 @@ def _calcola_simulazione_2026(request):
         risolvi_parametro_ccnl_per_mese,
         superminimo_da_rapporto_o_ruolo,
     )
+
+    # Dipendenti e contratti sottoscritti per mese: evita N×12 query duplicate nel doppio ciclo.
+    dip_by_pk = {}
+    rap_cache = {}
+    if azienda_operativa:
+        dip_ids_sim = set()
+        for _ru in ruoli_config:
+            _dp = _ru.get('dipendente_id')
+            if not _dp:
+                continue
+            try:
+                dip_ids_sim.add(int(_dp))
+            except (TypeError, ValueError):
+                continue
+        if dip_ids_sim:
+            for _d in Dipendente.objects.filter(pk__in=dip_ids_sim, azienda=azienda_operativa):
+                dip_by_pk[_d.pk] = _d
+            for _did, _dip_o in dip_by_pk.items():
+                for _mn in range(1, 13):
+                    rap_cache[(_did, _mn)] = rapporto_sottoscritto_attivo_nel_mese(
+                        dipendente=_dip_o,
+                        azienda=azienda_operativa,
+                        anno=anno,
+                        mese=_mn,
+                    )
 
     for mese_num in range(1, 13):
         # Giorni nel mese: usa monthrange per gestire correttamente anni bisestili
@@ -1302,11 +1334,9 @@ def _calcola_simulazione_2026(request):
                 except (TypeError, ValueError):
                     _dip_pk_int = None
                 if _dip_pk_int:
-                    dip_o = Dipendente.objects.filter(pk=_dip_pk_int, azienda=azienda_operativa).first()
+                    dip_o = dip_by_pk.get(_dip_pk_int)
                     if dip_o:
-                        rap_sim = rapporto_sottoscritto_attivo_nel_mese(
-                            dipendente=dip_o, azienda=azienda_operativa, anno=anno, mese=mese_num
-                        )
+                        rap_sim = rap_cache.get((_dip_pk_int, mese_num))
 
             livello_da_ruolo = (ruolo.get('livello') or '').strip() or _risolvi_livello_da_mansione(
                 ruolo.get('nome'), rule_engine
@@ -1351,8 +1381,8 @@ def _calcola_simulazione_2026(request):
                 tipo_contratto = rap_sim.tipo_contratto
             elif ruolo['tipo_contratto_id']:
                 try:
-                    tipo_contratto = tipi_contratto.get(id=int(ruolo['tipo_contratto_id']))
-                except (TipoContratto.DoesNotExist, ValueError):
+                    tipo_contratto = tipi_contratto_by_id.get(int(ruolo['tipo_contratto_id']))
+                except (TypeError, ValueError):
                     tipo_contratto = None
             if tipo_contratto is not None:
                 coeff_ore = Decimal(str(tipo_contratto.coefficiente_ore or Decimal('1.00')))

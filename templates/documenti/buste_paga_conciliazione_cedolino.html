@@ -47,7 +47,7 @@ details.conc-det[open] > summary { margin-bottom: 0; }
   <span class="badge bg-success">OK</span> (tutti i controlli ok),
   <span class="badge bg-danger">Δ</span> (da verificare o memorizzare di nuovo),
   <span class="badge bg-secondary">Senza v4</span> (eseguire prima il passo 3 — memorizza estrazione).
-  Per ogni busta con dati memorizzati il sistema <strong>ricostruisce il cedolino dal DB</strong>, riesegue le <strong>formule F1–F9</strong> del motore v4 e confronta <strong>subtotali calcolati</strong> e <strong>totali letti oggi dal PDF</strong>, oltre al confronto tra snapshot salvato e lettura corrente.
+  Per ogni busta con dati memorizzati il sistema <strong>ricostruisce il cedolino dal DB</strong>, riesegue le <strong>formule F1–F9</strong> del motore v4 e confronta <strong>subtotali calcolati</strong> e <strong>totali letti oggi dal PDF</strong> (con tolleranze dedicate e, se serve, coerenza con i campi memorizzati al salvataggio). Per l’esito <span class="badge bg-success">OK</span> in elenco contano soprattutto le righe sintetiche lordo/netto/impon./contributi vs PDF e la formula <strong>F5</strong>; molti altri controlli F sono solo diagnostici.
   <span class="text-muted" title="{{ tol_legenda_breve }}">Soglie motore: F1–F3, F5–F7, F9 <strong>{{ tol_formule_label }}</strong> · F4 impon. <strong>{{ tol_impon_f4_label }}</strong> · F8 trattenute <strong>{{ tol_f8_label }}</strong> · import anagrafiche <strong>{{ tol_confronto_label }}</strong>.</span>
   Passi correlati:
   <a href="{% url 'buste_paga_estrazione_motore_v4' %}?{% if pagination_qs %}{{ pagination_qs }}&{% endif %}page={{ page_obj.number }}">3 · Memorizza v4</a> ·
