@@ -224,6 +224,9 @@ def calcola_busta_paga_mese(
     contratto_esclude_quattordicesima: bool = False,
     rateo_13_mensile_in_imponibile: bool = False,
     rateo_14_mensile_in_imponibile: bool = False,
+    forza_add_reg_m: Decimal | None = None,
+    forza_add_com_m: Decimal | None = None,
+    forza_paga_oraria: Decimal | None = None,
 ) -> dict:
     """
     Calcola la busta paga mensile completa per un dipendente.
@@ -250,6 +253,12 @@ def calcola_busta_paga_mese(
 
     Con ore ordinarie retribuite > 0, ``oraria_ordinario_da_competenza`` = ``imp_ordinario_ore`` ÷ ore
     (rapporto dopo arrotondamento della competenza ordinaria; confrontabile alla BASE riga 8001).
+
+    ``forza_paga_oraria`` (€/h): se valorizzato, sostituisce la paga oraria usata per competenze
+    ordinarie, straordinari e maggiorazioni (es. allineamento al cedolino ufficiale / ROF in busta).
+
+    ``forza_add_reg_m`` / ``forza_add_com_m``: se valorizzati, sostituiscono le trattenute mensili
+    addizionali IRPEF; in quel caso vengono anche sottratte da ``netto_totale`` (come in busta erogata).
 
     Returns full result dict with: voci, lordo, netto, contributi, ratei, f24, costo azienda.
     """
@@ -507,6 +516,13 @@ def calcola_busta_paga_mese(
     if divisore_dec <= Decimal('30'):
         retribuzione_oraria_di_fatto = paga_oraria
 
+    _fp = Decimal(str(forza_paga_oraria)) if forza_paga_oraria is not None else Decimal('0')
+    if _fp > 0:
+        paga_oraria = _fp.quantize(Q4)
+        retribuzione_oraria_di_fatto = paga_oraria
+        if divisore_dec <= Decimal('30'):
+            paga_giornaliera = (paga_oraria * ore_giorn).quantize(Q4) if ore_giorn else Decimal('0')
+
     # ── Auto ore domenicali da calendario (se non fornite o impostate a zero) ─
     ore_domenicali_auto = False
     if auto_ore_domenicali_da_calendario and Decimal(str(ore_domenicali or 0)) == Decimal('0'):
@@ -729,6 +745,13 @@ def calcola_busta_paga_mese(
     )).quantize(Q2)
     add_reg_m   = (add_reg_ann / 12).quantize(Q2)
     add_com_m   = (add_com_ann / 12).quantize(Q2)
+    _forza_add = (forza_add_reg_m is not None) or (forza_add_com_m is not None)
+    if forza_add_reg_m is not None:
+        add_reg_m = Decimal(str(forza_add_reg_m)).quantize(Q2)
+    if forza_add_com_m is not None:
+        add_com_m = Decimal(str(forza_add_com_m)).quantize(Q2)
+    if _forza_add:
+        netto_totale = (netto_totale - add_reg_m - add_com_m).quantize(Q2)
 
     tfr_m     = (lordo_mensile * c_tfr).quantize(Q2)
     rat_fer_m = (lordo_mensile * c_fer).quantize(Q2)
@@ -838,6 +861,18 @@ def calcola_busta_paga_mese(
             ore_settimanali=ore_sett_r,
         )
 
+    # Ore posizione INPS/INAIL (cedolino): somma ore retributive del mese, non le ore mensili contrattuali × coeff.
+    ore_posizione_inps = (
+        Decimal(str(ore_ordinarie_retribuite or 0))
+        + Decimal(str(ore_domenicali or 0))
+        + Decimal(str(ore_festivi or 0))
+        + Decimal(str(ore_straord_diurno or 0))
+        + Decimal(str(ore_straord_notturno or 0))
+        + Decimal(str(ore_straord_festivo or 0))
+        + Decimal(str(ore_straord_domenica or 0))
+        + Decimal(str(ore_straord_nott_fest or 0))
+    ).quantize(Q2)
+
     return {
         # ── Periodo ───────────────────────────────────────────────────────────
         'anno': anno, 'mese': mese,
@@ -859,6 +894,8 @@ def calcola_busta_paga_mese(
         'cal_griglia':              cal_griglia,
         # ── Ore / divisore ────────────────────────────────────────────────────
         'ore_mensili': ore_mensili, 'ore_giornaliere': ore_giorn,
+        'ore_posizione_inps': ore_posizione_inps,
+        'ore_posizione_inail': ore_posizione_inps,
         'ore_settimanali_contr': ore_sett_r,
         # Coincide con ore_giorn (h/sett contrattuali ÷ 6); esposto per template/retrocompat.
         'ore_media_settimanale_su_6gg': ore_media_settimanale_su_6gg,

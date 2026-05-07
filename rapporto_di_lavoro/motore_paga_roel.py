@@ -25,7 +25,8 @@ Il motore numerico resta in ``utils_motore_paga.calcola_busta_paga_mese``; qui c
      (ore effettive del mese sui giorni lavorativi), non la sola somma mensile tabellare.
    • Lavoro domenicale/festivo: ore × ROEL × maggiorazione (solo maggiorazione, salvo flag compenso completo).
    • Straordinari: ore × ROEL × (1 + maggiorazione).
-   • Ratei 13ª/14ª, L207, TI, trattenute/addizionali: fasi successive (INPS, IRPEF) come nel motore.
+   • Ratei 13ª/14ª (accantonamento / eventuale busta), trattenute/addizionali: come nel motore.
+   • L207 e TI: **non** in rubrica competenze (non concorrono a ``lordo_mensile``); sezione IRPEF / netto nel simulatore.
 
 4) Imponibile INPS = somma competenze imponibili + eventuali ratei in busta; poi INPS, IRPEF.
 ────────────────────────────────────────────────────────────────────────────
@@ -157,7 +158,7 @@ def costruisci_competenze_logica_v1(r: dict[str, Any]) -> list[dict[str, Any]]:
         'nota': 'Somma componenti tabellari ÷ ore contrattuali (vedi riga sopra); base per straord. e maggiorazioni.',
     })
 
-    if modalita and ore_ord and ore_ord > 0:
+    if modalita and Decimal(str(ore_ord or 0)) > 0:
         imp_o = r.get('imp_ordinario_ore')
         rows.append({
             'cod': '1',
@@ -191,7 +192,8 @@ def costruisci_competenze_logica_v1(r: dict[str, Any]) -> list[dict[str, Any]]:
                 'nota': (
                     f'{n_gg} gg ordinari (calendario: escl. domeniche, festivi e chiusure; '
                     f'sabato solo con contratto 6/7 gg/sett.) × {ore_gg} h/gg. '
-                    f'Rif. contratto {ore_mens} h/mese. EDR/indennità/superminimo in altre righe se presenti.'
+                    f'Rif. contratto {ore_mens} h/mese. Superminimo ed EL.DIS. inclusi nella ROEL; '
+                    f'indennità tabellare mensile in riga dedicata se presente.'
                 ),
             })
         else:
@@ -238,7 +240,28 @@ def costruisci_competenze_logica_v1(r: dict[str, Any]) -> list[dict[str, Any]]:
             'nota': 'Ore × ROEL × maggiorazione festivo.',
         })
 
-    if r.get('superminimo') and Decimal(str(r['superminimo'])) > 0:
+    # Superminimo: se l'ordinario è già «ore × ROEL», la ROEL include la quota €/h del superminimo —
+    # una riga mensile separata gonfierebbe la somma rispetto a ``lordo_mensile`` del motore.
+    try:
+        sm_dec = Decimal(str(r.get('superminimo') or 0))
+    except Exception:
+        sm_dec = Decimal('0')
+    roel_includes_sm_in_ordinario = False
+    if modalita and Decimal(str(ore_ord or 0)) > 0:
+        roel_includes_sm_in_ordinario = True
+    else:
+        try:
+            n_gg_sm = int(gg_ord_cal) if gg_ord_cal is not None else int(gg_lav)
+        except (TypeError, ValueError):
+            n_gg_sm = 0
+        ore_cal_sm = (
+            (Decimal(str(n_gg_sm)) * Decimal(str(ore_gg))).quantize(Decimal('0.01'))
+            if n_gg_sm > 0 and Decimal(str(ore_gg)) > 0
+            else Decimal('0')
+        )
+        if ore_cal_sm > 0:
+            roel_includes_sm_in_ordinario = True
+    if sm_dec > 0 and not roel_includes_sm_in_ordinario:
         rows.append({
             'cod': '—',
             'descrizione': 'Superminimo',
@@ -246,7 +269,10 @@ def costruisci_competenze_logica_v1(r: dict[str, Any]) -> list[dict[str, Any]]:
             'base': None,
             'competenze': r['superminimo'],
             'trattenute': None,
-            'nota': 'Voce mensile in busta; €/h equivalente incluso nella retrib. oraria di fatto se presente.',
+            'nota': (
+                'Voce mensile in busta (ordinario = somma tabellare senza ore×ROEL: il superminimo non è '
+                'già nella colonna Competenze della riga 1).'
+            ),
         })
     if r.get('indennita_turno') and Decimal(str(r['indennita_turno'])) > 0:
         rows.append({
@@ -288,29 +314,7 @@ def costruisci_competenze_logica_v1(r: dict[str, Any]) -> list[dict[str, Any]]:
             'nota': 'Ore × ROEL × (1 + magg. CCNL/parametri) per diurno, notturno, festivo, n+f, domenica.',
         })
 
-    l207 = r.get('l207')
-    if l207 and Decimal(str(l207)) != 0:
-        rows.append({
-            'cod': '6',
-            'descrizione': 'Somma art. 1 c.4 L. 207/2024 (bonus in cedolino)',
-            'ore_o_gg': '—',
-            'base': None,
-            'competenze': l207,
-            'trattenute': None,
-            'nota': 'Come da motore fiscale (può essere detrazione IRPEF o credito netto).',
-        })
-
-    ti = r.get('ti')
-    if ti and Decimal(str(ti)) != 0:
-        rows.append({
-            'cod': '5',
-            'descrizione': 'Trattamento integrativo (DL 3/2020)',
-            'ore_o_gg': '—',
-            'base': None,
-            'competenze': ti,
-            'trattenute': None,
-            'nota': '',
-        })
+    # L.207 e TI: non sono competenze INPS / non entrano in ``lordo_mensile`` — restano nelle sezioni IRPEF e netto.
 
     if r.get('rat13_m') and Decimal(str(r['rat13_m'])) > 0:
         rows.append({
@@ -365,6 +369,10 @@ def costruisci_competenze_logica_v1(r: dict[str, Any]) -> list[dict[str, Any]]:
         'base': None,
         'competenze': r.get('lordo_mensile'),
         'trattenute': None,
-        'nota': 'Include straordinari e maggiorazioni oltre alle righe sopra, come da ``calcola_busta_paga_mese``.',
+        'nota': (
+            'Valore da ``calcola_busta_paga_mese`` (lordo imponibile competenze del mese). '
+            'Ratei 13ª/14ª sopra sono accantonamenti: contano nel lordo INPS solo se il contratto li paga in busta; '
+            'L.207/2024 e TI sono in sezione fiscale / netto, non nel lordo competenze.'
+        ),
     })
     return rows

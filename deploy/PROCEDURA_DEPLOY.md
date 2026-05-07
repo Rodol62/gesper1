@@ -7,6 +7,7 @@ Documento di riferimento per DNS, Nginx, Certbot e pubblicazione codice/PWA.
 
 **Uso frequente**
 
+- [Allineamento dopo modifiche (codice, GitHub, produzione, dati, PWA)](#sec-allineamento-completo)
 - [Checklist Git → deploy (~1 min)](#sec-git-deploy)
 - [Django: static, migrate, deploy da Mac](#sec-django)
 - [Verifica endpoint pubblici](#sec-verify)
@@ -151,6 +152,40 @@ Flusso consigliato: **modifiche solo in locale** (o branch), **commit/push** su 
 
 10. Login area consulente + una pagina “pesante” (libro / pagamenti / proforma).
 11. Un flusso legato all’ultima modifica (es. allegato PDF bonifico, upload multipart documenti).
+
+<a id="sec-allineamento-completo"></a>
+## 0.5 Allineamento dopo ogni modifica — regola operativa
+
+**Principio (ordine temporale):**
+
+1. **Ambiente di lavoro:** gli aggiustamenti al codice si fanno **sempre in locale** (repo sul Mac / XAMPP), non direttamente in produzione.  
+2. **Verifiche:** `check`, test mirati, prova manuale in locale.  
+3. **Versionamento:** `git commit` e `git push` su GitHub.  
+4. **Deploy di allineamento:** dalla Mac, script del repo verso la VPS (e, se serve, sync PWA) così produzione esegue lo **stesso** codice del repo.
+
+**Riferimenti URL su VPS e PWA:** link, redirect, `fetch`, service worker e asset devono usare **percorsi relativi** alla radice del sito (`/…`) oppure la **base URL da configurazione** (es. Admin → Configurazione sistema → URL pubblica base, variabili d’ambiente), non host fissi tipo `http://127.0.0.1:8000` o un dominio di sviluppo. Stesso discorso per la PWA: evitare assoluti legati solo al locale.
+
+---
+
+Dopo una **sistemazione o modifica del codice**, l’obiettivo è che **quattro assi** restino coerenti tra loro, salvo eccezioni documentate:
+
+| Asse | Cosa allineare | Come |
+|------|----------------|------|
+| **Locale** | Tree di lavoro (Mac/XAMPP) uguale a ciò che intendi pubblicare | Salvare i file; `manage.py check` (e test mirati se serve). |
+| **Repository GitHub** | Storico ufficiale del codice | `git commit` → `git push` sul branch condiviso (es. `main`). **Non** lasciare fix solo in produzione senza commit. |
+| **Produzione (VPS)** | Codice in esecuzione + static + schema DB | `./deploy/deploy-gesper1-completo.sh` (o `remote-rsync-django-gesper1.sh`): rsync, `migrate`, `collectstatic`, `systemctl restart gesper`. |
+| **Dati** | DB e file media coerenti con l’ambiente di riferimento | Vedi sotto: non sono coperti dallo stesso `rsync` del codice. |
+| **PWA** (se coinvolta) | Asset `/gesper-app/` serviti da Nginx | Solo se hai modificato la PWA: `deploy/sync-pwa-and-collectstatic.sh` e/o `deploy/sync-gesper-app.example.sh` (vedi § PWA). |
+
+**Ordine consigliato (una tantum per ogni feature/fix):**
+
+1. Sviluppo e verifica **in locale**.  
+2. **Commit + push** su GitHub (il deploy dalla Mac prende il tree locale: idealmente è già ciò che è su `origin`).  
+3. **Deploy** verso `gesper1` con lo script del repo.  
+4. Se la release tocca la **PWA**, eseguire anche lo sync PWA + eventuale `collectstatic` come da procedura.  
+5. **Dati:** se la modifica richiede migrazioni, sono già nel passo deploy (`migrate` sul server). Se servono **dati** (dump DB, cartelle `media/`, `GESPER_DATA_ROOT`), usare backup/rsync dedicati — **non** si assume che `rsync` del progetto copi `db.sqlite3` o `media/` (sono esclusi dallo script).
+
+**Deploy “completo” vs “solo codice”:** nel repo, *completo* significa: test (opzionale) + trasferimento codice + dipendenze + migrazioni + static + riavvio servizio. *Allineamento dati* (produzione ↔ locale) è un **processo separato** (export/import DB, sync `media`, cutover come in §0.2) e va pianificato quando serve, non ad ogni commit.
 
 <a id="sec-ruoli"></a>
 ## 1. Ruoli

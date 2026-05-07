@@ -63,6 +63,67 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
         self.assertEqual(cont['descrizione'], 'Contingenza + EDR')
         self.assertEqual(cont['importo'], (r['contingenza'] + r['edr']).quantize(Decimal('0.01')))
 
+    def test_forza_paga_oraria_sovrascrive_importo_ordinario(self):
+        cp = _parametro_ccnl_test()
+        rof = Decimal('20.0000')
+        ore = Decimal('10')
+        r = calcola_busta_paga_mese(
+            parametro_ccnl=cp,
+            tipo_contratto=None,
+            anno=2026,
+            mese=1,
+            divisore_str='172',
+            mensilita_contrattuale_piena=True,
+            superminimo=Decimal('0'),
+            scatto_anzianita=Decimal('0'),
+            indennita_turno=Decimal('0'),
+            indennita_extra=Decimal('0'),
+            ccnl_obj=None,
+            modalita_ore_effettive=True,
+            ore_ordinarie_retribuite=ore,
+            auto_ore_domenicali_da_calendario=False,
+            forza_paga_oraria=rof,
+        )
+        self.assertEqual(r['paga_oraria'], rof)
+        self.assertEqual(r['imp_ordinario_ore'], (ore * rof).quantize(Decimal('0.01')))
+
+    def test_forza_addizionali_sostituiscono_mensilita_e_netto(self):
+        cp = _parametro_ccnl_test()
+        r0 = calcola_busta_paga_mese(
+            parametro_ccnl=cp,
+            tipo_contratto=None,
+            anno=2026,
+            mese=1,
+            divisore_str='172',
+            mensilita_contrattuale_piena=True,
+            superminimo=Decimal('0'),
+            scatto_anzianita=Decimal('0'),
+            indennita_turno=Decimal('0'),
+            indennita_extra=Decimal('0'),
+            ccnl_obj=None,
+        )
+        r1 = calcola_busta_paga_mese(
+            parametro_ccnl=cp,
+            tipo_contratto=None,
+            anno=2026,
+            mese=1,
+            divisore_str='172',
+            mensilita_contrattuale_piena=True,
+            superminimo=Decimal('0'),
+            scatto_anzianita=Decimal('0'),
+            indennita_turno=Decimal('0'),
+            indennita_extra=Decimal('0'),
+            ccnl_obj=None,
+            forza_add_reg_m=Decimal('10.00'),
+            forza_add_com_m=Decimal('5.00'),
+        )
+        self.assertEqual(r1['add_reg_m'], Decimal('10.00'))
+        self.assertEqual(r1['add_com_m'], Decimal('5.00'))
+        self.assertEqual(
+            r1['netto_totale'],
+            (r0['netto_totale'] - r1['add_reg_m'] - r1['add_com_m']).quantize(Decimal('0.01')),
+        )
+
     def test_fipe_non_include_edr_in_busta(self):
         """FIPE: EDR non è voce di cedolino — il motore azzera ``edr_mensile`` anche se valorizzato in tabella."""
         cp = _parametro_ccnl_test(ccnl='FIPE Pubblici Esercizi')
@@ -462,6 +523,36 @@ class MotorePagaRetribuzioneOrariaTests(TestCase):
         # 0,10 €/h × 172 h × coeff 1 × frazione 1
         self.assertEqual(by_cod['EL_DIS_SAN']['importo'], Decimal('17.20'))
         self.assertEqual(by_cod['EL_DIS_BIL']['importo'], Decimal('8.60'))
+
+
+class MotorePagaCompetenzeCedolinoTests(TestCase):
+    """Rubrica ``competenze_logica_v1`` allineata a ``lordo_mensile`` (niente doppio superminimo con ROEL)."""
+
+    def test_rubrica_no_riga_superminimo_se_gia_in_roel_ordinario(self):
+        from .motore_paga_roel import costruisci_competenze_logica_v1
+
+        cp = _parametro_ccnl_test()
+        r = calcola_busta_paga_mese(
+            parametro_ccnl=cp,
+            tipo_contratto=None,
+            anno=2026,
+            mese=3,
+            divisore_str='172',
+            mensilita_contrattuale_piena=True,
+            superminimo=Decimal('100.00'),
+            scatto_anzianita=Decimal('0'),
+            indennita_turno=Decimal('0'),
+            indennita_extra=Decimal('0'),
+            ccnl_obj=None,
+        )
+        self.assertGreater(Decimal(str(r.get('superminimo') or 0)), Decimal('0'))
+        rub = costruisci_competenze_logica_v1(r)
+        self.assertFalse(
+            any((x.get('descrizione') or '').strip() == 'Superminimo' for x in rub),
+            'Con gg ord. × h/gg × ROEL il superminimo è nella ROEL, non in riga duplicata',
+        )
+        sigma = next(x for x in rub if x.get('cod') == 'Σ')
+        self.assertEqual(sigma['competenze'], r['lordo_mensile'])
 
 
 class MotorePagaDetrazioniCedolinoTests(TestCase):
@@ -906,6 +997,44 @@ class BustaPagaLayoutCanonicoTests(TestCase):
         out_f = costruisci_riepilogo_simulatore_da_risultato(r_feb)
         self.assertEqual(out_f['ore_griglia_giorni'][28]['valore'], '·')
         self.assertEqual(out_f['ore_griglia_giorni'][28]['giorno'], 29)
+
+    def test_riepilogo_inail_usa_ore_posizione_inps_non_ore_mensili(self):
+        from .busta_paga_layout_canonico import costruisci_riepilogo_simulatore_da_risultato
+
+        r = {
+            'anno': 2026,
+            'mese_nome': 'Febbraio',
+            'nome_test': 'Ore posizione',
+            'coeff_ore': Decimal('0.6'),
+            'ore_mensili': Decimal('103.20'),
+            'ore_posizione_inps': Decimal('96.00'),
+            'cal_giorni_lavorativi': 24,
+            'giorni_lavorati': 24,
+            'lordo_imponibile_inps_m': Decimal('1335.47'),
+            'lordo_mensile': Decimal('1335.47'),
+            'lordo_con_1314': Decimal('1335.47'),
+            'inps_dip': Decimal('125'),
+            'tot_contrib_dip': Decimal('125'),
+            'imponibile_m': Decimal('1210.47'),
+            'irpef_lorda': Decimal('278.41'),
+            'detrazioni': Decimal('162.92'),
+            'irpef_netta': Decimal('115.49'),
+            'add_reg_m': Decimal('20.23'),
+            'add_com_m': Decimal('11.27'),
+            'netto_totale': Decimal('1100'),
+            'rat13_n': Decimal('0'),
+            'rat14_n': Decimal('0'),
+            'rat13_m': Decimal('0'),
+            'rat14_m': Decimal('0'),
+            'netto_mensile_con_1314': Decimal('1100'),
+            'competenze_logica_v1': [],
+            'voci': [],
+            'cal_griglia': [],
+        }
+        out = costruisci_riepilogo_simulatore_da_risultato(r)
+        self.assertEqual(out['inail_valori']['ore_inps'], '96.00')
+        self.assertEqual(out['inail_valori']['ore_inail'], '96.00')
+        self.assertEqual(out['inail_valori']['giorni_inps'], '24')
 
     def test_intestazione_voci_tabellari_in_euro_ora_con_divisore_orario(self):
         from .busta_paga_layout_canonico import costruisci_riepilogo_simulatore_da_risultato

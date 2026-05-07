@@ -3,7 +3,12 @@ Riconciliazione cedolino (CedolinoMotoreV4 + voci) vs motore busta paga canonico
 (:func:`rapporto_di_lavoro.services_simulazione.invoca_calcola_busta_paga_mese`).
 
 Usa ``MappaturaVoceMotore`` (codice_voce + etichetta_riconciliazione) per aggregare
-le righe cedolino TeamSystem sulle stesse chiavi del motore.
+le righe cedolino sulle stesse chiavi del motore.
+
+I cedolini TeamSystem usano spesso **codici riga numerici** (es. ``8001``, ``8010``,
+``9824``) mentre il motore espone **codici simbolici** (``MINIMO_TABELLARE``,
+``MAGG_DOM_FEST``, …). Per il confronto admin si applicano alias noti sui codici TS
+quando non esiste una riga in ``MappaturaVoceMotore`` con lo stesso ``codice_voce``.
 """
 
 from __future__ import annotations
@@ -17,12 +22,47 @@ from typing import Any
 
 from django.utils.safestring import mark_safe
 
-from documenti.cedolini_tolleranze import TOLLERANZA_CONFRONTO_EURO, TOLLERANZA_FORMULE_EURO
+from documenti.cedolini_tolleranze import (
+    TOLLERANZA_CONFRONTO_EURO,
+    TOLLERANZA_FORMULE_EURO,
+    TOLLERANZA_IMPONIBILE_VOCI_VS_PDF,
+)
 from documenti.models import CedolinoMotoreV4, VoceCedolinoMotoreV4
 
 logger = logging.getLogger(__name__)
 
 Q2 = Decimal("0.01")
+
+# Chiavi sintetiche confronto (cedolino TS → grandezze motore non presenti in ``voci_classificate``)
+_CED_TS8001_COMPOSITO = "CED_TS8001_COMPOSITO"
+_CED_ADDIZ_REGIONALE = "CED_ADDIZ_REGIONALE"
+_CED_ADDIZ_COMUNALE = "CED_ADDIZ_COMUNALE"
+_CED_TRATTENUTE_EXTRA = "CED_TRATTENUTE_EXTRA"
+
+# Somma voci motore che in busta TeamSystem compaiono tipicamente nella riga «8001 Lavoro ordinario».
+_CODICI_MOTORE_COMPOSITO_TS8001 = (
+    "MINIMO_TABELLARE",
+    "CONTINGENZA",
+    "SUPERMINIMO",
+    "SCATTO_ANZIANITA",
+    "IND_FUNZIONE",
+    "EL_DIS_SAN",
+    "EL_DIS_BIL",
+    "IND_TURNO",
+)
+
+# Codice riga cedolino (numerico TeamSystem o equivalente) → codice voce motore / bucket confronto
+_CODICE_TS_A_BUCKET: dict[str, str] = {
+    "8010": "MAGG_DOM_FEST",
+    "8011": "MAGG_DOM_FEST",
+    "9824": "BONUS_L207_2024",
+    "9825": "BONUS_L207_2024",
+    "8001": _CED_TS8001_COMPOSITO,
+    "1800": _CED_ADDIZ_REGIONALE,
+    "1802": _CED_ADDIZ_COMUNALE,
+    "9250": _CED_TRATTENUTE_EXTRA,
+    "9251": _CED_TRATTENUTE_EXTRA,
+}
 
 
 def _d(v) -> Decimal:
@@ -66,6 +106,10 @@ def _codice_motore_per_voce_cedolino(
         cv = (m.codice_voce or "").strip()
         if cv and cod_u == cv.upper():
             return cv
+    # Alias codici riga TeamSystem / paghe → chiavi motore (dopo match esplicito su Mappatura)
+    ts_bucket = _CODICE_TS_A_BUCKET.get(cod.strip())
+    if ts_bucket:
+        return ts_bucket
     desc_l = (voce.descrizione or "").strip().lower()
     for m in mappature:
         eti = (m.etichetta_riconciliazione or "").strip()
@@ -79,6 +123,160 @@ def _codice_motore_per_voce_cedolino(
     return None
 
 
+def allinea_kwargs_calcolo_a_dati_cedolino_v4(
+    v4: CedolinoMotoreV4,
+    kwargs_calcolo: dict[str, Any],
+    *,
+    voci_prefetched: list[VoceCedolinoMotoreV4] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """
+    Copia ``kwargs_calcolo`` del motore busta paga e lo avvicina ai numeri già presenti sul cedolino v4.
+
+    Obiettivo: stessa ROF/orario di busta, trattenute non presenti sul ruolo, stima L207 coerente con
+    la riga cedolino, trattenute addizionali da righe 1800/1802 (o campi ``addiz_*`` su ``v4`` se valorizzati),
+    forzando nel motore ``forza_add_reg_m`` / ``forza_add_com_m`` (con adeguamento del netto erogato).
+
+    Restituisce ``(kwargs_allineati, meta_pannello)`` — ``meta_pannello`` è solo informativa (chiavi applicate).
+    """
+    kw = dict(kwargs_calcolo)
+    meta: dict[str, Any] = {"attivo": False, "chiavi": []}
+
+    rof = getattr(v4, "retr_oraria_att", None) or getattr(v4, "retrib_di_fatto", None)
+    try:
+        rof_d = Decimal(str(rof)) if rof is not None else Decimal("0")
+    except Exception:
+        rof_d = Decimal("0")
+
+    voci = voci_prefetched
+    if voci is None and v4.pk:
+        voci = list(
+            VoceCedolinoMotoreV4.objects.filter(cedolino=v4).only(
+                "codice", "tipo", "importo", "descrizione"
+            )
+        )
+    elif voci is None:
+        voci = []
+
+    if rof_d > 0:
+        kw["forza_paga_oraria"] = rof_d.quantize(Q2)
+        kw["superminimo"] = Decimal("0")
+        meta["attivo"] = True
+        meta["chiavi"].append("forza_paga_oraria")
+        meta["chiavi"].append("superminimo_a_zero_con_rof_cedolino")
+
+    imp8001 = Decimal("0")
+    imp8010 = Decimal("0")
+    for voce in voci:
+        c = (voce.codice or "").strip()
+        if c == "8001" and (voce.tipo or "").upper() == "COMPETENZA":
+            imp8001 = _d(voce.importo)
+        if c in ("8010", "8011") and (voce.tipo or "").upper() == "COMPETENZA":
+            imp8010 += _d(voce.importo)
+    if rof_d > 0 and imp8001 > 0:
+        ore_ord_ced = (imp8001 / rof_d).quantize(Q2)
+        if ore_ord_ced > 0:
+            kw["ore_ordinarie_retribuite"] = ore_ord_ced
+            kw["modalita_ore_effettive"] = True
+            kw["auto_ore_domenicali_da_calendario"] = False
+            meta["attivo"] = True
+            meta["chiavi"].append("ore_ordinarie_retribuite_da_ced8001_div_rof")
+    if rof_d > 0 and imp8010 > 0:
+        # Allineamento a riga «lavoro domenicale» con compenso completo (1 + magg. domenicale 15 %).
+        magg_dom = Decimal("0.15")
+        den = (rof_d * (Decimal("1") + magg_dom)).quantize(Q2)
+        if den > 0:
+            kw["ore_domenicali"] = (imp8010 / den).quantize(Q2)
+            meta["attivo"] = True
+            meta["chiavi"].append("ore_domenicali_da_ced801x_div_rof")
+
+    tratt_extra = Decimal("0")
+    for voce in voci:
+        cod = (voce.codice or "").strip()
+        if cod in ("9250", "9251") and (voce.tipo or "").upper() == "TRATTENUTA":
+            tratt_extra += _d(voce.importo)
+    if tratt_extra > 0:
+        prev = _d(kw.get("trattenute_extra_mese"))
+        if tratt_extra != prev:
+            kw["trattenute_extra_mese"] = tratt_extra.quantize(Q2)
+            meta["attivo"] = True
+            meta["chiavi"].append("trattenute_extra_da_voci_925x")
+
+    imp_ced = getattr(v4, "imp_irpef_mese", None)
+    l207_imp = Decimal("0")
+    for voce in voci:
+        if (voce.codice or "").strip() in ("9824", "9825"):
+            l207_imp += _d(voce.importo)
+    try:
+        imp_ced_d = Decimal(str(imp_ced)) if imp_ced is not None else Decimal("0")
+    except Exception:
+        imp_ced_d = Decimal("0")
+    if l207_imp > 0 and imp_ced_d > 0:
+        pct = (l207_imp / imp_ced_d).quantize(Decimal("0.000001"))
+        kw["fiscale_modalita_cedolino"] = True
+        kw["l207_come_detrazione_irpef"] = True
+        kw["l207_percentuale_imponibile"] = pct
+        meta["attivo"] = True
+        meta["chiavi"].append("l207_percentuale_da_riga_cedolino")
+
+    add_reg_ced = Decimal("0")
+    add_com_ced = Decimal("0")
+    for voce in voci:
+        cod = (voce.codice or "").strip()
+        if (voce.tipo or "").upper() != "TRATTENUTA":
+            continue
+        if cod == "1800":
+            add_reg_ced += _d(voce.importo)
+        elif cod == "1802":
+            add_com_ced += _d(voce.importo)
+    if add_reg_ced <= 0:
+        try:
+            v4_ar = getattr(v4, "addiz_regionale", None)
+            if v4_ar is not None and _d(v4_ar) > 0:
+                add_reg_ced = _d(v4_ar)
+        except Exception:
+            pass
+    if add_com_ced <= 0:
+        try:
+            v4_ac = getattr(v4, "addiz_comunale", None)
+            if v4_ac is not None and _d(v4_ac) > 0:
+                add_com_ced = _d(v4_ac)
+        except Exception:
+            pass
+    if add_reg_ced > 0:
+        kw["forza_add_reg_m"] = add_reg_ced.quantize(Q2)
+        meta["attivo"] = True
+        meta["chiavi"].append("forza_add_reg_da_cedolino")
+    if add_com_ced > 0:
+        kw["forza_add_com_m"] = add_com_ced.quantize(Q2)
+        meta["attivo"] = True
+        meta["chiavi"].append("forza_add_com_da_cedolino")
+
+    return kw, meta
+
+
+def _kwargs_residenza_motore_da_dipendente(dip) -> dict[str, str]:
+    """Comune/provincia/regione per addizionali IRPEF (stesso ordine usato da ``calcola_busta_paga_mese``)."""
+    if getattr(dip, "domicilio_uguale_residenza", True):
+        comune = (getattr(dip, "citta", None) or "").strip()
+        prov = (getattr(dip, "provincia", None) or "").strip()
+        regione = (getattr(dip, "regione_residenza", None) or "").strip()
+    else:
+        comune = (getattr(dip, "domicilio_comune", None) or "").strip()
+        prov = (getattr(dip, "domicilio_provincia", None) or "").strip()
+        regione = (getattr(dip, "domicilio_regione", None) or "").strip()
+    if not regione:
+        regione = "Sicilia"
+    if not comune:
+        comune = "Palermo"
+    if not prov:
+        prov = "PA"
+    return {
+        "regione_residenza": regione,
+        "comune_residenza": comune,
+        "provincia_residenza": prov[:2],
+    }
+
+
 def risolvi_contesto_calcolo_motore_paga(
     v4: CedolinoMotoreV4,
     *,
@@ -89,7 +287,8 @@ def risolvi_contesto_calcolo_motore_paga(
     Prepara kwargs per ``invoca_calcola_busta_paga_mese`` da dipendente + periodo cedolino v4.
 
     Allineamento a ``presenze.views._build_rows_scostamento_fiscale`` dove possibile
-    (ruolo organico, calendario mensile, scatti tabellari).
+    (ruolo organico, calendario mensile, scatti tabellari). Passa anche comune/provincia/regione da
+    anagrafica dipendente (residenza o domicilio se diverso) per le addizionali IRPEF del motore.
     """
     from anagrafiche.models import Dipendente
 
@@ -221,6 +420,7 @@ def risolvi_contesto_calcolo_motore_paga(
 
     divisore_str = divisore_str_da_parametro_get(divisore_raw)
     fiscal_kw = kwargs_percorso_fiscale_sim(percorso_fiscale)
+    residenza_kw = _kwargs_residenza_motore_da_dipendente(dip)
 
     kwargs_calcolo = {
         "parametro_ccnl": parametro,
@@ -259,6 +459,7 @@ def risolvi_contesto_calcolo_motore_paga(
         "rateo_14_mensile_in_imponibile": bool(
             rapporto is not None and getattr(rapporto, "quattordicesima_rateo_mensile_in_imponibile", False)
         ),
+        **residenza_kw,
         **fiscal_kw,
     }
 
@@ -279,6 +480,7 @@ def confronto_cedolino_motore_paga(
     *,
     divisore_raw: str | None = None,
     percorso_fiscale: str | None = "ced_l207_det",
+    allinea_input_a_cedolino: bool = True,
 ) -> dict[str, Any]:
     """
     Esegue il motore paga e confronta voci (via mappatura) e totali lordo/netto con ``v4``.
@@ -286,6 +488,11 @@ def confronto_cedolino_motore_paga(
     Returns:
         ``{'ok': bool, 'errore': str|None, ...}`` con chiavi ``righe_voci``, ``voci_non_mappate``,
         ``totali``, ``meta`` se ok.
+
+    Con ``allinea_input_a_cedolino=True`` (default), i kwargs del motore busta paga vengono avvicinati
+    ai dati estratti sul cedolino v4 (ROF, ore da 8001/801x, trattenute 925x, addiz. 1800/1802, quota L207
+    da 9824). La riga TI del motore non viene mostrata se il cedolino non ha voce omologa (TI spesso solo
+    a credito / in detrazioni in TS).
     """
     ctx = risolvi_contesto_calcolo_motore_paga(
         v4,
@@ -297,10 +504,25 @@ def confronto_cedolino_motore_paga(
 
     from rapporto_di_lavoro.services_simulazione import invoca_calcola_busta_paga_mese
 
+    voci_qs_list = (
+        list(VoceCedolinoMotoreV4.objects.filter(cedolino=v4))
+        if v4.pk
+        else []
+    )
+    if allinea_input_a_cedolino:
+        kwargs_motore, meta_allinea = allinea_kwargs_calcolo_a_dati_cedolino_v4(
+            v4,
+            ctx["kwargs_calcolo"],
+            voci_prefetched=voci_qs_list,
+        )
+    else:
+        kwargs_motore = dict(ctx["kwargs_calcolo"])
+        meta_allinea = {"attivo": False, "chiavi": []}
+
     try:
         sim = invoca_calcola_busta_paga_mese(
             log_prefix="ADMIN_CEDOLINO_V4_MOTORE_PAGA",
-            **ctx["kwargs_calcolo"],
+            **kwargs_motore,
         )
     except Exception:
         logger.exception(
@@ -316,12 +538,7 @@ def confronto_cedolino_motore_paga(
     ced_by_motor: dict[str, Decimal] = defaultdict(lambda: Decimal("0.00"))
     non_mappate: list[dict[str, Any]] = []
 
-    voci_qs = (
-        VoceCedolinoMotoreV4.objects.filter(cedolino=v4)
-        if v4.pk
-        else VoceCedolinoMotoreV4.objects.none()
-    )
-    for voce in voci_qs:
+    for voce in voci_qs_list:
         mc = _codice_motore_per_voce_cedolino(voce, mappature)
         imp = _d(voce.importo)
         if mc:
@@ -345,6 +562,33 @@ def confronto_cedolino_motore_paga(
         mot_map[c] = _d(row.get("importo"))
         descr_mot[c] = str(row.get("descrizione") or "")
 
+    # Riga TS 8001: competenza unica in cedolino vs ordinario a ore o somma tabellare nel motore
+    if ced_by_motor.get(_CED_TS8001_COMPOSITO):
+        imp_o = _d(sim.get("imp_ordinario_ore") or 0)
+        ore_o = _d(sim.get("ore_ordinarie_retribuite") or 0)
+        if sim.get("modalita_ore_effettive") and ore_o > 0 and imp_o > 0:
+            mot_map[_CED_TS8001_COMPOSITO] = imp_o
+            descr_mot[_CED_TS8001_COMPOSITO] = "Importo ordinario (ore × ROF; ced. 8001)"
+        else:
+            somma = sum((mot_map.get(c) or Decimal("0")) for c in _CODICI_MOTORE_COMPOSITO_TS8001).quantize(Q2)
+            mot_map[_CED_TS8001_COMPOSITO] = somma
+            descr_mot[_CED_TS8001_COMPOSITO] = "Somma voci tabellari motore (ced. 8001 ordinario)"
+        for c in _CODICI_MOTORE_COMPOSITO_TS8001:
+            mot_map.pop(c, None)
+            descr_mot.pop(c, None)
+
+    if ced_by_motor.get(_CED_ADDIZ_REGIONALE):
+        mot_map[_CED_ADDIZ_REGIONALE] = _d(sim.get("add_reg_m"))
+        descr_mot[_CED_ADDIZ_REGIONALE] = "Addizionale regionale IRPEF (mese, motore)"
+
+    if ced_by_motor.get(_CED_ADDIZ_COMUNALE):
+        mot_map[_CED_ADDIZ_COMUNALE] = _d(sim.get("add_com_m"))
+        descr_mot[_CED_ADDIZ_COMUNALE] = "Addizionale comunale IRPEF (mese, motore)"
+
+    if ced_by_motor.get(_CED_TRATTENUTE_EXTRA):
+        mot_map[_CED_TRATTENUTE_EXTRA] = _d(sim.get("trattenute_extra_mese"))
+        descr_mot[_CED_TRATTENUTE_EXTRA] = "Trattenute extra mese (motore; es. pignoramento da ruolo organico)"
+
     tutti_codici = sorted(set(mot_map.keys()) | set(ced_by_motor.keys()))
     righe_voci: list[dict[str, Any]] = []
     for cod in tutti_codici:
@@ -365,6 +609,16 @@ def confronto_cedolino_motore_paga(
             }
         )
 
+    # Il TI spesso non compare come competenza numerata in TS: nascondi la riga se il cedolino non ha voce.
+    righe_voci = [
+        r
+        for r in righe_voci
+        if not (
+            r.get("codice_motore") == "TI_DL3_2020"
+            and _d(r.get("importo_cedolino")) == Decimal("0")
+        )
+    ]
+
     lordo_m = _d(sim.get("lordo_mensile"))
     netto_m = _d(sim.get("netto_totale"))
     lordo_c = _d(v4.totale_lordo)
@@ -380,6 +634,7 @@ def confronto_cedolino_motore_paga(
             "rapporto_id": ctx.get("rapporto_id"),
             "ruolo_organico_id": ctx.get("ruolo_organico_id"),
             "livello_eff": ctx.get("livello_eff"),
+            "allineamento_input_cedolino_v4": meta_allinea,
         },
         "righe_voci": righe_voci,
         "voci_non_mappate": non_mappate,
@@ -387,7 +642,7 @@ def confronto_cedolino_motore_paga(
             "lordo_motore": lordo_m,
             "lordo_cedolino": lordo_c,
             "lordo_delta": (lordo_m - lordo_c).quantize(Q2),
-            "lordo_ok": abs(lordo_m - lordo_c) <= TOLLERANZA_FORMULE_EURO,
+            "lordo_ok": abs(lordo_m - lordo_c) <= TOLLERANZA_IMPONIBILE_VOCI_VS_PDF,
             "netto_motore": netto_m,
             "netto_cedolino": netto_c,
             "netto_delta": (netto_m - netto_c).quantize(Q2),
@@ -407,12 +662,19 @@ def render_confronto_motore_paga_html(data: dict[str, Any]) -> str:
     righe = data.get("righe_voci") or []
     nm = data.get("voci_non_mappate") or []
 
+    al = meta.get("allineamento_input_cedolino_v4") or {}
     meta_bits = [
         f"CCNL: <code>{escape(str(meta.get('fonte_parametro_ccnl', '—')))}</code>",
         f"divisore <code>{escape(str(meta.get('divisore_str', '—')))}</code>",
         f"fiscale <code>{escape(str(meta.get('percorso_fiscale', '—')))}</code>",
         f"livello <code>{escape(str(meta.get('livello_eff', '—')))}</code>",
     ]
+    if isinstance(al, dict) and al.get("attivo") and al.get("chiavi"):
+        meta_bits.append(
+            "allinea input cedolino: <code>"
+            + escape(", ".join(str(x) for x in al["chiavi"]))
+            + "</code>"
+        )
     head = "<p class='help'>" + " · ".join(meta_bits) + "</p>"
 
     def row_t(ok: bool, cells: list[str]) -> str:

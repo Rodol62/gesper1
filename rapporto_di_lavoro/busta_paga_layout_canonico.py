@@ -145,9 +145,9 @@ INPS_RIGA: Final[Tuple[CampoLayout, ...]] = (
 IRPEF_RIGA: Final[Tuple[CampoLayout, ...]] = (
     CampoLayout("imponibile_irpef", "Imponibile IRPEF"),
     CampoLayout("irpef_lorda", "IRPEF lorda"),
-    CampoLayout("detrazioni", "Detrazioni"),
-    CampoLayout("totali_trattenute_irpef", "Totali trattenute IRPEF"),
-    CampoLayout("totali_trattenute", "Totali trattenute"),
+    CampoLayout("detrazioni", "Detrazioni (art. 13 + fam. stima)"),
+    CampoLayout("totali_trattenute_irpef", "IRPEF netta (trattenuta)"),
+    CampoLayout("totali_trattenute", "Totale trattenute (INPS dip. + IRPEF netta + addiz.)"),
 )
 
 
@@ -504,10 +504,19 @@ def costruisci_riepilogo_simulatore_da_risultato(r: dict[str, Any]) -> dict[str,
     except (TypeError, ValueError):
         gg_lav = '—'
 
+    # Ore INPS/INAIL in busta: ore retributive del mese (Σ ordinario + domen/fest + straord), non ``ore_mensili``
+    # (mensilità contrattuale × coeff. part-time), che resta il riferimento TFR/divisore in ``ore_mensili``.
+    _ore_ps = _dget(r, 'ore_posizione_inps')
+    try:
+        _ore_ps_dec = Decimal(str(_ore_ps)) if _ore_ps is not None else Decimal('0')
+    except Exception:
+        _ore_ps_dec = Decimal('0')
+    _ore_inps_inail = _ore_ps if _ore_ps_dec > 0 else _dget(r, 'ore_mensili')
+
     val_inail = {
-        'ore_inps': _fmt_num(_dget(r, 'ore_mensili'), 2),
+        'ore_inps': _fmt_num(_ore_inps_inail, 2),
         'giorni_inps': str(gg_lav) if gg_lav != '—' else '—',
-        'ore_inail': _fmt_num(_dget(r, 'ore_mensili'), 2),
+        'ore_inail': _fmt_num(_ore_inps_inail, 2),
         'giorni_inail': str(gg_lav) if gg_lav != '—' else '—',
         'imponibile_inail': lordo_imp,
     }
