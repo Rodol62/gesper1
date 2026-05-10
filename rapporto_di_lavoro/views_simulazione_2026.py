@@ -1140,18 +1140,24 @@ def _calcola_simulazione_2026(request):
     tipi_contratto = TipoContratto.objects.filter(attivo=True).order_by('nome')
     tipi_contratto_by_id = {tc.id: tc for tc in tipi_contratto}
 
-    # Cache parametri CCNL per mese: usa la versione con la decorrenza più recente
-    # non superiore al primo giorno del mese (es. gen-mag 2026 → vers.2025-06,
-    # giu-dic 2026 → vers.2026-06).
-    # Struttura: { mese_num: QuerySet filtrato e ordinato }
-    _parametri_ccnl_per_mese: dict[int, object] = {}
+    # Cache parametri CCNL per mese: una query per mese, dict livello → riga più recente valida.
+    # Evita .filter(livello=...).first() nel ciclo ruolo×mese (centinaia di query ripetute).
+    _parametri_ccnl_per_mese: dict[int, dict[str, ParametroCCNLTurismo]] = {}
     for _m in range(1, 13):
         _data_mese = date(anno, _m, 1)
-        _parametri_ccnl_per_mese[_m] = (
-            ParametroCCNLTurismo.objects
-            .filter(attivo=True, decorrenza_validita_da__lte=_data_mese)
-            .order_by('livello', '-decorrenza_validita_da')
+        _rows_m = list(
+            ParametroCCNLTurismo.objects.filter(
+                attivo=True,
+                decorrenza_validita_da__lte=_data_mese,
+            ).order_by('livello', '-decorrenza_validita_da')
         )
+        _by_lv: dict[str, ParametroCCNLTurismo] = {}
+        for _p in _rows_m:
+            _lv = (_p.livello or '').strip()
+            if not _lv or _lv in _by_lv:
+                continue
+            _by_lv[_lv] = _p
+        _parametri_ccnl_per_mese[_m] = _by_lv
 
     # Manteniamo anche il queryset "generico" per il form config e per il template
     parametri_ccnl = ParametroCCNLTurismo.objects.filter(attivo=True).order_by('livello', 'qualifica')
@@ -1389,9 +1395,10 @@ def _calcola_simulazione_2026(request):
                 data_primo_giorno_mese=date(anno, mese_num, 1),
                 livello_fallback=str(livello_da_ruolo or ''),
             )
-            parametro = parametro_ccnl_res or _parametri_ccnl_per_mese[mese_num].filter(
-                livello=livello_effettivo
-            ).first()
+            _lv_key = (livello_effettivo or '').strip()
+            parametro = parametro_ccnl_res or (
+                _parametri_ccnl_per_mese[mese_num].get(_lv_key) if _lv_key else None
+            )
             if not parametro:
                 righe_ruoli.append({
                     'ruolo_id': ruolo['id'],
