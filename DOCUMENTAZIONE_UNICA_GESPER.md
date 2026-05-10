@@ -135,7 +135,7 @@ Prima di introdurre nuovi calcoli retributivi o «shortcut», verificare che non
 - Uso di `rapporto_di_lavoro/utils_calcoli.py` (`calcola_completo` e simili) **al posto** della busta mensile completa per simulazioni ufficiali o conciliazione (sono mattoni/stime; vedi `motori_canonici.py`).
 
 **Tenant / azienda operativa**  
-- Standard: `accounts.tenant.get_azienda_operativa`. La simulazione 2026 usa helper locali con try/except sui ruoli per robustezza admin: valutare in futuro unificazione **solo** se non introduce regressioni su sessioni corrotte.
+- Standard: `accounts.tenant.get_azienda_operativa(user, session)` — priorità `session['azienda_id']`, poi chiave legacy `session['azienda_operativa_id']`, infine `user.azienda`. Simulazione annua 2026 e calendario aziendale delegano a questa funzione (`views_simulazione_2026`, `views_calendario`).
 
 **Prossimi passi operativi**  
 1. Per ogni feature retributiva: tracciare flusso dati fino a una riga della tabella sopra.  

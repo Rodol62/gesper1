@@ -12,6 +12,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from accounts.formatting import euro_it_str
+from accounts.tenant import get_azienda_operativa
 from anagrafiche.models import Azienda
 from .models import (
     CCNL,
@@ -107,19 +108,12 @@ def _get_sim_params(request):
 
 
 def _get_azienda_operativa_per_utente(user, session):
-    """Azienda da sessione (admin) o da profilo utente; ``has_ruolo`` in try per evitare 500 su DB."""
-    is_admin_like = bool(getattr(user, 'is_superuser', False))
-    if not is_admin_like:
-        try:
-            is_admin_like = user.has_ruolo('admin')
-        except Exception:
-            logger.exception('_get_azienda_operativa_per_utente: errore verifica ruolo admin')
-            is_admin_like = False
-    if is_admin_like:
-        azienda_id = session.get('azienda_operativa_id')
-        if azienda_id:
-            return Azienda.objects.filter(id=azienda_id).first()
-    return user.azienda if hasattr(user, 'azienda') else None
+    """Delega a ``accounts.tenant.get_azienda_operativa`` (session ``azienda_id``, legacy ``azienda_operativa_id``, poi ``user.azienda``)."""
+    try:
+        return get_azienda_operativa(user, session)
+    except Exception:
+        logger.exception('_get_azienda_operativa_per_utente: get_azienda_operativa')
+        return user.azienda if hasattr(user, 'azienda') else None
 
 
 def _get_azienda_con_fallback(user, session):

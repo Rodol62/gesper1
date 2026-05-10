@@ -15,7 +15,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from anagrafiche.models import Azienda
+from accounts.tenant import get_azienda_operativa
 from .models import CalendarioLavoroMensile, ChiusuraAziendale, FestivitaCalendario
 from .utils_calendario import (
     build_griglia_mese,
@@ -40,11 +40,8 @@ def _is_admin(user):
 
 
 def _get_azienda(user, session):
-    if user.is_superuser or getattr(user, 'ruolo', '') == 'admin':
-        aid = session.get('azienda_operativa_id')
-        if aid:
-            return Azienda.objects.filter(id=aid).first()
-    return getattr(user, 'azienda', None)
+    """Azienda operativa: stessa logica del resto dell'app (``get_azienda_operativa``)."""
+    return get_azienda_operativa(user, session)
 
 
 @login_required

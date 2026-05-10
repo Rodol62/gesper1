@@ -24,7 +24,7 @@ Entry paga: rapporto_di_lavoro.utils_motore_paga.calcola_busta_paga_mese. Presen
 Simulazione annua (UI): /rapporti/simulazione-annua/ — codice principale rapporto_di_lavoro/views_simulazione_2026.py; mantenere alias legacy in rapporto_di_lavoro/urls.py. Candidato: /candidato/ (accounts.urls_candidato). Export Excel simulazione: openpyxl, foglio SIMULAZIONE ANNUA, pattern file Simulazione_annua_{year}_*.xlsx.
 
 ## Auth, ruoli, tenant
-User estende AbstractUser; Ruoli M2M; user.has_ruolo('admin'|'hr'|'dipendente'|'candidato'|'consulente'). Azienda operativa: accounts.tenant.get_azienda_operativa(user, session) — priorità session['azienda_id'], fallback user.azienda. Workflow PropostaAssunzione: bozza→inviata_candidato→firmata_candidato→contratto_attivo (+ rifiuti); passi chiave firma_proposta_candidato, firma_definitiva_admin.
+User estende AbstractUser; Ruoli M2M; user.has_ruolo('admin'|'hr'|'dipendente'|'candidato'|'consulente'). Azienda operativa: accounts.tenant.get_azienda_operativa(user, session) — priorità session['azienda_id'], poi legacy session['azienda_operativa_id'], fallback user.azienda. Workflow PropostaAssunzione: bozza→inviata_candidato→firmata_candidato→contratto_attivo (+ rifiuti); passi chiave firma_proposta_candidato, firma_definitiva_admin.
 
 ## costo_lavoro / workflow / notifiche
 costo_lavoro opzionale (import con try/guard). workflow: signals inizializza_workflow_richiesta su Richiesta inviata. notifiche_email: MVP DB (no Celery attivo).
