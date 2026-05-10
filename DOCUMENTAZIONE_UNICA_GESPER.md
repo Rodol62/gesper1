@@ -106,6 +106,42 @@ GESPER è un gestionale HR multi-azienda basato su Django, con focus su:
   NON include straordinari, maggiorazioni variabili.
 - **TFR**: base = `lordo_mensile` (tutti gli elementi retributivi ordinari, art. 2120 c.c.).
 
+### 4.7 Controllo preliminare anti-duplicazione (flussi logici)
+
+Prima di introdurre nuovi calcoli retributivi o «shortcut», verificare che non duplichino ciò che è già centralizzato.
+
+**Motore busta (unica implementazione numerica)**  
+- Implementazione: `rapporto_di_lavoro/utils_motore_paga.py` → `calcola_busta_paga_mese`.  
+- Chiamata con log e gestione errori: `rapporto_di_lavoro/services_simulazione.py` → `invoca_calcola_busta_paga_mese` (preferita in UI, presenze, conciliazione cedolino, simulazione proposta/2026 dove già usata).  
+- Riferimento narrativo vincolante: `rapporto_di_lavoro/motori_canonici.py` (motore busta vs motore cedolino PDF, cosa **non** usare come sostituto).
+
+**Punti di ingresso noti al motore (nessun secondo motore parallelo)**  
+| Contesto | File / nota |
+| --- | --- |
+| Simulazione annua 2026 | `views_simulazione_2026.py` → `invoca_calcola_busta_paga_mese` nel ciclo ruoli×mesi; il resto del file orchestra totali/F24 (non ricalcola IRPEF fuori dal motore). |
+| Simulatore paga | `views_simulatore.py` → `calcola_busta_paga_mese` |
+| Proposte / contratti HR | `rapporto_di_lavoro/views.py` (punti che invocano il motore), `views_simulazione_proposta.py` → `invoca_*` |
+| Presenze / confronto cedolino | `presenze/views.py` → `invoca_*` o passaggio kwargs al motore |
+| Dashboard candidato | `accounts/views_candidato.py` → `calcola_busta_paga_mese` |
+| Conciliazione cedolino v4 | `documenti/cedolino_conciliazione_motore_paga.py` → `invoca_*` |
+| Admin / test | `rapporto_di_lavoro/admin.py` |
+
+**Risoluzione parametro CCNL per mese (contratto → addendum → tabella)**  
+- Implementazione unica: `rapporto_di_lavoro/risoluzione_contratto_motore.py` → `risolvi_parametro_ccnl_per_mese`.  
+- Chiamate attuali (da non moltiplicare con copie): `views_simulazione_2026.py`, `views_simulatore.py`, `presenze/views.py`, `cedolino_conciliazione_motore_paga.py`.
+
+**Cosa è duplicazione da evitare**  
+- Nuove funzioni che ricalcolano IRPEF, INPS, TFR o lordo «come il motore» senza delegare a `calcola_busta_paga_mese`.  
+- Uso di `rapporto_di_lavoro/utils_calcoli.py` (`calcola_completo` e simili) **al posto** della busta mensile completa per simulazioni ufficiali o conciliazione (sono mattoni/stime; vedi `motori_canonici.py`).
+
+**Tenant / azienda operativa**  
+- Standard: `accounts.tenant.get_azienda_operativa`. La simulazione 2026 usa helper locali con try/except sui ruoli per robustezza admin: valutare in futuro unificazione **solo** se non introduce regressioni su sessioni corrotte.
+
+**Prossimi passi operativi**  
+1. Per ogni feature retributiva: tracciare flusso dati fino a una riga della tabella sopra.  
+2. Se manca la riga, estendere il punto d’ingresso esistente invece di creare un nuovo calcolo.  
+3. Dopo modifiche al motore: smoke test su `rapporto_di_lavoro/tests.py` e, se tocca presenze/cedolino, percorsi indicati in `motori_canonici.py`.
+
 ## 5) Dati e parametri CCNL
 
 ### 5.0 Gerarchia vincolante: CCNL, contratto individuale, buste e decorrenze
