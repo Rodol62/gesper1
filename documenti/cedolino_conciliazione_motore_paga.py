@@ -9,6 +9,9 @@ I cedolini TeamSystem usano spesso **codici riga numerici** (es. ``8001``, ``801
 ``9824``) mentre il motore espone **codici simbolici** (``MINIMO_TABELLARE``,
 ``MAGG_DOM_FEST``, …). Per il confronto admin si applicano alias noti sui codici TS
 quando non esiste una riga in ``MappaturaVoceMotore`` con lo stesso ``codice_voce``.
+
+Parametri comuni consulente/azienda (contratti, presenze/ore classificate sul ruolo organico,
+parametri CCNL) e soglia calendario ruolo in conciliazione: vedi **DOCUMENTAZIONE_UNICA_GESPER.md §3.5**.
 """
 
 from __future__ import annotations

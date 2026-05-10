@@ -1,4 +1,4 @@
-# GESPER — regole Cursor (compatta). Dettaglio funzionale e audit flussi anti-duplicazione: DOCUMENTAZIONE_UNICA_GESPER.md (§4.7, §5.0)
+# GESPER — regole Cursor (compatta). Dettaglio funzionale, conciliazione busta consulente vs motore, audit duplicazioni: DOCUMENTAZIONE_UNICA_GESPER.md (§3.5, §4.7, §5.0)
 
 ## Stack
 Django 6.0.3, DRF 3.16.1, SimpleJWT 5.5.1, Python 3.12, SQLite, redis, openpyxl, pdfplumber, pypdf, reportlab, gunicorn, pyotp+qrcode. UI: template Django + JS/CSS vanilla.

@@ -54,6 +54,36 @@ GESPER è un gestionale HR multi-azienda basato su Django, con focus su:
   (si usano le ore reali registrate, non il calendario).
 - Il flusso di approvazione: `bozza → revisione → approvata → elaborata`.
 - Solo i riepiloghi in stato `bozza`/`revisione` possono essere ricalcolati.
+- Per confronto busta **consulente** vs motore su stesso mese (PDF acquisito): sezione **3.5**.
+
+### 3.5 Conciliazione: busta consulente vs calcolo mensile GESPER
+
+Obiettivo: confrontare la **busta paga acquisita** (PDF TeamSystem / consulente del lavoro), già estratta nel modello analitico `CedolinoMotoreV4` + `VoceCedolinoMotoreV4`, con il **risultato del motore busta** `calcola_busta_paga_mese` (via `invoca_calcola_busta_paga_mese`), usando gli **stessi dati di regola** che consulente e azienda dovrebbero condividere.
+
+**Dati comuni (input al confronto)**  
+1. **Contratto individuale** — `RapportoDiLavoro` attivo nel mese (`risoluzione_contratto_motore.rapporto_sottoscritto_attivo_nel_mese`): livello CCNL, tipo contratto/part-time, date inizio/fine, superminimo, premi, flag 13ª/14ª, residenza per addizionali.  
+2. **Parametri CCNL di categoria** — `ParametroCCNLTurismo` risolto per decorrenza (`risolvi_parametro_ccnl_per_mese`), più `CCNL` FIPE e tabelle contributi/ratei coerenti col motore.  
+3. **Ore e classificazioni lavorative** — Per il motore in conciliazione le ore del mese provengono dalla **griglia mensile sul ruolo organico** `RuoloOrganico2026.calendario_mensile` (chiavi ore come in simulazione: straordinari diurno/notturno/festivo, domenica, notturno+festivo, ordinarie retribuite, domenicali/festivi, assenze ingiustificate, trattenute/extra). Devono riflettere le **stesse classificazioni** (domenicale, festivo, straordinario, ecc.) usate dal consulente sul cedolino, entro i limiti del modello dati GESPER.  
+4. **Acquisizione PDF** — Pipeline unica descritta in `rapporto_di_lavoro/motori_canonici.py` (posizionale v4, fallback testo). Su `CedolinoMotoreV4` possono esserci **ROF** / retribuzione di fatto usate per avvicinare il motore ai numeri del PDF (`allinea_kwargs_calcolo_a_dati_cedolino_v4`).
+
+**Regole temporali (allineamento presenze ↔ consulente)**  
+- Dal **01/03/2026** inclusivo, se esiste ruolo organico con calendario per il mese, la griglia **entra sempre** nei kwargs del motore in conciliazione (`usa_calendario_ruolo_organico_in_conciliazione`).  
+- **Prima** di quella data: se il cedolino v4 ha **ROF** valorizzato, la griglia ruolo viene **omessa** (presenze non ancora allineate al consulente) e si usano ore/importi ricavati dal PDF; se manca ROF si **ripiega** sulla griglia ruolo per non azzerare le ore. Costante: `DATA_INIZIO_USO_CALENDARIO_RUOLO_CONCILIAZIONE` in `documenti/cedolino_conciliazione_motore_paga.py`.
+
+**Confronto voci**  
+- Aggregazione righe cedolino → chiavi motore tramite `MappaturaVoceMotore` e alias codici TeamSystem (es. 8001 composito, 8010/8020/8030 → maggiorazioni / straordinari, 9824 → bonus L207, addizionali 1800/1802…). Funzione centrale: `confronto_cedolino_motore_paga` nello stesso modulo.  
+- Tolleranze euro: `documenti/cedolini_tolleranze.py`.
+
+**Checklist operativa (controllo qualità)**  
+1. Verificare che il dipendente abbia **contratto sottoscritto** e **parametro CCNL** risolvibili per il mese della busta.  
+2. Allineare **RuoloOrganico2026** (quantità, livello, `calendario_mensile` del mese) ai dati trasmessi al consulente (ore per tipologia).  
+3. Dopo import PDF: controllare `CedolinoMotoreV4` (ROF, natura busta ORDINARIA) e righe v4; poi eseguire la **conciliazione** dall’interfaccia admin / documenti (stesso stack richiamato da `presenze` dove previsto).  
+4. In caso di scostamenti: prima allineare **dati comuni** (contratto, CCNL, ore classificate); solo dopo ipotizzare differenze di implementazione motore vs software consulente.
+
+**File di riferimento**  
+- `documenti/cedolino_conciliazione_motore_paga.py` — contesto kwargs, allineamento a v4, confronto.  
+- `documenti/cedolino_conciliazione_motore_v4.py` — controlli oggi vs v4 / preflight.  
+- `presenze/views.py` — scostamento fiscale / elenchi collegati alla riconciliazione dove applicabile.
 
 ## 4) Motore retributivo (linee guida)
 
@@ -123,7 +153,7 @@ Prima di introdurre nuovi calcoli retributivi o «shortcut», verificare che non
 | Proposte / contratti HR | `rapporto_di_lavoro/views.py` (punti che invocano il motore), `views_simulazione_proposta.py` → `invoca_*` |
 | Presenze / confronto cedolino | `presenze/views.py` → `invoca_*` o passaggio kwargs al motore |
 | Dashboard candidato | `accounts/views_candidato.py` → `calcola_busta_paga_mese` |
-| Conciliazione cedolino v4 | `documenti/cedolino_conciliazione_motore_paga.py` → `invoca_*` |
+| Conciliazione cedolino v4 | `documenti/cedolino_conciliazione_motore_paga.py` → `invoca_*` (flusso end-to-end §3.5) |
 | Admin / test | `rapporto_di_lavoro/admin.py` |
 
 **Risoluzione parametro CCNL per mese (contratto → addendum → tabella)**  
