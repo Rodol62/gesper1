@@ -15,6 +15,11 @@ Modificare migrations già applicate | toccare settings_production.py / settings
 ## Payroll (sintesi operativa)
 Entry paga: rapporto_di_lavoro.utils_motore_paga.calcola_busta_paga_mese. Presenze→motore: presenze.utils.aggrega_presenze_per_motore, kwargs da as_motore_kwargs(). Da presenze aggregate: auto_ore_domenicali_da_calendario=False, modalita_ore_effettive=True. Parametri DB: ccnl_obj (FIPE) + filtro data_riferimento. Divisori FIPE: ore 173 o cp.ore_mensili, giorni 26 — non introdurre alternative locali. Riferimento CCNL: ParametroCCNLTurismo (es. 2024-2026). Validare formule vs cedolini TeamSystem reali. INPS/IRPEF/TFR e decontribuzioni: decorrenze/scadenze.
 
+## Contratto / CCNL / buste (gerarchia vincolante)
+1) Quadro legale di categoria: il contratto collettivo nazionale (CCNL) fornisce tabelle, clausole e parametri tabellari (es. ParametroCCNLTurismo, maggiorazioni, ratei, livelli). È la base normativa del rapporto; non sostituirla con logiche «ad hoc» che contraddicono il CCNL.
+2) Buste e simulazioni: partono dai dati del contratto individuale (RapportoDiLavoro / proposta collegata), incrociano ore effettive (presenze, aggregati) rispetto a ore e regole contrattuali CCNL, applicano maggiorazioni da parametri CCNL e componenti retributive/bonus previsti dalla legge vigente nel periodo (es. trattamenti fiscali, detrazioni, voci normate).
+3) Variazioni nel tempo: livello, part-time %, importi e altre condizioni del singolo dipendente possono cambiare con decorrenza (promozioni, addendum, revisioni). Ogni calcolo deve rispettare la data di riferimento del mese/periodo (risoluzione parametro CCNL, addendum, contratto attivo) — nessuna ottimizzazione o refactor che salti la catena delle decorrenze o la priorità contratto→addendum→tabella CCNL (vedi risoluzione_contratto_motore, motore paga).
+
 ## URL e moduli noti
 Simulazione annua (UI): /rapporti/simulazione-annua/ — codice principale rapporto_di_lavoro/views_simulazione_2026.py; mantenere alias legacy in rapporto_di_lavoro/urls.py. Candidato: /candidato/ (accounts.urls_candidato). Export Excel simulazione: openpyxl, foglio SIMULAZIONE ANNUA, pattern file Simulazione_annua_{year}_*.xlsx.
 
