@@ -2,6 +2,7 @@
 Simulazione annua (organico e costo personale) — calcolo su scenario ruoli×quantità.
 Usa il motore canonico mensile ripetuto sul periodo (es. anno solare 2026).
 """
+import calendar
 import logging
 import json
 from decimal import Decimal
@@ -215,6 +216,18 @@ def _ruoli_precaricati_da_profili(azienda, anno=2026):
     for r in riepiloghi:
         riepiloghi_by_dip.setdefault(r.dipendente_id, {})[r.mese] = r
 
+    # Presenze reali per (dipendente, mese): una query invece di N×12 exists().
+    from django.db.models.functions import ExtractMonth
+
+    presenza_mesi_per_dip: dict[int, set[int]] = {}
+    for row in (
+        Presenza.objects.filter(dipendente_id__in=dip_ids, data__year=anno)
+        .annotate(_mese=ExtractMonth('data'))
+        .values('dipendente_id', '_mese')
+        .distinct()
+    ):
+        presenza_mesi_per_dip.setdefault(row['dipendente_id'], set()).add(int(row['_mese']))
+
     livelli_ordered = []
     _seen_lv = set()
     for _lv in ParametroCCNLTurismo.objects.filter(attivo=True).order_by('livello', 'qualifica').values_list('livello', flat=True):
@@ -279,6 +292,10 @@ def _ruoli_precaricati_da_profili(azienda, anno=2026):
             if dip.data_cessazione:
                 data_fine_obj = dip.data_cessazione
 
+        _dc_prof = getattr(dip, 'data_cessazione', None)
+        if _dc_prof is not None and _dc_prof < data_fine_obj:
+            data_fine_obj = _dc_prof
+
         raw_l = (livello or '').strip()
         if raw_l in livelli_validi:
             livello = raw_l
@@ -289,14 +306,23 @@ def _ruoli_precaricati_da_profili(azienda, anno=2026):
         if not livello and livello_ccnl_fallback:
             livello = livello_ccnl_fallback
 
+        from presenze.views import _intervallo_mese_per_rapporto, _periodo_rapporto_dipendente_per_mese
         from .utils_presenze import get_presenze_mese_aggregato
 
         calendario = {}
         by_mese = riepiloghi_by_dip.get(dip.id, {})
         for m in range(1, 13):
             r = by_mese.get(m)
-            if Presenza.objects.filter(dipendente=dip, data__year=anno, data__month=m).exists():
-                agg = get_presenze_mese_aggregato(dip, anno, m, azienda)
+            if m in presenza_mesi_per_dip.get(dip.id, set()):
+                _di, _df = _periodo_rapporto_dipendente_per_mese(dip, azienda, anno, m)
+                _ps, _pe = _intervallo_mese_per_rapporto(anno, m, _di, _df)
+                if _ps and _pe:
+                    agg = get_presenze_mese_aggregato(dip, anno, m, azienda, data_da=_ps, data_a=_pe)
+                else:
+                    _, _ult = calendar.monthrange(anno, m)
+                    agg = get_presenze_mese_aggregato(
+                        dip, anno, m, azienda, data_da=date(anno, m, _ult), data_a=date(anno, m, 1),
+                    )
                 calendario[m] = {
                     'ore_straord_diurno': agg['ore_straord_diurno'],
                     'ore_straord_notturno': agg['ore_straord_notturno'],
@@ -1246,7 +1272,7 @@ def _calcola_simulazione_2026(request):
     risultati_mensili = []
     from anagrafiche.models import Dipendente
     from .risoluzione_contratto_motore import (
-        rapporto_sottoscritto_attivo_nel_mese,
+        matrice_rapporti_sottoscritti_anno,
         risolvi_parametro_ccnl_per_mese,
         superminimo_da_rapporto_o_ruolo,
     )
@@ -1267,14 +1293,11 @@ def _calcola_simulazione_2026(request):
         if dip_ids_sim:
             for _d in Dipendente.objects.filter(pk__in=dip_ids_sim, azienda=azienda_operativa):
                 dip_by_pk[_d.pk] = _d
-            for _did, _dip_o in dip_by_pk.items():
-                for _mn in range(1, 13):
-                    rap_cache[(_did, _mn)] = rapporto_sottoscritto_attivo_nel_mese(
-                        dipendente=_dip_o,
-                        azienda=azienda_operativa,
-                        anno=anno,
-                        mese=_mn,
-                    )
+            rap_cache = matrice_rapporti_sottoscritti_anno(
+                dipendente_ids=dip_ids_sim,
+                azienda=azienda_operativa,
+                anno=anno,
+            )
 
     for mese_num in range(1, 13):
         # Giorni nel mese: usa monthrange per gestire correttamente anni bisestili

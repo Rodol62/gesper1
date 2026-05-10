@@ -5,7 +5,7 @@ per riallineare il motore busta paga al cedolino (oltre al fallback da RuoloOrga
 import calendar
 from datetime import date
 from decimal import Decimal
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from django.db.models import Q
 
@@ -51,6 +51,58 @@ def rapporto_sottoscritto_attivo_nel_mese(
         .order_by('-data_inizio_rapporto', '-id')
         .first()
     )
+
+
+def matrice_rapporti_sottoscritti_anno(
+    *,
+    dipendente_ids: set[int],
+    azienda,
+    anno: int,
+) -> Dict[Tuple[int, int], Optional[RapportoDiLavoro]]:
+    """
+    Precarica il contratto sottoscritto per ogni (dipendente_id, mese) nell'anno.
+
+    Evita N×12 query ripetute rispetto a chiamare ``rapporto_sottoscritto_attivo_nel_mese``
+    in ciclo (simulazione organico / risultato annuo).
+    """
+    out: Dict[Tuple[int, int], Optional[RapportoDiLavoro]] = {}
+    if not dipendente_ids or azienda is None:
+        return out
+
+    rapporti = list(
+        RapportoDiLavoro.objects.filter(
+            azienda=azienda,
+            dipendente_id__in=dipendente_ids,
+            stato='sottoscritto',
+        )
+        .select_related(
+            'tipo_contratto',
+            'proposta_origine',
+            'proposta_origine__parametro_ccnl',
+        )
+        .order_by('dipendente_id', '-data_inizio_rapporto', '-id')
+    )
+    by_dip: dict[int, list[RapportoDiLavoro]] = {}
+    for r in rapporti:
+        by_dip.setdefault(r.dipendente_id, []).append(r)
+
+    for did in dipendente_ids:
+        lst = by_dip.get(did, [])
+        for mese in range(1, 13):
+            ultimo = date(anno, mese, calendar.monthrange(anno, mese)[1])
+            primo = date(anno, mese, 1)
+            scelto: Optional[RapportoDiLavoro] = None
+            for r in lst:
+                di = r.data_inizio_rapporto
+                if di is None or di > ultimo:
+                    continue
+                df = r.data_fine_rapporto
+                if df is not None and df < primo:
+                    continue
+                scelto = r
+                break
+            out[(did, mese)] = scelto
+    return out
 
 
 def risolvi_parametro_ccnl_per_mese(
