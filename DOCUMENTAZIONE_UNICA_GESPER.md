@@ -1,6 +1,6 @@
 # Documentazione Unica GESPER
 
-Ultimo aggiornamento: 10/04/2026
+Ultimo aggiornamento: 10/05/2026
 
 ## 1) Scopo del sistema
 
@@ -39,6 +39,7 @@ GESPER è un gestionale HR multi-azienda basato su Django, con focus su:
 - Il calcolo usa il **motore canonico** (`calcola_busta_paga_mese` via `views_simulazione_2026`).
 - Le variabili profilo (superminimo, turno, scatti, extra) vengono propagate nel payload.
 - La scelta del parametro CCNL deve rispettare la decorrenza (`decorrenza_validita_da <= data_riferimento`).
+- Principi generali su CCNL vs contratto individuale vs ore effettive e variazioni nel tempo: sezione **5.0**.
 - **Export Excel** (`simulazione_2026_excel`): file `Simulazione_annua_{anno}_{azienda}.xlsx`; titoli foglio «SIMULAZIONE ANNUA» e riga KPI allineata alla UI.
 
 ### 3.3 Dashboard candidato
@@ -106,6 +107,17 @@ GESPER è un gestionale HR multi-azienda basato su Django, con focus su:
 - **TFR**: base = `lordo_mensile` (tutti gli elementi retributivi ordinari, art. 2120 c.c.).
 
 ## 5) Dati e parametri CCNL
+
+### 5.0 Gerarchia vincolante: CCNL, contratto individuale, buste e decorrenze
+
+1. **Contratto collettivo nazionale (CCNL)**  
+   Il rapporto di lavoro è ancorato al **CCNL di categoria** applicabile (nel prodotto: principalmente **FIPE / Turismo Confcommercio**), con tabelle e clausole previste dal contratto collettivo. I parametri tabellari in anagrafica di sistema (`ParametroCCNLTurismo`, `ParametroMaggiorazione`, `ParametroRatei`, contributi, ecc.) **implementano quel quadro**; non introdurre logiche parallele che lo contraddicono.
+
+2. **Buste paga e simulazioni**  
+   Partono dai **dati del contratto individuale** (`RapportoDiLavoro` e, dove pertinente, `PropostaAssunzione` collegata), confrontano le **ore effettive** (presenze, `RiepilogoMensilePresenze`, aggregati verso il motore) con le **ore e le regole contrattuali/CCNL**, applicano le **maggiorazioni** da parametri CCNL e le **voci previste dalla legislazione** vigente nel periodo (IRPEF, detrazioni, TI, bonus normati, ecc.). Il **motore canonico** resta `calcola_busta_paga_mese` in `rapporto_di_lavoro/utils_motore_paga.py` per tutti i contesti (proposte, simulazioni, presenze, cedolino).
+
+3. **Variazioni nel tempo sul singolo dipendente**  
+   Livello, percentuale di part-time, importi e altre condizioni possono **cambiare con decorrenza** (promozioni, addendum, revisioni). Ogni competenza o mese deve usare la **configurazione valida alla data di riferimento**: contratto sottoscritto attivo nel periodo, eventuali `AddendumContrattuale`, versione di parametro CCNL/contributiva coerente con le decorrenze. La risoluzione è centralizzata in `rapporto_di_lavoro/risoluzione_contratto_motore.py` (es. `risolvi_parametro_ccnl_per_mese`); **ottimizzazioni** (cache in RAM, meno query) **non devono alterare** l’ordine di priorità contratto → addendum → tabella CC né omettere le date effettive.
 
 ### 5.1 Modelli principali
 
