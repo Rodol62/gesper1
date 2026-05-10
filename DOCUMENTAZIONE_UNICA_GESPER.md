@@ -137,6 +137,11 @@ Prima di introdurre nuovi calcoli retributivi o «shortcut», verificare che non
 **Tenant / azienda operativa**  
 - Standard: `accounts.tenant.get_azienda_operativa(user, session)` — priorità `session['azienda_id']`, poi chiave legacy `session['azienda_operativa_id']`, infine `user.azienda`. Simulazione annua 2026 e calendario aziendale delegano a questa funzione (`views_simulazione_2026`, `views_calendario`).
 
+**Audit `calcola_completo` e mattoni `utils_calcoli` (controllo preliminare)**  
+- `calcola_completo`: unica invocazione nel codice applicativo → `ParametroCCNLTurismo.calcolo_completo()` (`models.py`), per stime su lordo tabellare; docstring in `utils_calcoli` vieta uso come busta/simulazione/conciliazione ufficiale.  
+- `calcola_netto_dipendente` / `calcola_costo_azienda`: oltre alle proprietà di comodo su `ParametroCCNLTurismo`, usati in `views_simulazione_2026` (IRPEF incrementale 13ª/14ª cash accanto al motore) e in `views.py` come fallback in `_calcola_netto_dipendente_con_regole`; non costituiscono un secondo motore busta se restano confinati a questi ruoli.  
+- Funzioni fiscali granulari (`calcola_irpef_lorda`, `calcola_detrazioni`, TI, bonus, addizionali): richiamate da `utils_motore_paga`, admin test motore, helper candidato — coerente con «mattoni» usati dal motore, non duplicazione del flusso completo.
+
 **Prossimi passi operativi**  
 1. Per ogni feature retributiva: tracciare flusso dati fino a una riga della tabella sopra.  
 2. Se manca la riga, estendere il punto d’ingresso esistente invece di creare un nuovo calcolo.  

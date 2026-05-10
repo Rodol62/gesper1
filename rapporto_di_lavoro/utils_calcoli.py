@@ -251,8 +251,11 @@ def calcola_netto_dipendente(
 
 def calcola_costo_azienda(lordo):
     """
-    Calcola il costo totale mensile e annuo per l'azienda.
-    
+    Calcola il costo totale mensile e annuo per l'azienda (schema semplificato, aliquote legacy in modulo).
+
+    Non sostituisce ``calcola_busta_paga_mese``: mancano ParametroContributi da DB, decontribuzioni,
+    part-time, maggiorazioni e voci del motore. Usare solo per stime rapide o proprietà di comodo su tabellare.
+
     Include:
     - Lordo dipendente
     - Contributi INPS azienda (30%)
@@ -297,16 +300,19 @@ def calcola_costo_azienda(lordo):
 
 def calcola_completo(lordo):
     """
-    Calcola sia netto dipendente che costo azienda.
-    
+    Combina ``calcola_netto_dipendente`` e ``calcola_costo_azienda`` su un solo lordo tabellare.
+
+    Vietato usarlo come sostituto del motore busta per: buste ufficiali, simulazione annua,
+    conciliazione cedolino, proposte HR — in quei flussi usare sempre
+    ``rapporto_di_lavoro.utils_motore_paga.calcola_busta_paga_mese`` (eventualmente via
+    ``invoca_calcola_busta_paga_mese``). Chiamata residua in codice: solo convenienza su
+    ``ParametroCCNLTurismo`` (admin/indicatori).
+
     Args:
-        lordo (Decimal): Stipendio lordo mensile
-        
+        lordo: stipendio lordo mensile tabellare
+
     Returns:
-        dict: Dizionario completo con:
-            - lordo_mensile: Stipendio lordo
-            - netto: Dict con dettagli calcolo netto
-            - costo_azienda: Dict con dettagli costo aziendale
+        dict con lordo_mensile, netto (dettaglio), costo_azienda (dettaglio).
     """
     netto = calcola_netto_dipendente(lordo)
     costo = calcola_costo_azienda(lordo)

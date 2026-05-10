@@ -358,7 +358,12 @@ class MansioneLivelloCCNL(models.Model):
 
 
 class ParametroCCNLTurismo(models.Model):
-	"""Parametri retributivi/organizzativi per proposta e contratto di assunzione."""
+	"""Parametri retributivi/organizzativi per proposta e contratto di assunzione.
+
+	Le proprietà ``netto_dipendente``, ``costo_azienda_*`` e il metodo ``calcolo_completo`` usano
+	``utils_calcoli`` (stime semplificate su ``importo_lordo_mensile``). Non sostituiscono
+	``calcola_busta_paga_mese`` per buste/simulazioni ufficiali (vedi ``motori_canonici``).
+	"""
 	SEZIONE_CHOICES = [
 		('ristoranti_pizzerie', 'Ristoranti/Pizzerie con cucina'),
 		('somministrazione_tavoli', 'Somministrazione e servizio ai tavoli'),
@@ -411,26 +416,27 @@ class ParametroCCNLTurismo(models.Model):
 
 	@property
 	def netto_dipendente(self):
-		"""Calcola stipendio netto mensile per il dipendente."""
+		"""Stima netto mensile da lordo tabellare (``utils_calcoli``); non è il netto del motore busta."""
 		calcolo = calcola_netto_dipendente(self.importo_lordo_mensile)
 		return calcolo['netto']
 
 	@property
 	def costo_azienda_mensile(self):
-		"""Calcola costo totale mensile per l'azienda."""
+		"""Stima costo mensile da lordo tabellare (``utils_calcoli`` legacy); non il costo del motore busta."""
 		calcolo = calcola_costo_azienda(self.importo_lordo_mensile)
 		return calcolo['costo_totale_mensile']
 
 	@property
 	def costo_azienda_annuo(self):
-		"""Calcola costo totale annuo per l'azienda."""
+		"""Stima costo annuo da lordo tabellare (``utils_calcoli`` legacy)."""
 		calcolo = calcola_costo_azienda(self.importo_lordo_mensile)
 		return calcolo['costo_totale_annuo']
 
 	def calcolo_completo(self):
 		"""
-		Restituisce calcolo completo con tutti i dettagli.
-		Utile per visualizzazioni dettagliate.
+		Dettaglio netto+costo da ``utils_calcoli.calcola_completo`` (stima su tabellare).
+
+		Non usare per output contrattuale ufficiale: per quello il motore è ``calcola_busta_paga_mese``.
 		"""
 		return calcola_completo(self.importo_lordo_mensile)
 

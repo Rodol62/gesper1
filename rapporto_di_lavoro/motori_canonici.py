@@ -72,6 +72,9 @@ Percorsi da non usare come sostituti del motore busta (stime semplificate / lega
 ----------------------------------------------------------------------------------
 - :func:`rapporto_di_lavoro.utils_calcoli.calcola_completo` e simili: mattoni o
   stime rapide, non rappresentano la busta mensile completa del motore canonico.
+  Audit codice: ``calcola_completo`` è richiamato solo da
+  ``ParametroCCNLTurismo.calcolo_completo`` (indicatori su tabellare); non introdurre
+  altre chiamate per flussi ufficiali.
 - Proprietà convenienza su modelli (es. netto da solo lordo tabellare) non
   sostituiscono ``calcola_busta_paga_mese`` per simulazioni o conciliazione.
 

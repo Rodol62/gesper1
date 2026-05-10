@@ -10,7 +10,7 @@ Core: accounts, anagrafiche, rapporto_di_lavoro, presenze, documenti, richieste,
 documenti/motore_cedolino_v4.py | documenti/cedolino_conciliazione_motore_v4.py | rapporto_di_lavoro/utils_motore_paga.py | costo_lavoro/calcolatore.py | accounts/tenant.py
 
 ## Divieti
-Modificare migrations già applicate | toccare settings_production.py / settings_production_www.py senza esplicito OK | duplicare logica payroll fuori motore_cedolino_v4 | bypass check tenant nelle view | raw SQL se basta ORM | dipendenze senza requirements.txt
+Modificare migrations già applicate | toccare settings_production.py / settings_production_www.py senza esplicito OK | duplicare logica payroll fuori motore_cedolino_v4 | estendere calcola_completo a nuovi flussi busta/simulazione (resta solo su ParametroCCNLTurismo; §4.7) | bypass check tenant nelle view | raw SQL se basta ORM | dipendenze senza requirements.txt
 
 ## Payroll (sintesi operativa)
 Entry paga: rapporto_di_lavoro.utils_motore_paga.calcola_busta_paga_mese. Presenze→motore: presenze.utils.aggrega_presenze_per_motore, kwargs da as_motore_kwargs(). Da presenze aggregate: auto_ore_domenicali_da_calendario=False, modalita_ore_effettive=True. Parametri DB: ccnl_obj (FIPE) + filtro data_riferimento. Divisori FIPE: ore 173 o cp.ore_mensili, giorni 26 — non introdurre alternative locali. Riferimento CCNL: ParametroCCNLTurismo (es. 2024-2026). Validare formule vs cedolini TeamSystem reali. INPS/IRPEF/TFR e decontribuzioni: decorrenze/scadenze.
