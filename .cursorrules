@@ -1,0 +1,86 @@
+# GESPER — Regole Cursor AI
+# Gestionale HR multi-azienda — Django 6.0.3 + Python 3.12 + SQLite
+
+## CONTESTO PROGETTO
+GESPER è un gestionale HR multi-azienda con:
+- Anagrafiche dipendenti/candidati/aziende
+- Workflow proposta -> contratto -> attivazione
+- Presenze, richieste, documenti, storico
+- Simulazione annua organico e costo lavoro
+- Calcolo retributivo italiano (CCNL FIPE/Turismo)
+- Motore cedolino v4 con estrazione PDF TeamSystem
+- Deploy su Aruba PSV (production), sviluppo su XAMPP locale
+
+## STACK TECNICO
+- Django 6.0.3, DRF 3.16.1, SimpleJWT 5.5.1
+- Python 3.12, SQLite (db.sqlite3)
+- openpyxl (export Excel), pdfplumber + pypdf (PDF)
+- reportlab (generazione PDF), redis (cache/sessioni)
+- gunicorn (production), pyotp + qrcode (2FA)
+- Frontend: templates Django + HTML/CSS/JS vanilla
+
+## ARCHITETTURA APP
+- accounts/           -> auth, ruoli, tenant multiaziendale, import paghe
+- anagrafiche/        -> aziende, dipendenti, codice fiscale IT
+- rapporto_di_lavoro/ -> contratti, CCNL, motore paga, simulazioni
+- documenti/          -> buste paga PDF, motore cedolino v4, estrazione TS
+- presenze/           -> timbrature, ferie, ROL, straordinari, monte ore
+- costo_lavoro/       -> rule engine contributivo, decontribuzioni
+- storico/            -> libro paga, registro unico
+- workflow/           -> flussi approvazione
+- notifiche_email/    -> notifiche sistema
+
+## FILE CRITICI — MASSIMA ATTENZIONE
+- documenti/motore_cedolino_v4.py
+- documenti/cedolino_conciliazione_motore_v4.py
+- rapporto_di_lavoro/utils_motore_paga.py
+- costo_lavoro/calcolatore.py
+- accounts/tenant.py                   -> logica multiaziendale
+- settings.py / settings_production.py -> NON modificare production
+
+## LOGICA PAYROLL ITALIANA — REGOLE CRITICHE
+- INPS dipendente: aliquota su imponibile previdenziale
+- IRPEF: calcolo su imponibile fiscale con detrazioni lavoro dipendente
+- TFR: accantonamento mensile secondo normativa italiana
+- CCNL FIPE Pubblici Esercizi e Turismo Confcommercio
+- Superminimo, scatti anzianita, maggiorazioni notturne/festive
+- Decontribuzioni: verificare sempre decorrenza e scadenza
+- Le formule vanno sempre validate contro i cedolini TeamSystem reali
+
+## CONVENZIONI DI CODICE
+- Type hints obbligatori su tutte le funzioni nuove
+- Eccezioni sempre specifiche (mai bare except o except Exception)
+- Query ORM: usa sempre select_related/prefetch_related dove serve
+- Commenti e docstring in italiano
+- Segui PEP 8 rigorosamente
+- Log con logging standard Django, mai print() in produzione
+
+## SICUREZZA E PRIVACY
+- Mai esporre CF, IBAN, dati retributivi nei log
+- Le view devono sempre verificare permessi tenant (accounts/tenant.py)
+- Autenticazione: SimpleJWT + TOTP (2FA obbligatorio in produzione)
+- Non committare mai file .env o credenziali
+
+## MIGRATIONS
+- Non modificare mai migrations esistenti
+- Ogni modifica al modello richiede nuova migration
+- Testa sempre le migrations in locale prima del deploy
+- Backup db.sqlite3 prima di ogni migrazione in produzione
+
+## DEPLOY
+- Script: deploy_gesper.sh
+- Produzione: Aruba PSV, settings_production.py
+- Comandi post-deploy: collectstatic, migrate, restart gunicorn
+
+## PATTERN DA SEGUIRE
+- Simulazione annua: URL canonico /rapporti/simulazione-annua/
+- Motore paga: usa sempre calcola_busta_paga_mese come entry point
+- Export Excel: usa openpyxl, foglio SIMULAZIONE ANNUA
+- Dashboard candidato: privilegia calcolo runtime con fallback statico
+
+## PATTERN DA EVITARE
+- Non duplicare logica payroll gia in motore_cedolino_v4.py
+- Non bypassare il tenant check nelle view
+- Non usare raw SQL se ORM e sufficiente
+- Non modificare settings_production.py direttamente
+- Non aggiungere dipendenze senza aggiornare requirements.txt
