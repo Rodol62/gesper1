@@ -1,86 +1,47 @@
-# GESPER — Regole Cursor AI
-# Gestionale HR multi-azienda — Django 6.0.3 + Python 3.12 + SQLite
+# GESPER — regole Cursor (compatta). Dettaglio funzionale: DOCUMENTAZIONE_UNICA_GESPER.md
 
-## CONTESTO PROGETTO
-GESPER è un gestionale HR multi-azienda con:
-- Anagrafiche dipendenti/candidati/aziende
-- Workflow proposta -> contratto -> attivazione
-- Presenze, richieste, documenti, storico
-- Simulazione annua organico e costo lavoro
-- Calcolo retributivo italiano (CCNL FIPE/Turismo)
-- Motore cedolino v4 con estrazione PDF TeamSystem
-- Deploy su Aruba PSV (production), sviluppo su XAMPP locale
+## Stack
+Django 6.0.3, DRF 3.16.1, SimpleJWT 5.5.1, Python 3.12, SQLite, redis, openpyxl, pdfplumber, pypdf, reportlab, gunicorn, pyotp+qrcode. UI: template Django + JS/CSS vanilla.
 
-## STACK TECNICO
-- Django 6.0.3, DRF 3.16.1, SimpleJWT 5.5.1
-- Python 3.12, SQLite (db.sqlite3)
-- openpyxl (export Excel), pdfplumber + pypdf (PDF)
-- reportlab (generazione PDF), redis (cache/sessioni)
-- gunicorn (production), pyotp + qrcode (2FA)
-- Frontend: templates Django + HTML/CSS/JS vanilla
+## App
+Core: accounts, anagrafiche, rapporto_di_lavoro, presenze, documenti, richieste, storico, log_attivita. Supporto: workflow, notifiche_email, costo_lavoro, ruoli, report.
 
-## ARCHITETTURA APP
-- accounts/           -> auth, ruoli, tenant multiaziendale, import paghe
-- anagrafiche/        -> aziende, dipendenti, codice fiscale IT
-- rapporto_di_lavoro/ -> contratti, CCNL, motore paga, simulazioni
-- documenti/          -> buste paga PDF, motore cedolino v4, estrazione TS
-- presenze/           -> timbrature, ferie, ROL, straordinari, monte ore
-- costo_lavoro/       -> rule engine contributivo, decontribuzioni
-- storico/            -> libro paga, registro unico
-- workflow/           -> flussi approvazione
-- notifiche_email/    -> notifiche sistema
+## File critici (test obbligatorio se modificati)
+documenti/motore_cedolino_v4.py | documenti/cedolino_conciliazione_motore_v4.py | rapporto_di_lavoro/utils_motore_paga.py | costo_lavoro/calcolatore.py | accounts/tenant.py
 
-## FILE CRITICI — MASSIMA ATTENZIONE
-- documenti/motore_cedolino_v4.py
-- documenti/cedolino_conciliazione_motore_v4.py
-- rapporto_di_lavoro/utils_motore_paga.py
-- costo_lavoro/calcolatore.py
-- accounts/tenant.py                   -> logica multiaziendale
-- settings.py / settings_production.py -> NON modificare production
+## Divieti
+Modificare migrations già applicate | toccare settings_production.py / settings_production_www.py senza esplicito OK | duplicare logica payroll fuori motore_cedolino_v4 | bypass check tenant nelle view | raw SQL se basta ORM | dipendenze senza requirements.txt
 
-## LOGICA PAYROLL ITALIANA — REGOLE CRITICHE
-- INPS dipendente: aliquota su imponibile previdenziale
-- IRPEF: calcolo su imponibile fiscale con detrazioni lavoro dipendente
-- TFR: accantonamento mensile secondo normativa italiana
-- CCNL FIPE Pubblici Esercizi e Turismo Confcommercio
-- Superminimo, scatti anzianita, maggiorazioni notturne/festive
-- Decontribuzioni: verificare sempre decorrenza e scadenza
-- Le formule vanno sempre validate contro i cedolini TeamSystem reali
+## Payroll (sintesi operativa)
+Entry paga: rapporto_di_lavoro.utils_motore_paga.calcola_busta_paga_mese. Presenze→motore: presenze.utils.aggrega_presenze_per_motore, kwargs da as_motore_kwargs(). Da presenze aggregate: auto_ore_domenicali_da_calendario=False, modalita_ore_effettive=True. Parametri DB: ccnl_obj (FIPE) + filtro data_riferimento. Divisori FIPE: ore 173 o cp.ore_mensili, giorni 26 — non introdurre alternative locali. Riferimento CCNL: ParametroCCNLTurismo (es. 2024-2026). Validare formule vs cedolini TeamSystem reali. INPS/IRPEF/TFR e decontribuzioni: decorrenze/scadenze.
 
-## CONVENZIONI DI CODICE
-- Type hints obbligatori su tutte le funzioni nuove
-- Eccezioni sempre specifiche (mai bare except o except Exception)
-- Query ORM: usa sempre select_related/prefetch_related dove serve
-- Commenti e docstring in italiano
-- Segui PEP 8 rigorosamente
-- Log con logging standard Django, mai print() in produzione
+## URL e moduli noti
+Simulazione annua (UI): /rapporti/simulazione-annua/ — codice principale rapporto_di_lavoro/views_simulazione_2026.py; mantenere alias legacy in rapporto_di_lavoro/urls.py. Candidato: /candidato/ (accounts.urls_candidato). Export Excel simulazione: openpyxl, foglio SIMULAZIONE ANNUA, pattern file Simulazione_annua_{year}_*.xlsx.
 
-## SICUREZZA E PRIVACY
-- Mai esporre CF, IBAN, dati retributivi nei log
-- Le view devono sempre verificare permessi tenant (accounts/tenant.py)
-- Autenticazione: SimpleJWT + TOTP (2FA obbligatorio in produzione)
-- Non committare mai file .env o credenziali
+## Auth, ruoli, tenant
+User estende AbstractUser; Ruoli M2M; user.has_ruolo('admin'|'hr'|'dipendente'|'candidato'|'consulente'). Azienda operativa: accounts.tenant.get_azienda_operativa(user, session) — priorità session['azienda_id'], fallback user.azienda. Workflow PropostaAssunzione: bozza→inviata_candidato→firmata_candidato→contratto_attivo (+ rifiuti); passi chiave firma_proposta_candidato, firma_definitiva_admin.
 
-## MIGRATIONS
-- Non modificare mai migrations esistenti
-- Ogni modifica al modello richiede nuova migration
-- Testa sempre le migrations in locale prima del deploy
-- Backup db.sqlite3 prima di ogni migrazione in produzione
+## costo_lavoro / workflow / notifiche
+costo_lavoro opzionale (import con try/guard). workflow: signals inizializza_workflow_richiesta su Richiesta inviata. notifiche_email: MVP DB (no Celery attivo).
 
-## DEPLOY
-- Script: deploy_gesper.sh
-- Produzione: Aruba PSV, settings_production.py
-- Comandi post-deploy: collectstatic, migrate, restart gunicorn
+## Osservabilità e config
+Errori: log_attivita.middleware.GesperErrorMiddleware → LogErrore; log espliciti: log_attivita.utils.registra_log. Config globale: accounts.models.ConfigurazioneSistema + context_processor config_sistema. Attenzione a retrocompatibilità dati SQLite in produzione.
 
-## PATTERN DA SEGUIRE
-- Simulazione annua: URL canonico /rapporti/simulazione-annua/
-- Motore paga: usa sempre calcola_busta_paga_mese come entry point
-- Export Excel: usa openpyxl, foglio SIMULAZIONE ANNUA
-- Dashboard candidato: privilegia calcolo runtime con fallback statico
+## Codice nuovo
+Type hints obbligatori. Eccezioni specifiche; evitare bare except e except Exception salvo boundary esterni. ORM: select_related/prefetch_related dove utile. Commenti/docstring IT, PEP 8. logging Django, no print in percorsi produzione. No CF/IBAN/retribuzioni nei log.
 
-## PATTERN DA EVITARE
-- Non duplicare logica payroll gia in motore_cedolino_v4.py
-- Non bypassare il tenant check nelle view
-- Non usare raw SQL se ORM e sufficiente
-- Non modificare settings_production.py direttamente
-- Non aggiungere dipendenze senza aggiornare requirements.txt
+## Deploy
+deploy_gesper.sh (check + scp + restart). scripts/deploy_prod.sh (ssh/rsync, backup DB remoto, migrate, collectstatic, restart). Post-deploy: collectstatic, migrate, gunicorn. Prod: Aruba PSV; FORCE_SCRIPT_NAME='/gesper' in prod (vedi settings_production).
+
+## Pattern prodotto
+Dashboard candidato: preferire calcolo runtime con fallback statico. Simulazione annua: organico vs somma quantità ruoli (vedi doc). Vista divise per area (es. views_candidato, views_admin_candidati): non accorpare in mega-file.
+
+## Prompt economy (token)
+Italiano, conciso. In risposta: solo diff/cambi rilevanti; non incollare file interi invariati. Prima di @-includere: preferire path minimi (1–3 file); evitare @ su cartelle enormi o binari; per esplorazione usare grep/search poi @ mirato.
+
+## Scelta modello / agente (rapporto costo–rischio)
+Default: il tier più economico che basta al task.
+- L (bassa): spiegazione, lettura singolo file, grep, convenzione naming → modello veloce/mini.
+- M (media): bug in 2–5 file, form/template coerenti, piccole API → modello standard.
+- H (alta): motore cedolino/conciliazione, calcolatore, tenant/security cross-view, refactor architetturale → modello ragionamento; contesto @ solo sui file critici elencati sopra.
+- Vietato: tier massimo per refusi, rename, commenti, one-liner.
