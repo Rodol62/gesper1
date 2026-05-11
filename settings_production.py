@@ -65,6 +65,26 @@ else:
         }
     }
 
+# ``from settings import *`` può aver già aggiunto l'alias ``sandbox`` se GESPER_SANDBOX_ENABLED=1;
+# l'override di ``DATABASES`` qui sopra lo rimuoveva → ``gesper_sandbox_migrate`` falliva in produzione demo.
+_sandbox_prod = os.environ.get("GESPER_SANDBOX_ENABLED", "").strip().lower() in ("1", "true", "yes")
+if _sandbox_prod:
+    _sb_sqlite_env = os.environ.get("GESPER_SANDBOX_SQLITE", "").strip()
+    if _pd:
+        _root_demo = Path(_pd).expanduser().resolve()
+    else:
+        _root_demo = Path(str(GESPER_DATA_ROOT)).expanduser().resolve()
+    _sb_file = (
+        Path(_sb_sqlite_env).expanduser().resolve()
+        if _sb_sqlite_env
+        else (_root_demo / "db_sandbox.sqlite3")
+    )
+    DATABASES["sandbox"] = {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": str(_sb_file),
+        "OPTIONS": {"timeout": 60},
+    }
+
 # === CSRF E SESSIONI (HTTPS) ===
 _csrf = os.environ.get('GESPER_CSRF_TRUSTED_ORIGINS', '').strip()
 if _csrf:
