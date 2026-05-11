@@ -1,0 +1,29 @@
+# /etc/systemd/system/gesper-demo.service
+# Seconda istanza GESPER: solo ambiente dimostrativo (sottodominio), stesso codice in /var/www/gesper.
+#
+# Primi passi sulla VPS:
+#   sudo mkdir -p /var/www/gesper-demo/documento/archivio /var/www/gesper-demo/logs
+#   sudo cp deploy/gesper-demo.env.example /etc/gesper-demo.env && sudo chmod 600 /etc/gesper-demo.env
+#   (editare host, segreti, password demo)
+#   sudo cp deploy/gesper-demo.service.example /etc/systemd/system/gesper-demo.service
+#   cd /var/www/gesper && . .venv/bin/activate && set -a && . /etc/gesper-demo.env && set +a \
+#     && python manage.py migrate && python manage.py gesper_sandbox_migrate && python manage.py gesper_sandbox_seed
+#   (opzionale: copia DB/media demo da un dump, poi gesper_sandbox_anonymize --yes)
+#   sudo systemctl daemon-reload && sudo systemctl enable --now gesper-demo
+#
+# Nginx: vedi deploy/nginx-gesper-demo-vhost.example.conf (proxy a 127.0.0.1:8004).
+
+[Unit]
+Description=GESPER Gunicorn (demo / sandbox — sottodominio)
+After=network.target redis-server.service
+
+[Service]
+User=root
+WorkingDirectory=/var/www/gesper
+EnvironmentFile=-/etc/gesper-demo.env
+ExecStart=/var/www/gesper/.venv/bin/gunicorn wsgi:application \
+    --bind 127.0.0.1:8004 --workers 2 --timeout 900 --graceful-timeout 120
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

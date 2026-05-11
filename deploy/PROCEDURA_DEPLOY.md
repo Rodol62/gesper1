@@ -18,6 +18,7 @@ Documento di riferimento per DNS, Nginx, Certbot e pubblicazione codice/PWA.
 - [Dove eseguire i comandi (Mac vs VPS)](#sec-mac-vps)
 - [Checklist chiusura migrazione dati/DNS](#sec-cutover)
 - [Deprecato: `/gesper-test`](#sec-gesper-test)
+- [Demo pubblica separata (sottodominio)](#sec-demo-vps)
 - [Ruoli (hosting vs VPS)](#sec-ruoli)
 - [DNS Aruba](#sec-dns)
 - [Nginx](#sec-nginx)
@@ -118,6 +119,35 @@ Esegui quando il **codice**, **Nginx/HTTPS** e **Gunicorn** su gesper1 sono già
 ## 0.3 Ex ambiente `/gesper-test` (deprecato)
 
 Il secondo Gunicorn su **8001** e le `location` Nginx per `/gesper-test/` **non sono più** nel repository. Su una VPS ancora configurata così: rimuovi da `sites-available` le `location` `/gesper-test/`, `sudo systemctl disable --now gesper-test` (se esiste), `sudo nginx -t && sudo systemctl reload nginx`. I path in repo (`deploy/nginx-gesper-vps-standalone.conf`, `nginx-gesper-production-split.conf`) espongono solo **8000** (root su `gesper1`) e opz. **8003** per `/gesper/` su `www` (split).
+
+<a id="sec-demo-vps"></a>
+## 0.35 Demo pubblica **separata** dalla produzione (stesso codice, altro host)
+
+Obiettivo: URL dedicato (es. `https://demo.gesper1.plazapretoria.it`) per utenti esterni, **senza** mescolare DB/media dell’operativo.
+
+| Cosa | Produzione (`gesper.service`) | Demo (`gesper-demo.service`) |
+|------|------------------------------|------------------------------|
+| Systemd | `/etc/systemd/system/gesper.service` | Copia da `deploy/gesper-demo.service.example` |
+| Variabili | `/etc/gesper.env` (`GESPER_SANDBOX_ENABLED` assente o **0**) | `/etc/gesper-demo.env` da `deploy/gesper-demo.env.example` (**`GESPER_SANDBOX_ENABLED=1`**, `GESPER_DATA_ROOT` **diverso**) |
+| Gunicorn | `127.0.0.1:8000` (es.) | `127.0.0.1:8004` |
+| Dati | `…/gesper/documento/` (reale) | Es. `/var/www/gesper-demo/documento/` (`db.sqlite3` + `db_sandbox.sqlite3` + `media/` + `media_sandbox/`) |
+| Codice | `/var/www/gesper` | **Stesso** tree (un solo `git pull` / rsync) |
+
+**Passi sintetici (sulla VPS):**
+
+0. **Deploy codice** su `/var/www/gesper` come al solito (include `deploy/bootstrap-gesper-demo-vps.sh`). Poi, dalla root del progetto sulla VPS: `sudo bash deploy/bootstrap-gesper-demo-vps.sh` — crea cartelle e copia gli esempi in `/etc` e `sites-available` solo se non esistono già.
+1. **DNS:** record **A** (o CNAME) `demo.gesper1…` → stesso IP della VPS.
+2. **Directory dati demo:** (già creata dallo script; oppure) `sudo mkdir -p /var/www/gesper-demo/documento/archivio /var/www/gesper-demo/logs`
+3. **Env:** `sudo cp deploy/gesper-demo.env.example /etc/gesper-demo.env` → editare host, `DJANGO_SECRET_KEY`, `GESPER_SANDBOX_DEMO_PASSWORD`, `GESPER_REDIS_URL` (es. DB Redis `/2` se `/1` è l’operativo).
+4. **Systemd:** copiare `deploy/gesper-demo.service.example` in `/etc/systemd/system/gesper-demo.service`, `daemon-reload`, **non** avviare finché non hai migrato (punto 6).
+5. **TLS:** `sudo certbot --nginx -d demo.gesper1.plazapretoria.it` (dopo aver messo un vhost HTTP minimo o usando lo snippet in `deploy/nginx-gesper-demo-vhost.example.conf`).
+6. **Django (sempre da `/var/www/gesper`, venv condiviso):**  
+   `set -a; source /etc/gesper-demo.env; set +a` → `python manage.py migrate` → `python manage.py gesper_sandbox_migrate` → `python manage.py gesper_sandbox_seed`.  
+   Poi (solo se vuoi dati realistici ma **non** sensibili): copia controllata / clone sandbox da un export, **`gesper_sandbox_anonymize --yes`**.
+7. **Nginx:** adattare e installare `deploy/nginx-gesper-demo-vhost.example.conf` (proxy a **8004**, `try_files` su `/media/` come nel file).
+8. **`systemctl enable --now gesper-demo`** e smoke test sul sottodominio.
+
+**Nota:** in `/etc/gesper.env` dell’operativo lasciare **`GESPER_SANDBOX_ENABLED=0`** (o assente): la demo non deve condividere il file SQLite di produzione.
 
 <a id="sec-git-deploy"></a>
 ## 0.4 Checklist rapida — sviluppo → Git → deploy (~1 min)
