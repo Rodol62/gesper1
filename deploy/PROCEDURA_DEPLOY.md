@@ -144,7 +144,7 @@ Obiettivo: URL dedicato (es. `https://demo.gesper1.plazapretoria.it`) per utenti
 6. **Django (sempre da `/var/www/gesper`, venv condiviso):**  
    `set -a; source /etc/gesper-demo.env; set +a` → `python manage.py migrate` → `python manage.py gesper_sandbox_migrate` → `python manage.py gesper_sandbox_seed`.  
    Poi (solo se vuoi dati realistici ma **non** sensibili): copia controllata / clone sandbox da un export, **`gesper_sandbox_anonymize --yes`**.
-7. **Nginx:** adattare e installare `deploy/nginx-gesper-demo-vhost.example.conf` (proxy a **8004**, `try_files` su `/media/` come nel file).
+7. **Nginx:** adattare `server_name` e installare `deploy/nginx-gesper-demo-80-only.example.conf` (solo 80, finché manca TLS) oppure direttamente `deploy/nginx-gesper-demo-vhost.example.conf` se i certificati esistono già. Proxy a **8004**, `try_files` su `/media/` come negli esempi.
 8. **`systemctl enable --now gesper-demo`** e smoke test sul sottodominio.
 
 **Nota:** in `/etc/gesper.env` dell’operativo lasciare **`GESPER_SANDBOX_ENABLED=0`** (o assente): la demo non deve condividere il file SQLite di produzione.

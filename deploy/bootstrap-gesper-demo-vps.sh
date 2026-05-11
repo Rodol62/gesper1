@@ -38,11 +38,13 @@ fi
 
 NGX_DST="/etc/nginx/sites-available/gesper-demo"
 if [[ ! -f "${NGX_DST}" ]]; then
-  cp "${ROOT}/deploy/nginx-gesper-demo-vhost.example.conf" "${NGX_DST}"
-  echo "Copiato ${NGX_DST} — adattare server_name e certificati SSL, poi:"
+  # Versione solo HTTP: ``nginx -t`` ok senza certificati; dopo DNS + ``certbot --nginx`` sostituire
+  # con ``nginx-gesper-demo-vhost.example.conf`` (HTTPS) se serve.
+  cp "${ROOT}/deploy/nginx-gesper-demo-80-only.example.conf" "${NGX_DST}"
+  echo "Copiato ${NGX_DST} (solo HTTP) — adattare server_name, poi:"
   echo "  ln -sf ${NGX_DST} /etc/nginx/sites-enabled/"
-  echo "  certbot --nginx -d TUO_DOMINIO_DEMO"
   echo "  nginx -t && systemctl reload nginx"
+  echo "  certbot --nginx -d TUO_DOMINIO_DEMO   # aggiunge TLS; poi opzionale: vhost HTTPS completo da repo"
 else
   echo "Esiste già ${NGX_DST} (non toccato)."
 fi
