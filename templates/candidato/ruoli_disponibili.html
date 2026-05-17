@@ -1,0 +1,95 @@
+{% extends 'base_candidato.html' %}
+{% load currency_filters format_it_tags %}
+{% block title %}Posizioni aperte — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:6px;
+              padding:.6rem 1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <h5 style="margin:0;font-size:.92rem;font-weight:800">
+        <i class="bi bi-briefcase-fill"></i> Posizioni aperte
+      </h5>
+      <div style="font-size:.72rem;opacity:.85;margin-top:2px">
+        {% if azienda_filtro %}Azienda: <strong>{{ azienda_filtro.nome }}</strong>{% else %}Tutte le aziende{% endif %}
+      </div>
+    </div>
+    <a href="{% url 'candidato_dashboard' %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">← Dashboard</a>
+  </div>
+
+  {% if not profilo or not profilo.profilo_completato %}
+  <div class="alert alert-warning py-2 small mb-3">
+    <i class="bi bi-exclamation-triangle"></i>
+    Per esprimere interesse per una posizione devi prima
+    <a href="{% url 'candidato_completa_profilo' %}" class="alert-link">completare il tuo profilo</a>.
+  </div>
+  {% endif %}
+
+  {% if proposte_aperte %}
+    <div class="row g-3 mb-4">
+      {% for p in proposte_aperte %}
+      <div class="col-md-6 col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header py-2" style="background:#f4f7fa">
+            <div style="font-weight:700;color:#1b3a5f;font-size:.85rem">
+              <i class="bi bi-person-badge"></i>
+              Livello {{ p.livello_ccnl }} — {{ p.tipo_contratto.nome|default:"" }}
+            </div>
+            <div style="font-size:.72rem;color:#5c6b7d">{{ p.azienda.nome }}</div>
+          </div>
+          <div class="card-body py-2" style="font-size:.8rem">
+            <div class="mb-1"><strong>Posizione:</strong> {{ p.posizione|default:"—" }}</div>
+            <div class="mb-1"><strong>Inizio:</strong> {{ p.data_inizio_rapporto|date:"d/m/Y"|default:"—" }}</div>
+            <div class="mb-1"><strong>Lordo mensile:</strong>
+              <span style="color:#0a6640;font-weight:700">
+                € {{ p.stipendio_lordo_mensile|euro_it }}
+              </span>
+            </div>
+            <div class="mb-1"><strong>Ore/settimana:</strong> {{ p.ore_settimanali|ore_hm|default:"40:00" }}</div>
+          </div>
+          <div class="card-footer border-0 py-2 bg-white">
+            {% if profilo and profilo.profilo_completato %}
+            <form method="post" action="{% url 'candidato_esprimi_interesse' p.id %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary btn-sm w-100" style="font-size:.78rem">
+                <i class="bi bi-hand-thumbs-up"></i> Sono interessato/a
+              </button>
+            </form>
+            {% else %}
+            <button class="btn btn-outline-secondary btn-sm w-100" disabled style="font-size:.78rem">
+              Completa il profilo per candidarti
+            </button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert alert-secondary py-3 text-center mb-4">
+      <i class="bi bi-inbox" style="font-size:1.5rem"></i>
+      <p class="mb-1 mt-2">Nessuna posizione aperta al momento.</p>
+      <small class="text-muted">
+        Completa il profilo e indicaci le tue preferenze —
+        ti contatteremo non appena si apre una posizione in linea con il tuo profilo.
+      </small>
+    </div>
+  {% endif %}
+
+  <!-- Info simulazione attiva -->
+  {% if simulazione %}
+  <div class="card border-0 shadow-sm" style="font-size:.78rem">
+    <div class="card-header py-2" style="background:#e8eef5;color:#1b3a5f;font-weight:700;font-size:.78rem">
+      <i class="bi bi-graph-up"></i> Pianificazione organico (simulazione attiva)
+    </div>
+    <div class="card-body py-2 text-muted">
+      Simulazione del {{ simulazione.mese_riferimento }} — creata il {{ simulazione.data_creazione|date:"d/m/Y" }}.
+      L'ufficio HR sta valutando le posizioni da aprire: potrebbe contattarti anche per profili
+      non ancora pubblicati, in base al tuo livello aspirato e alla disponibilità indicata.
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

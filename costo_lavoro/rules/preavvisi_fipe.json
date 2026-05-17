@@ -1,0 +1,96 @@
+{
+  "preavvisi_fipe": {
+    "dimissioni": {
+      "Qa": {
+        "fino_5_anni": 45,
+        "oltre_5_anni": 60
+      },
+      "Qb": {
+        "fino_5_anni": 30,
+        "oltre_5_anni": 45
+      },
+      "1": {
+        "fino_5_anni": 20,
+        "oltre_5_anni": 30
+      },
+      "2": {
+        "fino_5_anni": 15,
+        "oltre_5_anni": 20
+      },
+      "3": {
+        "fino_5_anni": 10,
+        "oltre_5_anni": 15
+      },
+      "4": {
+        "fino_5_anni": 10,
+        "oltre_5_anni": 15
+      },
+      "5": {
+        "fino_5_anni": 7,
+        "oltre_5_anni": 10
+      },
+      "6s": {
+        "fino_5_anni": 7,
+        "oltre_5_anni": 10
+      },
+      "6": {
+        "fino_5_anni": 7,
+        "oltre_5_anni": 10
+      },
+      "7": {
+        "fino_5_anni": 7,
+        "oltre_5_anni": 10
+      }
+    },
+
+    "licenziamento": {
+      "Qa": {
+        "fino_5_anni": 60,
+        "oltre_5_anni": 90
+      },
+      "Qb": {
+        "fino_5_anni": 45,
+        "oltre_5_anni": 60
+      },
+      "1": {
+        "fino_5_anni": 30,
+        "oltre_5_anni": 45
+      },
+      "2": {
+        "fino_5_anni": 20,
+        "oltre_5_anni": 30
+      },
+      "3": {
+        "fino_5_anni": 15,
+        "oltre_5_anni": 20
+      },
+      "4": {
+        "fino_5_anni": 15,
+        "oltre_5_anni": 20
+      },
+      "5": {
+        "fino_5_anni": 10,
+        "oltre_5_anni": 15
+      },
+      "6s": {
+        "fino_5_anni": 10,
+        "oltre_5_anni": 15
+      },
+      "6": {
+        "fino_5_anni": 10,
+        "oltre_5_anni": 15
+      },
+      "7": {
+        "fino_5_anni": 10,
+        "oltre_5_anni": 15
+      }
+    },
+
+    "regole_generali": {
+      "preavviso_in_giorni": true,
+      "indennita_sostitutiva": true,
+      "decorrenza": "dal primo o dal sedicesimo giorno del mese",
+      "note": "Il preavviso varia per livello e anzianità di servizio"
+    }
+  }
+}

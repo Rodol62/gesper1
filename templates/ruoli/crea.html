@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Crea nuovo ruolo</h2>
+<form method="post">
+    {% csrf_token %}
+    <input type="text" name="nome" placeholder="Nome ruolo">
+    <input type="submit" value="Crea">
+</form>
+<a href="{% url 'lista_ruoli' %}">Torna alla lista</a>
+{% endblock %}

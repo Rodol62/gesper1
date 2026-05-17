@@ -1,0 +1,441 @@
+{% extends 'base_candidato.html' %}
+{% load currency_filters format_it_tags %}
+{% block title %}Il mio contratto — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <a href="{% url 'candidato_dashboard' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.86rem">
+      <i class="bi bi-arrow-left"></i> Dashboard
+    </a>
+    <h6 class="mb-0 me-auto" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-file-earmark-check-fill"></i> Il mio contratto
+    </h6>
+    {# PDF: file archiviato, documenti o bozza — sempre servito da contratto_pdf #}
+    <a href="{% url 'contratto_pdf' contratto.id %}?ui=1"
+       class="btn btn-sm btn-outline-primary" style="font-size:.88rem">
+      <i class="bi bi-eye"></i> Anteprima PDF
+    </a>
+    <a href="{% url 'contratto_pdf' contratto.id %}?download=1"
+       class="btn btn-sm" style="background:#0a6640;color:#fff;font-size:.88rem">
+      <i class="bi bi-file-earmark-pdf"></i> Scarica contratto PDF
+    </a>
+  </div>
+
+  {# ── Caricamento scansione contratto firmato su carta (dipendente) ── #}
+  <div class="card border-0 shadow-sm mb-3" style="border-left:4px solid #198754!important">
+    <div class="card-header py-2 d-flex align-items-center gap-2"
+         style="background:#f4fbf7;font-size:.88rem;font-weight:700;color:#0a6640;border-bottom:1px solid #c8ebd8">
+      <i class="bi bi-pen-fill"></i>
+      Contratto firmato in originale (carta)
+    </div>
+    <div class="card-body py-3" style="font-size:.88rem">
+      {% if documento_cartaceo %}
+      <p class="text-muted small mb-2 mb-md-0">
+        <i class="bi bi-clock-history"></i>
+        Ultimo caricamento: <strong>{{ documento_cartaceo.data_caricamento|date:"d/m/Y H:i" }}</strong>
+        {% if documento_cartaceo.caricato_dal_dipendente %}
+        <span class="badge bg-secondary ms-1" style="font-size:.72rem">Caricato da te</span>
+        {% endif %}
+      </p>
+      {% endif %}
+      {% if documento_cartaceo and documento_cartaceo.visualizzato_da_azienda %}
+      <div class="alert alert-success py-2 mb-0 small">
+        <i class="bi bi-check-circle-fill"></i>
+        Il PDF è stato <strong>acquisito dall’azienda</strong>. Per sostituirlo occorre contattare l’ufficio HR.
+      </div>
+      {% elif puo_caricare_contratto_cartaceo %}
+      <p class="text-muted mb-3" style="font-size:.84rem">
+        Se avete firmato il contratto su carta, carica qui <strong>un unico file PDF</strong> (scansione/foto chiara delle pagine firmate).
+        Massimo <strong>15 MB</strong>. Il file sarà visibile in «I miei documenti» e usato come PDF del contratto nel portale.
+      </p>
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end flex-wrap">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="upload_contratto_cartaceo">
+        <div class="col-12 col-md-7 col-lg-6">
+          <label for="contratto_firmato_pdf" class="form-label small mb-1">File PDF</label>
+          <input class="form-control form-control-sm" type="file" name="contratto_firmato_pdf" id="contratto_firmato_pdf"
+                 accept="application/pdf,.pdf" required>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-success btn-sm">
+            <i class="bi bi-cloud-upload"></i> Carica PDF firmato
+          </button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2" style="background:#f0faf4;font-size:.9rem;font-weight:700;color:#0a6640;border-bottom:1px solid #c8ebd8">
+      <i class="bi bi-file-text-fill"></i> {{ contratto.numero_contratto }} — {{ contratto.azienda.nome }}
+    </div>
+    <div class="card-body py-3">
+
+      <h6 style="font-size:.88rem;color:#888;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem">Informazioni generali</h6>
+      <div class="row g-2 mb-3" style="font-size:.93rem">
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Posizione</div>
+          <div style="font-weight:700;color:#1b3a5f">{{ contratto.posizione }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Qualifica</div>
+          <div style="font-weight:700">{{ contratto.qualifica }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Livello CCNL</div>
+          <div style="font-weight:700">{{ contratto.livello_ccnl }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Tipo contratto</div>
+          <div style="font-weight:700">{{ contratto.tipo_contratto.nome }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Data inizio</div>
+          <div style="font-weight:700">{{ contratto.data_inizio_rapporto|date:"d/m/Y" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Data fine</div>
+          <div style="font-weight:700">{{ contratto.data_fine_rapporto|date:"d/m/Y"|default:"Indeterminato" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Ore settimanali</div>
+          <div style="font-weight:700">{{ contratto.ore_settimanali|ore_hm }}h</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Turno</div>
+          <div style="font-weight:700">{{ contratto.get_turno_tipo_display }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Rif. proposta</div>
+          <div style="font-weight:700">{% if contratto.proposta_origine %}{{ contratto.proposta_origine.numero_proposta }}{% else %}-{% endif %}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Luogo sottoscrizione</div>
+          <div style="font-weight:700">{{ contratto.luogo_firma_datore_effettivo }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Firma datore</div>
+          <div style="font-weight:700">
+            {% if contratto.data_firma_datore_effettiva %}
+              {{ contratto.data_firma_datore_effettiva|date:"d/m/Y H:i" }}
+            {% else %}
+              -
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Firma lavoratore</div>
+          <div style="font-weight:700">
+            {% if contratto.data_firma_lavoratore_effettiva %}
+              {{ contratto.data_firma_lavoratore_effettiva|date:"d/m/Y H:i" }}
+            {% else %}
+              -
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <hr style="border-color:#eef1f5">
+      <h6 style="font-size:.88rem;color:#888;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem">Voci retributive mensili</h6>
+      <div class="row g-2 mb-3" style="font-size:.93rem">
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Lordo mensile</div>
+          <div style="font-weight:800;color:#0a6640;font-size:1rem">€ {{ contratto.stipendio_lordo_mensile|euro_it }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Paga base</div>
+          <div style="font-weight:600">€ {{ contratto.paga_base_mensile|euro_it }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Contingenza</div>
+          <div style="font-weight:600">€ {{ contratto.contingenza_mensile|euro_it }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">EDR</div>
+          <div style="font-weight:600">€ {{ contratto.edr_mensile|euro_it }}</div>
+        </div>
+        {% if contratto.premio_obiettivi %}
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Premio obiettivi</div>
+          <div style="font-weight:600">€ {{ contratto.premio_obiettivi|euro_it }}</div>
+        </div>
+        {% endif %}
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">13ª mensilità</div>
+          <div>{% if contratto.tredicesima %}<span class="badge bg-success" style="font-size:.77rem">Sì</span>{% else %}<span class="badge bg-secondary" style="font-size:.77rem">No</span>{% endif %}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">14ª mensilità</div>
+          <div>{% if contratto.quattordicesima %}<span class="badge bg-success" style="font-size:.77rem">Sì</span>{% else %}<span class="badge bg-secondary" style="font-size:.77rem">No</span>{% endif %}</div>
+        </div>
+      </div>
+
+      <hr style="border-color:#eef1f5">
+      <h6 style="font-size:.88rem;color:#888;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem">Ferie, permessi e TFR</h6>
+      <div class="row g-2 mb-3" style="font-size:.93rem">
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Giorni ferie/anno</div>
+          <div style="font-weight:700;color:#0a6640">{{ contratto.giorni_ferie_annuali }} giorni</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Permessi/anno</div>
+          <div style="font-weight:700;color:#b85a00">{{ contratto.giorni_permesso_annuali }} giorni</div>
+        </div>
+        {% if contratto.giorni_malattia_retribuiti %}
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Malattia retribuita</div>
+          <div style="font-weight:700">{{ contratto.giorni_malattia_retribuiti }} giorni</div>
+        </div>
+        {% endif %}
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Aliquota TFR</div>
+          <div style="font-weight:700">{{ contratto.aliquota_tfr }}%</div>
+        </div>
+        {% if contratto.fondo_pensione %}
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Fondo pensione</div>
+          <div style="font-weight:700">{{ contratto.fondo_pensione }}</div>
+        </div>
+        {% endif %}
+      </div>
+
+      <hr style="border-color:#eef1f5">
+      <h6 style="font-size:.88rem;color:#888;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem">Straordinari</h6>
+      <div class="row g-2" style="font-size:.93rem">
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Maggiorazione diurno</div>
+          <div style="font-weight:700">{{ contratto.ore_straordinario_diurno_maggiorazione }}%</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Maggiorazione notturno</div>
+          <div style="font-weight:700">{{ contratto.ore_straordinario_notturno_maggiorazione }}%</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#666;font-size:.83rem">Maggiorazione festivo</div>
+          <div style="font-weight:700">{{ contratto.ore_straordinario_festivo_maggiorazione }}%</div>
+        </div>
+      </div>
+
+      <div class="mt-2 p-2 rounded" style="background:#f0f7ff;border:1px solid #c0d8f0;font-size:.83rem;color:#1a3a5c">
+        <i class="bi bi-info-circle-fill" style="color:#2d6199"></i>
+        <strong>Base di calcolo:</strong> le maggiorazioni percentuali si applicano alla
+        <strong>paga lorda oraria</strong>
+        {% if calc_ret %}
+          (€&nbsp;{{ calc_ret.paga_oraria_lorda|num_it:4 }}/h per questo contratto)
+        {% endif %}
+        per ogni ora di lavoro straordinario effettivamente prestata.
+      </div>
+
+    </div>
+  </div>
+
+  {# ── Trattamento economico A REGIME ─────────────────────────────────── #}
+  {% if calc_ret %}
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 d-flex align-items-center gap-2"
+         style="background:#1b3a5f;font-size:.9rem;font-weight:700;color:#fff">
+      <i class="bi bi-graph-up-arrow"></i>
+      <span>Trattamento economico — A regime (mese intero)</span>
+      <span class="badge ms-auto" style="background:rgba(255,255,255,.18);font-size:.77rem;font-weight:600">
+        {{ calc_ret.ore_mensili|ore_hm }}h/mese · {{ calc_ret.ore_giornaliere_hhmm }}h/gg · {{ calc_ret.ore_settimanali|ore_hm }}h/sett
+      </span>
+    </div>
+    <div class="card-body py-3">
+
+      {# Lordo / Netto mensile — valori comprensivi di ratei 13ª/14ª #}
+      <div class="row g-2 mb-1" style="font-size:.93rem">
+        <div class="col-6 col-md-3">
+          <div style="color:#2f4a6b;font-size:.83rem;font-weight:600">Lordo mensile</div>
+          {% if calc_ret.lordo_con_1314 %}
+          <div style="font-weight:800;color:#1b3a5f;font-size:1rem">€ {{ calc_ret.lordo_con_1314|euro_it }}</div>
+          <div style="font-size:.7rem;color:#888">base {{ calc_ret.lordo_mensile|euro_it }} + ratei</div>
+          {% else %}
+          <div style="font-weight:800;color:#1b3a5f;font-size:1rem">€ {{ calc_ret.lordo_mensile|euro_it }}</div>
+          {% endif %}
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#2f4a6b;font-size:.83rem;font-weight:600">Netto mensile</div>
+          {% if calc_ret.netto_con_1314 %}
+          <div style="font-weight:800;color:#0a6640;font-size:1rem">€ {{ calc_ret.netto_con_1314|euro_it }}</div>
+          <div style="font-size:.7rem;color:#888">base {{ calc_ret.netto_mensile|euro_it }} + ratei</div>
+          {% else %}
+          <div style="font-weight:800;color:#0a6640;font-size:1rem">€ {{ calc_ret.netto_mensile|euro_it }}</div>
+          {% endif %}
+        </div>
+        {% if calc_ret.rateo_13_lordo_m %}
+        <div class="col-6 col-md-3">
+          <div style="color:#2f4a6b;font-size:.83rem;font-weight:600">di cui rateo 13ª</div>
+          <div style="font-weight:600;color:#5a7a9b">L € {{ calc_ret.rateo_13_lordo_m|euro_it }}</div>
+          <div style="font-size:.72rem;color:#888">accantonato, erogato a dic.</div>
+        </div>
+        {% endif %}
+        {% if calc_ret.rateo_14_lordo_m %}
+        <div class="col-6 col-md-3">
+          <div style="color:#2f4a6b;font-size:.83rem;font-weight:600">di cui rateo 14ª</div>
+          <div style="font-weight:600;color:#5a7a9b">L € {{ calc_ret.rateo_14_lordo_m|euro_it }}</div>
+          <div style="font-size:.72rem;color:#888">accantonato, erogato a lug.</div>
+        </div>
+        {% endif %}
+      </div>
+
+      <hr style="border-color:#eef1f5;margin:.5rem 0">
+      <div style="font-size:.82rem;color:#2f4a6b;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem">
+        <i class="bi bi-clock"></i> Analisi della paga oraria e giornaliera
+      </div>
+
+      {# €/h e €/gg lorda/netta #}
+      <div class="row g-2 mb-3" style="font-size:.92rem">
+        <div class="col-6 col-md-3">
+          <div style="color:#2f4a6b;font-size:.82rem;font-weight:600">€/ora lorda</div>
+          <div style="font-weight:700;color:#1b3a5f">€ {{ calc_ret.paga_oraria_lorda|num_it:4 }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#2f4a6b;font-size:.82rem;font-weight:600">€/ora netta</div>
+          <div style="font-weight:700;color:#0a6640">€ {{ calc_ret.paga_oraria_netta|num_it:4 }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#2f4a6b;font-size:.82rem;font-weight:600">€/giorno lorda</div>
+          <div style="font-weight:700;color:#1b3a5f">€ {{ calc_ret.paga_giornaliera_lorda|euro_it }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div style="color:#2f4a6b;font-size:.82rem;font-weight:600">€/giorno netta</div>
+          <div style="font-weight:700;color:#0a6640">€ {{ calc_ret.paga_giornaliera_netta|euro_it }}</div>
+        </div>
+      </div>
+
+      <hr style="border-color:#eef1f5;margin:.5rem 0">
+      <div style="font-size:.82rem;color:#2f4a6b;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.5rem">
+        <i class="bi bi-piggy-bank"></i> Ratei giornalieri (accantonati mensilmente)
+      </div>
+
+      {# Ratei lordo/netto giornalieri #}
+      <div class="row g-2 mb-2" style="font-size:.92rem">
+        {% if calc_ret.rateo_13_lordo_g %}
+        <div class="col-6 col-md-4">
+          <div style="color:#2f4a6b;font-size:.82rem;font-weight:600">13ª — rateo/gg</div>
+          <div>
+            <span style="font-weight:600;color:#1b3a5f">L&nbsp;€ {{ calc_ret.rateo_13_lordo_g|num_it:4 }}</span>
+            <span style="color:#aaa;margin:0 .2rem">·</span>
+            <span style="font-weight:600;color:#0a6640">N&nbsp;€ {{ calc_ret.rateo_13_netto_g|num_it:4 }}</span>
+          </div>
+        </div>
+        {% endif %}
+        {% if calc_ret.rateo_14_lordo_g %}
+        <div class="col-6 col-md-4">
+          <div style="color:#2f4a6b;font-size:.82rem;font-weight:600">14ª — rateo/gg</div>
+          <div>
+            <span style="font-weight:600;color:#1b3a5f">L&nbsp;€ {{ calc_ret.rateo_14_lordo_g|num_it:4 }}</span>
+            <span style="color:#aaa;margin:0 .2rem">·</span>
+            <span style="font-weight:600;color:#0a6640">N&nbsp;€ {{ calc_ret.rateo_14_netto_g|num_it:4 }}</span>
+          </div>
+        </div>
+        {% endif %}
+        <div class="col-6 col-md-4">
+          <div style="color:#2f4a6b;font-size:.82rem;font-weight:600">TFR — rateo/gg</div>
+          <div>
+            <span style="font-weight:600;color:#1b3a5f">L&nbsp;€ {{ calc_ret.rateo_tfr_lordo_g|num_it:4 }}</span>
+            <span style="color:#aaa;margin:0 .2rem">·</span>
+            <span style="font-weight:600;color:#0a6640">N&nbsp;€ {{ calc_ret.rateo_tfr_netto_g|num_it:4 }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-2 p-2 rounded" style="background:#f0faf4;border:1px solid #b7dfc9;font-size:.83rem;color:#0a4a2a">
+        <i class="bi bi-info-circle-fill" style="color:#0a6640"></i>
+        I ratei (13ª, 14ª, TFR) vengono <strong>accantonati ogni mese</strong> e corrisposti in date prestabilite
+        (dicembre, giugno, fine rapporto). Nel cedolino mensile non compaiono come importo diretto, ma incidono
+        sul <strong>costo totale</strong> del rapporto di lavoro.
+      </div>
+
+      <hr style="border-color:#eef1f5;margin:.5rem 0">
+
+      {# Totale netto/gg barra verde #}
+      <div class="p-2 rounded d-flex align-items-center justify-content-between"
+           style="background:#0a6640;color:#fff">
+        <div>
+          <div style="font-size:.8rem;font-weight:600;opacity:.85;text-transform:uppercase;letter-spacing:.06em">
+            Totale netto/giorno (inclusi ratei)
+          </div>
+          <div style="font-size:.82rem;opacity:.8">
+            paga netta + 13ª/14ª + TFR — valore economico effettivo della giornata lavorativa
+          </div>
+        </div>
+        <div style="font-size:1.15rem;font-weight:800;white-space:nowrap;margin-left:.75rem">
+          € {{ calc_ret.totale_netto_g|euro_it }}
+        </div>
+      </div>
+
+      {# Box educativo — personalizzato se paga_giornaliera_attesa valorizzata #}
+      {% if profilo.paga_giornaliera_attesa %}
+      <div class="mt-2 p-2 rounded" style="background:#fffbe6;border:1px solid #f5dfa0;font-size:.83rem;color:#7a5c00">
+        <strong><i class="bi bi-lightbulb-fill" style="color:#b8860b"></i> Paga attesa vs contratto</strong><br>
+        Hai indicato di voler guadagnare <strong>€ {{ profilo.paga_giornaliera_attesa|euro_it }}/gg netti</strong>.
+        Questo contratto garantisce <strong style="color:#0a6640">€ {{ calc_ret.paga_giornaliera_netta|euro_it }}/gg</strong> in busta paga,
+        con un valore economico complessivo di <strong style="color:#0a6640">€ {{ calc_ret.totale_netto_g|euro_it }}/gg</strong> inclusi
+        13ª{% if contratto.quattordicesima %}, 14ª{% endif %} e TFR accantonati.
+        {% if calc_ret.totale_netto_g >= profilo.paga_giornaliera_attesa %}
+        <div class="mt-1" style="color:#0a4a2a;font-weight:700">
+          <i class="bi bi-check-circle-fill" style="color:#0a6640"></i>
+          Obiettivo raggiunto! Il contratto supera le tue aspettative.
+        </div>
+        {% else %}
+        <div class="mt-1">
+          <i class="bi bi-arrow-right-circle-fill"></i>
+          Il valore complessivo (ratei inclusi) è <strong>€ {{ calc_ret.totale_netto_g|euro_it }}/gg</strong> —
+          considera il quadro economico completo prima di valutare l'offerta!
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="mt-2 p-2 rounded" style="background:#f0f7ff;border:1px solid #c0d8f0;font-size:.83rem;color:#1a3a5c">
+        <strong><i class="bi bi-lightbulb-fill" style="color:#2d6199"></i> Il valore economico della tua giornata lavorativa</strong><br>
+        Paga netta in busta: <strong style="color:#0a6640">€ {{ calc_ret.paga_giornaliera_netta|euro_it }}/gg</strong>.
+        Valore totale inclusi ratei (13ª{% if contratto.quattordicesima %}, 14ª{% endif %}, TFR accantonati):
+        <strong style="color:#0a6640">€ {{ calc_ret.totale_netto_g|euro_it }}/gg</strong>.
+        Vuoi confrontarlo con le tue aspettative?
+        <a href="{% url 'candidato_completa_profilo' %}" style="color:#1b3a5f;font-weight:700">Imposta la paga attesa nel profilo →</a>
+      </div>
+      {% endif %}
+
+      {% if eventi_documento %}
+      <div class="card border-0 shadow-sm mb-3 mt-3">
+        <div class="card-header py-2" style="background:#f4f7fa;font-size:.9rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #d8e1ea">
+          <i class="bi bi-clock-history"></i> Storico contratto e proposta
+        </div>
+        <div class="card-body py-2">
+          <div class="small text-muted mb-2">
+            Riferimenti: <strong>{{ contratto.numero_contratto }}</strong>{% if contratto.proposta_origine %} · <strong>{{ contratto.proposta_origine.numero_proposta }}</strong>{% endif %}
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" style="font-size:.83rem">
+              <thead>
+                <tr>
+                  <th style="width:165px">Data e ora</th>
+                  <th style="width:120px">Tipo</th>
+                  <th>Attività</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for evento in eventi_documento %}
+                <tr>
+                  <td class="fw-semibold">{{ evento.data_evento|date:"d/m/Y H:i" }}</td>
+                  <td>{{ evento.get_tipo_display }}</td>
+                  <td>{{ evento.descrizione }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

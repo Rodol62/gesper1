@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Registrazione Utente{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow-sm mt-5">
+            <div class="card-body">
+                <h3 class="card-title text-center mb-4">Registrazione nuovo utente</h3>
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <div class="mb-3">
+                        <label for="id_username" class="form-label">Username</label>
+                        {{ form.username }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="id_email" class="form-label">Email</label>
+                        {{ form.email }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="id_password1" class="form-label">Password</label>
+                        {{ form.password1 }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="id_password2" class="form-label">Conferma Password</label>
+                        {{ form.password2 }}
+                    </div>
+                    <div class="form-check mb-3">
+                        {{ form.privacy_accettata }}
+                        <label class="form-check-label" for="id_privacy_accettata">Autorizzo il trattamento dei dati personali ai sensi della normativa privacy italiana (GDPR)</label>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">Registrati</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

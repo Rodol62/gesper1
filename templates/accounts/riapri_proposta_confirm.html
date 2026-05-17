@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Riapri proposta — GESPER{% endblock %}
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:600px">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2" style="background:#d1e7dd;font-size:.82rem;font-weight:700;color:#0a3622">
+      <i class="bi bi-arrow-counterclockwise"></i> Conferma riapertura proposta
+    </div>
+    <div class="card-body py-3" style="font-size:.85rem">
+      <p>Vuoi riaprire la proposta e riportarla in stato <strong>Bozza</strong>?</p>
+      <p><strong>Proposta:</strong> {{ proposta.numero_proposta }}<br>
+         <strong>Candidato:</strong> {{ candidato.first_name }} {{ candidato.last_name }}<br>
+         <strong>Stato attuale:</strong> {{ proposta.get_stato_display }}
+      </p>
+      <div class="alert alert-info py-2" style="font-size:.8rem">
+        <i class="bi bi-info-circle"></i> La proposta tornerà in <strong>Bozza</strong> e potrà essere modificata e reinviata al candidato.
+      </div>
+      <div class="d-flex gap-2">
+        <form method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-success btn-sm">
+            <i class="bi bi-arrow-counterclockwise"></i> Sì, riapri proposta
+          </button>
+        </form>
+        <a href="{% url 'candidato_admin_dettaglio' candidato.id %}" class="btn btn-outline-secondary btn-sm">
+          Torna indietro
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+/**
+ * GESPER — Vista moduli in iframe PWA (parametro ?pwa=1)
+ * Niente shell sito: tipografia e colori allineati all’app (gesper-app).
+ * Bootstrap 5 del template base resta per tabelle e form; questo file semplifica l’esperienza.
+ */
+html {
+  font-size: 16px;
+}
+body.gesper-pwa-embed {
+  margin: 0;
+  min-height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  color: #1e293b;
+  background: #f0f4f8 !important;
+  display: block;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Main: area contenuti come schermata PWA */
+body.gesper-pwa-embed .g-main {
+  max-width: 100% !important;
+  width: 100% !important;
+  padding: 0.5rem 0.65rem 1.5rem;
+  min-height: min(100vh, 100dvh);
+  box-sizing: border-box;
+  flex: none !important;
+}
+
+/* Toasts: senza altezza navbar fissa */
+body.gesper-pwa-embed .g-toast-wrap {
+  top: 0.5rem;
+  right: 0.5rem;
+  left: auto;
+}
+
+/* Tabelle: scroll orizzontale comodo al pollice */
+body.gesper-pwa-embed .table-responsive,
+body.gesper-pwa-embed .gesper-list-scroll {
+  -webkit-overflow-scrolling: touch;
+  font-size: 0.9rem;
+}
+
+/* Pulsanti touch */
+body.gesper-pwa-embed .btn {
+  min-height: 40px;
+  border-radius: 10px;
+}
+body.gesper-pwa-embed .btn-sm {
+  min-height: 36px;
+}
+
+/* Card coerente con PWA */
+body.gesper-pwa-embed .card {
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e2e8f0;
+}
+body.gesper-pwa-embed .card-header {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+h1, h2, h3 {
+  color: #0f172a;
+}
+body.gesper-pwa-embed h1 { font-size: 1.2rem; }
+body.gesper-pwa-embed h2 { font-size: 1.05rem; }
+body.gesper-pwa-embed h3 { font-size: 0.98rem; }
+
+/* Link: blu PWA */
+body.gesper-pwa-embed a:not(.btn):not(.nav-link) {
+  color: #2563eb;
+  text-decoration: none;
+}
+body.gesper-pwa-embed a:not(.btn):not(.nav-link):active {
+  opacity: 0.85;
+}
+
+/* Navbar/footer sito nascosti via template; sicurezza CSS */
+body.gesper-pwa-embed .g-navbar,
+body.gesper-pwa-embed .g-footer {
+  display: none !important;
+}

@@ -1,0 +1,119 @@
+{% if extraction_error %}
+<div class="alert alert-danger">
+  <strong>Impossibile leggere il PDF.</strong>
+  <span class="d-block small mt-1 text-break">{{ extraction_error }}</span>
+</div>
+{% elif report %}
+
+{% if report.tipo_cedolino %}
+<p class="alert alert-light border small mb-3 mb-md-4" role="status">
+  Tipo cedolino: <strong>{{ report.tipo_cedolino }}</strong>
+</p>
+{% endif %}
+
+{% if report.dati_aziendali %}
+<div class="ced-section">
+  <h2>Dati azienda / datore di lavoro</h2>
+  <dl class="ced-kv">
+    {% for label, value in report.dati_aziendali.items %}
+    {% if value %}
+    <dt>{{ label }}</dt>
+    <dd>{{ value }}</dd>
+    {% endif %}
+    {% endfor %}
+  </dl>
+</div>
+{% endif %}
+
+<div class="ced-section">
+  <h2>Dati dipendente</h2>
+  <dl class="ced-kv">
+    {% for label, value in report.dati_dipendente.items %}
+    <dt>{{ label }}</dt>
+    <dd>{{ value }}</dd>
+    {% endfor %}
+  </dl>
+</div>
+
+<div class="ced-section">
+  <h2>Retribuzione base</h2>
+  <dl class="ced-kv">
+    {% for label, value in report.retribuzione_base.items %}
+    <dt>{{ label }}</dt>
+    <dd>{{ value }}</dd>
+    {% endfor %}
+  </dl>
+</div>
+
+<div class="ced-section">
+  <h2>Voci retributive</h2>
+  {% include "documenti/_cedolino_voci_table.html" with voci=report.voci_retributive %}
+</div>
+
+{% include "documenti/_cedolino_percorso_fiscale_it.html" %}
+
+{% include "documenti/_cedolino_controllo_aritmetico.html" %}
+
+<div class="ced-section">
+  <h2>Totali mensili</h2>
+  {% if report.formule_cedolino %}
+  <div class="alert alert-light border small py-2 mb-2" role="status" style="font-size:.75rem">
+    <strong>Formule ricavate dalla lettura di questa busta</strong>
+    <p class="mb-1 mt-1">{{ report.formule_cedolino.descrizione_umana }}</p>
+    {% with se=report.formule_cedolino.segnali_testo_pdf %}
+    {% if se.lordo or se.netto %}
+    <p class="mb-0 text-muted">Etichette nel testo PDF — lordo: {% if se.lordo %}{{ se.lordo|join:", " }}{% else %}—{% endif %}; netto: {% if se.netto %}{{ se.netto|join:", " }}{% else %}—{% endif %}.</p>
+    {% endif %}
+    {% endwith %}
+  </div>
+  {% endif %}
+  <p class="small text-muted px-2 mb-0 mt-1" style="font-size:.72rem">I valori sotto riflettono le formule sopra (chiavi contributi/IRPEF scelte tra i campi effettivamente estratti). Se il PDF differisce, può comparire la riga «(lettura PDF)».</p>
+  <dl class="ced-kv">
+    {% for label, value in report.totali_mensili.items %}
+    <dt>{{ label }}</dt>
+    <dd>{{ value }} €</dd>
+    {% endfor %}
+  </dl>
+</div>
+
+<div class="ced-section">
+  <h2>IRPEF e addizionali</h2>
+  <dl class="ced-kv">
+    {% for label, value in report.irpef_addizionali.items %}
+    <dt>{{ label }}</dt>
+    <dd>{{ value }} €</dd>
+    {% endfor %}
+  </dl>
+</div>
+
+<div class="ced-section">
+  <h2>Ferie, permessi e ROL</h2>
+  <dl class="ced-kv">
+    {% for label, value in report.ferie_permessi_rol.items %}
+    <dt>{{ label }}</dt>
+    <dd>{{ value }}</dd>
+    {% endfor %}
+  </dl>
+</div>
+
+<div class="ced-section">
+  <h2>Previdenziale / INPS / INAIL</h2>
+  <dl class="ced-kv">
+    {% for label, value in report.dati_previdenziali.items %}
+    <dt>{{ label }}</dt>
+    <dd>{{ value }}</dd>
+    {% endfor %}
+  </dl>
+</div>
+
+<div class="ced-section">
+  <h2>Progressivi annui</h2>
+  <dl class="ced-kv">
+    {% for label, value in report.progressivi_annui.items %}
+    <dt>{{ label }}</dt>
+    <dd>{{ value }} €</dd>
+    {% endfor %}
+  </dl>
+</div>
+
+{% endif %}

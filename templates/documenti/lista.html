@@ -1,0 +1,1040 @@
+{% extends 'base.html' %}
+{% load l10n %}
+{% load ruoli_tags %}
+{% load format_it_tags %}
+{% load pagination_tags %}
+{% block title %}Documenti{% endblock %}
+
+{% block extra_head %}
+<style>
+:root {
+    --c-primary:#1b3a5f;
+    --c-accent:#2d6199;
+    --c-green:#0a6640;
+    --c-border:#c5d0dc;
+    --c-muted:#5c6b7d;
+    --c-alt:#f4f7fa;
+}
+.res-topbar {
+    background: var(--c-primary);
+    color:#fff;
+    padding:.45rem 1rem;
+    border-radius:6px;
+    margin-bottom:.7rem;
+    display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+}
+.res-topbar h5 { font-size:.92rem; font-weight:700; margin:0; }
+.res-topbar .meta { font-size:.66rem; opacity:.85; }
+.kpi-bar { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:.7rem; }
+.kpi-box {
+    flex:1 1 170px;
+    background:var(--c-alt);
+    border:1px solid var(--c-border);
+    border-top:3px solid var(--c-accent);
+    border-radius:5px;
+    padding:.4rem .7rem;
+}
+.kpi-box.kpi-netto { border-top-color:var(--c-green); }
+.kpi-label { font-size:.66rem; text-transform:uppercase; letter-spacing:.04em; color:var(--c-muted); font-weight:600; display:block; }
+.kpi-value { font-size:1rem; font-weight:700; color:var(--c-primary); display:block; }
+.kpi-box.kpi-netto .kpi-value { color:var(--c-green); }
+.summary-card { border:1px solid var(--c-border); border-radius:5px; margin-bottom:.7rem; }
+.summary-card .sc-head {
+    background:var(--c-primary); color:#fff;
+    padding:.35rem .75rem; font-size:.72rem; font-weight:700;
+    text-transform:uppercase; letter-spacing:.05em;
+    border-radius:4px 4px 0 0;
+}
+.month-item { border: 1px solid var(--c-border); border-radius: 5px; margin-bottom: .35rem; }
+.month-btn {
+    width: 100%; display: flex; align-items: center; gap: .75rem;
+    background: #f0f5fa; border: none; padding: .3rem .65rem;
+    cursor: pointer; border-radius: 4px; text-align: left;
+    transition: background .15s;
+}
+.month-btn:hover { background: #e2ebf5; }
+.month-btn.open  { background: var(--c-primary); color: #fff; }
+.month-name { font-size: .88rem; font-weight: 700; min-width: 130px; }
+.month-chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: .45rem;
+    flex: 1;
+    align-items: center;
+}
+.mchip {
+    font-size: .79rem;
+    padding: .28rem .55rem;
+    border-radius: 4px;
+    font-weight: 700;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .01em;
+}
+.mchip-lordo { background: #dce8f5; color: var(--c-primary); }
+.mchip-netto { background: #d4f0e3; color: var(--c-green); }
+.month-arrow { font-size: .7rem; margin-left: auto; transition: transform .2s; }
+.month-btn.open .month-arrow { transform: rotate(180deg); }
+.month-body { display: none; padding: .4rem .4rem .3rem; }
+.month-body.show { display: block; }
+.buste-list { display:flex; flex-direction:column; gap:.35rem; }
+.busta-row {
+    display:grid;
+    /* Terza colonna: larghezza fissa per allineare «Visualizza»/«Stampa» tra tutte le righe */
+    grid-template-columns: minmax(210px, 1fr) minmax(300px, 2fr) minmax(10.5rem, 12rem);
+    align-items:center;
+    justify-content:space-between;
+    gap:.7rem;
+    border:1px solid var(--c-border); border-radius:6px; background:#fff;
+    padding:.45rem .6rem;
+}
+.br-left { min-width:220px; }
+.br-name { font-size:.88rem; font-weight:700; color:#1b3a5f; line-height:1.15; }
+.br-cf { font-size:.74rem; color:var(--c-muted); font-family:monospace; }
+.br-meta {
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap:.35rem;
+    align-items:center;
+}
+.buste-meta {
+    grid-template-columns: 90px 36px minmax(170px, 1fr) minmax(170px, 1fr) minmax(170px, 1fr);
+    justify-items: stretch;
+    align-items: center;
+}
+.br-chip {
+    font-size:.74rem;
+    padding:.22rem .45rem;
+    border-radius:4px;
+    font-weight:700;
+    text-align:center;
+    min-height:28px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+}
+.br-periodo { background:#e8eef5; color:#1b3a5f; }
+.br-lordo { background:#dce8f5; color:#1b3a5f; }
+.br-netto { background:#d4f0e3; color:#0a6640; }
+.br-source { background:#f4f7fa; color:#445; }
+.br-chip-amount {
+    font-variant-numeric: tabular-nums;
+    justify-content: flex-end;
+    text-align: right;
+    min-width: 148px;
+}
+.br-chip-mini {
+    min-width: 84px;
+    max-width: 84px;
+    padding: .18rem .32rem;
+    font-size: .68rem;
+}
+.br-chip-mini-icon {
+    min-width: 32px;
+    max-width: 32px;
+    padding: .18rem .15rem;
+    font-size: .68rem;
+}
+.br-chip-kv {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .45rem;
+    text-align: left;
+    padding-left: .52rem;
+    padding-right: .52rem;
+}
+.br-chip-kv .kv-label {
+    font-weight: 700;
+    opacity: .95;
+}
+.br-chip-kv .kv-value {
+    margin-left: auto;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.year-totals {
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+    gap:.45rem;
+    width: min(100%, 980px);
+    margin-left:auto;
+}
+.year-totals .badge {
+    font-size:.82rem;
+    font-weight:700;
+    padding:.45rem .55rem;
+    text-align:center;
+    font-variant-numeric: tabular-nums;
+}
+.br-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: .25rem;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+    min-height: 1.4rem;
+}
+.btn-xxs { font-size:.66rem; padding:.14rem .35rem; line-height:1.1; }
+/* Una riga di pulsanti (es. 13ª/14ª/Ord.): sempre allineata a destra */
+.br-action-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .25rem;
+    width: 100%;
+    min-height: 1.45rem;
+}
+.br-action-row + .br-action-row {
+    margin-top: .12rem;
+}
+.br-action-muted { font-size: .66rem; }
+
+/* Spaziatura dedicata righe dipendenti buste */
+.busta-row-buste {
+    grid-template-columns: minmax(210px, 1fr) minmax(400px, 2.2fr) minmax(12rem, 15rem);
+    column-gap: 1rem;
+}
+.busta-row-buste .br-meta {
+    justify-self: center;
+    width: 100%;
+    max-width: 760px;
+}
+.busta-row-buste .br-actions {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    align-self: stretch;
+    justify-content: center;
+    justify-self: stretch;
+    border-left: 1px solid #d7e0ea;
+    padding-left: .72rem;
+    margin-left: .35rem;
+}
+.busta-row-buste .br-action-row {
+    justify-content: flex-end;
+}
+
+/* Compattazione e allineamento specifici dashboard F24 */
+#accF24Anni .accordion-button {
+    padding: .48rem .72rem;
+}
+#accF24Anni .month-item {
+    margin-bottom: .28rem;
+}
+#accF24Anni .month-head-row {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+}
+#accF24Anni .month-btn {
+    flex: 1;
+    padding: .24rem .56rem;
+    min-height: 38px;
+}
+#accF24Anni .month-body {
+    padding: .28rem .3rem .22rem;
+}
+#accF24Anni .buste-list {
+    gap: .22rem;
+}
+#accF24Anni .busta-row {
+    padding: .28rem .46rem;
+    gap: .5rem;
+}
+#accF24Anni .br-chip {
+    min-height: 24px;
+    padding: .14rem .38rem;
+    font-size: .71rem;
+}
+#accF24Anni .month-inline-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 8.5rem;
+    gap: .25rem;
+    background: #f0f5fa;
+    border: 1px solid var(--c-border);
+    border-radius: 4px;
+    padding: .18rem .22rem;
+}
+#accF24Anni .month-inline-actions .br-action-row {
+    width: 100%;
+    justify-content: flex-end;
+}
+#accF24Anni .month-inline-actions .btn-xxs {
+    font-size: .63rem;
+    padding: .1rem .28rem;
+}
+.year-chips-f24 {
+    width: min(100%, 760px);
+}
+
+@media (max-width: 980px) {
+    .busta-row {
+        grid-template-columns: 1fr;
+    }
+    .busta-row-buste .br-actions {
+        border-left: 0;
+        padding-left: 0;
+        margin-left: 0;
+    }
+    .br-actions {
+        justify-content: flex-end;
+    }
+}
+@media (max-width: 1200px) {
+    .buste-meta {
+        grid-template-columns: 90px 36px minmax(150px, 1fr) minmax(150px, 1fr) minmax(150px, 1fr);
+    }
+}
+@media (max-width: 900px) {
+    #accF24Anni .month-head-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    #accF24Anni .month-inline-actions {
+        justify-content: flex-end;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% if request.user.is_superuser or request.user|has_ruolo:'admin' or request.user|has_ruolo:'hr' %}
+<div class="alert alert-light border py-2 small mb-3" role="status">
+  <div class="mb-1"><strong>Documenti del personale.</strong> In questa area trovi buste paga, CUD e F24, con filtri per anno, tipo e dipendente. Consensi privacy, firme e tracciature più avanzate saranno gestiti nel modulo dedicato (in evoluzione).</div>
+  {% if tipo_filter == 'contratto' and anno_filter and contratti_senza_anno_esplicito_inclusi %}
+  <div class="mb-1 text-muted" style="font-size:.85em;">
+    Nota contratti: {{ contratti_senza_anno_esplicito_inclusi }} documento/i senza anno esplicito nel nome/descrizione sono inclusi per compatibilita archivio legacy.
+  </div>
+  {% endif %}
+  <div class="mb-0 text-muted" style="font-size:.9em;">
+    <a href="{% url 'guida_modulo' 'documenti-compliance' %}">Guida: documenti e compliance</a>
+  </div>
+</div>
+{% endif %}
+{% if show_f24_dashboard %}
+<div class="summary-card">
+    <div class="sc-head">Filtri</div>
+    <div class="p-3">
+<form method="get" class="d-flex gap-2 align-items-end flex-wrap">
+    {% if categoria %}<input type="hidden" name="categoria" value="{{ categoria }}">{% endif %}
+    {% if tipo_filter %}<input type="hidden" name="tipo" value="{{ tipo_filter }}">{% endif %}
+    {% if not show_buste_dashboard %}
+    <div>
+        <label class="form-label mb-1">Tipo</label>
+        <select name="tipo" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="">Seleziona tipo</option>
+            {% for code, label in tipo_choices %}
+                <option value="{{ code }}" {% if tipo_filter == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+    {% if is_gestore_documenti %}
+    <div>
+        <label class="form-label mb-1">Anno</label>
+        <select name="anno" class="form-select form-select-sm" style="min-width: 140px;" onchange="this.form.submit()">
+            <option value="">Tutti gli anni</option>
+            {% for a in anni_filtri|default:anni_disponibili %}
+            <option value="{{ a|anno_it }}" {% if anno_filter == a|stringformat:'s' %}selected{% endif %}>{{ a|anno_it }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% if show_dipendente_filter %}
+    <div>
+        <label class="form-label mb-1">Dipendente</label>
+        <select name="dipendente" class="form-select form-select-sm" style="min-width: 230px;" onchange="this.form.submit()">
+            <option value="">Tutti i dipendenti</option>
+            {% for d in dipendenti_filtri %}
+            <option value="{{ d.id }}" {% if dipendente_filter == d.id|stringformat:'s' %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% else %}
+    <!-- Dipendente nascosto: ACL per dipendente che vede solo se stesso -->
+    <input type="hidden" name="dipendente" value="{{ dipendente_filter }}">
+    <div class="align-self-end">
+        <span class="form-label mb-0 text-muted">Dipendente: <strong>{{ dipendente_name_display }}</strong></span>
+    </div>
+    {% endif %}
+    {% endif %}
+    {% if tipo_filter or anno_filter or dipendente_filter %}
+    <div class="align-self-end">
+        {% if categoria %}
+        <a href="{% url 'lista_documenti' %}?categoria={{ categoria }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+        {% else %}
+        <a href="{% url 'lista_documenti' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% if show_buste_dashboard and is_gestore_documenti %}
+    <div class="flex-grow-1 d-flex justify-content-center align-items-end">
+        <a href="{% url 'upload_buste_paga_massivo' %}" class="btn btn-sm fw-bold px-3" style="background:#0a6640;color:#fff;font-size:0.95rem;">
+            Importazione massiva
+        </a>
+    </div>
+    {% endif %}
+    {% if show_buste_dashboard and is_gestore_documenti %}
+    <div class="align-self-end">
+        <form method="post" action="{% url 'lista_documenti' %}" class="d-inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="riallinea_pdf_mancanti_buste">
+            <input type="hidden" name="categoria" value="{{ categoria }}">
+            <input type="hidden" name="tipo" value="{{ tipo_filter|default:'busta_paga' }}">
+            <input type="hidden" name="anno" value="{{ anno_filter }}">
+            <input type="hidden" name="dipendente" value="{{ dipendente_filter }}">
+            <input type="hidden" name="solo_pdf_mancanti" value="{% if solo_pdf_mancanti %}1{% endif %}">
+            <button type="submit" class="btn btn-sm btn-outline-warning">Riallinea PDF mancanti</button>
+        </form>
+    </div>
+    {% endif %}
+    {% if show_buste_dashboard and is_gestore_documenti %}
+    <div class="align-self-end">
+        <form method="post" action="{% url 'lista_documenti' %}" class="d-inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="aggancia_movimenti_orfani_buste">
+            <input type="hidden" name="categoria" value="{{ categoria }}">
+            <input type="hidden" name="tipo" value="{{ tipo_filter|default:'busta_paga' }}">
+            <input type="hidden" name="anno" value="{{ anno_filter }}">
+            <input type="hidden" name="dipendente" value="{{ dipendente_filter }}">
+            <input type="hidden" name="solo_pdf_mancanti" value="{% if solo_pdf_mancanti %}1{% endif %}">
+            <button type="submit" class="btn btn-sm btn-outline-info">Aggancia movimenti orfani</button>
+        </form>
+    </div>
+    {% endif %}
+    {% if is_gestore_documenti and tipo_filter == 'certificato' %}
+    <div class="flex-grow-1 d-flex justify-content-center align-items-end">
+        <a href="{% url 'upload_cud_massivo' %}" class="btn btn-sm fw-bold px-3" style="background:#0a6640;color:#fff;font-size:0.95rem;">
+            Importazione CUD (PDF unico)
+        </a>
+    </div>
+    {% endif %}
+    {% if request.user.is_superuser %}
+    <div class="ms-auto align-self-end">
+        <a href="{% url 'admin_archivio_documenti_storage' %}" class="btn btn-sm btn-outline-dark">
+            Archivio cartelle documenti
+        </a>
+    </div>
+    {% endif %}
+    {% if show_buste_dashboard %}
+    <div class="align-self-end">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="1" id="soloPdfMancantiTop" name="solo_pdf_mancanti" {% if solo_pdf_mancanti %}checked{% endif %} onchange="this.form.submit()">
+            <label class="form-check-label small" for="soloPdfMancantiTop">Solo PDF mancanti</label>
+        </div>
+    </div>
+    {% endif %}
+</form>
+    </div>
+</div>
+{% endif %}
+
+{% if show_buste_dashboard %}
+<div class="res-topbar">
+    <div>
+        <h5>Buste paga — Dashboard</h5>
+        <span class="meta">Vista per anno/mese/dipendente · Azienda operativa</span>
+    </div>
+</div>
+
+<div class="kpi-bar">
+    <div class="kpi-box">
+        <span class="kpi-label">Anni disponibili</span>
+        <span class="kpi-value">{{ buste_anni_disponibili|length }}</span>
+    </div>
+    <div class="kpi-box">
+        <span class="kpi-label">Dipendenti</span>
+        <span class="kpi-value">{{ buste_num_dipendenti }}</span>
+    </div>
+    <div class="kpi-box">
+        <span class="kpi-label">PDF buste (archivio)</span>
+        <span class="kpi-value">{{ buste_num_documenti }}</span>
+    </div>
+    <div class="kpi-box">
+        <span class="kpi-label">Lordo totale</span>
+        <span class="kpi-value">€ {{ buste_tot_lordo|euro_it }}</span>
+    </div>
+    <div class="kpi-box kpi-netto">
+        <span class="kpi-label">Netto totale</span>
+        <span class="kpi-value">€ {{ buste_tot_netto|euro_it }}</span>
+    </div>
+    {% if buste_show_f24_details %}
+    <div class="kpi-box">
+        <span class="kpi-label">F24 da versare</span>
+        <span class="kpi-value">€ {{ buste_tot_f24|euro_it }}</span>
+    </div>
+    <div class="kpi-box kpi-netto">
+        <span class="kpi-label">Costo azienda annuo</span>
+        <span class="kpi-value">€ {{ buste_tot_costo_azienda|euro_it }}</span>
+    </div>
+    {% endif %}
+</div>
+{% elif show_f24_dashboard %}
+<div class="res-topbar">
+    <div>
+        <h5>F24 — Dashboard</h5>
+        <span class="meta">Vista per anno/mese · Azienda operativa</span>
+    </div>
+</div>
+
+<div class="kpi-bar">
+    <div class="kpi-box">
+        <span class="kpi-label">Anni disponibili</span>
+        <span class="kpi-value">{{ f24_anni_disponibili|length }}</span>
+    </div>
+    <div class="kpi-box">
+        <span class="kpi-label">Documenti F24</span>
+        <span class="kpi-value">{{ f24_num_documenti }}</span>
+    </div>
+    <div class="kpi-box kpi-netto">
+        <span class="kpi-label">Debiti totali</span>
+        <span class="kpi-value">€ {{ f24_tot_debito|euro_it }}</span>
+    </div>
+    <div class="kpi-box">
+        <span class="kpi-label">Crediti/compensazioni</span>
+        <span class="kpi-value">€ {{ f24_tot_credito|euro_it }}</span>
+    </div>
+    <div class="kpi-box kpi-netto">
+        <span class="kpi-label">Importo totale</span>
+        <span class="kpi-value">€ {{ f24_tot_importo|euro_it }}</span>
+    </div>
+</div>
+{% elif show_cud_dashboard %}
+<div class="res-topbar">
+    <div>
+        <h5>CUD — Dashboard</h5>
+        <span class="meta">Vista per anno e dipendente</span>
+    </div>
+</div>
+
+<div class="kpi-bar">
+    <div class="kpi-box">
+        <span class="kpi-label">Anni disponibili</span>
+        <span class="kpi-value">{{ anni_filtri|length }}</span>
+    </div>
+    <div class="kpi-box">
+        <span class="kpi-label">Dipendenti</span>
+        <span class="kpi-value">{{ cud_num_dipendenti }}</span>
+    </div>
+    <div class="kpi-box">
+        <span class="kpi-label">Documenti CUD</span>
+        <span class="kpi-value">{{ cud_num_documenti }}</span>
+    </div>
+</div>
+{% else %}
+<h2 class="mb-4">
+    {% if categoria == 'f24' %}F24
+    {% elif categoria == 'cud' %}CUD
+    {% else %}Documenti{% endif %}
+</h2>
+{% endif %}
+
+{% if not show_f24_dashboard %}
+<div class="summary-card">
+    <div class="sc-head">Filtri</div>
+    <div class="p-3">
+<form method="get" class="d-flex gap-2 align-items-end flex-wrap">
+    {% if categoria %}<input type="hidden" name="categoria" value="{{ categoria }}">{% endif %}
+    <div>
+        <label class="form-label mb-1">Tipo</label>
+        <select name="tipo" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="">Seleziona tipo</option>
+            {% for code, label in tipo_choices %}
+                <option value="{{ code }}" {% if tipo_filter == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% if is_gestore_documenti %}
+    <div>
+        <label class="form-label mb-1">Anno</label>
+        <select name="anno" class="form-select form-select-sm" style="min-width: 170px;" onchange="this.form.submit()">
+            <option value="">Tutti gli anni</option>
+            {% for a in anni_filtri|default:anni_disponibili %}
+            <option value="{{ a|anno_it }}" {% if anno_filter == a|stringformat:'s' %}selected{% endif %}>{{ a|anno_it }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="form-label mb-1">Dipendente</label>
+        <select name="dipendente" class="form-select form-select-sm" style="min-width: 230px;" onchange="this.form.submit()">
+            <option value="">Tutti i dipendenti</option>
+            {% for d in dipendenti_filtri %}
+            <option value="{{ d.id }}" {% if dipendente_filter == d.id|stringformat:'s' %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+    {% if tipo_filter or anno_filter or dipendente_filter %}
+    <div class="align-self-end">
+        {% if categoria %}
+        <a href="{% url 'lista_documenti' %}?categoria={{ categoria }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+        {% else %}
+        <a href="{% url 'lista_documenti' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% if is_gestore_documenti and tipo_filter == 'certificato' %}
+    <div class="ms-auto align-self-end">
+        <a href="{% url 'upload_cud_massivo' %}" class="btn btn-sm fw-bold px-3" style="background:#0a6640;color:#fff;font-size:0.95rem;">
+            Importazione CUD (PDF unico)
+        </a>
+    </div>
+    {% endif %}
+    {% if show_buste_dashboard and is_gestore_documenti %}
+    <div class="align-self-end">
+        <form method="post" action="{% url 'lista_documenti' %}" class="d-inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="riallinea_pdf_mancanti_buste">
+            <input type="hidden" name="categoria" value="{{ categoria }}">
+            <input type="hidden" name="tipo" value="{{ tipo_filter|default:'busta_paga' }}">
+            <input type="hidden" name="anno" value="{{ anno_filter }}">
+            <input type="hidden" name="dipendente" value="{{ dipendente_filter }}">
+            <input type="hidden" name="solo_pdf_mancanti" value="{% if solo_pdf_mancanti %}1{% endif %}">
+            <button type="submit" class="btn btn-sm btn-outline-warning">Riallinea PDF mancanti</button>
+        </form>
+    </div>
+    {% endif %}
+    {% if show_buste_dashboard and is_gestore_documenti %}
+    <div class="align-self-end">
+        <form method="post" action="{% url 'lista_documenti' %}" class="d-inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="aggancia_movimenti_orfani_buste">
+            <input type="hidden" name="categoria" value="{{ categoria }}">
+            <input type="hidden" name="tipo" value="{{ tipo_filter|default:'busta_paga' }}">
+            <input type="hidden" name="anno" value="{{ anno_filter }}">
+            <input type="hidden" name="dipendente" value="{{ dipendente_filter }}">
+            <input type="hidden" name="solo_pdf_mancanti" value="{% if solo_pdf_mancanti %}1{% endif %}">
+            <button type="submit" class="btn btn-sm btn-outline-info">Aggancia movimenti orfani</button>
+        </form>
+    </div>
+    {% endif %}
+    {% if request.user.is_superuser %}
+    <div class="align-self-end">
+        <a href="{% url 'admin_archivio_documenti_storage' %}" class="btn btn-sm btn-outline-dark">
+            Archivio cartelle documenti
+        </a>
+    </div>
+    {% endif %}
+    {% if show_buste_dashboard %}
+    <div class="align-self-end">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="1" id="soloPdfMancantiBottom" name="solo_pdf_mancanti" {% if solo_pdf_mancanti %}checked{% endif %} onchange="this.form.submit()">
+            <label class="form-check-label small" for="soloPdfMancantiBottom">Solo PDF mancanti</label>
+        </div>
+    </div>
+    {% endif %}
+</form>
+    </div>
+</div>
+{% endif %}
+
+{% if show_buste_dashboard %}
+<div class="mb-2 text-muted" style="font-size:.82rem">
+    Buste organizzate per <strong>anno</strong> → <strong>mese</strong> → <strong>dipendente</strong>.
+</div>
+{% if buste_missing_file_count %}
+<div class="alert alert-warning py-2" style="font-size:.8rem;">
+    <p class="mb-1">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        {% if buste_missing_file_unique_count == buste_missing_file_count %}
+        <strong>{{ buste_missing_file_count }}</strong> documenti
+        {% else %}
+        <strong>{{ buste_missing_file_count }}</strong> righe in elenco (<strong>{{ buste_missing_file_unique_count }}</strong> documenti distinti)
+        {% endif %}
+        senza PDF sullo storage: path nel DB e file reale non coincidono; «Visualizza» e «Stampa» per quelle righe sono disattivati.
+    </p>
+    <ul class="mb-0 ps-3 text-body-secondary" style="font-size:0.78rem;list-style-type:disc;">
+        <li class="mb-0">A caricamento, i path nelle cartelle abituali (es. <code>buste_paghe</code>, <code>varie</code>) vengono già controllati, incluso il vecchio prefisso <code>documenti/</code>. Se l’avviso resta, sotto <code class="user-select-all">MEDIA</code> non c’è un file con quel nome.</li>
+        {% if is_gestore_documenti %}
+        <li class="mb-0">Prova <strong class="text-body">Riallinea PDF mancanti</strong> in alto, se sospetti un altro percorso relativo; in alternativa copia i file sul server (es. da backup) o reimporta con <strong class="text-body">Importazione massiva</strong>.</li>
+        {% endif %}
+    </ul>
+</div>
+{% endif %}
+{% if buste_movimenti_senza_documento_count %}
+<div class="alert alert-info py-2" style="font-size:.8rem;">
+    <i class="bi bi-info-circle me-1"></i>
+    {{ buste_movimenti_senza_documento_count }} righe sono presenti solo come movimento paghe (senza Documento PDF collegato).
+</div>
+{% endif %}
+
+<div class="accordion" id="accBusteAnni">
+    {% for y in buste_anni %}
+    <div class="accordion-item mb-2 border rounded">
+        <h2 class="accordion-header" id="head-year-{{ y.anno|anno_it }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#col-year-{{ y.anno|anno_it }}" aria-expanded="false" aria-controls="col-year-{{ y.anno|anno_it }}">
+                <div class="w-100 d-flex justify-content-between align-items-center flex-wrap gap-3 pe-2">
+                    <span><strong>Anno {{ y.anno|anno_it }}</strong></span>
+                    <span class="year-totals">
+                        <span class="badge bg-primary">Lordo totale: € {{ y.tot_lordo|euro_it }}</span>
+                        <span class="badge bg-success">Netto totale: € {{ y.tot_netto|euro_it }}</span>
+                        {% if buste_show_f24_details %}
+                        <span class="badge bg-secondary">F24 da versare: € {{ y.tot_f24|default:0|euro_it }}</span>
+                        <span class="badge bg-dark">Costo azienda annuo: € {{ y.tot_costo_azienda|default:0|euro_it }}</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </button>
+        </h2>
+        <div id="col-year-{{ y.anno|anno_it }}" class="accordion-collapse collapse" aria-labelledby="head-year-{{ y.anno|anno_it }}" data-bs-parent="#accBusteAnni">
+            <div class="accordion-body p-2">
+                <div>
+                    {% for m in y.mesi %}
+                    <div class="month-item">
+                        <button type="button" class="month-btn" onclick="toggleMese(this,'mese_{{ y.anno|anno_it }}_{{ m.mese }}')">
+                            <span class="month-name">{{ m.mese_nome }} <span style="font-weight:400;font-size:.65rem;opacity:.75">{{ y.anno|anno_it }}</span></span>
+                            <span class="month-chips">
+                                <span class="mchip mchip-lordo">Lordo mese € {{ m.tot_lordo|euro_it }}</span>
+                                <span class="mchip mchip-netto">Netto mese € {{ m.tot_netto|euro_it }}</span>
+                                {% if buste_show_f24_details %}
+                                <span class="mchip" style="background:#eceff3;color:#3f4a57">F24 da versare € {{ m.tot_f24|default:0|euro_it }}</span>
+                                {% endif %}
+                            </span>
+                            <span class="month-arrow">&#9660;</span>
+                        </button>
+                        <div id="mese_{{ y.anno|anno_it }}_{{ m.mese }}" class="month-body">
+                                <div class="buste-list">
+                                    {% for d in m.dipendenti %}
+                                    {% with r=d.primary_row fr=d.rows|first %}
+                                    <div class="busta-row busta-row-buste">
+                                        <div class="br-left">
+                                            {% if d.dipendente %}
+                                            <div class="br-name">{{ d.dipendente.cognome }} {{ d.dipendente.nome }}</div>
+                                            {% if d.dipendente.codice_fiscale %}<div class="br-cf">{{ d.dipendente.codice_fiscale }}</div>{% endif %}
+                                            {% else %}
+                                            <div class="br-name"><span class="text-warning">Senza dipendente</span></div>
+                                            {% if fr and fr.documento %}<div class="br-cf text-muted" style="font-size:.72rem">{{ fr.documento.descrizione|default:""|truncatechars:72 }}</div>{% endif %}
+                                            {% endif %}
+                                        </div>
+                                        <div class="br-meta buste-meta">
+                                            <span class="br-chip br-periodo br-chip-mini">{{ m.mese|stringformat:'02d' }}/{{ y.anno|anno_it }}</span>
+                                            {% if r and r.documento and r.documento.caricato_da %}
+                                                {% if r.documento.caricato_da|has_ruolo:'consulente' %}
+                                                    <span class="br-chip br-source br-chip-mini-icon" title="Caricato da consulente"><i class="bi bi-briefcase"></i></span>
+                                                {% else %}
+                                                    <span class="br-chip br-source br-chip-mini-icon" title="Caricato da admin/HR"><i class="bi bi-person-badge"></i></span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="br-chip br-source br-chip-mini-icon" title="Importazione di sistema"><i class="bi bi-cpu"></i></span>
+                                            {% endif %}
+                                            <span class="br-chip br-lordo br-chip-kv">
+                                                <span class="kv-label">Lordo</span>
+                                                <span class="kv-value">€ {{ d.tot_lordo|euro_it }}</span>
+                                            </span>
+                                            <span class="br-chip br-netto br-chip-kv">
+                                                <span class="kv-label">Netto</span>
+                                                <span class="kv-value">€ {{ d.tot_netto|euro_it }}</span>
+                                            </span>
+                                            {% if d.rows|length > 1 %}
+                                                <span class="br-chip br-source" title="Numero documenti per il dipendente in questo mese">{{ d.rows|length }} doc</span>
+                                            {% endif %}
+                                            {% if r and not r.documento %}
+                                                <span class="br-chip" style="background:#fff3cd;color:#7a5900" title="Presente movimento import paghe ma non è ancora disponibile il PDF">
+                                                    Solo movimento (PDF mancante)
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="br-actions">
+                                            {% if d.rows %}
+                                                {% for rr in d.rows %}
+                                                <div class="br-action-row">
+                                                    {% with mov=rr.movimento %}
+                                                        {% if mov %}
+                                                            {% with natura=mov.natura_busta|default:'ORDINARIA' %}
+                                                            {% if rr.documento and rr.file_available %}
+                                                                <a href="{% url 'visualizza_documento' rr.documento.id %}" class="btn btn-outline-secondary btn-xxs">
+                                                                    Visualizza #{{ rr.documento.id }} {% if natura == 'TREDICESIMA' %}13ª{% elif natura == 'QUATTORDICESIMA' %}14ª{% else %}Ord.{% endif %}
+                                                                </a>
+                                                                {% if rr.documento.file.name|lower|slice:"-4:" == ".pdf" %}
+                                                                <a href="{% url 'visualizza_cedolino_busta' rr.documento.id %}" class="btn btn-outline-info btn-xxs" title="Dati estratti dal cedolino">Cedolino</a>
+                                                                {% endif %}
+                                                                <a href="{% url 'download_documento' rr.documento.id %}" class="btn btn-primary btn-xxs">
+                                                                    Stampa {% if natura == 'TREDICESIMA' %}13ª{% elif natura == 'QUATTORDICESIMA' %}14ª{% else %}Ord.{% endif %}
+                                                                </a>
+                                                            {% else %}
+                                                                <span class="text-muted br-action-muted">PDF mancante</span>
+                                                            {% endif %}
+                                                            {% endwith %}
+                                                        {% else %}
+                                                            {% if rr.documento and rr.file_available %}
+                                                                <a href="{% url 'visualizza_documento' rr.documento.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza #{{ rr.documento.id }}</a>
+                                                                {% if rr.documento.file.name|lower|slice:"-4:" == ".pdf" %}
+                                                                <a href="{% url 'visualizza_cedolino_busta' rr.documento.id %}" class="btn btn-outline-info btn-xxs" title="Dati estratti dal cedolino">Cedolino</a>
+                                                                {% endif %}
+                                                                <a href="{% url 'download_documento' rr.documento.id %}" class="btn btn-primary btn-xxs">Stampa</a>
+                                                            {% else %}
+                                                                <span class="text-muted br-action-muted">PDF mancante</span>
+                                                            {% endif %}
+                                                        {% endif %}
+                                                    {% endwith %}
+                                                </div>
+                                                {% endfor %}
+                                            {% else %}
+                                                <div class="br-action-row">
+                                                    <span class="text-muted br-action-muted">Nessun file</span>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endwith %}
+                                    {% endfor %}
+                                </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="alert alert-light border text-muted">Nessun mese disponibile per questo anno.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="alert alert-light border text-muted">Nessuna busta paga trovata per i filtri selezionati.</div>
+    {% endfor %}
+</div>
+{% elif show_f24_dashboard %}
+<div class="mb-2 text-muted" style="font-size:.82rem">
+    F24 organizzati per <strong>anno</strong> → <strong>mese</strong>.
+</div>
+
+<div class="accordion" id="accF24Anni">
+    {% for y in f24_anni %}
+    <div class="accordion-item mb-2 border rounded">
+        <h2 class="accordion-header" id="head-f24-year-{{ y.anno|anno_it }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#col-f24-year-{{ y.anno|anno_it }}" aria-expanded="false" aria-controls="col-f24-year-{{ y.anno|anno_it }}">
+                <div class="w-100 d-flex justify-content-between align-items-center flex-wrap gap-3 pe-2">
+                    <span><strong>Anno {{ y.anno|anno_it }}</strong></span>
+                    <span class="month-chips year-chips-f24">
+                        <span class="mchip mchip-lordo">Debiti anno € {{ y.tot_debito|euro_it }}</span>
+                        <span class="mchip" style="background:#eceff3;color:#3f4a57">Crediti anno € {{ y.tot_credito|euro_it }}</span>
+                        <span class="mchip mchip-netto">Importo anno € {{ y.tot_importo|euro_it }}</span>
+                    </span>
+                </div>
+            </button>
+        </h2>
+        <div id="col-f24-year-{{ y.anno|anno_it }}" class="accordion-collapse collapse" aria-labelledby="head-f24-year-{{ y.anno|anno_it }}" data-bs-parent="#accF24Anni">
+            <div class="accordion-body p-2">
+                <div>
+                    {% for m in y.mesi %}
+                    <div class="month-item">
+                        <div class="month-head-row">
+                            <button type="button" class="month-btn" onclick="toggleMese(this,'f24_mese_{{ y.anno|anno_it }}_{{ m.mese }}')">
+                                <span class="month-name">{{ m.mese_nome }} <span style="font-weight:400;font-size:.65rem;opacity:.75">{{ y.anno|anno_it }}</span></span>
+                                <span class="month-chips">
+                                    <span class="mchip mchip-lordo">Debiti € {{ m.tot_debito|euro_it }}</span>
+                                    <span class="mchip" style="background:#eceff3;color:#3f4a57">Crediti € {{ m.tot_credito|euro_it }}</span>
+                                    <span class="mchip mchip-netto">Importo mese € {{ m.tot_importo|euro_it }}</span>
+                                </span>
+                                <span class="month-arrow">&#9660;</span>
+                            </button>
+                            <div class="month-inline-actions">
+                                <div class="br-action-row">
+                                {% with rr=m.rows.0 %}
+                                {% if rr and rr.movimento and rr.movimento.documento and rr.movimento.documento.file %}
+                                    <a href="{% url 'visualizza_documento' rr.movimento.documento.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza PDF #{{ rr.movimento.documento.id }}</a>
+                                    <a href="{% url 'download_documento' rr.movimento.documento.id %}" class="btn btn-primary btn-xxs">Stampa PDF</a>
+                                {% else %}
+                                    <span class="text-muted br-action-muted">PDF non disponibile</span>
+                                {% endif %}
+                                {% endwith %}
+                                </div>
+                            </div>
+                        </div>
+                        <div id="f24_mese_{{ y.anno|anno_it }}_{{ m.mese }}" class="month-body">
+                            <div class="buste-list">
+                                {% for r in m.rows %}
+                                <div class="busta-row">
+                                    <div class="br-left">
+                                        <div class="br-name">Modello F24</div>
+                                        <div class="br-cf">{{ m.mese|stringformat:'02d' }}/{{ y.anno|anno_it }}</div>
+                                    </div>
+                                    <div class="br-meta">
+                                        <span class="br-chip br-periodo">{{ m.mese|stringformat:'02d' }}/{{ y.anno|anno_it }}</span>
+                                        <span class="br-chip br-lordo br-chip-amount">Debiti € {{ r.debito|default:0|euro_it }}</span>
+                                        <span class="br-chip br-chip-amount" style="background:#eceff3;color:#3f4a57">Crediti € {{ r.credito|default:0|euro_it }}</span>
+                                        <span class="br-chip br-netto br-chip-amount">Saldo € {{ r.saldo_finale|default:r.importo|default:0|euro_it }}</span>
+                                    </div>
+                                    <div class="br-actions">
+                                        <div class="br-action-row">
+                                        {% with doc=r.movimento.documento %}
+                                        {% if doc and doc.file %}
+                                            <a href="{% url 'visualizza_documento' doc.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza #{{ doc.id }}</a>
+                                            <a href="{% url 'download_documento' doc.id %}" class="btn btn-primary btn-xxs">Stampa</a>
+                                        {% else %}
+                                            <span class="text-muted br-action-muted">Nessun file</span>
+                                        {% endif %}
+                                        {% endwith %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="alert alert-light border text-muted">Nessun mese disponibile per questo anno.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="alert alert-light border text-muted">Nessun F24 trovato per i filtri selezionati.</div>
+    {% endfor %}
+</div>
+{% elif show_cud_dashboard %}
+<div class="accordion" id="accCudAnni">
+    {% for y in cud_anni %}
+    <div class="accordion-item mb-2 border rounded">
+        <h2 class="accordion-header" id="head-cud-year-{{ y.anno|anno_it }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#col-cud-year-{{ y.anno|anno_it }}" aria-expanded="false" aria-controls="col-cud-year-{{ y.anno|anno_it }}">
+                <div class="w-100 d-flex justify-content-between align-items-center flex-wrap gap-3 pe-2">
+                    <span><strong>Anno {{ y.anno|anno_it }}</strong></span>
+                    <span class="badge bg-secondary">{{ y.dipendenti|length }} dipendenti</span>
+                </div>
+            </button>
+        </h2>
+        <div id="col-cud-year-{{ y.anno|anno_it }}" class="accordion-collapse collapse" aria-labelledby="head-cud-year-{{ y.anno|anno_it }}" data-bs-parent="#accCudAnni">
+            <div class="accordion-body p-2">
+                <div class="buste-list">
+                    {% for d in y.dipendenti %}
+                    <div class="busta-row busta-row-f24">
+                        <div class="br-left">
+                            <div class="br-name">
+                                {% if d.dipendente %}
+                                    {{ d.dipendente.cognome }} {{ d.dipendente.nome }}
+                                {% else %}
+                                    <span class="text-muted">Dipendente non associato</span>
+                                {% endif %}
+                            </div>
+                            {% if d.dipendente and d.dipendente.codice_fiscale %}
+                            <div class="br-cf">{{ d.dipendente.codice_fiscale }}</div>
+                            {% endif %}
+                        </div>
+                        {% with r=d.primary_row %}
+                        <div class="br-meta">
+                            <span class="br-chip br-periodo">CU {{ r.anno_cu|default:y.anno|anno_it }}</span>
+                            <span class="br-chip br-chip-amount" style="background:#f4f6f9;color:#3f4a57" title="Anno d'imposta/riferimento del CUD">
+                                RIF. {% if r.anno_riferimento %}{{ r.anno_riferimento|anno_it }}{% else %}—{% endif %}{% if r.anno_riferimento_stimato %}*{% endif %}
+                            </span>
+                            <span class="br-chip br-chip-amount" style="background:#eceff3;color:#3f4a57">CUD: {{ d.rows|length }}</span>
+                        </div>
+                        <div class="br-actions">
+                            <div class="br-action-row">
+                            {% if r and r.file_available %}
+                                <a href="{% url 'visualizza_documento' r.documento.id %}" class="btn btn-outline-secondary btn-xxs">Visualizza #{{ r.documento.id }}</a>
+                                <a href="{% url 'download_documento' r.documento.id %}" class="btn btn-primary btn-xxs">Stampa</a>
+                            {% elif r %}
+                                <span class="text-muted br-action-muted">File non disponibile</span>
+                            {% else %}
+                                <span class="text-muted br-action-muted">Nessun documento</span>
+                            {% endif %}
+                            </div>
+                        </div>
+                        {% endwith %}
+                    </div>
+                    {% empty %}
+                    <div class="alert alert-light border text-muted mb-0">Nessun CUD per questo anno.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="alert alert-light border text-muted">Nessun CUD trovato per i filtri selezionati.</div>
+    {% endfor %}
+</div>
+<div class="text-muted mt-2" style="font-size:.78rem;">* anno riferimento stimato automaticamente quando non rilevabile dal PDF.</div>
+{% else %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    {% if documenti.paginator.count %}
+    {% gesper_pagination documenti "Paginazione documenti" %}
+    <div class="gesper-list-scroll">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped mb-0" style="font-size:.83rem">
+        <thead style="background:#f4f7fa">
+            <tr>
+                <th style="font-size:.72rem;color:#666;font-weight:600;padding:.5rem .75rem">Tipo</th>
+                <th style="font-size:.72rem;color:#666;font-weight:600">Descrizione</th>
+                <th style="font-size:.72rem;color:#666;font-weight:600">Dipendente</th>
+                <th style="font-size:.72rem;color:#666;font-weight:600">Azienda</th>
+                <th style="font-size:.72rem;color:#666;font-weight:600">Caricato da</th>
+                <th style="font-size:.72rem;color:#666;font-weight:600">Data</th>
+                <th style="font-size:.72rem;color:#666;font-weight:600">Azioni</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for documento in documenti %}
+            <tr>
+                <td style="padding:.5rem .75rem">{{ documento.get_tipo_display }}</td>
+                <td>{{ documento.descrizione|default:'—' }}</td>
+                <td>
+                    {% if documento.dipendente %}
+                        {{ documento.dipendente }}
+                    {% else %}
+                        Generale
+                    {% endif %}
+                </td>
+                <td>{{ documento.azienda.nome }}</td>
+                <td>
+                    {% if documento.caricato_da %}
+                        {{ documento.caricato_da.get_full_name|default:documento.caricato_da.username }}
+                    {% else %}
+                        Sistema
+                    {% endif %}
+                </td>
+                <td>{{ documento.data_caricamento|date:'d/m/Y' }}</td>
+                <td style="white-space:nowrap">
+                    {% if documento.file %}
+                    <a href="{% url 'visualizza_documento' documento.id %}" class="btn btn-sm btn-outline-secondary" style="font-size:.72rem">Visualizza #{{ documento.id }}</a>
+                    {% endif %}
+                    {% if documento.tipo == 'busta_paga' and documento.file and documento.file.name|lower|slice:"-4:" == ".pdf" %}
+                    <a href="{% url 'visualizza_cedolino_busta' documento.id %}" class="btn btn-sm btn-outline-info" style="font-size:.72rem" title="Estrazione cedolino">Cedolino</a>
+                    {% endif %}
+                    <a href="{% url 'download_documento' documento.id %}" class="btn btn-sm btn-primary" style="font-size:.72rem">Scarica</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    </div>
+    {% gesper_pagination documenti "Paginazione documenti" %}
+    <div class="text-muted small px-3 py-2 border-top">
+      {{ documenti.paginator.count }} documento/i
+      {% if documenti.paginator.num_pages > 1 %} — pagina {{ documenti.number }} di {{ documenti.paginator.num_pages }}{% endif %}.
+    </div>
+    {% else %}
+    <div class="text-muted p-3" style="font-size:.83rem">Nessun documento trovato.</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if show_buste_dashboard %}
+<script>
+function toggleMese(btn, id) {
+    const body = document.getElementById(id);
+    if (!body) return;
+    const isOpen = body.classList.contains('show');
+    body.classList.toggle('show', !isOpen);
+    btn.classList.toggle('open', !isOpen);
+}
+
+document.querySelectorAll('[id^="col-year-"]').forEach((yearPanel) => {
+    const firstBtn = yearPanel.querySelector('.month-btn');
+    if (!firstBtn) return;
+    const monthBody = yearPanel.querySelector('.month-body');
+    if (!monthBody) return;
+    monthBody.classList.add('show');
+    firstBtn.classList.add('open');
+});
+</script>
+{% endif %}
+{% endblock %}

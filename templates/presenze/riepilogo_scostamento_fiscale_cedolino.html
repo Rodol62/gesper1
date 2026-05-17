@@ -1,0 +1,177 @@
+{% extends 'base.html' %}
+{% load format_it_tags %}
+{% block title %}Scostamento fiscale simulazione vs cedolino — GESPER{% endblock %}
+
+{% block content %}
+<style>
+  .sf-table th, .sf-table td { font-size: .72rem; vertical-align: middle; }
+  .sf-table thead th { background: #f4f7fa; color: #1b3a5f; font-weight: 700; border-color: #dde4ec; }
+  .sf-row-diff { background: #fff7ed; box-shadow: inset 3px 0 0 #ea580c; }
+  .sf-row-ok { background: #f0fdf4; }
+  .sf-voce td { font-size: .66rem; background: #fafbfc; color: #475569; }
+</style>
+<div class="container-fluid px-3 mt-3">
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:8px;padding:.7rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem">
+    <div>
+      <div style="font-size:.7rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em">Conciliazione fiscale</div>
+      <h5 style="margin:0;font-size:.97rem;font-weight:800">
+        <i class="bi bi-calculator"></i> {{ azienda.nome }} — Simulazione vs Cedolino (INPS/IRPEF/Netto)
+      </h5>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'riepilogo_scostamento_cedolino' %}?anno={{ anno|anno_it }}{% if mese %}&mese={{ mese|stringformat:'d' }}{% endif %}{% if q_filter %}&q={{ q_filter|urlencode }}{% endif %}{% if divisore %}&divisore={{ divisore|urlencode }}{% endif %}{% if percorso_fiscale and percorso_fiscale != 'standard' %}&percorso_fiscale={{ percorso_fiscale|urlencode }}{% endif %}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;font-size:.78rem">
+        <i class="bi bi-arrow-left"></i> Torna a scostamento ore
+      </a>
+    </div>
+  </div>
+
+  <div class="card mb-3 border-0 shadow-sm">
+    <div class="card-body py-2">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-auto">
+          <label class="form-label mb-1 small fw-semibold text-muted">Anno</label>
+          <input type="number" min="2020" max="2100" name="anno" class="form-control form-control-sm" value="{{ anno|anno_it }}">
+        </div>
+        <div class="col-auto">
+          <label class="form-label mb-1 small fw-semibold text-muted">Mese</label>
+          <select name="mese" class="form-select form-select-sm">
+            <option value="">Tutto l'anno</option>
+            {% for k, v in mesi_options %}
+              <option value="{{ k }}" {% if mese == k %}selected{% endif %}>{{ v }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label mb-1 small fw-semibold text-muted">Divisore motore</label>
+          <select name="divisore" class="form-select form-select-sm" title="Stesso criterio della simulazione organico 2026 (ore mensili / paga oraria)">
+            <option value="173.33" {% if divisore == '173.33' or not divisore %}selected{% endif %}>173,33 (default)</option>
+            <option value="172" {% if divisore == '172' %}selected{% endif %}>172</option>
+            <option value="26" {% if divisore == '26' %}selected{% endif %}>26 (giornaliero)</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label mb-1 small fw-semibold text-muted">Percorso fiscale</label>
+          <select name="percorso_fiscale" class="form-select form-select-sm" style="min-width:11rem" title="Confronto IRPEF/netto: provare «L207 detrazione» se il cedolino tratta il bonus come detrazione">
+            <option value="standard" {% if not percorso_fiscale or percorso_fiscale == 'standard' %}selected{% endif %}>Standard (netto + crediti)</option>
+            <option value="ced_l207_det" {% if percorso_fiscale == 'ced_l207_det' %}selected{% endif %}>L207 come detrazione IRPEF</option>
+          </select>
+        </div>
+        <div class="col-auto flex-grow-1" style="min-width:260px">
+          <label class="form-label mb-1 small fw-semibold text-muted">Dipendente</label>
+          <input type="text" name="q" class="form-control form-control-sm" value="{{ q_filter|default:'' }}" placeholder="Cardella, Gomes, CF…">
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-search"></i> Applica</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0" style="overflow-x:auto">
+      <table class="sf-table table table-sm table-bordered align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Dipendente</th>
+            <th>Mese</th>
+            <th class="text-end">Sim Impon. INPS</th>
+            <th class="text-end">Ced Impon. INPS</th>
+            <th class="text-end">Δ Impon.</th>
+            <th class="text-end">Sim INPS dip</th>
+            <th class="text-end" title="TeamSystem v4: campo «Tot. contributi sociali» = quota IVS dipendente letta in riga contributi">Ced INPS dip.</th>
+            <th class="text-end">Δ INPS</th>
+            <th class="text-end">Sim Imposte</th>
+            <th class="text-end">Ced Imposte</th>
+            <th class="text-end">Δ Imposte</th>
+            <th class="text-end">Sim Netto</th>
+            <th class="text-end">Ced Netto</th>
+            <th class="text-end">Δ Netto</th>
+            <th class="text-center">Voci</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr class="{% if r.delta_netto != 0 or r.delta_impon_inps != 0 or r.delta_inps_dip != 0 or r.delta_imposte != 0 %}sf-row-diff{% else %}sf-row-ok{% endif %}">
+            <td>{{ r.dip.cognome }} {{ r.dip.nome }}</td>
+            <td>{{ r.mese_nome }}</td>
+            <td class="text-end">{{ r.sim_impon_inps|floatformat:2 }}</td>
+            <td class="text-end">{{ r.ced_impon_inps|floatformat:2 }}</td>
+            <td class="text-end">{{ r.delta_impon_inps|floatformat:2 }}</td>
+            <td class="text-end">{{ r.sim_inps_dip|floatformat:2 }}</td>
+            <td class="text-end">{{ r.ced_inps_dip|floatformat:2 }}</td>
+            <td class="text-end">{{ r.delta_inps_dip|floatformat:2 }}</td>
+            <td class="text-end">{{ r.sim_imposte|floatformat:2 }}</td>
+            <td class="text-end">{{ r.ced_imposte|floatformat:2 }}</td>
+            <td class="text-end">{{ r.delta_imposte|floatformat:2 }}</td>
+            <td class="text-end">{{ r.sim_netto|floatformat:2 }}</td>
+            <td class="text-end">{{ r.ced_netto|floatformat:2 }}</td>
+            <td class="text-end fw-bold">{{ r.delta_netto|floatformat:2 }}</td>
+            <td class="text-center">
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#{{ r.id_collapse }}">
+                dettaglio
+              </button>
+            </td>
+          </tr>
+          <tr class="collapse" id="{{ r.id_collapse }}">
+            <td colspan="15" class="p-0">
+              {% with pm=r.parametri_motore %}
+              <div class="px-3 py-2 border-bottom bg-light small text-body-secondary">
+                <strong class="text-dark">Parametri usati dal motore</strong>
+                — divisore {{ pm.divisore_str }} ·
+                CCNL tab. id {{ pm.parametro_ccnl_id }} (liv. {{ pm.livello_ccnl_eff }}) ·
+                fonte tabella: <code>{{ pm.fonte_parametro_ccnl }}</code> ·
+                contratto: {{ pm.contratto }} ·
+                tipo: {{ pm.tipo_contratto }} (coeff. ore {{ pm.coeff_ore_contratto|floatformat:2 }}) ·
+                superminimo € {{ pm.superminimo_mese|floatformat:2 }} ·
+                scatto € {{ pm.scatto_anzianita|floatformat:2 }} ·
+                ore effettive: {% if pm.modalita_ore_effettive %}sì{% else %}no{% endif %}
+                ({{ pm.ore_ordinarie_retribuite|floatformat:2 }} h) ·
+                percorso fiscale: <code>{{ pm.percorso_fiscale }}</code>
+                {% if pm.fiscale_modalita_cedolino %}(modalità cedolino{% if pm.l207_come_detrazione %}, L207 in detrazione{% endif %}){% endif %} ·
+                premio/indenn. extra contr. € {{ pm.premio_obiettivi_mese|floatformat:2 }} ·
+                ratei 13ª/14ª: coeff. {{ pm.coeff_rateo_13|floatformat:4 }} / {{ pm.coeff_rateo_14|floatformat:4 }}
+                → € {{ pm.rat13_m|floatformat:2 }} / {{ pm.rat14_m|floatformat:2 }}
+                {% if pm.contr_escl_13 or pm.contr_escl_14 %}
+                <span class="text-danger">(contratto esclude {% if pm.contr_escl_13 %}13ª{% endif %}{% if pm.contr_escl_13 and pm.contr_escl_14 %}, {% endif %}{% if pm.contr_escl_14 %}14ª{% endif %})</span>
+                {% endif %} ·
+                INPS dip. sim {{ pm.inps_dip_perc_sim|floatformat:2 }}% ·
+                IRPEF lorda sim € {{ pm.irpef_lorda_sim|floatformat:2 }} ·
+                ced. IRPEF erario € {{ pm.ced_irpef_erario|floatformat:2 }}
+                (addiz. reg. {{ pm.ced_addiz_reg|floatformat:2 }}, com. {{ pm.ced_addiz_com|floatformat:2 }})
+                <span class="d-block mt-1 fst-italic">{{ pm.nota_inps_cedolino }}</span>
+              </div>
+              {% endwith %}
+              <table class="table table-sm mb-0">
+                <thead>
+                  <tr class="sf-voce">
+                    <td style="font-weight:700">Codice voce</td>
+                    <td class="text-end" style="font-weight:700">Sim importo</td>
+                    <td class="text-end" style="font-weight:700">Ced importo</td>
+                    <td class="text-end" style="font-weight:700">Δ importo</td>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for v in r.voci_delta %}
+                  <tr class="sf-voce">
+                    <td>{{ v.codice }}</td>
+                    <td class="text-end">{{ v.sim_importo|floatformat:2 }}</td>
+                    <td class="text-end">{{ v.ced_importo|floatformat:2 }}</td>
+                    <td class="text-end">{{ v.delta_importo|floatformat:2 }}</td>
+                  </tr>
+                  {% empty %}
+                  <tr class="sf-voce"><td colspan="4" class="text-center text-muted">Nessuna differenza voce importo.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="15" class="text-center text-muted py-3">Nessun dato disponibile.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

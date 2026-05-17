@@ -1,0 +1,449 @@
+{
+  "fipe": {
+    "orario": {
+      "monte_ore_fipe": {
+        "standard": {
+          "ore_giornaliere_standard": 8,
+          "ore_settimanali_standard": 40,
+          "ore_mensili_standard": 173.33,
+          "descrizione": "Monte ore standard per lavoratore full-time nel settore Turismo FIPE"
+        },
+        "limiti_massimi": {
+          "giornaliero": {
+            "massimo_ore": 13,
+            "pausa_obbligatoria_minuti": 30,
+            "descrizione": "Limite massimo giornaliero comprensivo di straordinari"
+          },
+          "settimanale": {
+            "massimo_ore": 48,
+            "media_4_mesi": 48,
+            "descrizione": "Limite massimo settimanale secondo normativa europea"
+          },
+          "mensile": {
+            "massimo_ore": 250,
+            "descrizione": "Limite massimo mensile comprensivo di straordinari"
+          }
+        },
+        "full_time": {
+          "ore_settimanali": 40,
+          "minimo_ore_settimanali": 38,
+          "massimo_ore_settimanali": 40,
+          "straordinario": {
+            "oltre_40_settimanali": true,
+            "oltre_8_giornaliere": true
+          }
+        },
+        "part_time": {
+          "minimo_ore_settimanali": 16,
+          "massimo_ore_settimanali": 30,
+          "lavoro_supplementare": {
+            "consentito": true,
+            "limite_percentuale": 25,
+            "descrizione": "Ore oltre l'orario contrattuale ma entro il full-time"
+          },
+          "straordinario": {
+            "consentito": false,
+            "descrizione": "Lo straordinario non è previsto per il part-time"
+          }
+        },
+        "regole_straordinario": {
+          "giornaliero": {
+            "oltre_8_ore": true,
+            "oltre_10_ore": "richiede_autorizzazione"
+          },
+          "settimanale": {
+            "oltre_40_ore": true
+          },
+          "mensile": {
+            "oltre_250_ore": false
+          }
+        },
+        "regole_supplementare": {
+          "applicabile_solo_part_time": true,
+          "limite_percentuale": 25,
+          "conversione_in_straordinario_se_superato": true
+        },
+        "validazioni": {
+          "orario_giornaliero": {
+            "min": 3,
+            "max": 13
+          },
+          "orario_settimanale": {
+            "min": 16,
+            "max": 48
+          },
+          "orario_mensile": {
+            "min": 80,
+            "max": 250
+          }
+        }
+      },
+
+      "part_time_fipe": {
+        "tipologie": {
+          "orizzontale": "Riduzione dell'orario giornaliero",
+          "verticale": "Lavoro solo in alcuni giorni della settimana",
+          "misto": "Combinazione di orizzontale e verticale"
+        },
+        "limiti_orari": {
+          "min_settimanali": 16,
+          "max_settimanali": 30,
+          "full_time_riferimento": 40
+        },
+        "lavoro_supplementare": {
+          "consentito": true,
+          "limite_percentuale": 25,
+          "maggiorazione": 0.15,
+          "conversione_in_banca_ore": true,
+          "descrizione": "Ore oltre l'orario contrattuale ma entro il full-time"
+        },
+        "straordinario": {
+          "consentito": false,
+          "eccezioni": [
+            "accordo scritto",
+            "esigenze eccezionali documentate"
+          ]
+        },
+        "diritti": {
+          "pari_trattamento": true,
+          "proporzionalita": true,
+          "diritto_precedenza_full_time": true
+        },
+        "compatibilita": {
+          "stagionali": true,
+          "apprendistato": true,
+          "banca_ore": true
+        }
+      }
+    },
+
+    "retribuzione": {
+      "maggiorazioni_fipe": {
+        "straordinario": {
+          "feriale": {
+            "percentuale": 0.15,
+            "descrizione": "Straordinario effettuato oltre l'orario normale nei giorni feriali"
+          },
+          "festivo": {
+            "percentuale": 0.30,
+            "descrizione": "Straordinario effettuato nei giorni festivi"
+          },
+          "notturno": {
+            "percentuale": 0.30,
+            "descrizione": "Straordinario effettuato nella fascia 22:00-06:00"
+          },
+          "notturno_festivo": {
+            "percentuale": 0.50,
+            "descrizione": "Straordinario notturno effettuato nei giorni festivi"
+          }
+        },
+        "lavoro_festivo": {
+          "percentuale": 0.20,
+          "descrizione": "Lavoro svolto nei giorni festivi"
+        },
+        "lavoro_domenicale": {
+          "percentuale": 0.30,
+          "descrizione": "Lavoro svolto la domenica"
+        },
+        "lavoro_notturno": {
+          "percentuale": 0.20,
+          "descrizione": "Lavoro svolto nella fascia 22:00-06:00"
+        },
+        "turni": {
+          "turno_notturno": {
+            "percentuale": 0.10,
+            "descrizione": "Maggiorazione per turno notturno continuativo"
+          },
+          "turno_festivo": {
+            "percentuale": 0.10,
+            "descrizione": "Maggiorazione per turno festivo"
+          }
+        },
+        "part_time": {
+          "lavoro_aggiuntivo": {
+            "percentuale": 0.15,
+            "descrizione": "Maggiorazione applicata al lavoro aggiuntivo del part-time (richiamo al modulo part_time_fipe)"
+          },
+          "note": "La logica completa del lavoro supplementare è definita nel modulo part_time_fipe"
+        }
+      }
+    },
+
+    "azienda": {
+      "banca_ore_fipe": {
+        "abilitazione": {
+          "consentita": true,
+          "richiede_accordo_aziendale": true,
+          "descrizione": "La banca ore è attivabile solo tramite accordo aziendale o territoriale"
+        },
+        "accumulo": {
+          "fonti": [
+            "straordinario_full_time",
+            "lavoro_supplementare_part_time",
+            "maggiorazioni_convertibili",
+            "riposi_compensativi_non_fruiti"
+          ],
+          "limite_annuale_ore": 120,
+          "limite_mensile_ore": 20,
+          "note": "I limiti possono essere modificati da accordi aziendali"
+        },
+        "utilizzo": {
+          "modalita": [
+            "permessi_compensativi",
+            "riduzione_orario_giornaliero",
+            "giornate_di_riposo_aggiuntive"
+          ],
+          "preavviso_minimo_giorni": 5,
+          "compatibilita_con_esigenze_aziendali": true,
+          "descrizione": "L'utilizzo della banca ore deve essere concordato e compatibile con l'organizzazione del lavoro"
+        },
+        "conversione": {
+          "in_denaro": {
+            "consentita": true,
+            "tasso_conversione": "retribuzione_oraria_base",
+            "descrizione": "Le ore accumulate possono essere monetizzate su richiesta del lavoratore o per cessazione"
+          },
+          "in_permessi": {
+            "consentita": true
+          }
+        },
+        "scadenza": {
+          "validita_anni": 2,
+          "riporto_automatico": false,
+          "descrizione": "Le ore non utilizzate entro 2 anni devono essere liquidate"
+        },
+        "regole_speciali": {
+          "part_time": {
+            "accumulo_supplementare": true,
+            "limite_percentuale": 25,
+            "note": "Il lavoro supplementare può confluire in banca ore secondo le regole definite nel modulo part_time_fipe"
+          },
+          "stagionali": {
+            "abilitata": false,
+            "descrizione": "La banca ore non si applica ai contratti stagionali"
+          }
+        },
+        "validazioni": {
+          "massimo_accumulabile_annuo": 120,
+          "massimo_accumulabile_mensile": 20,
+          "ore_negative_non_consentite": true,
+          "descrizione": "Regole di validazione per evitare accumuli irregolari"
+        }
+      }
+    },
+
+    "eventi": {
+      "mappatura_eventi_fipe": {
+        "orario": {
+          "ordinario": ["orario_fipe", "monte_ore_fipe"],
+          "straordinario": ["maggiorazioni_fipe", "monte_ore_fipe"],
+          "notturno": ["maggiorazioni_fipe"],
+          "festivo": ["maggiorazioni_fipe"],
+          "notturno_festivo": ["maggiorazioni_fipe"],
+          "supplementare_part_time": [
+            "part_time_fipe",
+            "monte_ore_fipe",
+            "maggiorazioni_fipe"
+          ]
+        },
+        "assenze": {
+          "malattia": ["assenze_fipe", "inps_fipe"],
+          "infortunio": ["assenze_fipe", "inail_fipe"],
+          "maternita": ["assenze_fipe", "inps_fipe"],
+          "congedo_parentale": ["assenze_fipe", "inps_fipe"],
+          "permesso_retribuito": ["assenze_fipe"],
+          "permesso_non_retribuito": ["assenze_fipe"],
+          "ferie": ["ferie_permessi_fipe"],
+          "rol": ["ferie_permessi_fipe"],
+          "104": ["assenze_fipe"]
+        },
+        "retribuzione": {
+          "paga_base": ["retribuzioni_fipe"],
+          "scatti_anzianita": ["scatti_anzianita_fipe"],
+          "indennita": ["indennita_fipe"],
+          "superminimi": ["retribuzioni_fipe"]
+        },
+        "contratti": {
+          "tempo_determinato": ["contratti_a_termine_fipe", "inps_fipe"],
+          "stagionale": ["contratti_stagionali_fipe", "inps_fipe", "inail_fipe"],
+          "apprendistato": ["apprendistato_fipe", "inps_fipe"],
+          "part_time": ["part_time_fipe"]
+        },
+        "benefit": {
+          "fringe_benefit": ["fringe_benefit_fipe", "irpef_fipe", "inps_fipe"],
+          "welfare": ["welfare_fipe", "irpef_fipe"]
+        },
+        "contributi": {
+          "inps": ["inps_fipe"],
+          "inail": ["inail_fipe"],
+          "tfr": ["tfr_fipe"]
+        },
+        "azienda": {
+          "banca_ore": ["banca_ore_fipe"],
+          "vitto_alloggio": ["indennita_fipe", "fringe_benefit_fipe"],
+          "accordi_integrativi": ["azienda_fipe"]
+        },
+        "eventi_speciali": {
+          "premio_risultato": ["retribuzioni_fipe", "irpef_fipe", "welfare_fipe"],
+          "trasferta": ["indennita_fipe"],
+          "trasferimento": ["indennita_fipe"]
+        }
+      }
+    },
+
+    "regole": {
+      "validazioni_fipe": {
+        "struttura_input": {
+          "campi_obbligatori": [
+            "dati_lavoratore",
+            "dati_azienda",
+            "dati_orario"
+          ],
+          "campi_opzionali": [
+            "dati_assenze",
+            "dati_benefit",
+            "dati_retribuzione"
+          ],
+          "descrizione": "Validazione della struttura minima richiesta per eseguire il calcolo"
+        },
+        "validazioni_lavoratore": {
+          "livello_valido": true,
+          "mansione_compatibile_con_livello": true,
+          "anzianita_non_negativa": true,
+          "contratto_valido": [
+            "tempo_indeterminato",
+            "tempo_determinato",
+            "stagionale",
+            "apprendistato",
+            "part_time"
+          ]
+        },
+        "validazioni_azienda": {
+          "ateco_valido": true,
+          "numero_dipendenti_non_negativo": true,
+          "azienda_minore_coerente": "numero_dipendenti < 15",
+          "stagionalita_coerente": true
+        },
+        "validazioni_orario": {
+          "ore_non_negative": true,
+          "limiti_giornalieri": {
+            "min": 3,
+            "max": 13
+          },
+          "limiti_settimanali": {
+            "min": 16,
+            "max": 48
+          },
+          "limiti_mensili": {
+            "min": 80,
+            "max": 250
+          },
+          "part_time": {
+            "min_ore_settimanali": 16,
+            "max_ore_settimanali": 30,
+            "supplementare_non_supera_25_percento": true,
+            "straordinario_non_consentito": true,
+            "descrizione": "Validazioni specifiche per contratti part-time"
+          },
+          "straordinario": {
+            "consentito_full_time": true,
+            "vietato_part_time": true,
+            "richiede_autorizzazione_oltre_10_ore_giornaliere": true
+          }
+        },
+        "validazioni_assenze": {
+          "tipi_ammessi": [
+            "malattia",
+            "infortunio",
+            "ferie",
+            "permesso",
+            "maternita",
+            "104",
+            "congedo_parentale"
+          ],
+          "giorni_non_negativi": true,
+          "assenze_non_superano_mese": true
+        },
+        "validazioni_retribuzione": {
+          "superminimi_non_negativi": true,
+          "premi_non_negativi": true,
+          "indennita_valide": true
+        },
+        "validazioni_benefit": {
+          "fringe_benefit_non_negativi": true,
+          "welfare_non_negativo": true,
+          "fringe_soglia_superata": {
+            "conversione_in_imponibile": true
+          }
+        },
+        "validazioni_contributive": {
+          "inps": {
+            "aliquota_valida": true,
+            "imponibile_non_negativo": true
+          },
+          "inail": {
+            "tasso_valido": true,
+            "imponibile_non_negativo": true
+          }
+        },
+        "validazioni_fiscali": {
+          "scaglione_irpef_valido": true,
+          "detrazioni_non_negative": true,
+          "addizionali_coerenti_con_regione_comune": true
+        },
+        "validazioni_tfr": {
+          "quota_non_negativa": true,
+          "rivalutazione_non_negativa": true
+        },
+        "validazioni_finali": {
+          "coerenza_totale": [
+            "retribuzione_lorda >= 0",
+            "netto_in_busta >= 0",
+            "contributi >= 0"
+          ],
+          "errori_bloccanti": [
+            "livello_non_valido",
+            "orario_fuori_limiti",
+            "assenze_non_valide",
+            "contratto_non_ammesso",
+            "straordinario_non_consentito_part_time",
+            "supplementare_superiore_limite"
+          ],
+          "warning": [
+            "superamento_soglia_fringe",
+            "ore_supplementari_elevate",
+            "assenze_elevate"
+          ]
+        }
+      },
+
+      "regole_calcolo_fipe": {
+        "ordine_calcolo": [
+          "validazioni_input",
+          "determinazione_orario",
+          "calcolo_retribuzione_base",
+          "applicazione_scatti_anzianita",
+          "calcolo_supplementare_part_time",
+          "calcolo_maggiorazioni",
+          "calcolo_indennita",
+          "gestione_assenze",
+          "calcolo_retribuzione_lorda",
+          "calcolo_contributi_inps",
+          "calcolo_premio_inail",
+          "calcolo_irpef",
+          "calcolo_addizionali",
+          "calcolo_netto",
+          "calcolo_tfr"
+        ],
+        "validazioni_input": {
+          "livello_valido": true,
+          "mansione_compatibile": true,
+          "orario_coerente": true,
+          "assenze_valide": true,
+          "contratto_valido": true,
+          "descrizione": "Validazioni preliminari per garantire la correttezza dei dati"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "irpef_fipe": {
+    "scaglioni_2024": {
+      "1": {
+        "fino_a": 28000,
+        "aliquota": 0.23,
+        "descrizione": "Primo scaglione IRPEF dopo la riforma 2024"
+      },
+      "2": {
+        "da": 28001,
+        "fino_a": 50000,
+        "aliquota": 0.35,
+        "descrizione": "Secondo scaglione IRPEF 2024"
+      },
+      "3": {
+        "oltre": 50000,
+        "aliquota": 0.43,
+        "descrizione": "Terzo scaglione IRPEF 2024"
+      }
+    },
+
+    "no_tax_area": {
+      "lavoratori_dipendenti": 8500,
+      "descrizione": "Soglia di esenzione IRPEF per i lavoratori dipendenti"
+    },
+
+    "detrazioni_lavoro_dipendente": {
+      "fino_15000": 1955,
+      "da_15001_a_28000": "1955 * (28000 - reddito) / 13000",
+      "oltre_28000": 0,
+      "note": "Detrazioni aggiornate con la riforma 2024"
+    },
+
+    "trattamento_integrativo": {
+      "importo_mensile": 100,
+      "spettante_fino_a_reddito": 15000,
+      "riduzione_progressiva_fino_a": 28000,
+      "descrizione": "Ex bonus Renzi, ora trattamento integrativo"
+    },
+
+    "addizionali": {
+      "regionale": {
+        "variabile_per_regione": true,
+        "note": "Ogni regione stabilisce aliquote e scaglioni"
+      },
+      "comunale": {
+        "variabile_per_comune": true,
+        "note": "Ogni comune stabilisce aliquote e scaglioni"
+      }
+    },
+
+    "base_imponibile": {
+      "incluso": [
+        "paga base",
+        "contingenza",
+        "scatti anzianità",
+        "indennità continuative",
+        "straordinari",
+        "premi"
+      ],
+      "escluso": [
+        "rimborsi spese",
+        "trasferte documentate",
+        "fringe benefit entro soglia esenzione"
+      ]
+    },
+
+    "tassazione_separata": {
+      "applicabile_a": [
+        "TFR",
+        "arretrati anni precedenti",
+        "premi riferiti ad anni precedenti"
+      ],
+      "aliquota_media": "calcolata sui redditi degli ultimi 5 anni"
+    }
+  }
+}

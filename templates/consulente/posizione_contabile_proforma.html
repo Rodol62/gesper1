@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% load format_it_tags %}
+{% block title %}Posizione contabile — {{ azienda.nome }}{% endblock %}
+
+{% block extra_head %}
+{% include "consulente/_posizione_elenco_head_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3 gesper-libro-page gesper-libro-wrap">
+  <nav aria-label="breadcrumb" class="small mb-2">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url partitario_back.url_name %}">{{ partitario_back.label }}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_posizione_contabile' %}">Posizione contabile</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Proforma</li>
+    </ol>
+  </nav>
+
+  <header class="gesper-libro-hero">
+    <h1><i class="bi bi-calculator me-2"></i>Posizione contabile</h1>
+    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — proforma e parcelle (PDF), dare in libro</p>
+    <p class="gesper-libro-lead">Caricamento PDF, aggancio pregresso e righe manuali. Per i bonifici in avere usa <a class="text-white fw-semibold text-decoration-underline" href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a>. Dettagli in <strong>Aiuto</strong> sotto.</p>
+  </header>
+
+  {% include "consulente/posizione_contabile_subnav.html" %}
+
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+
+  <div class="gesper-libro-filter-card">
+    <form method="get" class="row g-2 align-items-end small">
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Anno</label>
+        <select name="anno" class="form-select form-select-sm">
+          <option value="">Tutti</option>
+          {% for y in anni_disponibili %}
+          <option value="{{ y|anno_it }}"{% if libro_filter.anno|anno_it == y|anno_it %} selected{% endif %}>{{ y|anno_it }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Da data</label>
+        <input type="date" name="data_da" class="form-control form-control-sm" value="{{ libro_filter.data_da }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">A data</label>
+        <input type="date" name="data_a" class="form-control form-control-sm" value="{{ libro_filter.data_a }}">
+      </div>
+      <div class="col-6 col-md-3 d-flex gap-1">
+        <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Applica filtri</button>
+        <a href="{% url 'consulente_posizione_proforma' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+      </div>
+      <div class="col-12 col-md-3 text-muted small align-self-center pt-md-0 pt-1">
+        Filtro su <strong>data documento</strong> della riga. L’ordine in tabella resta dal più recente.
+      </div>
+    </form>
+  </div>
+
+  <details class="gesper-help mb-3">
+    {% include "consulente/_posizione_help_summary.html" with hint="proforma/parcelle PDF, pregresso, CLI, bonifici" %}
+    <div class="gesper-help-body">
+      <p class="text-muted small mb-2">
+        <strong>A regime:</strong> il consulente carica qui i PDF mensili: il sistema estrae data, numero e importo e crea le righe in dare nel libro, con allegato.
+        Dopo un <strong>pregresso da Excel</strong> (solo numeri in tabella), usa il riquadro sotto per <strong>agganciare massivamente</strong> i PDF alle righe già presenti <strong>senza file</strong> (stesso numero documento letto dal PDF).
+      </p>
+      <p class="text-muted small mb-2">Sono esclusi i file il cui nome inizia con <code>riepilogo</code>. Da terminale (cartella locale, stessa deduplica <strong>data+numero</strong> del portale): <code class="small">python manage.py import_proforma_parcelle_studio --path «cartella» --username {{ request.user.username }}</code> — opz. <code class="small">--report-csv /percorso/report.csv</code> e <code class="small">--dry-run</code>.</p>
+      <p class="small border-start border-primary border-3 ps-2 mb-0">Per i <strong>bonifici</strong> da Excel o distinte PDF usa <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti</a>.</p>
+    </div>
+  </details>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Nuove proforma / parcelle (crea righe in libro)</div>
+    <div class="card-body py-3">
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end gesper-multipart-upload">
+        {% csrf_token %}
+        <div class="col-12 col-md-8">
+          <label class="form-label small text-muted mb-1">Allega uno o più PDF</label>
+          <input type="file" name="pdf" class="form-control form-control-sm" accept="application/pdf,.pdf" multiple required>
+        </div>
+        <div class="col-12 col-md-4">
+          <button type="submit" class="btn btn-primary btn-sm w-100">Importa e ricalcola saldi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3 border-start border-4 border-info">
+    <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Senza PDF: registra manualmente (poi allega con «Aggancia PDF»)</div>
+    <div class="card-body py-3">
+      <details class="gesper-help mb-2">
+        {% include "consulente/_posizione_help_summary.html" with hint="riga senza PDF (manuale)" %}
+        <div class="gesper-help-body">
+          <p class="small text-muted mb-0">
+            Per proforma/parcelle <strong>non importabili da PDF</strong> (es. solo cartaceo o PDF non leggibile): crea la riga in libro con
+            <strong>data</strong>, <strong>tipo</strong>, <strong>numero</strong> e <strong>importo da pagare</strong> (uguale al <strong>dare contabile</strong>).
+            Quando avrai il file, usa il riquadro sotto <strong>Aggancia PDF</strong> con lo stesso numero e data estratti dal PDF.
+          </p>
+        </div>
+      </details>
+      <form method="post" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="inserimento_manuale_documento">
+        <div class="col-6 col-md-2">
+          <label class="form-label small text-muted mb-1">Data documento</label>
+          <input type="date" name="data_documento" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small text-muted mb-1">Tipo</label>
+          <select name="tipo_documento" class="form-select form-select-sm" required>
+            <option value="proforma">Proforma</option>
+            <option value="parcella">Parcella</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small text-muted mb-1">Numero documento</label>
+          <input type="text" name="numero_documento" class="form-control form-control-sm font-monospace" maxlength="80" placeholder="es. PF-2026-01 o PARCELLA 182" required autocomplete="off">
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small text-muted mb-1">Importo da pagare (€)</label>
+          <input type="text" name="importo_da_pagare" class="form-control form-control-sm font-monospace" inputmode="decimal" placeholder="es. 1.234,56" required autocomplete="off">
+        </div>
+        <div class="col-12 col-md-2">
+          <button type="submit" class="btn btn-outline-primary btn-sm w-100">Registra senza PDF</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4 border-start border-4 border-secondary">
+    <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Pregresso: aggancia PDF a righe già in libro (senza allegato)</div>
+    <div class="card-body py-3">
+      <details class="gesper-help mb-2">
+        {% include "consulente/_posizione_help_summary.html" with hint="aggancio PDF a righe già in libro" %}
+        <div class="gesper-help-body">
+          <p class="small text-muted mb-0">
+            Per ogni PDF servono <strong>data documento</strong> e <strong>numero</strong> estratti dal testo (stesso numero in anni diversi si distingue per la data). Si cerca una riga <strong>documento</strong> senza file con la <strong>stessa data</strong> e numero <strong>uguale o compatibile</strong> (es. in libro «182» e nel PDF «PARCELLA 182»). Se in libro la data manca, deve esserci <strong>una sola</strong> riga senza data con quel numero. Usare questo riquadro solo se le righe esistono <strong>senza PDF</strong>: il pulsante «Importa» sopra crea invece <strong>nuove</strong> righe. Solo allegato + testo estratto; non crea nuove righe.
+          </p>
+        </div>
+      </details>
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end gesper-multipart-upload">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="aggancia_pdf_documenti">
+        <div class="col-12 col-md-8">
+          <label class="form-label small text-muted mb-1">PDF da agganciare (multiplo)</label>
+          <input type="file" name="pdf_aggancia" class="form-control form-control-sm" accept="application/pdf,.pdf" multiple required>
+        </div>
+        <div class="col-12 col-md-4">
+          <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Aggancia PDF a movimenti esistenti</button>
+        </div>
+      </form>
+      {% if report_aggancia_csv_documenti %}
+      <details class="gesper-help gesper-help-compact border-top pt-2 mt-2 mb-0">
+        {% include "consulente/_posizione_help_summary.html" with hint="report CSV ultimo aggancio massivo" %}
+        <div class="gesper-help-body">
+          <p class="small text-muted mb-0">
+            <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=documenti" class="fw-semibold">Scarica report CSV</a>
+            dell’ultimo aggancio massivo (per file: esito, movimento id, numero/data letti dal PDF, messaggio). Utile per correggere in blocco le righe saltate.
+          </p>
+        </div>
+      </details>
+      {% endif %}
+    </div>
+  </div>
+
+  <h2 class="gesper-pos-section-title"><i class="bi bi-table me-1"></i>Documenti registrati</h2>
+  <div class="table-responsive border rounded-3 shadow-sm overflow-hidden mb-3">
+    <table class="table table-hover mb-0 align-middle table-gesper-libro">
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Data</th>
+          <th>Tipo</th>
+          <th>Numero</th>
+          <th class="text-end">Importo da pagare</th>
+          <th class="text-end">Dare (contabile)</th>
+          <th>PDF</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in righe %}
+        <tr class="{% if r.tipo_documento == 'proforma' %}gesper-libro-row-doc{% elif r.tipo_documento == 'parcella' %}gesper-libro-row-bon{% else %}gesper-libro-row-ret{% endif %}">
+          <td class="small text-break" style="max-width:14rem" title="{{ r.nome_file }}">{{ r.nome_file|truncatechars:42 }}</td>
+          <td class="text-nowrap text-secondary">{% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+          <td class="fw-medium">{{ r.get_tipo_documento_display }}</td>
+          <td><span class="font-monospace small">{{ r.numero_documento|default:"—" }}</span></td>
+          <td class="text-end font-monospace gesper-libro-amt fw-semibold text-nowrap">
+            {% if r.totale_da_pagare is not None %}
+              € {{ r.totale_da_pagare|num_it:2 }}
+            {% elif r.dare %}
+              € {{ r.dare|num_it:2 }} <span class="badge rounded-pill bg-secondary small ms-1" title="Totale non estratto dal PDF: mostrato l'importo in dare.">dare</span>
+            {% else %}
+              <span class="text-muted fw-normal">—</span>
+            {% endif %}
+          </td>
+          <td class="text-end font-monospace gesper-libro-amt text-primary">€ {{ r.dare|num_it:2 }}</td>
+          <td class="align-top" style="min-width:11rem">
+            {% if r.file %}
+            <div class="d-flex flex-column gap-1">
+              <a href="{{ r.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">Apri PDF</a>
+              <form method="post" action="{% url 'consulente_proforma_allega_pdf_movimento' r.pk %}" enctype="multipart/form-data" class="d-flex flex-column gap-1 gesper-multipart-upload"
+                    onsubmit="return confirm('Sostituire il PDF del documento n. {{ r.numero_documento|default:"—"|escapejs }}?');">
+                {% csrf_token %}
+                {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+                <input type="file" name="pdf" class="form-control form-control-sm py-0" accept="application/pdf,.pdf" required title="Nuovo PDF con stesso numero e data della riga">
+                <button type="submit" class="btn btn-sm btn-outline-secondary py-0">Sostituisci PDF</button>
+              </form>
+              <form method="post" action="{% url 'consulente_proforma_rimuovi_pdf_movimento' r.pk %}" class="d-inline" data-no-upload-progress="1"
+                    onsubmit="return confirm('Rimuovere il PDF da questo documento?');">
+                {% csrf_token %}
+                {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0 w-100">Rimuovi PDF</button>
+              </form>
+            </div>
+            {% else %}
+            <form method="post" action="{% url 'consulente_proforma_allega_pdf_movimento' r.pk %}" enctype="multipart/form-data" class="d-flex flex-column gap-1 gesper-multipart-upload"
+                  onsubmit="return confirm('Allegare questo PDF al documento n. {{ r.numero_documento|default:"—"|escapejs }} del {% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}?');">
+              {% csrf_token %}
+              {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+              <input type="file" name="pdf" class="form-control form-control-sm py-0" accept="application/pdf,.pdf" required title="PDF con stesso numero e data documento della riga">
+              <button type="submit" class="btn btn-sm btn-primary py-0">Allega PDF</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% if r.note %}<tr class="border-0"><td colspan="7" class="pt-0 pb-2 small text-muted bg-white">{{ r.note }}</td></tr>{% endif %}
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-5">Nessun documento in questo intervallo. Carica i PDF sopra o modifica i filtri.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

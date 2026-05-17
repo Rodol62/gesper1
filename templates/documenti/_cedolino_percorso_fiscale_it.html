@@ -1,0 +1,64 @@
+{% with p=report.percorso_fiscale_italia %}
+{% if p %}
+<div class="ced-section border rounded mb-3 overflow-hidden">
+  <h2 class="h6 mb-0 py-2 px-3 border-bottom bg-light">{{ p.titolo }}</h2>
+  <p class="small text-muted mb-0 px-3 pt-2" style="font-size:.72rem">{{ p.nota_metodo }}</p>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle" style="font-size:.76rem">
+      <thead class="table-light">
+        <tr>
+          <th style="width:2.5rem">#</th>
+          <th>Fase</th>
+          <th class="text-end">Valore</th>
+          <th>Fonte dati</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for step in p.passi %}
+        <tr>
+          <td class="text-muted">{{ step.ordine }}</td>
+          <td>
+            <div class="fw-semibold">{{ step.fase }}</div>
+            <div class="small text-muted mt-1" style="font-size:.68rem">{{ step.normativa }}</div>
+            {% if step.nota_incrocio %}
+            <div class="small text-secondary mt-1" style="font-size:.68rem">{{ step.nota_incrocio }}</div>
+            {% endif %}
+          </td>
+          <td class="text-end text-nowrap">{{ step.valore }} €</td>
+          <td class="small text-muted">{{ step.fonte }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% with r=p.riconciliazione_netto %}
+  {% if r %}
+  <div class="border-top px-3 py-2 small bg-body-secondary bg-opacity-25" style="font-size:.74rem">
+    <strong>Riconciliazione netto</strong>
+    <p class="mb-1 mt-1">{{ r.formula }}</p>
+    <dl class="row mb-0 small">
+      <dt class="col-sm-4">Ricalcolato</dt>
+      <dd class="col-sm-8">{{ r.valore_ricalcolato }} €</dd>
+      <dt class="col-sm-4">Da PDF</dt>
+      <dd class="col-sm-8">{{ r.valore_pdf }} €</dd>
+      {% if r.tot_trattenute_pdf != "—" %}
+      <dt class="col-sm-4">Tot. trattenute (PDF)</dt>
+      <dd class="col-sm-8">{{ r.tot_trattenute_pdf }} € — {{ r.nota_tot_trattenute }}</dd>
+      {% endif %}
+      <dt class="col-sm-4">Esito</dt>
+      <dd class="col-sm-8">
+        {% if r.coerente == True %}
+        <span class="badge text-bg-success">Coerente (± tolleranza)</span>
+        {% elif r.coerente == False %}
+        <span class="badge text-bg-warning">Scostamento</span>
+        {% else %}
+        <span class="text-muted">Dati insufficienti per il ricalcolo</span>
+        {% endif %}
+      </dd>
+    </dl>
+  </div>
+  {% endif %}
+  {% endwith %}
+</div>
+{% endif %}
+{% endwith %}

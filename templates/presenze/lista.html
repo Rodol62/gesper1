@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}Presenze{% endblock %}
+{% block content %}
+<h2 class="mb-4">Presenze</h2>
+<div class="table-responsive">
+<table class="table table-striped align-middle">
+    <thead class="d-none d-md-table-header-group">
+        <tr>
+            <th>Dipendente</th>
+            <th>Data</th>
+            <th>Entrata</th>
+            <th>Uscita</th>
+            <th>Note</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for presenza in presenze %}
+        <tr>
+            <td data-label="Dipendente">{{ presenza.dipendente }}</td>
+            <td data-label="Data">{{ presenza.data|date:'d/m/Y' }}</td>
+            <td data-label="Entrata">{{ presenza.ora_entrata }}</td>
+                        <td data-label="Uscita">
+                            {% if presenza.ora_uscita %}
+                                {{ presenza.ora_uscita }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+            <td data-label="Note">{{ presenza.note }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+<a href="{% url 'seleziona_dipendente_presenza' %}" class="btn btn-success btn-lg w-100 mt-3">Registra Presenza</a>
+{% endblock %}
+{% block extra_head %}
+<style>
+@media (max-width: 767px) {
+  table thead { display: none; }
+  table tr { display: block; margin-bottom: 1rem; border: 1px solid #dee2e6; border-radius: 8px; }
+  table td { display: flex; justify-content: space-between; padding: 0.75rem; border: none; border-bottom: 1px solid #dee2e6; }
+  table td:last-child { border-bottom: none; }
+  table td:before { content: attr(data-label); font-weight: bold; color: #0d6efd; margin-right: 1rem; }
+}
+</style>
+{% endblock %}

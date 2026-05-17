@@ -1,0 +1,19 @@
+# Servizio systemd per Gunicorn/GESPER
+# Posizionare in: /etc/systemd/system/gesper.service
+
+[Unit]
+Description=GESPER Django Application
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/gesper
+Environment="DJANGO_SETTINGS_MODULE=settings_production"
+Environment="DJANGO_SECRET_KEY=CAMBIA-QUESTA-CHIAVE"
+Environment="EMAIL_HOST_PASSWORD=gjruoczkgcuftyvb"
+ExecStart=/home/ubuntu/gesper/venv/bin/gunicorn wsgi:application --bind 127.0.0.1:8000 --workers 2 --timeout 900 --graceful-timeout 120
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

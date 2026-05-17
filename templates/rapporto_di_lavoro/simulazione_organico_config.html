@@ -1,0 +1,532 @@
+{% extends 'base.html' %}
+
+{% block title %}Configura simulazione organico{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4" style="font-size:0.82rem;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">⚙️ Configurazione simulazione organico</h2>
+    <div class="d-flex gap-2">
+      <a id="btn-calendario-presenze" href="{% url 'simulazione_organico_calendario' %}?mese_riferimento={{ mese_riferimento }}" class="btn btn-outline-primary">Calendario presenze</a>
+      <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-outline-secondary">← Torna a Proposte/Contratti</a>
+    </div>
+  </div>
+
+  <form method="get" action="{% url 'simulazione_organico' %}">
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white"><strong>Parametri generali</strong></div>
+      <div class="card-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label">Mese di riferimento</label>
+            <input type="month" name="mese_riferimento" class="form-control" value="{{ mese_riferimento }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label d-block">&nbsp;</label>
+            <button type="submit" class="btn btn-outline-primary w-100">Aggiorna giorni del mese</button>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Ore turno pranzo</label>
+            <input type="number" step="0.5" min="0" name="ore_turno_pranzo" class="form-control" value="{{ ore_turno_pranzo }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Ore turno cena</label>
+            <input type="number" step="0.5" min="0" name="ore_turno_cena" class="form-control" value="{{ ore_turno_cena }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Giorni lavorativi/mese</label>
+            <input type="number" step="1" min="1" name="giorni_lavorativi_mese" class="form-control" value="{{ giorni_lavorativi_mese }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Base oraria mensile</label>
+            <input type="number" step="0.01" min="1" name="base_oraria_mensile" class="form-control" value="{{ base_oraria_mensile }}">
+            <div class="form-text">Es. 172,00 o 173,33</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Aliquota INAIL (%)</label>
+            <input type="number" step="0.10" min="0" name="aliquota_inail_perc" class="form-control" value="{{ aliquota_inail_perc }}">
+          </div>
+        </div>
+
+        <hr class="my-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <strong>Giorni del mese</strong>
+            <span class="text-muted small">(seleziona i giorni di chiusura da usare nelle elaborazioni successive)</span>
+          </div>
+          <div class="small d-flex gap-2">
+            <span class="badge" style="background:#fde68a;color:#111">Sabato</span>
+            <span class="badge" style="background:#fecaca;color:#111">Domenica</span>
+            <span class="badge" style="background:#ddd6fe;color:#111">Festivo da tabella</span>
+            <span class="badge" style="background:#86efac;color:#111">Chiusura selezionata</span>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-bordered table-sm mb-0" style="table-layout:fixed; font-size:0.66rem;">
+            <thead class="table-light">
+              <tr>
+                <th class="text-center">Lun</th>
+                <th class="text-center">Mar</th>
+                <th class="text-center">Mer</th>
+                <th class="text-center">Gio</th>
+                <th class="text-center">Ven</th>
+                <th class="text-center">Sab</th>
+                <th class="text-center">Dom</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for settimana in calendario_config.settimane %}
+                <tr>
+                  {% for g in settimana %}
+                    {% if g %}
+                      <td
+                        class="align-top"
+                        style="height:40px; padding:0.12rem; {% if g.is_chiusura %}background:#86efac;{% elif g.is_festivita_tabella %}background:#ddd6fe;{% elif g.is_domenica %}background:#fecaca;{% elif g.is_sabato %}background:#fde68a;{% endif %}"
+                        title="{% if g.festivita_nome %}{{ g.festivita_nome }}{% elif g.is_domenica %}Domenica{% elif g.is_sabato %}Sabato{% else %}Feriale{% endif %}"
+                      >
+                        <div class="d-flex justify-content-between align-items-center" style="line-height:1;">
+                          <strong style="font-size:0.66rem;">{{ g.numero }}</strong>
+                          {% if g.is_festivita_tabella %}<span style="font-size:0.54rem;color:#4c1d95;">★</span>{% endif %}
+                          <input
+                            type="checkbox"
+                            name="giorni_chiusura_mese"
+                            value="{{ g.data_iso }}"
+                            {% if g.is_chiusura %}checked{% endif %}
+                            title="Segna giorno di chiusura"
+                            style="transform:scale(0.85); margin:0;"
+                          >
+                        </div>
+                        <div class="small text-muted" style="font-size:0.50rem; line-height:1; margin-top:1px;">
+                          {% if g.festivita_nome %}
+                            <span style="color:#4c1d95; font-weight:600;">{{ g.festivita_nome|truncatechars:18 }}</span>
+                          {% elif g.is_festivita_tabella %}
+                            <span style="color:#4c1d95; font-weight:600;">Festivo</span>
+                          {% elif g.is_domenica %}
+                            Dom
+                          {% elif g.is_sabato %}
+                            Sab
+                          {% else %}
+                            Fer
+                          {% endif %}
+                        </div>
+                      </td>
+                    {% else %}
+                      <td class="bg-light"></td>
+                    {% endif %}
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header bg-secondary text-white"><strong>Ruoli e parametri retributivi</strong></div>
+      <div class="card-body">
+        <div class="row g-2">
+          {% for ruolo in ruoli_config %}
+            <div class="col-12">
+              <div class="card border-secondary" style="background:#f8fafc;">
+                <div class="card-header py-1" style="background:#e2e8f0;"><strong>{{ ruolo.label }}</strong></div>
+                <div class="card-body py-2 px-2">
+                  <div class="row g-2 align-items-end" style="font-size:0.76rem;">
+                    <div class="col-md-2">
+                      <label class="form-label small mb-1">Nome</label>
+                      <input type="text" name="{{ ruolo.id }}_nome" class="form-control form-control-sm" value="{{ ruolo.nome }}">
+                    </div>
+                    <div class="col-md-1">
+                      <label class="form-label small mb-1">Qtà</label>
+                      <input type="number" min="0" max="10" name="{{ ruolo.id }}_quantita" class="form-control form-control-sm text-end" value="{{ ruolo.quantita }}">
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small mb-1">Livello</label>
+                      <select name="{{ ruolo.id }}_livello" class="form-select form-select-sm" style="background:#fff7ed;">
+                        {% for param in parametri_ccnl %}
+                          <option value="{{ param.livello }}" {% if param.livello == ruolo.livello %}selected{% endif %}>L{{ param.livello }} - {{ param.qualifica }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label small mb-1">Contratto</label>
+                      <select name="{{ ruolo.id }}_tipo_contratto" class="form-select form-select-sm" style="background:#ecfeff;">
+                        <option value="">Full-time (100%)</option>
+                        {% for tc in tipi_contratto %}
+                          <option value="{{ tc.id }}" {% if tc.id|stringformat:"s" == ruolo.tipo_contratto_id %}selected{% endif %}>
+                            {{ tc.nome }} · {{ tc.coefficiente_ore }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label small mb-1">Data inizio</label>
+                      <input type="date" name="{{ ruolo.id }}_data_inizio" class="form-control form-control-sm" value="{{ ruolo.data_inizio }}">
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label small mb-1">Data fine</label>
+                      <input type="date" name="{{ ruolo.id }}_data_fine" class="form-control form-control-sm" value="{{ ruolo.data_fine }}">
+                    </div>
+                  </div>
+
+                  <div class="mt-2 p-2 rounded border" style="background:#f8fafc;">
+                    <div class="small fw-semibold mb-1 text-secondary">Struttura Excel voci retributive (Presente 1=Sì / 0=No)</div>
+                    <div class="table-responsive">
+                      <table class="table table-sm table-bordered align-middle mb-0" style="font-size:0.69rem;">
+                        <thead class="table-light">
+                          <tr>
+                            <th>Voce</th>
+                            <th class="text-center" style="width:95px;">Presente</th>
+                            <th class="text-end" style="width:160px;">Importo lordo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td>Minimo tabellare</td>
+                            <td class="text-center">
+                              <select name="{{ ruolo.id }}_voce_minimo_tabellare_presente" class="form-select form-select-sm">
+                                <option value="1" {% if ruolo.voci_excel.minimo_tabellare.presente %}selected{% endif %}>1</option>
+                                <option value="0" {% if not ruolo.voci_excel.minimo_tabellare.presente %}selected{% endif %}>0</option>
+                              </select>
+                            </td>
+                            <td><input type="text" name="{{ ruolo.id }}_voce_minimo_tabellare_importo" class="form-control form-control-sm text-end" value="{{ ruolo.voci_excel.minimo_tabellare.importo|default:'0,00' }}"></td>
+                          </tr>
+                          <tr>
+                            <td>Contingenza</td>
+                            <td class="text-center">
+                              <select name="{{ ruolo.id }}_voce_contingenza_presente" class="form-select form-select-sm">
+                                <option value="1" {% if ruolo.voci_excel.contingenza.presente %}selected{% endif %}>1</option>
+                                <option value="0" {% if not ruolo.voci_excel.contingenza.presente %}selected{% endif %}>0</option>
+                              </select>
+                            </td>
+                            <td><input type="text" name="{{ ruolo.id }}_voce_contingenza_importo" class="form-control form-control-sm text-end" value="{{ ruolo.voci_excel.contingenza.importo|default:'0,00' }}"></td>
+                          </tr>
+                          <tr>
+                            <td>EL.DIS.SAN</td>
+                            <td class="text-center">
+                              <select name="{{ ruolo.id }}_voce_el_dis_san_presente" class="form-select form-select-sm">
+                                <option value="1" {% if ruolo.voci_excel.el_dis_san.presente %}selected{% endif %}>1</option>
+                                <option value="0" {% if not ruolo.voci_excel.el_dis_san.presente %}selected{% endif %}>0</option>
+                              </select>
+                            </td>
+                            <td><input type="text" name="{{ ruolo.id }}_voce_el_dis_san_importo" class="form-control form-control-sm text-end" value="{{ ruolo.voci_excel.el_dis_san.importo|default:'0,00' }}"></td>
+                          </tr>
+                          <tr>
+                            <td>Scatto anzianità</td>
+                            <td class="text-center">
+                              <select name="{{ ruolo.id }}_voce_scatto_anzianita_presente" class="form-select form-select-sm">
+                                <option value="1" {% if ruolo.voci_excel.scatto_anzianita.presente %}selected{% endif %}>1</option>
+                                <option value="0" {% if not ruolo.voci_excel.scatto_anzianita.presente %}selected{% endif %}>0</option>
+                              </select>
+                            </td>
+                            <td><input type="text" name="{{ ruolo.id }}_voce_scatto_anzianita_importo" class="form-control form-control-sm text-end" value="{{ ruolo.voci_excel.scatto_anzianita.importo|default:'0,00' }}"></td>
+                          </tr>
+                          <tr>
+                            <td>Superminimo</td>
+                            <td class="text-center">
+                              <select name="{{ ruolo.id }}_voce_superminimo_presente" class="form-select form-select-sm">
+                                <option value="1" {% if ruolo.voci_excel.superminimo.presente %}selected{% endif %}>1</option>
+                                <option value="0" {% if not ruolo.voci_excel.superminimo.presente %}selected{% endif %}>0</option>
+                              </select>
+                            </td>
+                            <td><input type="text" name="{{ ruolo.id }}_voce_superminimo_importo" class="form-control form-control-sm text-end" value="{{ ruolo.voci_excel.superminimo.importo|default:'0,00' }}"></td>
+                          </tr>
+                          <tr>
+                            <td>EL.DIS.BIL</td>
+                            <td class="text-center">
+                              <select name="{{ ruolo.id }}_voce_el_dis_bil_presente" class="form-select form-select-sm">
+                                <option value="1" {% if ruolo.voci_excel.el_dis_bil.presente %}selected{% endif %}>1</option>
+                                <option value="0" {% if not ruolo.voci_excel.el_dis_bil.presente %}selected{% endif %}>0</option>
+                              </select>
+                            </td>
+                            <td><input type="text" name="{{ ruolo.id }}_voce_el_dis_bil_importo" class="form-control form-control-sm text-end" value="{{ ruolo.voci_excel.el_dis_bil.importo|default:'0,00' }}"></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mb-4">
+      <button type="submit" formaction="{% url 'simulazione_organico_risultato' %}" class="btn btn-primary btn-lg px-5">Visualizza simulazione</button>
+    </div>
+  </form>
+
+  <div class="card mb-4">
+    <div class="card-header bg-light"><strong>Storico simulazioni (cronologico)</strong></div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered mb-0" style="font-size:0.86rem;">
+          <thead class="table-secondary">
+            <tr>
+              <th>Data/Ora</th>
+              <th>Mese</th>
+              <th>Utente</th>
+              <th class="text-end">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in simulazioni_recenti %}
+              <tr>
+                <td>{{ s.data_creazione|date:"d/m/Y H:i" }}</td>
+                <td>{{ s.mese_riferimento }}</td>
+                <td>{{ s.utente }}</td>
+                <td class="text-end">
+                  <div class="d-inline-flex gap-1">
+                    <a href="{% url 'simulazione_organico' %}?{{ s.querystring }}" class="btn btn-outline-secondary btn-sm">Riapri e modifica</a>
+                    <a href="{% url 'simulazione_organico_risultato' %}?{{ s.querystring }}" class="btn btn-outline-primary btn-sm">Apri risultato</a>
+                    <form method="post" action="{% url 'simulazione_organico_elimina' s.id %}" >
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-outline-danger btn-sm">Elimina</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="text-center text-muted py-3">Nessuna simulazione salvata.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+console.log('🎬 INIZIO SCRIPT FILTRO LIVELLI');
+
+// Parametri CCNL con date validità
+const parametriCCNL = {{ parametri_ccnl_json|safe }};
+
+console.log('✅ Parametri CCNL caricati:', parametriCCNL.length);
+console.log('📋 Primi 3 parametri:', parametriCCNL.slice(0, 3));
+
+// Verifica immediata: quante card ci sono?
+console.log('🔍 Card .border-secondary trovate subito:', document.querySelectorAll('.card.border-secondary').length);
+
+// Map per salvare le opzioni originali di ogni select
+const opzioniOriginaliMap = new Map();
+
+// Funzione per parsare data in formato YYYY-MM-DD o YYYY-MM e restituire solo YYYYMMDD numerico per confronto
+function parseDataPerConfronto(dataStr) {
+  if (!dataStr) return null;
+  
+  // Formato YYYY-MM-DD o YYYY-MM
+  const parts = dataStr.split('-');
+  const anno = parseInt(parts[0]);
+  const mese = parseInt(parts[1]);
+  const giorno = parts[2] ? parseInt(parts[2]) : 1; // Se manca il giorno, uso il primo del mese
+  
+  // Restituisco YYYYMMDD come numero per confronto semplice
+  return anno * 10000 + mese * 100 + giorno;
+}
+
+// Funzione per formattare data in formato italiano gg/mm/aaaa
+function formattaDataItaliana(dataStr) {
+  if (!dataStr) return 'N/D';
+  
+  const parts = dataStr.split('-');
+  const anno = parts[0];
+  const mese = parts[1];
+  const giorno = parts[2] || '01';
+  
+  return `${giorno.padStart(2, '0')}/${mese.padStart(2, '0')}/${anno}`;
+}
+
+// Funzione per salvare le opzioni originali
+function salvaOpzioniOriginali(selectElement) {
+  if (!opzioniOriginaliMap.has(selectElement)) {
+    const opzioni = Array.from(selectElement.options).map(opt => ({
+      value: opt.value,
+      text: opt.text,
+      selected: opt.selected
+    }));
+    opzioniOriginaliMap.set(selectElement, opzioni);
+    console.log('💾 Salvate', opzioni.length, 'opzioni originali');
+  }
+}
+
+// Funzione per filtrare livelli in base alla data inizio
+function filtraLivelliPerData(selectElement, dataInizio) {
+  // Salva le opzioni originali se non già fatto
+  salvaOpzioniOriginali(selectElement);
+  
+  const opzioniOriginali = opzioniOriginaliMap.get(selectElement);
+  const valoreSelezionatoPrecedente = selectElement.value;
+  
+  if (!dataInizio) {
+    // Se non c'è data, ripristina tutte le opzioni
+    console.log('⚠️ Nessuna data: ripristino tutti i livelli');
+    selectElement.innerHTML = '';
+    opzioniOriginali.forEach(opt => {
+      const option = new Option(opt.text, opt.value, false, opt.value === valoreSelezionatoPrecedente);
+      selectElement.add(option);
+    });
+    return;
+  }
+  
+  const dataRifNum = parseDataPerConfronto(dataInizio);
+  console.log('🔍 Filtro livelli per data:', formattaDataItaliana(dataInizio), '[num:', dataRifNum + ']');
+  
+  // Rimuovi tutte le opzioni
+  selectElement.innerHTML = '';
+  
+  let livelliFiltrati = 0;
+  let livelliValidi = 0;
+  
+  // Ricrea solo le opzioni valide
+  opzioniOriginali.forEach(opt => {
+    const livello = opt.value;
+    
+    if (!livello) {
+      // Opzione vuota (es. "Seleziona..."), aggiungila sempre
+      const option = new Option(opt.text, opt.value, false, false);
+      selectElement.add(option);
+      return;
+    }
+    
+    // Trova TUTTI i parametri CCNL con questo livello
+    const paramsLivello = parametriCCNL.filter(p => p.livello === livello);
+    
+    if (paramsLivello.length === 0) {
+      // Nessun parametro trovato, aggiungilo comunque
+      console.log('  ℹ️ Livello', livello, '- nessun parametro CCNL trovato, aggiungo comunque');
+      const option = new Option(opt.text, opt.value, false, opt.value === valoreSelezionatoPrecedente);
+      selectElement.add(option);
+      livelliValidi++;
+      return;
+    }
+    
+    // Verifica se ALMENO UNO dei parametri è valido per questa data
+    const almenoUnoValido = paramsLivello.some(param => {
+      let valido = true;
+      
+      if (param.data_inizio) {
+        const dataValiditaDaNum = parseDataPerConfronto(param.data_inizio);
+        if (dataRifNum < dataValiditaDaNum) {
+          valido = false;
+        }
+      }
+      
+      if (param.data_fine && valido) {
+        const dataValiditaANum = parseDataPerConfronto(param.data_fine);
+        if (dataRifNum > dataValiditaANum) {
+          valido = false;
+        }
+      }
+      
+      return valido;
+    });
+    
+    if (almenoUnoValido) {
+      // Aggiungi l'opzione
+      const option = new Option(opt.text, opt.value, false, opt.value === valoreSelezionatoPrecedente);
+      selectElement.add(option);
+      livelliValidi++;
+      
+      const rangeValido = paramsLivello.find(p => {
+        const dataInizioNum = parseDataPerConfronto(p.data_inizio);
+        const dataFineNum = parseDataPerConfronto(p.data_fine);
+        return (!dataInizioNum || dataRifNum >= dataInizioNum) && 
+               (!dataFineNum || dataRifNum <= dataFineNum);
+      });
+      console.log('  ✅ Livello', livello, 'AGGIUNTO (vigente da', formattaDataItaliana(rangeValido.data_inizio) + ')');
+    } else {
+      // Non aggiungere l'opzione
+      livelliFiltrati++;
+      const rangeDate = paramsLivello.map(p => 
+        `da ${formattaDataItaliana(p.data_inizio)} a ${formattaDataItaliana(p.data_fine)}`
+      ).join(', ');
+      console.log('  ❌ Livello', livello, 'ESCLUSO (validità:', rangeDate + ')');
+    }
+  });
+  
+  console.log('📊 Risultato:', livelliValidi, 'livelli validi,', livelliFiltrati, 'esclusi');
+  
+  // Se il valore precedente non è più disponibile, resetta
+  if (valoreSelezionatoPrecedente && !Array.from(selectElement.options).some(opt => opt.value === valoreSelezionatoPrecedente)) {
+    selectElement.selectedIndex = 0;
+    console.log('⚠️ Livello precedente non più valido, resettato');
+  }
+}
+
+// Applica filtro a tutti i ruoli al caricamento e ad ogni cambio data
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('🚀 DOM caricato, applico filtri livelli...');
+
+  const monthInput = document.querySelector('input[name="mese_riferimento"], input[name="periodo_riferimento"]');
+  const formConfig = monthInput ? monthInput.closest('form') : null;
+  const configUrl = "{% url 'simulazione_organico' %}";
+  const calendarioUrl = "{% url 'simulazione_organico_calendario' %}";
+  const calendarioBtn = document.getElementById('btn-calendario-presenze');
+
+  const updateCalendarioLink = function() {
+    if (!formConfig || !monthInput || !calendarioBtn) return;
+    const params = new URLSearchParams(new FormData(formConfig));
+    const selectedMonth = monthInput.value || '';
+    params.set('mese_riferimento', selectedMonth);
+    if (monthInput.name === 'periodo_riferimento') {
+      params.set('periodo_riferimento', selectedMonth);
+    }
+    calendarioBtn.href = `${calendarioUrl}?${params.toString()}`;
+  };
+
+  updateCalendarioLink();
+
+  if (formConfig && monthInput) {
+    const reloadConfigByMonth = function() {
+      // Ricarica la pagina CONFIG con i parametri correnti per aggiornare il calendario/festivi
+      const params = new URLSearchParams(new FormData(formConfig));
+      const selectedMonth = monthInput.value || '';
+      if (monthInput.name === 'periodo_riferimento') {
+        params.set('periodo_riferimento', selectedMonth);
+        params.set('mese_riferimento', selectedMonth);
+      } else {
+        params.set('mese_riferimento', selectedMonth);
+      }
+      updateCalendarioLink();
+      window.location.href = `${configUrl}?${params.toString()}`;
+    };
+
+    monthInput.addEventListener('change', reloadConfigByMonth);
+    monthInput.addEventListener('input', function() {
+      updateCalendarioLink();
+    });
+  }
+  
+  // Per ogni card ruolo
+  const cards = document.querySelectorAll('.card.border-secondary');
+  console.log('📦 Cards trovate:', cards.length);
+  
+  cards.forEach((card, index) => {
+    const dataInizioInput = card.querySelector('input[name$="_data_inizio"]');
+    const livelloSelect = card.querySelector('select[name$="_livello"]');
+    
+    if (!dataInizioInput || !livelloSelect) {
+      console.log('⚠️ Card', index, '- Input o select non trovati');
+      return;
+    }
+    
+    console.log('👤 Card', index, '- Data inizio:', dataInizioInput.value, '- Livelli totali:', livelloSelect.options.length);
+    
+    // Applica filtro iniziale
+    filtraLivelliPerData(livelloSelect, dataInizioInput.value);
+    
+    // Ri-applica filtro quando cambia la data
+    dataInizioInput.addEventListener('change', function() {
+      console.log('📅 Data cambiata per card', index, ':', this.value);
+      filtraLivelliPerData(livelloSelect, this.value);
+    });
+  });
+});
+</script>
+{% endblock %}

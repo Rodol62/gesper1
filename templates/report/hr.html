@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Report HR - Presenze e Assenze</h2>
+<table>
+    <tr>
+        <th>Dipendente</th>
+        <th>Totale eventi</th>
+        <th>Presenze</th>
+        <th>Assenze</th>
+    </tr>
+    {% for r in report %}
+    <tr>
+        <td>{{ r.dipendente }}</td>
+        <td>{{ r.totale_eventi }}</td>
+        <td>{{ r.presenze }}</td>
+        <td>{{ r.assenze }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load pagination_tags %}
+{% block title %}Storico archivio documenti — Gesper{% endblock %}
+
+{% block content %}
+<div class="container py-3" style="max-width: 76rem">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h1 class="h5 mb-0"><i class="bi bi-clock-history me-2"></i>Storico archivio documenti</h1>
+    <a href="{% url 'admin_archivio_documenti_storage' %}" class="btn btn-outline-secondary btn-sm">Torna all'archivio</a>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body py-2 small">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+          <label class="form-label mb-0 text-muted">Operazione</label>
+          <select name="operazione" class="form-select form-select-sm">
+            <option value="">Tutte</option>
+            {% for op in operazioni_disponibili %}
+            <option value="{{ op }}" {% if q_operazione == op %}selected{% endif %}>{{ op }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label mb-0 text-muted">Utente</label>
+          <input type="text" name="utente" value="{{ q_utente }}" class="form-control form-control-sm" placeholder="username o nome">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-0 text-muted">Da data</label>
+          <input type="date" name="data_da" value="{{ q_data_da }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-0 text-muted">A data</label>
+          <input type="date" name="data_a" value="{{ q_data_a }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-12 col-md-2 d-flex gap-2">
+          <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtra</button>
+          <a href="{% url 'admin_archivio_documenti_log' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+        </div>
+        <div class="col-12 col-md-2 d-flex">
+          <a class="btn btn-outline-dark btn-sm w-100"
+             href="{% url 'admin_archivio_documenti_log' %}?export=csv&operazione={{ q_operazione|urlencode }}&utente={{ q_utente|urlencode }}&data_da={{ q_data_da|urlencode }}&data_a={{ q_data_a|urlencode }}">
+            Export CSV
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    {% gesper_pagination logs "Paginazione storico archivio documenti" %}
+    <div class="gesper-list-scroll">
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-middle mb-0 small">
+        <thead class="table-light">
+          <tr>
+            <th>Data/Ora</th>
+            <th>Utente</th>
+            <th>Azienda</th>
+            <th>Operazione</th>
+            <th>Descrizione</th>
+            <th>Oggetto</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in logs %}
+          <tr>
+            <td>{{ l.data_ora|date:"d/m/Y H:i:s" }}</td>
+            <td>{% if l.utente %}{{ l.utente.username }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td>{% if l.azienda %}{{ l.azienda.nome }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td><code>{{ l.operazione }}</code></td>
+            <td>{{ l.descrizione|default:"—" }}</td>
+            <td>{{ l.oggetto_id|default:"—" }}</td>
+            <td>{{ l.ip_address|default:"—" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-muted">Nessuna operazione trovata.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    </div>
+    {% gesper_pagination logs "Paginazione storico archivio documenti" %}
+  </div>
+</div>
+{% endblock %}

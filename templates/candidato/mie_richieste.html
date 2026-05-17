@@ -1,0 +1,171 @@
+{% extends 'base_candidato.html' %}
+{% block title %}Le mie richieste — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <a href="{% url 'candidato_dashboard' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.75rem">
+      <i class="bi bi-arrow-left"></i> Dashboard
+    </a>
+    <h6 class="mb-0 me-auto" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-send-fill"></i> Le mie richieste
+    </h6>
+    <a href="{% url 'candidato_nuova_richiesta' %}"
+       class="btn btn-sm" style="background:#1b3a5f;color:#fff;font-size:.78rem">
+      <i class="bi bi-plus-circle"></i> Nuova richiesta
+    </a>
+  </div>
+
+  {# ── Riepilogo ferie/permessi ────────────────────────────────── #}
+  {% if puo_richiedere_assenze %}
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm text-center py-3">
+        <div style="font-size:1.4rem;color:#0a6640"><i class="bi bi-sun-fill"></i></div>
+        <div style="font-weight:700;font-size:.88rem;color:#1b3a5f">Ferie approvate</div>
+        <div style="font-size:.78rem;color:#555">{{ ferie_approvate|length }} periodi</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm text-center py-3">
+        <div style="font-size:1.4rem;color:#b85a00"><i class="bi bi-hourglass-split"></i></div>
+        <div style="font-weight:700;font-size:.88rem;color:#1b3a5f">Permessi approvati</div>
+        <div style="font-size:.78rem;color:#555">{{ permessi_approvati|length }} periodi</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm text-center py-3">
+        <div style="font-size:1.4rem;color:#c0392b"><i class="bi bi-clock-history"></i></div>
+        <div style="font-weight:700;font-size:.88rem;color:#1b3a5f">In attesa</div>
+        {% with attesa=richieste|dictsortreversed:"data_richiesta" %}
+        <div style="font-size:.78rem;color:#555">
+          {% for r in richieste %}{% if r.stato == 'inviata' %}{{ forloop.counter }}{% endif %}{% endfor %} richieste
+        </div>
+        {% endwith %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-info py-2 mb-3" style="font-size:.8rem">
+    <i class="bi bi-info-circle"></i>
+    In stato candidato puoi inviare richieste di informazioni e chiarimenti all'ufficio HR.
+  </div>
+  {% endif %}
+
+  {# ── Lista richieste ─────────────────────────────────────────── #}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      {% if richieste %}
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:.82rem">
+          <thead style="background:#f4f7fa">
+            <tr>
+              <th style="font-size:.72rem;color:#666;font-weight:600;padding:.5rem .75rem">Tipo</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Dal</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Al</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Motivo</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Stato</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Data invio</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600" class="text-end">Dettaglio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in richieste %}
+            <tr>
+              <td style="padding:.5rem .75rem;font-weight:600">
+                {% if r.tipo == 'ferie' %}
+                  <i class="bi bi-sun-fill" style="color:#0a6640"></i> Ferie
+                {% elif r.tipo == 'permesso' %}
+                  <i class="bi bi-hourglass-split" style="color:#b85a00"></i> Permesso
+                {% elif r.tipo == 'malattia' %}
+                  <i class="bi bi-thermometer-half" style="color:#c0392b"></i> Malattia
+                {% else %}
+                  <i class="bi bi-chat-text" style="color:#555"></i> {{ r.get_tipo_display }}
+                {% endif %}
+              </td>
+              <td>{{ r.data_inizio|date:"d/m/Y" }}</td>
+              <td>{{ r.data_fine|date:"d/m/Y" }}</td>
+              <td style="color:#666">{{ r.motivo|default:"—"|truncatechars:30 }}</td>
+              <td>
+                {% if r.stato == 'approvata' %}
+                  <span class="badge bg-success" style="font-size:.62rem">Approvata</span>
+                {% elif r.stato == 'rifiutata' %}
+                  <span class="badge bg-danger" style="font-size:.62rem">Rifiutata</span>
+                {% else %}
+                  <span class="badge" style="background:#f0c040;color:#333;font-size:.62rem">In attesa</span>
+                {% endif %}
+              </td>
+              <td style="color:#888">{{ r.data_richiesta|date:"d/m/Y" }}</td>
+              <td class="text-end">
+                <a href="{% url 'dettaglio_richiesta' r.id %}" class="btn btn-sm btn-outline-secondary" style="font-size:.68rem;padding:.1rem .45rem">
+                  <i class="bi bi-eye"></i> Apri
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-muted p-3" style="font-size:.83rem">
+        <i class="bi bi-info-circle"></i> Nessuna richiesta inviata finora.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mt-3">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center" style="background:#eef6ff;font-size:.8rem;font-weight:700;color:#1b3a5f">
+      <span><i class="bi bi-megaphone"></i> Richieste ricevute dal datore / HR</span>
+      <span class="text-muted fw-normal" style="font-size:.72rem">{{ richieste_ricevute|length }} totali</span>
+    </div>
+    <div class="card-body p-0">
+      {% if richieste_ricevute %}
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:.82rem">
+          <thead style="background:#f8fbff">
+            <tr>
+              <th style="font-size:.72rem;color:#666;font-weight:600;padding:.5rem .75rem">Titolo</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Stato</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Data invio</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600" class="text-end">Dettaglio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rr in richieste_ricevute %}
+            <tr>
+              <td style="padding:.5rem .75rem">
+                <div class="fw-semibold">{{ rr.titolo }}</div>
+                {% if rr.ruolo_richiesto %}<div class="text-muted">Ruolo: {{ rr.ruolo_richiesto }}</div>{% endif %}
+              </td>
+              <td>
+                {% if rr.stato == 'inviata' %}
+                  <span class="badge bg-warning text-dark" style="font-size:.62rem">Azione richiesta</span>
+                {% elif rr.stato == 'completata_candidato' %}
+                  <span class="badge bg-info text-dark" style="font-size:.62rem">In revisione HR</span>
+                {% else %}
+                  <span class="badge bg-success" style="font-size:.62rem">Approvata HR</span>
+                {% endif %}
+              </td>
+              <td style="color:#888">{{ rr.data_invio|date:"d/m/Y" }}</td>
+              <td class="text-end">
+                <a href="{% url 'candidato_dettaglio_richiesta_ricevuta' rr.id %}" class="btn btn-sm btn-outline-primary" style="font-size:.68rem;padding:.1rem .45rem">
+                  <i class="bi bi-eye"></i> Apri
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-muted p-3" style="font-size:.83rem">
+        <i class="bi bi-info-circle"></i> Nessuna richiesta ricevuta dal datore di lavoro.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

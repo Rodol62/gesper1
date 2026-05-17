@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% block title %}Scadenze contratti a tempo determinato{% endblock %}
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:1100px">
+
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h2 class="mb-0" style="font-size:1.15rem;font-weight:700;color:#1b3a5f">
+      <i class="bi bi-calendar-event me-2"></i>Scadenze contratti (TD)
+    </h2>
+    <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Proposte / contratti
+    </a>
+  </div>
+
+  {% if azienda_operativa %}
+  <div class="alert alert-info py-1 mb-3" style="font-size:.82rem">
+    Azienda: <strong>{{ azienda_operativa.nome }}</strong> · Oggi {{ oggi|date:"d/m/Y" }}
+  </div>
+  {% endif %}
+
+  <form method="get" class="row g-2 align-items-end mb-3 small">
+    <div class="col-auto">
+      <label class="form-label mb-0 text-muted">Finestra scadenze (giorni)</label>
+      <input type="number" name="giorni" class="form-control form-control-sm" style="width:5.5rem"
+             min="7" max="730" value="{{ giorni_finestra }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-sm btn-primary">Aggiorna</button>
+    </div>
+    <div class="col text-muted" style="font-size:.78rem">
+      Contratti con <strong>data fine</strong> e tipo a termine (codici <code>det_*</code> / <code>stag_*</code>, somministrazione, o nome tipo con «determinato»/«stagionale» ma non «indeterminato»). Esclusi dipendenti in stato cessato.
+    </div>
+  </form>
+
+  <div class="alert alert-light border py-2 small mb-4" role="note">
+    <strong>Allineamento stato.</strong> I TD con data fine passata restano in elenco “scaduti non chiusi”
+    finché non viene eseguito il comando giornaliero
+    <code class="user-select-all">python manage.py applica_scadenze_contratti_td</code>
+    (o equivalente in pianificazione server). Dopo l’esecuzione i rapporti interessati passano a
+    <em>cessato</em> e l’anagrafica viene aggiornata se non esistono altri rapporti attivi.
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header py-2 d-flex align-items-center gap-2" style="background:#fff8e6;border-bottom:1px solid #e8d48a;font-size:.85rem;font-weight:600;color:#6b5200">
+      <i class="bi bi-hourglass-split"></i> In scadenza entro {{ giorni_finestra }} giorni ({{ contratti_prossimi|length }})
+    </div>
+    <div class="card-body p-0">
+      {% if contratti_prossimi %}
+      <div class="gesper-list-scroll">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0" style="font-size:.82rem">
+          <thead class="table-light"><tr>
+            <th>Dipendente</th>
+            <th>Contratto</th>
+            <th>Tipo</th>
+            <th>Fine rapporto</th>
+            <th>Giorni</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            {% for row in contratti_prossimi %}
+            {% with r=row.rapporto %}
+            <tr>
+              <td><strong>{{ r.dipendente.cognome }} {{ r.dipendente.nome }}</strong></td>
+              <td class="font-monospace">{{ r.numero_contratto }}</td>
+              <td>{{ r.tipo_contratto }}</td>
+              <td>{{ r.data_fine_rapporto|date:"d/m/Y" }}</td>
+              <td>
+                {% if row.giorni_mancanti is not None %}
+                <span class="badge bg-warning text-dark">{{ row.giorni_mancanti }} gg</span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-nowrap">
+                <a class="btn btn-sm btn-outline-primary py-0" href="{% url 'dettaglio_contratto' r.id %}">Scheda</a>
+                <a class="btn btn-sm btn-outline-secondary py-0" href="{% url 'addendum_contratto_nuovo' r.id %}">Addendum</a>
+              </td>
+            </tr>
+            {% endwith %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      </div>
+      {% else %}
+      <p class="text-muted small mb-0 p-3">Nessun contratto a termine in finestra {{ giorni_finestra }} giorni (prova ad allargare i giorni o verifica tipo contratto / data fine sul rapporto).</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header py-2 d-flex align-items-center gap-2" style="background:#fdecea;border-bottom:1px solid #f5c2c0;font-size:.85rem;font-weight:600;color:#842029">
+      <i class="bi bi-exclamation-triangle"></i> TD scaduti ancora aperti ({{ contratti_scaduti|length }})
+    </div>
+    <div class="card-body p-0">
+      {% if contratti_scaduti %}
+      <div class="gesper-list-scroll">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0" style="font-size:.82rem">
+          <thead class="table-light"><tr>
+            <th>Dipendente</th>
+            <th>Contratto</th>
+            <th>Tipo</th>
+            <th>Data fine</th>
+            <th>Ritardo</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            {% for row in contratti_scaduti %}
+            {% with r=row.rapporto %}
+            <tr>
+              <td><strong>{{ r.dipendente.cognome }} {{ r.dipendente.nome }}</strong></td>
+              <td class="font-monospace">{{ r.numero_contratto }}</td>
+              <td>{{ r.tipo_contratto }}</td>
+              <td>{{ r.data_fine_rapporto|date:"d/m/Y" }}</td>
+              <td>
+                {% if row.giorni_ritardo is not None %}
+                <span class="badge bg-danger">{{ row.giorni_ritardo }} gg</span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-nowrap">
+                <a class="btn btn-sm btn-outline-primary py-0" href="{% url 'dettaglio_contratto' r.id %}">Scheda</a>
+              </td>
+            </tr>
+            {% endwith %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      </div>
+      {% else %}
+      <p class="text-muted small mb-0 p-3">Nessun TD scaduto ancora in stato attivo.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

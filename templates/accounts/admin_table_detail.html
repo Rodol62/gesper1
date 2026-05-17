@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% load pagination_tags %}
+{% block title %}{{ verbose_name_plural }} — Gestione dati{% endblock %}
+
+{% block extra_head %}
+<style>
+.tbl-header {
+  background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent) 100%);
+  color: #fff;
+  border-radius: 6px;
+  padding: .6rem 1rem;
+  margin-bottom: .7rem;
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap;
+}
+.tbl-header h4 { font-size: .88rem; font-weight: 800; margin: 0; }
+.tbl-header .sub { font-size: var(--sz-xs); opacity: .8; font-family: monospace; }
+
+.data-table { font-size: var(--sz-sm); }
+.data-table th {
+  font-size: .63rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  background: #e8eef5;
+  color: var(--c-primary);
+  padding: .22rem .45rem;
+  border-color: var(--c-border);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: .2rem .45rem;
+  border-color: var(--c-border);
+  font-size: var(--sz-sm);
+  vertical-align: middle;
+}
+.data-table tr:nth-child(even) td { background: #f6f9fc; }
+.data-table tr:hover td { background: #edf4ff; }
+.pk-cell { font-weight: 700; color: var(--c-primary); font-family: ui-monospace, monospace; font-size: .78rem; white-space: nowrap; }
+.repr-cell { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-cell .btn { font-size: .62rem; padding: .15rem .4rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="tbl-header">
+  <div>
+    <h4><i class="bi bi-table"></i> {{ verbose_name_plural }}</h4>
+    <div class="sub">{{ app_label }}.{{ model_name }}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    {% if can_add %}
+    <a href="{% url 'admin_db_record_create' app_label model_name %}" class="btn btn-sm btn-light" style="font-size:.66rem">
+      <i class="bi bi-plus-lg"></i> Nuovo record
+    </a>
+    {% endif %}
+    <a href="{% url 'admin_data_overview' %}" class="btn btn-sm btn-outline-light" style="font-size:.66rem">
+      <i class="bi bi-arrow-left"></i> Tabelle
+    </a>
+    <a href="{% url 'centro_moduli' %}" class="btn btn-sm btn-outline-light" style="font-size:.66rem">
+      <i class="bi bi-speedometer2"></i> Portale
+    </a>
+  </div>
+</div>
+
+{% if filter_note %}
+<div class="alert alert-light border py-2 mb-2" style="font-size:var(--sz-xs)">
+  <i class="bi bi-funnel"></i> {{ filter_note }}
+  <a href="{% url 'admin_table_detail' app_label model_name %}" class="ms-2">Rimuovi filtro</a>
+</div>
+{% endif %}
+
+{% if list_rows %}
+{% gesper_pagination page_obj "Paginazione elenco record" %}
+<div class="gesper-list-scroll" style="border:1px solid var(--c-border);border-radius:5px">
+<div class="table-responsive">
+  <table class="table table-bordered data-table mb-0">
+    <thead>
+      <tr>
+        <th style="width:1%">ID</th>
+        <th>Anteprima</th>
+        <th class="text-end" style="width:1%">Azioni</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in list_rows %}
+      <tr>
+        <td class="pk-cell">{{ row.pk }}</td>
+        <td class="repr-cell" title="{{ row.repr }}">{{ row.repr|default:"—" }}</td>
+        <td class="text-end act-cell text-nowrap">
+          <a class="btn btn-outline-primary" href="{% url 'admin_db_record_detail' app_label model_name row.pk %}">Dettaglio</a>
+          <a class="btn btn-outline-secondary" href="{% url 'admin_db_record_edit' app_label model_name row.pk %}">Modifica</a>
+          <a class="btn btn-outline-danger" href="{% url 'admin_db_record_delete' app_label model_name row.pk %}">Elimina</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+</div>
+{% gesper_pagination page_obj "Paginazione elenco record" %}
+{% else %}
+<div class="alert alert-light border py-2" style="font-size:var(--sz-sm)">
+  <i class="bi bi-inbox"></i> Nessun record. Puoi <a href="{% url 'admin_db_record_create' app_label model_name %}">crearne uno nuovo</a>.
+</div>
+{% endif %}
+
+<p class="mt-1 mb-0" style="font-size:var(--sz-xs);color:var(--c-muted)">
+  {{ page_obj.paginator.count }} record totali{% if page_obj.paginator.num_pages > 1 %} — pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}{% endif %}
+</p>
+
+{% endblock %}

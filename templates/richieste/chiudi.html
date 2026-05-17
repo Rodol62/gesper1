@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Chiudi Richiesta — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3 mb-4" style="max-width:700px">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="d-flex align-items-center mb-3">
+    <a href="{% url 'lista_richieste' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.78rem">
+      <i class="bi bi-arrow-left"></i> Indietro
+    </a>
+    <h5 class="mb-0 ms-2" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-check-circle"></i> Chiudi Richiesta
+    </h5>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      <div class="mb-3">
+        <p style="font-size:.85rem;color:#666"><strong>Richiesta #{richiesta.id}:</strong> {{ richiesta.get_tipo_display }}</p>
+        <p style="font-size:.85rem;color:#666"><strong>Da:</strong> {{ richiesta.dipendente.cognome }} {{ richiesta.dipendente.nome }}</p>
+        {% if richiesta.data_inizio %}
+        <p style="font-size:.85rem;color:#666"><strong>Periodo:</strong> {{ richiesta.data_inizio|date:"d/m/Y" }} → {{ richiesta.data_fine|date:"d/m/Y" }}</p>
+        {% endif %}
+        {% if richiesta.testo_richiesta %}
+        <p style="font-size:.85rem;color:#666"><strong>Descrizione:</strong></p>
+        <div class="p-2 bg-light" style="font-size:.83rem;border-radius:.25rem">
+          {{ richiesta.testo_richiesta|linebreaks }}
+        </div>
+        {% endif %}
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label for="note_risposta" class="form-label" style="font-weight:600;font-size:.85rem">Note di chiusura (opzionale)</label>
+          <textarea name="note_risposta" id="note_risposta" class="form-control form-control-sm" rows="4"
+                    style="font-size:.83rem" placeholder="Aggiungi note sulla chiusura di questa richiesta..."></textarea>
+        </div>
+
+        <div class="alert alert-info small mb-3" style="font-size:.78rem">
+          <i class="bi bi-info-circle"></i> Chiudendo questa richiesta, il suo stato diventerà "Chiusa".
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-warning" style="font-size:.85rem">
+            <i class="bi bi-check-circle"></i> Chiudi richiesta
+          </button>
+          <a href="{% url 'lista_richieste' %}" class="btn btn-secondary" style="font-size:.85rem">
+            <i class="bi bi-x-circle"></i> Annulla
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

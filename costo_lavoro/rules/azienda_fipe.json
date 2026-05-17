@@ -1,0 +1,54 @@
+{
+  "azienda_fipe": {
+    "identificazione": {
+      "ragione_sociale": "",
+      "codice_fiscale": "",
+      "partita_iva": "",
+      "sede_legale": "",
+      "sede_operativa": ""
+    },
+
+    "classificazione": {
+      "settore": "turismo_ristorazione",
+      "ateco": "",
+      "tipologia_azienda": "ordinaria",
+      "numero_dipendenti": 0,
+      "azienda_minore": false,
+      "descrizione": "Classificazione aziendale rilevante per aliquote contributive e regole FIPE"
+    },
+
+    "parametri_contributivi": {
+      "inps": {
+        "aliquota_azienda": null,
+        "aliquota_lavoratore": null,
+        "note": "Valori determinati in base a settore, dimensione e tipologia azienda"
+      },
+      "inail": {
+        "tasso_base": null,
+        "tasso_oscillato": null,
+        "categoria_rischio": "",
+        "note": "Dipende dal codice ATECO e dalla storia infortunistica"
+      }
+    },
+
+    "politiche_orarie": {
+      "banca_ore": false,
+      "turnazioni_flessibili": true,
+      "stagionalita": false,
+      "descrizione": "Regole interne che influenzano orario, straordinari e gestione del personale"
+    },
+
+    "benefit_aziendali": {
+      "vitto": false,
+      "alloggio": false,
+      "fringe_benefit": false,
+      "welfare": false
+    },
+
+    "accordi_integrativi": {
+      "presenti": false,
+      "descrizione": "",
+      "note": "Eventuali accordi aziendali che modificano o integrano il CCNL"
+    }
+  }
+}

@@ -1,0 +1,517 @@
+{% load currency_filters %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proposta di Assunzione — {{ proposta.dipendente.nome }} {{ proposta.dipendente.cognome }}</title>
+  <style>
+    /* ── Reset e base ────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: #e8eef5;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 11pt;
+      color: #111;
+      line-height: 1.55;
+    }
+
+    /* ── Documento (schermo) ─────────────────────────────────── */
+    #doc-area {
+      max-width: 210mm;
+      margin: 10mm auto 20mm;
+      padding: 18mm 18mm 22mm;
+      background: #fff;
+      box-shadow: 0 0 16px rgba(0,0,0,.18);
+    }
+
+    /* ── Barra controlli ─────────────────────────────────────── */
+    .ctrl-bar {
+      max-width: 210mm;
+      margin: 8mm auto 4mm;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-block;
+      padding: 5px 14px;
+      border-radius: 4px;
+      font-family: Arial, sans-serif;
+      font-size: 10pt;
+      cursor: pointer;
+      text-decoration: none;
+      border: 1px solid transparent;
+    }
+    .btn-primary { background: #1b3a5f; color: #fff; border-color: #1b3a5f; }
+    .btn-secondary { background: #6c757d; color: #fff; border-color: #6c757d; }
+    .btn-outline { background: #fff; color: #444; border-color: #aaa; }
+
+    /* ── Intestazione ────────────────────────────────────────── */
+    .doc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8mm; }
+    .doc-company { font-size: 12pt; font-weight: bold; line-height: 1.4; }
+    .doc-company .ragione { font-size: 14pt; text-transform: uppercase; letter-spacing: .03em; }
+    .doc-ref { text-align: right; font-size: 9pt; color: #444; }
+    .doc-ref .rif-num { font-weight: bold; font-size: 10pt; color: #1b3a5f; }
+
+    /* ── Divisori ────────────────────────────────────────────── */
+    .doc-hr { border: none; border-top: 2px solid #1b3a5f; margin: 4mm 0; }
+    .doc-hr-thin { border: none; border-top: 1px solid #ccc; margin: 3mm 0; }
+
+    /* ── Destinatario e oggetto ──────────────────────────────── */
+    .doc-dest { margin: 6mm 0 8mm; font-size: 10.5pt; }
+    .doc-dest .label { font-size: 8pt; text-transform: uppercase; letter-spacing: .08em; color: #555; margin-bottom: 1mm; }
+    .doc-oggetto { margin-bottom: 6mm; }
+    .doc-oggetto strong { font-size: 11.5pt; }
+
+    /* ── Corpo ───────────────────────────────────────────────── */
+    .doc-body p { margin: 0 0 3mm; text-align: justify; }
+    .doc-body .apertura { margin-bottom: 5mm; }
+
+    /* ── Articoli ────────────────────────────────────────────── */
+    .art-block { margin-top: 5mm; }
+    .art-title {
+      font-size: 10.5pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+      margin: 0 0 2mm;
+      padding-bottom: 1mm;
+      border-bottom: 1px solid #c5d0dc;
+      color: #1b3a5f;
+    }
+    .art-body { margin: 0 0 1mm; }
+    .art-body p { margin: 0 0 2mm; text-align: justify; }
+    .art-body ul { margin: 1mm 0 2mm 5mm; padding: 0; list-style: disc; }
+    .art-body ul li { margin-bottom: 1mm; }
+
+    /* ── Tabelle ─────────────────────────────────────────────── */
+    .tabella { width: 100%; border-collapse: collapse; font-size: 10pt; margin: 2mm 0; }
+    .tabella th { background: #e8eef5; font-weight: bold; padding: 1.5mm 2mm; border: 1px solid #c5d0dc; text-align: left; }
+    .tabella td { padding: 1.5mm 2mm; border: 1px solid #c5d0dc; vertical-align: top; }
+    .tabella tr:nth-child(even) td { background: #f8fafc; }
+    .importo { font-weight: bold; color: #0a3d1f; }
+
+    /* ── Firme ───────────────────────────────────────────────── */
+    .firme { margin-top: 12mm; }
+    .firme-row { display: flex; gap: 10mm; justify-content: space-between; }
+    .firma-box { flex: 1; }
+    .firma-label { font-size: 9pt; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; color: #444; margin-bottom: 8mm; }
+    .firma-line { border: none; border-bottom: 1px solid #333; margin: 0; }
+    .firma-sub { font-size: 9pt; color: #444; margin-top: 1.5mm; }
+    .firma-data { margin-top: 5mm; font-size: 9pt; }
+    .dichiarazioni { margin-top: 6mm; font-size: 9pt; color: #444; }
+    .dichiarazioni p { margin: 0 0 2mm; }
+
+    /* ── Clausola finale ─────────────────────────────────────── */
+    .clausola-finale {
+      margin-top: 8mm;
+      padding: 3mm 4mm;
+      border: 1px solid #c5d0dc;
+      background: #f0f5fb;
+    }
+    .note-legali {
+      margin-top: 5mm;
+      padding: 3mm 4mm;
+      border: 1px solid #e0e0e0;
+      background: #fafafa;
+      font-size: 8.5pt;
+      color: #555;
+    }
+
+    /* ── Stampa ──────────────────────────────────────────────── */
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 18mm 18mm 20mm 18mm;
+      }
+
+      html, body {
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      .ctrl-bar { display: none !important; }
+
+      #doc-area {
+        max-width: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+
+      /* Mantiene titolo articolo con il suo corpo */
+      .art-block {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      /* Articoli lunghi: permette il break ma titolo resta con l'inizio del corpo */
+      .art-title {
+        break-after: avoid;
+        page-break-after: avoid;
+      }
+
+      /* Testo: evita righe orfane/vedove */
+      p, li {
+        orphans: 3;
+        widows: 3;
+      }
+
+      /* Tabelle non spezzate */
+      .tabella {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .tabella tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      /* Blocchi che non vanno mai spezzati */
+      .doc-header,
+      .doc-dest,
+      .doc-oggetto,
+      .doc-body .apertura,
+      .clausola-finale,
+      .firme,
+      .dichiarazioni,
+      .note-legali {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Barra controlli (solo schermo) -->
+  <div class="ctrl-bar">
+    <button class="btn btn-primary" onclick="window.print()">&#128438; Stampa / PDF</button>
+    <a class="btn btn-outline" href="{% url 'proposta_pdf' proposta.id %}">&#128196; Scarica PDF (legacy)</a>
+    <a class="btn btn-secondary" href="{% url 'dettaglio_proposta' proposta.id %}">&#8592; Dettaglio</a>
+  </div>
+
+  <!-- DOCUMENTO A4 -->
+  <div id="doc-area">
+
+    <!-- INTESTAZIONE -->
+    <div class="doc-header">
+      <div class="doc-company">
+        <div class="ragione">{{ proposta.azienda.nome }}</div>
+        {% if proposta.azienda.indirizzo %}<div>{{ proposta.azienda.indirizzo }}</div>{% endif %}
+        {% if proposta.azienda.email %}<div>{{ proposta.azienda.email }}{% if proposta.azienda.telefono %} &nbsp;—&nbsp; Tel. {{ proposta.azienda.telefono }}{% endif %}</div>{% endif %}
+        {% if proposta.azienda.partita_iva %}<div style="font-size:9pt;color:#555">P.IVA {{ proposta.azienda.partita_iva }}</div>{% endif %}
+      </div>
+      <div class="doc-ref">
+        <div class="rif-num">Rif. {{ proposta.numero_proposta }}</div>
+        <div>{{ proposta.data_creazione|date:"d/m/Y" }}</div>
+      </div>
+    </div>
+    <hr class="doc-hr">
+
+    <!-- DESTINATARIO -->
+    <div class="doc-dest">
+      <div class="label">Egregio/Gentile</div>
+      <strong>{{ proposta.dipendente.nome }} {{ proposta.dipendente.cognome }}</strong>
+      {% if proposta.dipendente.indirizzo %}<br>{{ proposta.dipendente.indirizzo }}{% endif %}
+      {% if proposta.dipendente.data_nascita %}<br><span style="font-size:9.5pt;color:#555">Nato/a il {{ proposta.dipendente.data_nascita|date:"d/m/Y" }}{% if proposta.dipendente.codice_fiscale %} &nbsp;—&nbsp; C.F. {{ proposta.dipendente.codice_fiscale }}{% endif %}</span>{% endif %}
+    </div>
+    <hr class="doc-hr-thin">
+
+    <!-- OGGETTO -->
+    <div class="doc-oggetto" style="margin-top:4mm">
+      <strong>OGGETTO: Proposta di Assunzione — {{ proposta.tipo_contratto.nome }} — Livello {{ proposta.livello_ccnl }} CCNL Turismo Confcommercio — Imprese minori</strong>
+    </div>
+
+    <!-- BODY -->
+    <div class="doc-body">
+      <p class="apertura">
+        Con la presente la società <strong>{{ proposta.azienda.nome }}</strong>{% if proposta.azienda.indirizzo %}, con sede legale in <strong>{{ proposta.azienda.indirizzo }}</strong>{% endif %}{% if proposta.azienda.partita_iva %}, P.IVA {{ proposta.azienda.partita_iva }}{% endif %}, di seguito denominata <em>"Datore di Lavoro"</em>, è lieta di formulare a <strong>{{ proposta.dipendente.nome }} {{ proposta.dipendente.cognome }}</strong>, di seguito denominato/a <em>"Lavoratore/Lavoratrice"</em>, la seguente proposta di assunzione con decorrenza dal <strong>{{ proposta.data_inizio_rapporto|date:"d/m/Y" }}</strong>, alle condizioni e ai patti di seguito indicati, nel rispetto della normativa italiana vigente e del Contratto Collettivo Nazionale di Lavoro applicato.
+      </p>
+
+      <!-- ART. 1 -->
+      <div class="art-block">
+        <div class="art-title">Art. 1 — Tipologia contrattuale e normativa applicata</div>
+        <div class="art-body">
+          <p>Il rapporto di lavoro si costituisce a <strong>tempo {% if e_determinato %}determinato{% else %}indeterminato{% endif %}</strong>
+          {% if e_determinato %}
+            ai sensi dell'art. 19 del D.Lgs. 15 giugno 2015, n. 81, con termine fissato al <strong>{{ proposta.data_fine_rapporto|date:"d/m/Y" }}</strong>.
+            La causale è riconducibile alle esigenze temporanee e oggettive estranee all'ordinaria attività ai sensi dell'art. 19, co. 1, lett. a) del D.Lgs. 81/2015.
+          {% else %}
+            ai sensi dell'art. 1 del D.Lgs. 15 giugno 2015, n. 81 — Testo Organico in materia di rapporti di lavoro.
+          {% endif %}
+          </p>
+          <p>Al rapporto di lavoro si applica il <strong>Contratto Collettivo Nazionale di Lavoro per i dipendenti da aziende del settore Turismo – Sezione Ristoranti, Pizzerie con cucina e similari – Imprese minori</strong>, stipulato tra Confcommercio Imprese per l'Italia e le Organizzazioni Sindacali FILCAMS-CGIL, FISASCAT-CISL e UILTuCS (di seguito "CCNL FIPE"), ivi inclusi gli accordi di rinnovo e gli aggiornamenti delle tabelle retributive vigenti alla data di assunzione.</p>
+          {% if proposta.tipo_contratto.nome %}
+          <p>Tipologia di contratto: <strong>{{ proposta.tipo_contratto.nome }}</strong>{% if proposta.ore_settimanali and proposta.ore_settimanali < 40 %}, con orario di lavoro a tempo parziale (<em>part-time</em>) nella misura di {{ proposta.ore_settimanali|ore_hm }} ore settimanali{% endif %}.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- ART. 2 -->
+      <div class="art-block">
+        <div class="art-title">Art. 2 — Categoria, livello e mansioni</div>
+        <div class="art-body">
+          <p>Il/La Lavoratore/Lavoratrice è assunto/a con il seguente inquadramento contrattuale, ai sensi della declaratoria di cui all'art. 89 e ss. del CCNL FIPE — Imprese minori:</p>
+          <table class="tabella">
+            <tr><th style="width:38%">Elemento</th><th>Dato</th></tr>
+            <tr><td>Livello di inquadramento</td><td><strong>Livello {{ proposta.livello_ccnl }}</strong></td></tr>
+            <tr><td>Qualifica contrattuale</td><td>{{ proposta.qualifica }}</td></tr>
+            <tr><td>Mansione prevalente svolta</td><td>{{ proposta.posizione }}</td></tr>
+            <tr><td>Sede di lavoro</td><td>{% if proposta.azienda.indirizzo %}{{ proposta.azienda.indirizzo }}{% else %}{{ proposta.azienda.nome }}{% endif %}</td></tr>
+          </table>
+          <p>Le mansioni potranno essere integrate da attività accessorie e complementari, coerenti con il livello di inquadramento e con le esigenze operative dell'azienda, ai sensi dell'art. 2103 c.c., come modificato dal D.Lgs. 81/2015.</p>
+        </div>
+      </div>
+
+      <!-- ART. 3 -->
+      <div class="art-block">
+        <div class="art-title">Art. 3 — Decorrenza e periodo di prova</div>
+        <div class="art-body">
+          <p>Il rapporto di lavoro decorrerà dal <strong>{{ proposta.data_inizio_rapporto|date:"d/m/Y" }}</strong>{% if e_determinato %} fino al <strong>{{ proposta.data_fine_rapporto|date:"d/m/Y" }}</strong>{% endif %}.</p>
+          {% if prova_giorni > 0 %}
+          <p>È previsto un periodo di prova della durata di <strong>{{ prova_descrizione }}</strong>, ai sensi dell'art. 95 del CCNL FIPE — Imprese minori, decorrente dalla data di effettiva assunzione. Durante tale periodo entrambe le parti potranno recedere dal rapporto di lavoro senza preavviso, con corresponsione della retribuzione maturata sino alla data di recesso e, ove spettante, delle frazioni di mensilità aggiuntive e di TFR.</p>
+          <p>Al superamento del periodo di prova il rapporto di lavoro si consolida con anzianità convenzionalmente decorrente dalla data di inizio del periodo di prova medesimo.</p>
+          {% else %}
+          <p>In considerazione della breve durata del contratto, il periodo di prova non è previsto ai sensi dell'art. 7, co. 3, D.Lgs. 81/2015.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- ART. 4 -->
+      <div class="art-block">
+        <div class="art-title">Art. 4 — Orario di lavoro</div>
+        <div class="art-body">
+          {% if proposta.ore_settimanali and proposta.ore_settimanali < 40 %}
+          <p>Il rapporto di lavoro è a <strong>tempo parziale</strong> (part-time orizzontale), con orario settimanale pari a <strong>{{ proposta.ore_settimanali|ore_hm }} ore</strong>, a fronte delle 40 ore previste per il full-time, ai sensi degli artt. 4 e ss. del D.Lgs. 81/2015.</p>
+          {% else %}
+          <p>L'orario di lavoro è pari a <strong>{{ proposta.ore_settimanali|ore_hm|default:"40:00" }} ore settimanali</strong>, ai sensi dell'art. 74 del CCNL FIPE — Imprese minori, e nel rispetto del D.Lgs. 8 aprile 2003, n. 66 in materia di organizzazione dell'orario di lavoro.</p>
+          {% endif %}
+          <p>L'articolazione dell'orario settimanale ({{ proposta.ore_mensili|ore_hm }} ore mensili convenzionali — {{ proposta.ore_giornaliere|ore_hm }} ore giornaliere standard) sarà definita dal datore di lavoro in base alle esigenze organizzative del settore della ristorazione, potendo prevedere:</p>
+          <ul>
+            <li>distribuzione su cinque o sei giorni lavorativi con riposi compensativi;</li>
+            <li>turni spezzati compatibilmente con l'attività di somministrazione;</li>
+            <li>lavoro nelle giornate festive e/o nelle ore serali e notturne, con le relative maggiorazioni previste dal CCNL.</li>
+          </ul>
+          <p>Il riposo settimanale è garantito ai sensi dell'art. 9 D.Lgs. 66/2003, nella misura di almeno 24 ore consecutive ogni 7 giorni, di norma coincidente con la domenica, salvo diversa articolazione concordata, con le maggiorazioni previste dal CCNL FIPE per il lavoro domenicale.</p>
+        </div>
+      </div>
+
+      <!-- ART. 5 -->
+      <div class="art-block">
+        <div class="art-title">Art. 5 — Trattamento economico</div>
+        <div class="art-body">
+          <p>Il trattamento economico mensile lordo, conforme alle tabelle retributive vigenti del CCNL FIPE — Imprese minori{% if proposta.decorrenza_validita_da %} (decorrenza {{ proposta.decorrenza_validita_da|date:"d/m/Y" }}){% endif %}, è il seguente:</p>
+          <table class="tabella">
+            <tr><th style="width:55%">Voce retributiva</th><th style="text-align:right">Importo mensile lordo</th></tr>
+            <tr><td>Paga base tabellare (art. 117 CCNL FIPE)</td><td style="text-align:right" class="importo">{{ art5_paga_base|euro_full }}</td></tr>
+            <tr><td>Indennità di contingenza</td><td style="text-align:right" class="importo">{{ art5_contingenza|euro_full }}</td></tr>
+            {% if art5_edr and art5_edr > 0 %}
+            <tr><td>E.D.R. (Elemento Distinto dalla Retribuzione — Prot. 31/07/1992)</td><td style="text-align:right" class="importo">{{ art5_edr|euro_full }}</td></tr>
+            {% endif %}
+            {% if art5_superminimo and art5_superminimo > 0 %}
+            <tr><td>Superminimo (oltre minimo tabellare CCNL)</td><td style="text-align:right" class="importo">{{ art5_superminimo|euro_full }}</td></tr>
+            {% endif %}
+            {% if art5_indennita and art5_indennita > 0 %}
+            <tr><td>Altre indennità (es. di funzione)</td><td style="text-align:right" class="importo">{{ art5_indennita|euro_full }}</td></tr>
+            {% endif %}
+            {% if tredicesima_attiva %}
+            <tr style="background:#f4f9ff"><td>Rateo mensile 13ª in busta (1/12)</td><td style="text-align:right" class="importo"><strong>{{ rat13_mensile|euro_full }}</strong></td></tr>
+            {% endif %}
+            {% if quattordicesima_attiva %}
+            <tr style="background:#f4f9ff"><td>Rateo mensile 14ª in busta (1/12)</td><td style="text-align:right" class="importo"><strong>{{ rat14_mensile|euro_full }}</strong></td></tr>
+            {% endif %}
+            <tr style="background:#ddeeff"><td><strong>Totale retribuzione lorda mensile</strong></td><td style="text-align:right"><strong class="importo">{% if ha_ratei_in_busta %}{{ lordo_mensile_totale|euro_full }}{% else %}{{ art5_tabellare_tot|euro_full }}{% endif %}</strong></td></tr>
+            <tr><td>Rateizzazione mensile 13ª (deroga richiesta dipendente)</td><td style="text-align:right"><strong>{% if tredicesima_attiva %}SI{% else %}NO{% endif %}</strong></td></tr>
+            <tr><td>Rateizzazione mensile 14ª (deroga richiesta dipendente)</td><td style="text-align:right"><strong>{% if quattordicesima_attiva %}SI{% else %}NO{% endif %}</strong></td></tr>
+            {% if not tredicesima_attiva %}
+            <tr><td>Rateo mensile 13ª in busta (1/12) <span class="text-muted" style="font-size:9pt">(rateo teorico non erogato mensilmente in busta)</span></td><td style="text-align:right" class="importo">{{ rat13_mensile|euro_full }}</td></tr>
+            {% endif %}
+            {% if not quattordicesima_attiva %}
+            <tr><td>Rateo mensile 14ª in busta (1/12) <span class="text-muted" style="font-size:9pt">(rateo teorico non erogato mensilmente in busta)</span></td><td style="text-align:right" class="importo">{{ rat14_mensile|euro_full }}</td></tr>
+            {% endif %}
+            {% if ha_ratei_in_busta %}
+            <tr style="background:#e8f5e9"><td><strong>Costo lordo mensile totale (retrib. + ratei mensilità aggiuntive)</strong></td><td style="text-align:right"><strong class="importo">{{ lordo_mensile_totale|euro_full }}</strong></td></tr>
+            {% endif %}
+            <tr><td><strong>Retribuzione Annua Lorda (RAL) — 14 mensilità</strong></td><td style="text-align:right"><strong>{{ ral|euro_full }}</strong></td></tr>
+            <tr><td>{% if ha_ratei_in_busta %}Quota oraria lorda (lordo mensile in busta ÷ {{ proposta.ore_mensili|ore_hm }} ore/mese){% else %}Quota oraria lorda (retribuzione tabellare mensile ÷ {{ proposta.ore_mensili|ore_hm }} ore/mese){% endif %}</td><td style="text-align:right">€ {{ paga_oraria|euro:4 }}/ora</td></tr>
+            <tr><td>{% if ha_ratei_in_busta %}Quota giornaliera lorda (lordo mensile in busta ÷ 26 gg convenzionali CCNL){% else %}Quota giornaliera lorda (retribuzione tabellare mensile ÷ 26 gg convenzionali CCNL){% endif %}</td><td style="text-align:right">{{ paga_giornaliera|euro_full }}/giorno</td></tr>
+          </table>
+          <p>La retribuzione mensile è erogata entro il giorno <strong>15 del mese successivo</strong> a quello di competenza, ai sensi dell'art. 128 del CCNL FIPE — Imprese minori, esclusivamente mediante <strong>bonifico bancario</strong> sull'IBAN comunicato per iscritto dal/dalla Lavoratore/Lavoratrice, nel rispetto dell'obbligo di tracciabilità delle retribuzioni di cui all'art. 1, co. 910, L. 28 dicembre 2017, n. 205. Il cedolino paga è reso disponibile in formato elettronico entro la medesima data.</p>
+        </div>
+      </div>
+
+      <!-- ART. 6 -->
+      <div class="art-block">
+        <div class="art-title">Art. 6 — Mensilità aggiuntive</div>
+        <div class="art-body">
+          {% if tredicesima_attiva %}
+          <p><strong>Tredicesima mensilità</strong> (art. 133 CCNL FIPE): su richiesta espressa del/della Lavoratore/Lavoratrice, e in deroga alla modalità ordinaria di erogazione annuale, il relativo rateo mensile (1/12) è riconosciuto direttamente in busta paga ogni mese, per un importo pari a <strong>{{ rat13_mensile|euro_full }}</strong>. In tale configurazione non è prevista l'erogazione separata della 13ª nel mese di dicembre.</p>
+          {% else %}
+          <p><strong>Tredicesima mensilità</strong> (art. 133 CCNL FIPE): pari a una mensilità intera di retribuzione globale di fatto, erogata in via ordinaria entro il <strong>24 dicembre</strong> di ogni anno.</p>
+          {% endif %}
+          {% if quattordicesima_attiva %}
+          <p><strong>Quattordicesima mensilità</strong> (art. 134 CCNL FIPE): su richiesta espressa del/della Lavoratore/Lavoratrice, e in deroga alla modalità ordinaria di erogazione annuale, il relativo rateo mensile (1/12) è riconosciuto direttamente in busta paga ogni mese, per un importo pari a <strong>{{ rat14_mensile|euro_full }}</strong>. In tale configurazione non è prevista l'erogazione separata della 14ª nel mese di luglio.</p>
+          {% else %}
+          <p><strong>Quattordicesima mensilità</strong> (art. 134 CCNL FIPE): pari a una mensilità intera di retribuzione globale di fatto, erogata in via ordinaria entro il <strong>10 luglio</strong> di ogni anno.</p>
+          {% endif %}
+          <p>In caso di inizio o cessazione del rapporto in corso d'anno, le mensilità aggiuntive sono corrisposte in misura proporzionale ai mesi di servizio, computando come mese intero la frazione superiore a 15 giorni.</p>
+        </div>
+      </div>
+
+      <!-- ART. 7 -->
+      <div class="art-block">
+        <div class="art-title">Art. 7 — Trattamento di Fine Rapporto (TFR)</div>
+        <div class="art-body">
+          <p>Al/Alla Lavoratore/Lavoratrice spetta il Trattamento di Fine Rapporto (TFR) ai sensi dell'art. 2120 del Codice Civile, accantonato nella misura del <strong>6,91% della retribuzione imponibile ai fini TFR</strong> (retribuzione lorda annua divisa per 13,5, diminuita del contributo INPS fondo adeguamento pensioni pari allo 0,50%).</p>
+          <p>Il lavoratore è tenuto a esprimere la propria scelta destinazione del TFR entro 6 mesi dall'assunzione, optando per:</p>
+          <ul>
+            <li>destinazione a forma pensionistica complementare (D.Lgs. 252/2005);</li>
+            <li>mantenimento in azienda (per datori con meno di 50 dipendenti) ovvero trasferimento al Fondo di Tesoreria INPS (per datori con 50 o più dipendenti, ex L. 296/2006).</li>
+          </ul>
+          <p>In assenza di scelta entro il termine, il TFR è destinato alla forma pensionistica collettiva prevista dal CCNL applicato.</p>
+        </div>
+      </div>
+
+      <!-- ART. 8 -->
+      <div class="art-block">
+        <div class="art-title">Art. 8 — Ferie, permessi e riposi</div>
+        <div class="art-body">
+          <p><strong>Ferie annue</strong> (art. 111 CCNL FIPE — Imprese minori): il/la Lavoratore/Lavoratrice ha diritto a <strong>26 giorni lavorativi</strong> di ferie retribuite per anno solare maturato. Le ferie sono irrinunciabili e il periodo minimo legale ininterrotto (art. 10 D.Lgs. 66/2003) è pari a 2 settimane, da fruirsi preferibilmente nel periodo 1° giugno – 30 settembre, salvo esigenze tecnico-organizzative. Il residuo deve essere fruito entro 18 mesi dal termine dell'anno di maturazione. Le ferie maturano pro-rata in caso di assunzione o cessazione in corso d'anno.</p>
+          <p><strong>Permessi R.O.L. — ex festività soppresse</strong> (art. 113 CCNL FIPE): spettano <strong>88 ore annue</strong> di permesso retribuito (4 giorni) in sostituzione delle festività soppresse ai sensi del D.P.R. 28/12/1985 n. 792. I permessi sono utilizzati con preavviso concordato e maturano in misura proporzionale all'effettivo servizio prestato.</p>
+          <p><strong>Riposi settimanali e compensativi</strong>: garantiti ai sensi dell'art. 36 Cost., art. 9 D.Lgs. 66/2003 e art. 74 ss. CCNL FIPE.</p>
+        </div>
+      </div>
+
+      <!-- ART. 9 — SCATTI (condizionale) -->
+      {% if proposta.scatto_importo and proposta.scatto_importo > 0 %}
+      <div class="art-block">
+        <div class="art-title">Art. 9 — Scatti di anzianità</div>
+        <div class="art-body">
+          <p>Ai sensi dell'art. 121 del CCNL FIPE — Imprese minori, il/la Lavoratore/Lavoratrice matura scatti di anzianità periodici nella misura di <strong>{{ proposta.scatto_importo|euro_full }} ogni {{ proposta.scatto_periodicita_mesi }} mesi</strong> di effettivo servizio prestato, fino ad un massimo di <strong>{{ proposta.numero_scatti_massimi }} scatti</strong>.</p>
+          <p>Gli scatti decorrono dal primo giorno del mese successivo a quello in cui si compie il periodo di maturazione e si cumulano ai fini del trattamento retributivo.</p>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- ART. 10 / 9 — STRAORDINARI -->
+      <div class="art-block">
+        <div class="art-title">Art. {% if proposta.scatto_importo and proposta.scatto_importo > 0 %}10{% else %}9{% endif %} — Lavoro straordinario, supplementare e maggiorazioni</div>
+        <div class="art-body">
+          {% if proposta.ore_settimanali and proposta.ore_settimanali < 40 %}
+          <p><strong>Lavoro supplementare</strong> (per contratti part-time): il lavoro svolto oltre le {{ proposta.ore_settimanali|ore_hm }} ore contrattuali e sino al raggiungimento dell'orario normale di 40 ore settimanali è retribuito con la maggiorazione del <strong>15%</strong> sulla quota oraria della retribuzione globale di fatto, ai sensi dell'art. 6, co. 2, D.Lgs. 81/2015 e del CCNL FIPE.</p>
+          {% endif %}
+          <p><strong>Lavoro straordinario</strong>: il lavoro effettuato oltre le 40 ore settimanali è retribuito con le seguenti maggiorazioni sulla quota oraria della retribuzione globale di fatto, ai sensi degli artt. 81 e ss. CCNL FIPE e del D.Lgs. 66/2003:</p>
+          <ul>
+            <li>Straordinario diurno feriale: <strong>+{{ proposta.straordinario_diurno_maggiorazione }}%</strong></li>
+            <li>Straordinario notturno (dalle ore 24:00 alle ore 06:00): <strong>+{{ proposta.straordinario_notturno_maggiorazione }}%</strong></li>
+            <li>Straordinario festivo: <strong>+{{ proposta.straordinario_festivo_maggiorazione }}%</strong></li>
+          </ul>
+          <p><strong>Maggiorazioni per lavoro in orari speciali</strong> (art. 83 CCNL FIPE — Imprese minori):</p>
+          <ul>
+            <li>Lavoro domenicale: maggiorazione del <strong>15%</strong> sulla retribuzione oraria;</li>
+            <li>Lavoro in giorno festivo infrasettimanale: maggiorazione del <strong>20%</strong>;</li>
+            <li>Lavoro notturno ordinario (dalle ore 21:00 alle ore 06:00, non in straordinario): maggiorazione del <strong>20%</strong>;</li>
+            <li>Lavoro festivo notturno: cumulazione delle maggiorazioni nei termini previsti dall'art. 83 CCNL.</li>
+          </ul>
+          <p>Il limite massimo di ore di lavoro straordinario è pari a 2 ore giornaliere e 8 ore settimanali, nel rispetto dei limiti previsti dalla legge e dal CCNL. Il ricorso al lavoro straordinario richiede il preventivo accordo aziendale o la presenza di comprovate esigenze produttive.</p>
+        </div>
+      </div>
+
+      <!-- ART. 11 / 10 — MALATTIA -->
+      <div class="art-block">
+        <div class="art-title">Art. {% if proposta.scatto_importo and proposta.scatto_importo > 0 %}11{% else %}10{% endif %} — Malattia, infortuni e tutele previdenziali</div>
+        <div class="art-body">
+          <p><strong>Malattia</strong> (art. 101 CCNL FIPE — Imprese minori): in caso di malattia debitamente certificata, il datore di lavoro garantisce la conservazione del posto per i seguenti periodi: 6 mesi nel primo anno di anzianità; 9 mesi dal 2° al 5° anno; 12 mesi oltre il 5° anno. L'integrazione salariale a carico aziendale si affianca all'indennità INPS in misura tale da garantire complessivamente il 100% della retribuzione nei primi 3 giorni (carenza) e la retribuzione complessiva prevista dal CCNL per i successivi periodi.</p>
+          <p><strong>Infortuni sul lavoro</strong> (art. 102 CCNL FIPE): copertura assicurativa INAIL obbligatoria; conservazione del posto per il periodo di comporto previsto dalla normativa. L'indennità INAIL si integra con l'eventuale trattamento a carico aziendale secondo quanto previsto dal CCNL e dalla legge.</p>
+          <p><strong>Contribuzione previdenziale</strong>: le quote contributive a carico del Datore di Lavoro e del Lavoratore sono versate all'INPS e all'INAIL nei termini di legge, ai sensi della normativa previdenziale e assicurativa vigente (L. 218/1952, D.Lgs. 314/1997, L. 335/1995 e successive modificazioni).</p>
+        </div>
+      </div>
+
+      <!-- ART. 12 / 11 — DISCIPLINARE -->
+      <div class="art-block">
+        <div class="art-title">Art. {% if proposta.scatto_importo and proposta.scatto_importo > 0 %}12{% else %}11{% endif %} — Obblighi del lavoratore e norme disciplinari</div>
+        <div class="art-body">
+          <p>Il/La Lavoratore/Lavoratrice è tenuto/a a osservare diligentemente le mansioni affidategli/le, a rispettare le disposizioni impartite dal datore di lavoro e dai preposti e a mantenere il segreto su fatti e notizie relativi all'organizzazione e all'attività aziendale, ai sensi dell'art. 2104 e 2105 c.c.</p>
+          <p>Per le infrazioni disciplinari si applicano le disposizioni di cui agli artt. 116 e seguenti del CCNL FIPE — Imprese minori, nonché le disposizioni del Codice di disciplina aziendale ex art. 7 L. 300/1970 (Statuto dei Lavoratori), affisso nei locali aziendali e disponibile al dipendente su richiesta.</p>
+          <p>In caso di licenziamento, i termini di preavviso sono quelli previsti dall'art. 126 CCNL FIPE — Imprese minori, diversificati per livello e anzianità.</p>
+        </div>
+      </div>
+
+      <!-- ART. 13 / 12 — PRIVACY -->
+      <div class="art-block">
+        <div class="art-title">Art. {% if proposta.scatto_importo and proposta.scatto_importo > 0 %}13{% else %}12{% endif %} — Trattamento dei dati personali</div>
+        <div class="art-body">
+          <p>I dati personali del/della Lavoratore/Lavoratrice sono trattati dal Datore di Lavoro, nella qualità di Titolare del trattamento, ai sensi del Regolamento (UE) 2016/679 (GDPR) e del D.Lgs. 30 giugno 2003, n. 196, come modificato dal D.Lgs. 10 agosto 2018, n. 101, per le finalità connesse alla gestione del rapporto di lavoro, agli obblighi previdenziali, fiscali e assicurativi, nonché agli adempimenti di legge. L'informativa completa ai sensi dell'art. 13 GDPR è consegnata contestualmente alla presente proposta. Il consenso al trattamento dei dati necessari per la gestione del rapporto di lavoro è condizione essenziale per l'instaurazione dello stesso.</p>
+        </div>
+      </div>
+
+      <!-- ART. 14 / 13 — SICUREZZA -->
+      <div class="art-block">
+        <div class="art-title">Art. {% if proposta.scatto_importo and proposta.scatto_importo > 0 %}14{% else %}13{% endif %} — Sicurezza e salute sul luogo di lavoro</div>
+        <div class="art-body">
+          <p>Il Datore di Lavoro adempie a tutti gli obblighi previsti dal D.Lgs. 9 aprile 2008, n. 81 (Testo Unico sulla Sicurezza sul Lavoro) e successive modificazioni, ivi compresi la valutazione dei rischi, la formazione obbligatoria dei lavoratori, la sorveglianza sanitaria ove prevista e la fornitura dei Dispositivi di Protezione Individuale (DPI) necessari.</p>
+          <p>Il/La Lavoratore/Lavoratrice è tenuto/a a partecipare ai programmi di formazione e addestramento in materia di sicurezza e a rispettare le disposizioni aziendali in materia di sicurezza e prevenzione degli infortuni, ai sensi dell'art. 20 D.Lgs. 81/2008.</p>
+        </div>
+      </div>
+
+      <!-- CLAUSOLA FINALE -->
+      <div class="clausola-finale">
+        <p>La presente proposta di assunzione, redatta in doppio esemplare, costituisce offerta contrattuale vincolante ai sensi degli artt. 1321 e ss. c.c., ed è subordinata alla verifica del possesso dei requisiti professionali e alla regolarità della documentazione richiesta. La proposta si intende accettata — con conseguente nascita del rapporto di lavoro subordinato dalla data indicata — mediante restituzione di copia controfirmata per accettazione entro e non oltre <strong>{{ proposta.data_inizio_rapporto|date:"d/m/Y" }}</strong>. Decorso tale termine senza accettazione scritta, la presente si intende ritirata.</p>
+      </div>
+
+      <!-- RIFERIMENTI NORMATIVI -->
+      {% if proposta.riferimenti_normativi %}
+      <div class="note-legali">
+        <strong>Riferimenti normativi</strong>: {{ proposta.riferimenti_normativi }}
+      </div>
+      {% endif %}
+
+    </div><!-- /doc-body -->
+
+    <!-- FIRME -->
+    <div class="firme">
+      <div class="firme-row">
+        <div class="firma-box">
+          <div class="firma-label">Per il Datore di Lavoro<br><small style="font-weight:normal;font-size:8pt;color:#555">Timbro e firma leggibile del legale rappresentante</small></div>
+          <div class="firma-sub">{{ proposta.azienda.nome }}</div>
+          <div class="firma-data">Luogo e data:
+            {% if proposta.data_firma_datore %}
+              {{ proposta.luogo_firma_datore_effettivo }}, {{ proposta.data_firma_datore|date:"d/m/Y H:i" }}
+            {% else %}
+              In attesa firma digitale del datore
+            {% endif %}
+          </div>
+        </div>
+        <div class="firma-box">
+          <div class="firma-label">Il/La Lavoratore/Lavoratrice<br><small style="font-weight:normal;font-size:8pt;color:#555">Firma per accettazione integrale della proposta</small></div>
+          <div class="firma-sub">{{ proposta.dipendente.nome }} {{ proposta.dipendente.cognome }}</div>
+          <div class="firma-data">Luogo e data:
+            {% if proposta.data_firma_candidato %}
+              {{ proposta.luogo_firma_candidato_effettivo }}, {{ proposta.data_firma_candidato|date:"d/m/Y H:i" }}
+            {% else %}
+              In attesa firma digitale del lavoratore
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="dichiarazioni">
+        <p>Il/La sottoscritto/a dichiara altresì di aver ricevuto e preso visione dell'informativa sul trattamento dei dati personali ai sensi dell'art. 13 Reg. UE 2016/679 (GDPR).</p>
+        <p>Il/La sottoscritto/a dichiara di aver preso visione delle disposizioni del CCNL applicato e del codice disciplinare aziendale. Il testo integrale del CCNL FIPE — Turismo, Pubblici esercizi e ristorazione è liberamente consultabile sul sito ufficiale FIPE (<strong>www.fipe.it</strong>) e nella banca dati CCNL del CNEL (<strong>www.cnel.it/Contratti-Collettivi</strong>), senza necessità di ricezione di copia cartacea.</p>
+        {% if proposta.data_firma_candidato %}
+        <p style="margin-top:3mm;margin-bottom:1mm;font-weight:700">{{ proposta.dipendente.nome }} {{ proposta.dipendente.cognome|upper }}</p>
+        <p style="margin-top:0">Luogo e data: {{ proposta.luogo_firma_candidato_effettivo }}, {{ proposta.data_firma_candidato|date:"d/m/Y H:i" }}</p>
+        {% else %}
+        <p style="margin-top:3mm">Firma digitale specifica non ancora acquisita.</p>
+        {% endif %}
+        <p style="font-size:8.5pt;color:#666">Firma specifica ai sensi degli artt. 1341-1342 c.c. per le clausole di cui agli artt. 4 (orario), {% if proposta.scatto_importo and proposta.scatto_importo > 0 %}9{% else %}8{% endif %} (scatti), {% if proposta.scatto_importo and proposta.scatto_importo > 0 %}10{% else %}9{% endif %} (straordinari e maggiorazioni) della presente proposta.</p>
+      </div>
+    </div>
+
+  </div><!-- /doc-area -->
+
+</body>
+</html>

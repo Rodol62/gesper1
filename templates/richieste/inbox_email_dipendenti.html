@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}Email in arrivo dipendenti — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h6 class="mb-0" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-inbox-fill"></i> Email in arrivo dipendenti
+    </h6>
+    <a href="{% url 'lista_richieste' %}?stato=inviata" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Richieste
+    </a>
+  </div>
+
+  {% if errore_conn %}
+  <div class="alert alert-warning py-2 small">{{ errore_conn }}</div>
+  {% endif %}
+
+  <form method="get" class="d-flex gap-2 flex-wrap mb-2">
+    <input type="text" name="dip_email" class="form-control form-control-sm" style="max-width:280px"
+           placeholder="Filtro e-mail dipendente" value="{{ dip_email_filter|default:'' }}">
+    <input type="text" name="mailbox" class="form-control form-control-sm" style="max-width:180px"
+           placeholder="Mailbox (default INBOX)" value="{{ mailbox|default:'INBOX' }}">
+    <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i> Filtra</button>
+  </form>
+
+  <div class="small text-muted mb-2">
+    {% if host_usato %}Host IMAP: <strong>{{ host_usato }}</strong> · {% endif %}
+    Email esaminate: <strong>{{ totale_esaminate }}</strong> · Match dipendenti: <strong>{{ totale_match }}</strong> ·
+    esclusione automatica mittenti contenenti "cardella".
+  </div>
+  <div class="alert alert-info py-2 small">
+    Le azioni in questa pagina operano solo su GESPER: le e-mail restano sempre nella casella sul server di posta.
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:.83rem">
+          <thead style="background:#f4f7fa">
+            <tr>
+              <th>Data</th>
+              <th>Mittente</th>
+              <th>Dipendente</th>
+              <th>Oggetto</th>
+              <th>Anteprima</th>
+              <th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in email_rows %}
+            <tr>
+              <td>{% if row.date %}{{ row.date|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+              <td>
+                <div>{{ row.from_addr }}</div>
+                {% if row.from_name %}<div class="small text-muted">{{ row.from_name }}</div>{% endif %}
+              </td>
+              <td>{{ row.dipendente.cognome }} {{ row.dipendente.nome }}</td>
+              <td>{{ row.subject }}</td>
+              <td class="text-muted">{{ row.snippet|default:'—' }}</td>
+              <td style="min-width:260px">
+                {% if row.gia_risposta %}
+                  <span class="badge bg-success mb-1">Risposta inviata{% if row.data_risposta %} {{ row.data_risposta|date:"d/m/Y H:i" }}{% endif %}</span><br>
+                {% endif %}
+                <form method="post" class="d-inline"
+                      onsubmit="return confirm('Confermi eliminazione definitiva dal portale GESPER? La mail resterà sul server di posta.');">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="hide">
+                  <input type="hidden" name="uid_email" value="{{ row.uid_email }}">
+                  <input type="hidden" name="mittente_email" value="{{ row.from_addr }}">
+                  <input type="hidden" name="oggetto" value="{{ row.subject }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size:.72rem">
+                    <i class="bi bi-trash"></i> Elimina dal portale
+                  </button>
+                </form>
+                <details class="mt-1">
+                  <summary class="small" style="cursor:pointer;color:#1b3a5f">Rispondi</summary>
+                  <form method="post" class="mt-1">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="reply">
+                    <input type="hidden" name="uid_email" value="{{ row.uid_email }}">
+                    <input type="hidden" name="mittente_email" value="{{ row.from_addr }}">
+                    <input type="hidden" name="oggetto" value="{{ row.subject }}">
+                    <textarea name="testo_risposta" rows="4" class="form-control form-control-sm mb-1">{{ testo_risposta_default }}</textarea>
+                    <button type="submit" class="btn btn-sm btn-primary" style="font-size:.72rem">
+                      <i class="bi bi-reply-fill"></i> Invia risposta
+                    </button>
+                  </form>
+                </details>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-muted p-3">Nessuna email trovata con i filtri correnti.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

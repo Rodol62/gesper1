@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% load format_it_tags %}
+{% block title %}Assegna proposta — GESPER{% endblock %}
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:700px">
+  <div class="card border-0 shadow-sm">
+    <div class="card-header py-2" style="background:#1b3a5f;color:#fff;font-weight:700;font-size:.88rem">
+      <i class="bi bi-link-45deg"></i>
+      Assegna proposta a {{ candidato.first_name }} {{ candidato.last_name }}
+    </div>
+    <div class="card-body">
+      <p style="font-size:.83rem;color:#444;margin-bottom:16px">
+        Seleziona una proposta in bozza (slot da simulazione) da assegnare a questo candidato.
+      </p>
+
+      {% if proposte_disponibili %}
+      <form method="post">
+        {% csrf_token %}
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+          {% for p in proposte_disponibili %}
+          <label style="border:1px solid #c5d0dc;border-radius:5px;padding:10px 12px;cursor:pointer;display:flex;align-items:flex-start;gap:10px">
+            <input type="radio" name="proposta_id" value="{{ p.id }}" style="margin-top:2px;accent-color:#1b3a5f">
+            <div style="font-size:.82rem">
+              <div style="font-weight:700;color:#1b3a5f">
+                {{ p.numero_proposta }} — Livello {{ p.livello_ccnl }}
+              </div>
+              <div style="color:#5c6b7d;font-size:.75rem">
+                {{ p.azienda.nome }} — {{ p.tipo_contratto.nome|default:"" }} —
+                Inizio {{ p.data_inizio_rapporto|date:"d/m/Y" }}
+              </div>
+              <div style="color:#0a6640;font-weight:700;font-size:.78rem">
+                € {{ p.stipendio_lordo_mensile|euro_it }}/mese
+              </div>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary btn-sm" style="font-size:.8rem">
+            <i class="bi bi-link-45deg"></i> Assegna proposta selezionata
+          </button>
+          <a href="{% url 'candidato_admin_dettaglio' candidato.id %}" class="btn btn-outline-secondary btn-sm" style="font-size:.8rem">
+            Annulla
+          </a>
+        </div>
+      </form>
+      {% else %}
+      <div class="alert alert-secondary py-2 small">
+        Nessuna proposta bozza disponibile. Crea una nuova proposta dalla simulazione o
+        <a href="{% url 'crea_proposta_da_candidato' candidato.id %}">crea una nuova proposta</a> per questo candidato.
+      </div>
+      <a href="{% url 'candidato_admin_dettaglio' candidato.id %}" class="btn btn-outline-secondary btn-sm mt-2" style="font-size:.8rem">← Torna al dettaglio</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

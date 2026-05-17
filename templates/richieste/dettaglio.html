@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block title %}Richiesta #{{ richiesta.id }} — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:700px">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <a href="{% url 'lista_richieste' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.75rem">
+      <i class="bi bi-arrow-left"></i> Lista
+    </a>
+    <h6 class="mb-0" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-file-text-fill"></i> Richiesta #{{ richiesta.id }} — {{ richiesta.get_tipo_display }}
+    </h6>
+  </div>
+
+  {% if workflow_pending and is_admin_hr %}
+  <div class="alert alert-warning py-2 small mb-3">
+    <i class="bi bi-diagram-3"></i>
+    Questa richiesta è in workflow di approvazione: gestiscila dalla coda approvazioni.
+    <a href="{% url 'workflow:lista_da_approvare' %}" class="alert-link">Apri approvazioni</a>
+  </div>
+  {% endif %}
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center"
+         style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+      <span>
+        {% if richiesta.tipo == 'ferie' %}<i class="bi bi-sun-fill" style="color:#0a6640"></i>
+        {% elif richiesta.tipo == 'permesso' %}<i class="bi bi-hourglass-split" style="color:#b85a00"></i>
+        {% elif richiesta.tipo == 'malattia' %}<i class="bi bi-thermometer-half" style="color:#c0392b"></i>
+        {% elif richiesta.tipo == 'generica' %}<i class="bi bi-chat-text-fill" style="color:#2d6199"></i>
+        {% else %}<i class="bi bi-file-text"></i>
+        {% endif %}
+        {{ richiesta.get_tipo_display }}
+      </span>
+      {% if richiesta.stato == 'approvata' %}
+        <span class="badge bg-success" style="font-size:.65rem">Approvata</span>
+      {% elif richiesta.stato == 'rifiutata' %}
+        <span class="badge bg-danger" style="font-size:.65rem">Rifiutata</span>
+      {% elif richiesta.stato == 'chiusa' %}
+        <span class="badge bg-dark" style="font-size:.65rem">Chiusa</span>
+      {% else %}
+        <span class="badge" style="background:#f0c040;color:#333;font-size:.65rem">In attesa</span>
+      {% endif %}
+    </div>
+    <div class="card-body py-3" style="font-size:.83rem">
+      <div class="row g-2 mb-3">
+        <div class="col-6 col-md-4">
+          <div style="color:#666;font-size:.72rem">Dipendente</div>
+          <div style="font-weight:700;color:#1b3a5f">{{ richiesta.dipendente.cognome }} {{ richiesta.dipendente.nome }}</div>
+        </div>
+        <div class="col-6 col-md-4">
+          <div style="color:#666;font-size:.72rem">Data invio</div>
+          <div>{{ richiesta.data_richiesta|date:"d/m/Y H:i" }}</div>
+        </div>
+        {% if richiesta.data_inizio %}
+        <div class="col-6 col-md-4">
+          <div style="color:#666;font-size:.72rem">Periodo</div>
+          <div style="font-weight:600">{{ richiesta.data_inizio|date:"d/m/Y" }} → {{ richiesta.data_fine|date:"d/m/Y" }}</div>
+        </div>
+        {% endif %}
+        {% if richiesta.motivo %}
+        <div class="col-12">
+          <div style="color:#666;font-size:.72rem">Motivo</div>
+          <div>{{ richiesta.motivo }}</div>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if richiesta.testo_richiesta %}
+      <div style="background:#f8fafc;border:1px solid #dde4ec;border-radius:6px;padding:.75rem 1rem;margin-bottom:.75rem">
+        <div style="color:#666;font-size:.72rem;margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.05em">
+          Testo della richiesta
+        </div>
+        <div style="white-space:pre-wrap;line-height:1.55">{{ richiesta.testo_richiesta }}</div>
+      </div>
+      {% endif %}
+
+      {% if richiesta.note_risposta %}
+      <div style="background:#f0faf4;border:1px solid #c8ebd8;border-radius:6px;padding:.75rem 1rem">
+        <div style="color:#0a6640;font-size:.72rem;margin-bottom:.3rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em">
+          <i class="bi bi-reply-fill"></i> Risposta HR
+        </div>
+        <div style="white-space:pre-wrap;line-height:1.55">{{ richiesta.note_risposta }}</div>
+        {% if richiesta.risposta_da %}
+        <div style="color:#888;font-size:.72rem;margin-top:.4rem">
+          {{ richiesta.risposta_da.get_full_name|default:richiesta.risposta_da.username }}
+          — {{ richiesta.data_risposta|date:"d/m/Y H:i" }}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if is_admin_hr and richiesta.stato == 'inviata' and not workflow_pending %}
+  <a href="{% url 'rispondi_richiesta' richiesta.id %}"
+     class="btn btn-sm" style="background:#1b3a5f;color:#fff;font-size:.82rem">
+    <i class="bi bi-reply-fill"></i> Rispondi / Gestisci
+  </a>
+  {% elif is_admin_hr and richiesta.stato != 'chiusa' and not workflow_pending %}
+  <a href="{% url 'rispondi_richiesta' richiesta.id %}"
+     class="btn btn-sm btn-outline-secondary" style="font-size:.82rem">
+    <i class="bi bi-lock"></i> Chiudi richiesta
+  </a>
+  {% endif %}
+
+</div>
+{% endblock %}

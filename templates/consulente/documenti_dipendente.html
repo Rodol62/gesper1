@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load ruoli_tags %}
+{% block title %}Documenti — {{ dip.cognome }} {{ dip.nome }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:900px;margin:0 auto;padding:1.5rem 1rem">
+
+  <nav aria-label="breadcrumb" style="font-size:.82rem;margin-bottom:1rem">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'centro_moduli' %}">Consulente</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_documenti' %}">Documenti</a></li>
+      <li class="breadcrumb-item active">{{ dip.cognome }} {{ dip.nome }}</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="mb-0" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-person-vcard me-2"></i>{{ dip.cognome }} {{ dip.nome }}
+      </h2>
+      {% if dip.codice_fiscale %}
+        <div class="text-muted" style="font-size:.8rem;font-family:monospace;margin-top:.2rem">
+          CF: {{ dip.codice_fiscale }}
+        </div>
+      {% endif %}
+    </div>
+    <div class="d-flex flex-wrap gap-2 justify-content-end">
+      <a href="{% url 'documenti_dipendente_admin' dip.id %}" class="btn btn-sm btn-outline-primary" style="font-size:.78rem">
+        <i class="bi bi-folder2-open"></i> Tutti i documenti
+      </a>
+      <a href="{% url 'upload_documento' %}?dipendente_id={{ dip.id }}" class="btn btn-sm text-white" style="background:#0a6640;font-size:.78rem">
+        <i class="bi bi-cloud-upload"></i> Carica (tutti i tipi)
+      </a>
+      <a href="{% url 'consulente_documenti' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.78rem">
+        <i class="bi bi-arrow-left me-1"></i> Lista dipendenti
+      </a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert" style="font-size:.88rem">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="row g-2 mb-3">
+    {% include 'rapporto_di_lavoro/_profilo_posizione_contrattuale.html' %}
+  </div>
+
+  {% if gruppi %}
+    {% for tipo, docs in gruppi.items %}
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header" style="background:#f8f9fa;border-bottom:1px solid #e5e8ec;font-size:.87rem;font-weight:600;color:#1b3a5f">
+        <i class="bi bi-folder me-1"></i>{{ tipo }}
+        <span class="badge bg-secondary ms-2" style="font-size:.72rem">{{ docs|length }}</span>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for doc in docs %}
+        <div class="list-group-item d-flex align-items-center justify-content-between py-2 px-3" style="font-size:.85rem">
+          <div class="d-flex align-items-center gap-2 flex-grow-1 min-w-0">
+            <i class="bi bi-file-earmark-text text-muted flex-shrink-0"></i>
+            <div class="min-w-0">
+              <div>{{ doc.nome_file }}</div>
+              {% if doc.descrizione %}
+                <div class="text-muted" style="font-size:.76rem">{{ doc.descrizione }}</div>
+              {% endif %}
+              <div class="text-muted" style="font-size:.75rem">
+                Caricato il {{ doc.data_caricamento|date:"d/m/Y H:i" }}
+                {% if doc.caricato_dal_dipendente %}
+                  <span class="badge bg-info text-white ms-1" style="font-size:.68rem">dal dipendente</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          <a href="{% url 'download_documento' doc.id %}"
+             class="btn btn-sm btn-outline-primary flex-shrink-0 ms-2"
+             style="font-size:.75rem;padding:.2rem .6rem">
+            <i class="bi bi-download me-1"></i>Scarica
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-file-earmark-x" style="font-size:2.5rem;opacity:.4"></i>
+      <p class="mt-2" style="font-size:.9rem">Nessun documento personale caricato da questo dipendente.</p>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

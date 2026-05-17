@@ -1,0 +1,2325 @@
+"""Parsing importi proforma/parcella da testo estratto PDF."""
+import io
+import tempfile
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
+from django.test import SimpleTestCase, TestCase
+
+from accounts.consulente_registro_studio import (
+    EsitoParsingBonifico,
+    EsitoParsingProforma,
+    bonifico_ha_riscontro_documentale_pagamento,
+    bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura,
+    documenti_righe_quadratura_con_residuo_da_coprire,
+    mappa_quadratura_per_export_libro_movimenti,
+    elimina_piano_allocazione_bonifici_quadratura,
+    quadratura_proforma_parcelle_bonifici,
+    quadratura_proforma_parcelle_bonifici_anteprima_allocazione,
+    rimuovi_righe_piano_allocazione_per_bonifico,
+    salva_piano_allocazione_bonifici_quadratura,
+    applica_pdf_su_movimento_bonifico,
+    bonifico_duplicato_elenco_ids,
+    _numeri_documento_aggancio_coerenti,
+    applica_inserimento_manuale_proforma_parcella,
+    applica_pdf_su_movimento_documento,
+    bonifico_excel_con_riferimento_sintetico_parcella_o_proforma,
+    applica_aggancia_pdf_bonifici_a_libro,
+    applica_aggancia_pdf_proforma_parcelle_a_libro,
+    applica_upload_bonifici_pdf,
+    applica_upload_proforma_parcelle_pdf,
+    import_estratto_excel,
+    import_riepilogo_bonifici_da_excel,
+    parse_testo_proforma_parcella,
+    render_csv_report_aggancia_documenti,
+    render_csv_report_import_proforma_cartella,
+    ricalcola_saldi_progressivi,
+    ricalcola_totali_documenti_da_testo_estratto,
+)
+from accounts.models import (
+    ImportEstrattoContoStudio,
+    MovimentoRegistroStudioConsulente,
+    PianoAllocazioneBonificiQuad,
+    RigaEstrattoContoStudio,
+)
+from anagrafiche.models import Azienda
+
+
+class NumeroAggancioCoerenzaTests(SimpleTestCase):
+    def test_parcella_vs_numero_corto(self):
+        self.assertTrue(_numeri_documento_aggancio_coerenti("182", "PARCELLA 182"))
+        self.assertTrue(_numeri_documento_aggancio_coerenti("PARCELLA 182", "182"))
+
+    def test_prefisso_pf_par(self):
+        self.assertTrue(_numeri_documento_aggancio_coerenti("PAR-2021-1", "par-2021-1"))
+
+    def test_non_confonde_anni_solo_anno(self):
+        self.assertFalse(_numeri_documento_aggancio_coerenti("PF-1", "PF-2"))
+
+
+class ProformaUploadDeduplicaNumeroTests(TestCase):
+    """Stesso numero documento su due PDF con nome file diverso → una sola riga in libro."""
+
+    _pdf_min = b"%PDF-1.4\n1 0 obj<<>>endobj trailer<<>>\n%%EOF"
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Dedup Numero",
+            partita_iva="IT99888777666",
+            indirizzo="Via Dedup 1",
+            email="dedup@num.it",
+        )
+
+    @patch("accounts.consulente_registro_studio.parse_testo_proforma_parcella")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_secondo_pdf_stesso_numero_ignorato(self, mock_estrai, mock_parse):
+        mock_estrai.return_value = ("PROFORMA testo", "pdf")
+        mock_parse.return_value = EsitoParsingProforma(
+            tipo_documento="proforma",
+            numero_documento="PF-2026-DEDUP",
+            data_documento=date(2026, 1, 10),
+            totale_da_pagare=Decimal("99.00"),
+            avvisi=[],
+        )
+        up1 = SimpleUploadedFile("primo.pdf", self._pdf_min, content_type="application/pdf")
+        up2 = SimpleUploadedFile("secondo.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs = applica_upload_proforma_parcelle_pdf(self.az, None, [up1, up2])
+        self.assertEqual(
+            MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="documento").count(),
+            1,
+        )
+        self.assertTrue(any("Già presente in libro" in x for x in msgs), msgs)
+        self.assertTrue(any("PF-2026-DEDUP" in x for x in msgs), msgs)
+
+    @patch("accounts.consulente_registro_studio.parse_testo_proforma_parcella")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_secondo_pdf_stesso_numero_con_primo_sconosciuto_ignorato(self, mock_estrai, mock_parse):
+        """Prima riga tipo sconosciuto stesso numero: nuova proforma non deve duplicare."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="sconosciuto",
+            numero_documento="PF-SC-1",
+            data_documento=date(2026, 2, 1),
+            dare=Decimal("40.00"),
+            nome_file="primo-sconosciuto.pdf",
+            testo_estratto="x",
+        )
+        mock_estrai.return_value = ("PROFORMA", "pdf")
+        mock_parse.return_value = EsitoParsingProforma(
+            tipo_documento="proforma",
+            numero_documento="PF-SC-1",
+            data_documento=date(2026, 2, 1),
+            totale_da_pagare=Decimal("40.00"),
+            avvisi=[],
+        )
+        up = SimpleUploadedFile("rinnovo.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs = applica_upload_proforma_parcelle_pdf(self.az, None, [up])
+        self.assertEqual(
+            MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="documento").count(),
+            1,
+        )
+        self.assertTrue(any("Già presente in libro" in x for x in msgs), msgs)
+
+    @patch("accounts.consulente_registro_studio.parse_testo_proforma_parcella")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_due_pdf_stesso_numero_date_diverse_entrambi_importati(self, mock_estrai, mock_parse):
+        """Stesso numero documento con date diverse → due righe (non collisione tra anni)."""
+        mock_estrai.return_value = ("PROFORMA testo", "pdf")
+        mock_parse.side_effect = [
+            EsitoParsingProforma(
+                tipo_documento="proforma",
+                numero_documento="PF-2025-2026",
+                data_documento=date(2025, 6, 15),
+                totale_da_pagare=Decimal("10.00"),
+                avvisi=[],
+            ),
+            EsitoParsingProforma(
+                tipo_documento="proforma",
+                numero_documento="PF-2025-2026",
+                data_documento=date(2026, 6, 15),
+                totale_da_pagare=Decimal("20.00"),
+                avvisi=[],
+            ),
+        ]
+        up1 = SimpleUploadedFile("doc-2025.pdf", self._pdf_min, content_type="application/pdf")
+        up2 = SimpleUploadedFile("doc-2026.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs = applica_upload_proforma_parcelle_pdf(self.az, None, [up1, up2])
+        n = MovimentoRegistroStudioConsulente.objects.filter(
+            azienda=self.az, tipo_riga="documento", numero_documento="PF-2025-2026"
+        ).count()
+        self.assertEqual(n, 2, msgs)
+        self.assertFalse(any("Già presente in libro" in x for x in msgs), msgs)
+
+
+class AgganciaPdfALibroTests(TestCase):
+    """Aggancio PDF a movimenti documento/bonifico già in libro (pregresso)."""
+
+    _pdf_min = b"%PDF-1.4\n1 0 obj<<>>endobj trailer<<>>\n%%EOF"
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Aggancia",
+            partita_iva="IT77665544332",
+            indirizzo="Via Agg 1",
+            email="agg@libro.it",
+        )
+
+    @patch("accounts.consulente_registro_studio.parse_testo_proforma_parcella")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_aggancia_pdf_a_documento_senza_file(self, mock_estrai, mock_parse):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="PF-AGG-LIBRO-1",
+            data_documento=date(2026, 4, 1),
+            dare=Decimal("200.00"),
+            nome_file="riga-pregresso-excel.xlsx",
+            testo_estratto="",
+        )
+        mock_estrai.return_value = ("PROFORMA", "pdf")
+        mock_parse.return_value = EsitoParsingProforma(
+            tipo_documento="proforma",
+            numero_documento="PF-AGG-LIBRO-1",
+            data_documento=date(2026, 4, 1),
+            totale_da_pagare=Decimal("200.00"),
+            avvisi=[],
+        )
+        up = SimpleUploadedFile("scansione.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs, report = applica_aggancia_pdf_proforma_parcelle_a_libro(self.az, None, [up])
+        m = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, numero_documento="PF-AGG-LIBRO-1")
+        self.assertTrue(m.file.name)
+        self.assertTrue(any("allegato a movimento" in x.lower() for x in msgs), msgs)
+        self.assertEqual(len(report), 1)
+        self.assertEqual(report[0]["esito"], "ok")
+        self.assertEqual(report[0]["movimento_id"], str(m.pk))
+
+    @patch("accounts.consulente_registro_studio.parse_testo_proforma_parcella")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_aggancia_pdf_senza_data_estratta_saltato(self, mock_estrai, mock_parse):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="PF-NO-DATA-PDF",
+            data_documento=date(2026, 5, 1),
+            dare=Decimal("50.00"),
+            nome_file="pregresso.xlsx",
+            testo_estratto="",
+        )
+        mock_estrai.return_value = ("PROFORMA", "pdf")
+        mock_parse.return_value = EsitoParsingProforma(
+            tipo_documento="proforma",
+            numero_documento="PF-NO-DATA-PDF",
+            data_documento=None,
+            totale_da_pagare=Decimal("50.00"),
+            avvisi=[],
+        )
+        up = SimpleUploadedFile("scan.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs, report = applica_aggancia_pdf_proforma_parcelle_a_libro(self.az, None, [up])
+        m = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, numero_documento="PF-NO-DATA-PDF")
+        self.assertFalse(bool(getattr(m.file, "name", None)))
+        self.assertTrue(any("data documento non estratta" in x.lower() for x in msgs), msgs)
+        self.assertEqual(len(report), 1)
+        self.assertEqual(report[0]["esito"], "saltato")
+        self.assertIn("numero_pdf", report[0])
+
+    @patch("accounts.consulente_registro_studio.parse_testo_bonifico_pdf")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_aggancia_pdf_a_bonifico_senza_file(self, mock_estrai, mock_parse_bon):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2026, 4, 10),
+            dare=Decimal("0"),
+            avere=Decimal("55.00"),
+            nome_file="xlsx-bon/test/R1",
+            riferimento_pagamento="CRO98765432100",
+            causale_pagamento="Bonifico SEPA",
+            metodo_estrazione="excel_riepilogo",
+        )
+        mock_estrai.return_value = ("distinta", "pdf")
+        mock_parse_bon.return_value = EsitoParsingBonifico(
+            riferimento="CRO98765432100",
+            data_documento=date(2026, 4, 10),
+            importo=Decimal("55.00"),
+            causale="SEPA",
+            avvisi=[],
+        )
+        up = SimpleUploadedFile("distinta.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs, report = applica_aggancia_pdf_bonifici_a_libro(self.az, None, [up])
+        m = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, riferimento_pagamento="CRO98765432100")
+        self.assertTrue(m.file.name)
+        self.assertTrue(any("pdf allegato a bonifico" in x.lower() for x in msgs), msgs)
+        self.assertEqual(len(report), 1)
+        self.assertEqual(report[0]["esito"], "ok")
+
+    @patch("accounts.consulente_registro_studio.parse_testo_proforma_parcella")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_aggancia_pdf_numero_forma_diversa_parcella(self, mock_estrai, mock_parse):
+        """Libro «182» + PDF che estrae «PARCELLA 182» → stesso movimento se data uguale."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="182",
+            data_documento=date(2021, 6, 16),
+            dare=Decimal("130.00"),
+            nome_file="excel-riga.xlsx",
+            testo_estratto="",
+        )
+        mock_estrai.return_value = ("PARCELLA testo", "pdf")
+        mock_parse.return_value = EsitoParsingProforma(
+            tipo_documento="parcella",
+            numero_documento="PARCELLA 182",
+            data_documento=date(2021, 6, 16),
+            totale_da_pagare=Decimal("130.00"),
+            avvisi=[],
+        )
+        up = SimpleUploadedFile("scan-parcella.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs, report = applica_aggancia_pdf_proforma_parcelle_a_libro(self.az, None, [up])
+        m = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, numero_documento="182")
+        self.assertTrue(m.file.name)
+        self.assertTrue(any("allegato a movimento" in x.lower() for x in msgs), msgs)
+        self.assertEqual(len(report), 1)
+        self.assertEqual(report[0]["esito"], "ok")
+
+    def test_render_csv_report_aggancia_documenti_header(self):
+        csv_out = render_csv_report_aggancia_documenti(
+            [{"file": "a.pdf", "esito": "ok", "movimento_id": "1", "numero_pdf": "N1", "data_pdf": "2026-01-01", "messaggio": "ok"}]
+        )
+        self.assertIn("numero_pdf", csv_out.splitlines()[0])
+        self.assertIn("a.pdf", csv_out)
+
+    def test_render_csv_import_proforma_cartella_header(self):
+        csv_out = render_csv_report_import_proforma_cartella(
+            [{"file": "x/y.pdf", "esito": "ok", "movimento_id": "2", "numero_pdf": "P1", "data_pdf": "2025-06-01", "messaggio": "ok"}]
+        )
+        self.assertIn("numero_pdf", csv_out.splitlines()[0])
+        self.assertIn("x/y.pdf", csv_out)
+
+
+class BonificoDuplicatoElencoIdsTests(TestCase):
+    """Chiave visiva data + avere + riferimento (o causale se rif vuoto) per badge Doppio in Pagamenti."""
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Dup Bon",
+            partita_iva="IT11223344556",
+            indirizzo="Via Dup 1",
+            email="dup@bon.it",
+        )
+        self.d1 = date(2026, 4, 1)
+        self.rif = "CRO-SEPA-987654"
+
+    def _qs_bon(self):
+        return MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico")
+
+    def test_stesso_riferimento_case_insensitive(self):
+        a = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("500.00"),
+            nome_file="a.xlsx",
+            riferimento_pagamento=self.rif,
+        )
+        b = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("500.00"),
+            nome_file="b.xlsx",
+            riferimento_pagamento=self.rif.upper(),
+        )
+        ids = bonifico_duplicato_elenco_ids(self._qs_bon())
+        self.assertEqual(ids, {a.id, b.id})
+
+    def test_riferimenti_diversi_non_segnati(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("500.00"),
+            nome_file="a.xlsx",
+            riferimento_pagamento="CRO-A",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("500.00"),
+            nome_file="b.xlsx",
+            riferimento_pagamento="CRO-B",
+        )
+        self.assertEqual(bonifico_duplicato_elenco_ids(self._qs_bon()), set())
+
+    def test_riferimento_vuoto_stessa_causale_duplicato(self):
+        caus = "Bonifico SEPA ordinativo 12"
+        a = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("100.00"),
+            nome_file="a.xlsx",
+            riferimento_pagamento="",
+            causale_pagamento=caus,
+        )
+        b = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=self.d1,
+            dare=Decimal("0"),
+            avere=Decimal("100.00"),
+            nome_file="b.xlsx",
+            riferimento_pagamento="",
+            causale_pagamento=caus,
+        )
+        self.assertEqual(bonifico_duplicato_elenco_ids(self._qs_bon()), {a.id, b.id})
+
+
+class RegistroStudioPostDeleteSignalTests(TestCase):
+    """post_delete su MovimentoRegistroStudioConsulente → ricalcola saldi."""
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Signal",
+            partita_iva="IT88776655443",
+            indirizzo="Via Sig 1",
+            email="sig@nal.it",
+        )
+
+    def test_eliminazione_movimento_aggiorna_saldi_rimanenti(self):
+        d = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="SIG-1",
+            data_documento=date(2026, 3, 1),
+            dare=Decimal("100.00"),
+            nome_file="sig-doc.pdf",
+            testo_estratto="t",
+        )
+        b = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2026, 3, 5),
+            dare=Decimal("0"),
+            avere=Decimal("30.00"),
+            nome_file="sig-bon.pdf",
+            riferimento_pagamento="CRO1",
+        )
+        ricalcola_saldi_progressivi(self.az.id)
+        b.refresh_from_db()
+        saldo_prima = b.saldo_progressivo
+        d.delete()
+        b.refresh_from_db()
+        self.assertNotEqual(b.saldo_progressivo, saldo_prima)
+
+
+class ParseTotaleParcellaProformaTests(SimpleTestCase):
+    def test_totale_parcella_etichetta(self):
+        txt = """
+        PARCELLA PROFESSIONALE
+        Totale parcella 1.234,56
+        """
+        r = parse_testo_proforma_parcella(txt, "fattura.pdf")
+        self.assertEqual(r.totale_da_pagare, Decimal("1234.56"))
+        self.assertEqual(r.tipo_documento, "parcella")
+
+    def test_totale_proforma_etichetta(self):
+        txt = "PROFORMA\nTotale proforma: € 500,00\n"
+        r = parse_testo_proforma_parcella(txt, "x.pdf")
+        self.assertEqual(r.totale_da_pagare, Decimal("500.00"))
+
+    def test_numero_proforma_stessa_riga(self):
+        txt = "PROFORMA N. 2025/P/042\nTotale proforma 100,00\n"
+        r = parse_testo_proforma_parcella(txt, "pf.pdf")
+        self.assertEqual(r.numero_documento, "2025/P/042")
+        self.assertEqual(r.tipo_documento, "proforma")
+
+    def test_numero_proforma_riga_dopo_titolo(self):
+        txt = "PROFORMA FATTURA\nNumero: 2024/PROT-99\nTotale proforma 250,00\n"
+        r = parse_testo_proforma_parcella(txt, "a.pdf")
+        self.assertEqual(r.numero_documento, "2024/PROT-99")
+
+    def test_numero_numero_proforma_etichetta_estesa(self):
+        txt = "Numero proforma  PF-2026-0012\nPROFORMA\nTotale proforma 10,00\n"
+        r = parse_testo_proforma_parcella(txt, "b.pdf")
+        self.assertEqual(r.numero_documento, "PF-2026-0012")
+
+    def test_umero_ocr_non_usato_prende_protocollo(self):
+        """OCR «n. umero» non deve finire in numero_documento; si usa es. Prot."""
+        txt = (
+            "PROFORMA\nn. umero\nProt. 09/2022-PF\nTotale proforma 174,11\n"
+        )
+        r = parse_testo_proforma_parcella(txt, "pf.pdf")
+        self.assertEqual(r.numero_documento, "09/2022-PF")
+
+    def test_normalizza_n_umero_in_numero(self):
+        txt = "PROFORMA\nn. umero: 55/REV-1\nTotale proforma 1,00\n"
+        r = parse_testo_proforma_parcella(txt, "a.pdf")
+        self.assertEqual(r.numero_documento, "55/REV-1")
+
+    def test_totale_parcella_riga_successiva(self):
+        txt = "TOTALE PARCELLA\n1.000,50\n"
+        r = parse_testo_proforma_parcella(txt, "p.pdf")
+        self.assertEqual(r.totale_da_pagare, Decimal("1000.50"))
+
+    def test_nbsp_normalizzato(self):
+        txt = f"TOTALE PARCELLA\u00a0:\u00a01.000,00"
+        r = parse_testo_proforma_parcella(txt, "p.pdf")
+        self.assertEqual(r.totale_da_pagare, Decimal("1000.00"))
+
+    def test_netto_a_pagare_senza_avviso_pattern_alternativo(self):
+        txt = "PROFORMA\nNETTO A PAGARE € 174,11\n"
+        r = parse_testo_proforma_parcella(txt, "doc.pdf")
+        self.assertEqual(r.totale_da_pagare, Decimal("174.11"))
+        self.assertFalse(
+            any("pattern alternativo" in a.lower() for a in r.avvisi),
+            msg=r.avvisi,
+        )
+
+    def test_numero_fattura_proforma_e_riga_n_breve(self):
+        txt = "FATTURA PROFORMA nr. 2022/09-PF\nNETTO A PAGARE 174,11\n"
+        r = parse_testo_proforma_parcella(txt, "x.pdf")
+        self.assertEqual(r.numero_documento, "2022/09-PF")
+
+        txt2 = "PROFORMA\n\nN. 2022/09-PF\nTotale proforma 174,11\n"
+        r2 = parse_testo_proforma_parcella(txt2, "y.pdf")
+        self.assertEqual(r2.numero_documento, "2022/09-PF")
+
+    def test_codice_documento_fallback(self):
+        txt = "PARCELLA\nCodice documento: AB-2024-88\nTotale parcella 100,00\n"
+        r = parse_testo_proforma_parcella(txt, "p.pdf")
+        self.assertEqual(r.numero_documento, "AB-2024-88")
+
+
+class RileggiTotaliDaTestoEstrattoTests(TestCase):
+    def test_aggiorna_totale_e_dare_da_testo_salvato(self):
+        az = Azienda.objects.create(
+            nome="Az Test Libro",
+            partita_iva="IT99988877701",
+            indirizzo="Via Test 1",
+            email="libro@test.it",
+        )
+        txt = "PARCELLA\nTotale parcella 250,50\n"
+        m = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=az,
+            tipo_riga="documento",
+            tipo_documento="sconosciuto",
+            nome_file="parcella_x.pdf",
+            testo_estratto=txt,
+            totale_da_pagare=None,
+            dare=Decimal("0"),
+        )
+        res = ricalcola_totali_documenti_da_testo_estratto(az.id)
+        self.assertEqual(res["n_aggiornati"], 1)
+        self.assertEqual(res["n_invariati"], 0)
+        m.refresh_from_db()
+        self.assertEqual(m.totale_da_pagare, Decimal("250.50"))
+        self.assertEqual(m.dare, Decimal("250.50"))
+        self.assertEqual(m.tipo_documento, "parcella")
+
+    def test_salta_senza_testo(self):
+        az = Azienda.objects.create(
+            nome="Az Test 2",
+            partita_iva="IT99988877702",
+            indirizzo="Via Y 2",
+            email="libro2@test.it",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=az,
+            tipo_riga="documento",
+            nome_file="vuoto.pdf",
+            testo_estratto="",
+            totale_da_pagare=None,
+            dare=Decimal("0"),
+        )
+        res = ricalcola_totali_documenti_da_testo_estratto(az.id)
+        self.assertEqual(res["n_senza_testo"], 1)
+        self.assertEqual(res["n_aggiornati"], 0)
+
+
+class ImportRiepilogoBonificiExcelTests(TestCase):
+    """Import Excel riepilogo → movimenti bonifico + nota PDF documento collegato."""
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Riepilogo Bon",
+            partita_iva="IT88877766655",
+            indirizzo="Via Bon 1",
+            email="bon@riepilogo.it",
+        )
+
+    @staticmethod
+    def _xlsx_bytes(rows):
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        for r in rows:
+            ws.append(r)
+        bio = io.BytesIO()
+        wb.save(bio)
+        bio.seek(0)
+        return bio
+
+    def test_importa_bonifico_e_nota_pdf_assente(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="PF-2022-01",
+            data_documento=date(2022, 2, 9),
+            dare=Decimal("174.11"),
+            nome_file="pf.pdf",
+            testo_estratto="x",
+        )
+        bio = self._xlsx_bytes(
+            [
+                ["Data", "DOCUMENTO", "DESCRIZIONE", "IMPORTO"],
+                [date(2022, 3, 1), "PF-2022-01", "Bonifico SEPA disposizione di pagamento", 174.11],
+            ]
+        )
+        msgs = import_riepilogo_bonifici_da_excel(bio, "r.xlsx", self.az, None)
+        self.assertTrue(any("Bonifici importati: 1" in m for m in msgs), msgs)
+        b = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, tipo_riga="bonifico")
+        self.assertEqual(b.avere, Decimal("174.11"))
+        self.assertIn("assente", b.note.lower())
+
+    def test_importa_bonifico_pdf_documento_presente(self):
+        with tempfile.TemporaryDirectory() as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                d = MovimentoRegistroStudioConsulente.objects.create(
+                    azienda=self.az,
+                    tipo_riga="documento",
+                    tipo_documento="proforma",
+                    numero_documento="PF-99",
+                    data_documento=date(2023, 1, 10),
+                    dare=Decimal("100.00"),
+                    nome_file="doc99.pdf",
+                    testo_estratto="y",
+                )
+                d.file.save("doc99.pdf", ContentFile(b"%PDF-1.4 test"), save=True)
+
+                bio = self._xlsx_bytes(
+                    [
+                        ["Data", "DOCUMENTO", "DESCRIZIONE", "IMPORTO"],
+                        [date(2023, 2, 1), "PF-99", "Bonifico bonifico accreditato", 100.00],
+                    ]
+                )
+                import_riepilogo_bonifici_da_excel(bio, "r2.xlsx", self.az, None)
+                b = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, tipo_riga="bonifico")
+                self.assertIn("presente", b.note.lower())
+
+    def test_intestazione_dopo_righe_titolo_e_senza_colonna_documento(self):
+        """Riga intestazione oltre la 10ª; colonne Data / Descrizione / Importo senza Documento."""
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        for _ in range(12):
+            ws.append([None, None, None, None])
+        ws.append(["Riepilogo generale", None, None, None])
+        ws.append(["Data", "Descrizione", "Importo"])
+        ws.append([date(2024, 1, 15), "Bonifico SEPA disposizione", 99.5])
+        bio = io.BytesIO()
+        wb.save(bio)
+        bio.seek(0)
+        msgs = import_riepilogo_bonifici_da_excel(bio, "t.xlsx", self.az, None)
+        self.assertTrue(any("Bonifici importati: 1" in m for m in msgs), msgs)
+        b = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, tipo_riga="bonifico")
+        self.assertEqual(b.avere, Decimal("99.50"))
+        self.assertIn("nessun documento", b.note.lower())
+
+    def test_salta_riga_solo_parcella_già_a_libro(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="PAR-2021-1",
+            data_documento=date(2021, 6, 1),
+            dare=Decimal("500.00"),
+            nome_file="p.pdf",
+            testo_estratto="z",
+        )
+        bio = self._xlsx_bytes(
+            [
+                ["Data", "DOCUMENTO", "DESCRIZIONE", "IMPORTO"],
+                [date(2021, 6, 1), "PAR-2021-1", "Emissione parcella professionale", 500],
+            ]
+        )
+        msgs = import_riepilogo_bonifici_da_excel(bio, "r3.xlsx", self.az, None)
+        self.assertFalse(any("Bonifici importati: 1" in m for m in msgs), msgs)
+        self.assertEqual(MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(), 0)
+
+    def test_salta_riga_parcella_in_colonna_documento_senza_bonifico(self):
+        """Riepilogo PROFORMA: colonna Documento «PARCELLA 182» senza testo bonifico → non crea avere (evita doppio con PDF)."""
+        bio = self._xlsx_bytes(
+            [
+                ["Data", "DOCUMENTO", "DESCRIZIONE", "IMPORTO"],
+                [date(2021, 6, 16), "PARCELLA 182", "Cliente / saldo", -130.0],
+            ]
+        )
+        msgs = import_riepilogo_bonifici_da_excel(bio, "riepilogo-par.xlsx", self.az, None)
+        self.assertEqual(MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(), 0)
+        self.assertTrue(any("solo proforma/parcella" in m for m in msgs), msgs)
+
+    def test_parcella_in_documento_ma_bonifico_in_descrizione_si_importa(self):
+        bio = self._xlsx_bytes(
+            [
+                ["Data", "DOCUMENTO", "DESCRIZIONE", "IMPORTO"],
+                [date(2021, 7, 9), "PARCELLA 99", "Bonifico SEPA disposizione di pagamento", 130.0],
+            ]
+        )
+        msgs = import_riepilogo_bonifici_da_excel(bio, "bon-con-doc-par.xlsx", self.az, None)
+        self.assertTrue(any("Bonifici importati: 1" in m for m in msgs), msgs)
+        b = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, tipo_riga="bonifico")
+        self.assertEqual(b.avere, Decimal("130.00"))
+
+    def test_layout_classico_importa_senza_keyword_bonifico(self):
+        """Excel con Data / Documento / Descrizione / Importo: righe operative anche senza testo «bonifico»."""
+        bio = self._xlsx_bytes(
+            [
+                ["DATA", "DOCUMENTO", "DESCRIZIONE", "IMPORTO"],
+                [date(2024, 6, 1), "INV-1", "Incasso saldo fattura cliente Rossi", 250.00],
+            ]
+        )
+        msgs = import_riepilogo_bonifici_da_excel(bio, "r4.xlsx", self.az, None)
+        self.assertTrue(any("Bonifici importati: 1" in m for m in msgs), msgs)
+        b = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, tipo_riga="bonifico")
+        self.assertEqual(b.avere, Decimal("250.00"))
+
+    def test_importo_negativo_excel_registrato_come_avere_positivo(self):
+        """File misto (non «solo negativi»): importo negativo su riga bonifico → avere positivo."""
+        bio = self._xlsx_bytes(
+            [
+                ["Data", "DESCRIZIONE", "IMPORTO"],
+                [date(2025, 7, 1), "Addebito bollo", 12.0],
+                [date(2025, 7, 2), "Bonifico SEPA disposizione di pagamento", -42.5],
+            ]
+        )
+        msgs = import_riepilogo_bonifici_da_excel(bio, "mix-neg.xlsx", self.az, None)
+        self.assertTrue(any("Bonifici importati: 1" in m for m in msgs), msgs)
+        b = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, tipo_riga="bonifico")
+        self.assertEqual(b.avere, Decimal("42.50"))
+        self.assertIn("negativo", b.note.lower())
+        self.assertIn("foglio", b.note.lower())
+
+    def test_tutta_colonna_importi_negativi_solo_quelle_righe(self):
+        """Tutti gli importi non nulli nel foglio sono negativi: si importano solo righe con importo < 0."""
+        rows = [["DATA", "DESCRIZIONE", "IMPORTO"]]
+        for i in range(6):
+            rows.append([date(2025, 8, i + 1), "Bonifico SEPA accredito", Decimal(-25)])
+        bio = self._xlsx_bytes(rows)
+        msgs = import_riepilogo_bonifici_da_excel(bio, "solo-neg.xlsx", self.az, None)
+        self.assertEqual(MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(), 6)
+        self.assertTrue(any("Convenzione file rilevata" in m for m in msgs), msgs)
+
+    def test_colonna_con_almeno_un_positivo_non_attiva_solo_negativi(self):
+        """Se in colonna c’è almeno un importo > 0, non si escludono i positivi (avere sempre = valore assoluto)."""
+        rows = [["DATA", "DESCRIZIONE", "IMPORTO"]]
+        for i in range(5):
+            rows.append([date(2025, 8, i + 1), "Bonifico SEPA", Decimal(-10)])
+        rows.append([date(2025, 9, 1), "Bonifico incasso", Decimal("55")])
+        bio = self._xlsx_bytes(rows)
+        import_riepilogo_bonifici_da_excel(bio, "mix-col.xlsx", self.az, None)
+        self.assertEqual(MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(), 6)
+
+
+class ImportEstrattoContoExcelTests(TestCase):
+    """Import Excel estratto conto: tutte le righe dati, intestazione non solo in prima riga."""
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Estratto",
+            partita_iva="IT77766655544",
+            indirizzo="Via Est 1",
+            email="est@conto.it",
+        )
+
+    def test_importa_tutte_le_righe_con_documento_e_saldo_typo(self):
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Report", None, None, None, None, None])
+        ws.append(["DATA", "DOCUMENTO", None, "DESCRIZIONE", "IMPORTO", "SALDO PRGRESSIVO"])
+        ws.append([date(2025, 1, 10), "DOC/A/1", None, "Voce contabile", 100.5, 1000])
+        ws.append([date(2025, 1, 11), None, None, "Seconda voce", -20, 980])
+        bio = io.BytesIO()
+        wb.save(bio)
+        bio.seek(0)
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                imp, msgs = import_estratto_excel(bio, "e.xlsx", self.az, None)
+        self.assertEqual(imp.righe_lette, 2, msgs)
+        righe = list(RigaEstrattoContoStudio.objects.filter(importazione=imp).order_by("indice_riga"))
+        self.assertEqual(righe[0].riferimento_excel, "DOC/A/1")
+        self.assertEqual(righe[0].importo_excel, Decimal("100.50"))
+        self.assertEqual(righe[1].importo_excel, Decimal("-20.00"))
+        self.assertEqual(righe[0].data_excel, date(2025, 1, 10))
+        self.assertEqual(righe[1].data_excel, date(2025, 1, 11))
+        raw0 = righe[0].celle_raw
+        self.assertTrue(any("PRGRESS" in str(k).upper() or "SALDO" in str(k).upper() for k in raw0), raw0)
+
+    def test_bonifico_estratto_crea_movimento_nel_libro_se_assente(self):
+        """Riga con testo bonifico e importo a credito: nuovo MovimentoRegistroStudioConsulente bonifico + riga agganciata."""
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["DATA", "DOCUMENTO", "DESCRIZIONE", "IMPORTO"])
+        ws.append([date(2025, 3, 5), "", "Bonifico SEPA accreditato cliente", 150.25])
+        bio = io.BytesIO()
+        wb.save(bio)
+        bio.seek(0)
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                imp, msgs = import_estratto_excel(bio, "bon-est.xlsx", self.az, None)
+        self.assertEqual(imp.righe_lette, 1)
+        self.assertEqual(imp.righe_agganciate, 1)
+        self.assertTrue(any("registrati automaticamente" in m for m in msgs), msgs)
+        r = imp.righe.get()
+        self.assertIsNotNone(r.movimento_id)
+        self.assertEqual(r.movimento.tipo_riga, "bonifico")
+        self.assertEqual(r.movimento.avere, Decimal("150.25"))
+        self.assertEqual(r.movimento.metodo_estrazione, "excel_estratto_conto")
+
+    def test_secondo_import_stesso_excel_aggancia_stesso_bonifico(self):
+        """Re-import dello stesso foglio: nessun secondo movimento bonifico, riga agganciata al primo."""
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["DATA", "DESCRIZIONE", "IMPORTO"])
+        ws.append([date(2025, 4, 1), "Bonifico SEPA accredito", 75.00])
+        bio = io.BytesIO()
+        wb.save(bio)
+        data = bio.getvalue()
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                import_estratto_excel(io.BytesIO(data), "dup.xlsx", self.az, None)
+                import_estratto_excel(io.BytesIO(data), "dup.xlsx", self.az, None)
+        self.assertEqual(
+            MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(),
+            1,
+        )
+        imps = list(
+            ImportEstrattoContoStudio.objects.filter(azienda=self.az, nome_file="dup.xlsx").order_by(
+                "-importato_il"
+            )[:2]
+        )
+        self.assertGreaterEqual(len(imps), 2)
+        for imp in imps[:2]:
+            r = imp.righe.filter(importo_excel=Decimal("75.00")).first()
+            self.assertIsNotNone(r)
+            self.assertIsNotNone(r.movimento_id)
+
+
+class RimuoviBonificiImportExcelStudioCommandTests(TestCase):
+    """Management command rimuovi_bonifici_import_excel_studio."""
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Rimuovi Excel",
+            partita_iva="IT11122233344",
+            indirizzo="Via Cmd 1",
+            email="cmd@excel.it",
+        )
+
+    @staticmethod
+    def _xlsx_rows(rows):
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        for r in rows:
+            ws.append(r)
+        bio = io.BytesIO()
+        wb.save(bio)
+        bio.seek(0)
+        return bio
+
+    def test_anteprima_non_elimina(self):
+        bio = self._xlsx_rows(
+            [
+                ["DATA", "DESCRIZIONE", "IMPORTO"],
+                [date(2025, 1, 10), "Bonifico SEPA accredito", Decimal("50")],
+            ]
+        )
+        import_riepilogo_bonifici_da_excel(bio, "ant.xlsx", self.az, None)
+        self.assertEqual(
+            MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(),
+            1,
+        )
+        out = io.StringIO()
+        call_command("rimuovi_bonifici_import_excel_studio", "--azienda-id", self.az.pk, stdout=out)
+        self.assertIn("Anteprima sola", out.getvalue())
+        self.assertEqual(
+            MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(),
+            1,
+        )
+
+    def test_execute_rimuove_solo_bonifici_traccia_excel(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2024, 1, 1),
+            avere=Decimal("10.00"),
+            dare=Decimal("0"),
+            nome_file="bonifico-manuale.pdf",
+            metodo_estrazione="",
+        )
+        bio = self._xlsx_rows(
+            [
+                ["DATA", "DESCRIZIONE", "IMPORTO"],
+                [date(2025, 2, 1), "Bonifico SEPA accredito", Decimal("33")],
+            ]
+        )
+        import_riepilogo_bonifici_da_excel(bio, "ex.xlsx", self.az, None)
+        self.assertEqual(
+            MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(),
+            2,
+        )
+        call_command("rimuovi_bonifici_import_excel_studio", "--azienda-id", self.az.pk, "--execute")
+        bon = list(MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico"))
+        self.assertEqual(len(bon), 1)
+        self.assertEqual(bon[0].nome_file, "bonifico-manuale.pdf")
+
+    def test_execute_elimina_import_estratto_e_bonifico_collegato(self):
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["DATA", "DOCUMENTO", "DESCRIZIONE", "IMPORTO"])
+        ws.append([date(2025, 3, 5), "", "Bonifico SEPA accreditato cliente", 150.25])
+        bio = io.BytesIO()
+        wb.save(bio)
+        bio.seek(0)
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                imp, _msgs = import_estratto_excel(bio, "est-cmd.xlsx", self.az, None)
+        self.assertEqual(ImportEstrattoContoStudio.objects.filter(azienda=self.az).count(), 1)
+        self.assertEqual(
+            MovimentoRegistroStudioConsulente.objects.filter(
+                azienda=self.az, tipo_riga="bonifico", metodo_estrazione="excel_estratto_conto"
+            ).count(),
+            1,
+        )
+        imp_id = imp.pk
+        call_command("rimuovi_bonifici_import_excel_studio", "--azienda-id", self.az.pk, "--execute")
+        self.assertFalse(ImportEstrattoContoStudio.objects.filter(pk=imp_id).exists())
+        self.assertEqual(
+            MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(),
+            0,
+        )
+
+    def test_solo_parcella_sintetici_non_tocca_bonifico_banca_ne_import_estratto(self):
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["DATA", "DOCUMENTO", "DESCRIZIONE", "IMPORTO"])
+        ws.append([date(2025, 3, 5), "", "Bonifico SEPA accreditato cliente", 150.25])
+        bio = io.BytesIO()
+        wb.save(bio)
+        bio.seek(0)
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                imp, _msgs = import_estratto_excel(bio, "est-solo.xlsx", self.az, None)
+        imp_id = imp.pk
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 6, 16),
+            avere=Decimal("130.00"),
+            dare=Decimal("0"),
+            nome_file="xlsx-bon/RIEP/R1",
+            metodo_estrazione="excel_riepilogo",
+            riferimento_pagamento="PARCELLA 182|2021-06-16|130.00",
+            causale_pagamento="PARCELLA 182 —",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 7, 9),
+            avere=Decimal("130.00"),
+            dare=Decimal("0"),
+            nome_file="xlsx-bon/RIEP/R2",
+            metodo_estrazione="excel_riepilogo",
+            riferimento_pagamento="BONIFICO DOLCEMASCOLO|2021-07-09|130.00",
+            causale_pagamento="Studio —",
+        )
+        self.assertTrue(bonifico_excel_con_riferimento_sintetico_parcella_o_proforma(
+            MovimentoRegistroStudioConsulente.objects.get(riferimento_pagamento__startswith="PARCELLA")
+        ))
+        self.assertFalse(bonifico_excel_con_riferimento_sintetico_parcella_o_proforma(
+            MovimentoRegistroStudioConsulente.objects.get(riferimento_pagamento__startswith="BONIFICO DOLCE")
+        ))
+        call_command(
+            "rimuovi_bonifici_import_excel_studio",
+            "--azienda-id",
+            self.az.pk,
+            "--solo-parcella-proforma-sintetici",
+            "--execute",
+        )
+        self.assertTrue(ImportEstrattoContoStudio.objects.filter(pk=imp_id).exists())
+        rifs = set(
+            MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").values_list(
+                "riferimento_pagamento", flat=True
+            )
+        )
+        self.assertIn("BONIFICO DOLCEMASCOLO|2021-07-09|130.00", rifs)
+        self.assertNotIn("PARCELLA 182|2021-06-16|130.00", rifs)
+
+    def test_solo_parcella_sintetici_rimuove_fattura_protocollo_n_su_anno(self):
+        """Riga emissione fattura n/AAAA importata per errore come bonifico (chiave doc|data|importo)."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            tipo_documento="sconosciuto",
+            data_documento=date(2026, 2, 10),
+            avere=Decimal("52.00"),
+            dare=Decimal("0"),
+            nome_file="xlsx-bon/RIEP/fatt",
+            metodo_estrazione="excel_riepilogo",
+            riferimento_pagamento="59/2026 10/02/2026 € 52,00|2026-02-10|52.00",
+            causale_pagamento="",
+        )
+        bogus = MovimentoRegistroStudioConsulente.objects.get(riferimento_pagamento__contains="59/2026")
+        self.assertTrue(bonifico_excel_con_riferimento_sintetico_parcella_o_proforma(bogus))
+        call_command(
+            "rimuovi_bonifici_import_excel_studio",
+            "--azienda-id",
+            self.az.pk,
+            "--solo-parcella-proforma-sintetici",
+            "--execute",
+        )
+        self.assertFalse(
+            MovimentoRegistroStudioConsulente.objects.filter(pk=bogus.pk).exists(),
+        )
+
+
+class InserimentoManualeProformaTests(TestCase):
+    """Riga documento senza PDF: stessa deduplica data+numero degli upload PDF."""
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Manuale",
+            partita_iva="IT11223344556",
+            indirizzo="Via Man 1",
+            email="man@libro.it",
+        )
+
+    def test_inserimento_manuale_crea_riga_senza_file(self):
+        msgs = applica_inserimento_manuale_proforma_parcella(
+            self.az,
+            None,
+            tipo_documento="parcella",
+            numero_documento="PAR-MAN-99",
+            data_documento=date(2026, 4, 1),
+            importo_contabile=Decimal("150.50"),
+        )
+        self.assertTrue(any("Registrato" in m for m in msgs), msgs)
+        m = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, numero_documento="PAR-MAN-99")
+        self.assertEqual(m.tipo_riga, "documento")
+        self.assertEqual(m.tipo_documento, "parcella")
+        self.assertEqual(m.data_documento, date(2026, 4, 1))
+        self.assertEqual(m.totale_da_pagare, Decimal("150.50"))
+        self.assertEqual(m.dare, Decimal("150.50"))
+        self.assertFalse(bool(getattr(m.file, "name", None)))
+        self.assertEqual(m.metodo_estrazione, "manuale_portale")
+
+    def test_inserimento_duplicato_bloccato(self):
+        applica_inserimento_manuale_proforma_parcella(
+            self.az,
+            None,
+            tipo_documento="proforma",
+            numero_documento="PF-DUP-1",
+            data_documento=date(2026, 5, 10),
+            importo_contabile=Decimal("10.00"),
+        )
+        msgs2 = applica_inserimento_manuale_proforma_parcella(
+            self.az,
+            None,
+            tipo_documento="proforma",
+            numero_documento="PF-DUP-1",
+            data_documento=date(2026, 5, 10),
+            importo_contabile=Decimal("99.00"),
+        )
+        self.assertTrue(any("Già presente" in m for m in msgs2), msgs2)
+        self.assertEqual(
+            MovimentoRegistroStudioConsulente.objects.filter(
+                azienda=self.az, tipo_riga="documento", numero_documento="PF-DUP-1"
+            ).count(),
+            1,
+        )
+
+
+class AllegaPdfSuMovimentoSingoloTests(TestCase):
+    _pdf_min = b"%PDF-1.4\n1 0 obj<<>>endobj trailer<<>>\n%%EOF"
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Allega",
+            partita_iva="IT99887766554",
+            indirizzo="Via All 1",
+            email="all@libro.it",
+        )
+
+    @patch("accounts.consulente_registro_studio.parse_testo_proforma_parcella")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_allega_pdf_su_movimento_manuale_ok(self, mock_estrai, mock_parse):
+        msgs_ins = applica_inserimento_manuale_proforma_parcella(
+            self.az,
+            None,
+            tipo_documento="proforma",
+            numero_documento="124",
+            data_documento=date(2022, 3, 11),
+            importo_contabile=Decimal("318.45"),
+        )
+        self.assertTrue(any("Registrato" in m for m in msgs_ins), msgs_ins)
+        mov = MovimentoRegistroStudioConsulente.objects.get(azienda=self.az, numero_documento="124")
+        mock_estrai.return_value = ("testo", "pdf")
+        mock_parse.return_value = EsitoParsingProforma(
+            tipo_documento="proforma",
+            numero_documento="124",
+            data_documento=date(2022, 3, 11),
+            totale_da_pagare=Decimal("318.45"),
+            avvisi=[],
+        )
+        up = SimpleUploadedFile("proforma124.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs = applica_pdf_su_movimento_documento(self.az, None, mov.pk, up)
+        self.assertTrue(any("pdf allegato" in m.lower() for m in msgs), msgs)
+        mov.refresh_from_db()
+        self.assertTrue(bool(getattr(mov.file, "name", None)))
+
+
+class AllegaPdfBonificoSingoloTests(TestCase):
+    _pdf_min = b"%PDF-1.4\n1 0 obj<<>>endobj trailer<<>>\n%%EOF"
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Bon Allega",
+            partita_iva="IT88776655443",
+            indirizzo="Via Bon 1",
+            email="bonall@libro.it",
+        )
+
+    @patch("accounts.consulente_registro_studio.parse_testo_bonifico_pdf")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_allega_pdf_su_bonifico_excel_ok(self, mock_estrai, mock_parse):
+        mov = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2026, 4, 24),
+            avere=Decimal("191.22"),
+            dare=Decimal("0"),
+            nome_file="xlsx-bon/RIEP/R1",
+            riferimento_pagamento="BONIFICO SUM UP CO4B2KLJWK|2026-04-24|191.22",
+            causale_pagamento="BONIFICO SUM UP — DITTA",
+            metodo_estrazione="excel_riepilogo",
+        )
+        mock_estrai.return_value = ("distinta", "pdf")
+        mock_parse.return_value = EsitoParsingBonifico(
+            riferimento="CO4B2KLJWK",
+            data_documento=date(2026, 4, 24),
+            importo=Decimal("191.22"),
+            causale="SEPA",
+            avvisi=[],
+        )
+        up = SimpleUploadedFile("distinta.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs = applica_pdf_su_movimento_bonifico(self.az, None, mov.pk, up)
+        self.assertTrue(any("allegata con successo al bonifico" in m.lower() for m in msgs), msgs)
+        mov.refresh_from_db()
+        self.assertTrue(bool(getattr(mov.file, "name", None)))
+
+    @patch("accounts.consulente_registro_studio.parse_testo_bonifico_pdf")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_allega_pdf_su_bonifico_riga_esplicita_non_altro_stesso_importo(
+        self, mock_estrai, mock_parse
+    ):
+        """La distinta si allega alla riga scelta, anche se un altro bonifico ha stesso importo/data."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 7, 9),
+            avere=Decimal("130.00"),
+            dare=Decimal("0"),
+            nome_file="excel/R1",
+            riferimento_pagamento="BONIFICO ALTRO|2021-07-09|130.00",
+            causale_pagamento="Altro",
+            metodo_estrazione="excel_riepilogo",
+        )
+        mov_b = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 7, 9),
+            avere=Decimal("130.00"),
+            dare=Decimal("0"),
+            nome_file="excel/R2",
+            riferimento_pagamento="BONIFICO DOLCEMASCOLO|2021-07-09|130.00",
+            causale_pagamento="Dolcemascolo",
+            metodo_estrazione="excel_riepilogo",
+        )
+        mock_estrai.return_value = ("distinta", "pdf")
+        mock_parse.return_value = EsitoParsingBonifico(
+            riferimento="DOLCEMASCOLO",
+            data_documento=date(2021, 7, 9),
+            importo=Decimal("130.00"),
+            causale="SEPA",
+            avvisi=[],
+        )
+        up = SimpleUploadedFile("distinta.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs = applica_pdf_su_movimento_bonifico(self.az, None, mov_b.pk, up)
+        self.assertTrue(any("allegata con successo al bonifico" in m.lower() for m in msgs), msgs)
+        mov_b.refresh_from_db()
+        self.assertTrue(bool(getattr(mov_b.file, "name", None)))
+
+    @patch("accounts.consulente_registro_studio.parse_testo_bonifico_pdf")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_allega_pdf_ok_cro_pdf_non_in_libro_ma_importo_data_ok(self, mock_estrai, mock_parse):
+        """CRO estratto dal PDF spesso non è sottostringa del riferimento sintetico Excel: conta l'importo."""
+        ref_libro = "BONIFICO DOLCEMASCOLO|2021-07-09|130.00"
+        caus = "BONIFICO DOLCEMASCOLO — Studio Cipriano"
+        mov = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 7, 9),
+            avere=Decimal("130.00"),
+            dare=Decimal("0"),
+            nome_file="excel/R-dolce",
+            riferimento_pagamento=ref_libro,
+            causale_pagamento=caus,
+            metodo_estrazione="excel_riepilogo",
+        )
+        mock_estrai.return_value = ("distinta", "pdf")
+        mock_parse.return_value = EsitoParsingBonifico(
+            riferimento="00998877665544332211009988776655",
+            data_documento=date(2021, 7, 9),
+            importo=Decimal("130.00"),
+            causale="Testo causale PDF",
+            avvisi=[],
+        )
+        up = SimpleUploadedFile("distinta.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs = applica_pdf_su_movimento_bonifico(self.az, None, mov.pk, up)
+        self.assertTrue(any("allegata con successo al bonifico" in m.lower() for m in msgs), msgs)
+        mov.refresh_from_db()
+        self.assertTrue(bool(getattr(mov.file, "name", None)))
+        self.assertEqual(mov.riferimento_pagamento, ref_libro)
+        self.assertEqual(mov.causale_pagamento, caus)
+
+    @patch("accounts.consulente_registro_studio.parse_testo_bonifico_pdf")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_allega_pdf_ok_data_distinta_diversa_ma_stesso_importo(self, mock_estrai, mock_parse):
+        """Data contabile in elenco ≠ data PDF (es. 07/07 vs 19/10): con stesso importo si allega comunque."""
+        ref_libro = "BONIFICO DOLCEMASCOLO|2021-07-09|130.00"
+        mov = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 7, 7),
+            avere=Decimal("130.00"),
+            dare=Decimal("0"),
+            nome_file="excel/R-dolce",
+            riferimento_pagamento=ref_libro,
+            causale_pagamento="BONIFICO DOLCEMASCOLO — Studio Cipriano",
+            metodo_estrazione="excel_riepilogo",
+        )
+        mock_estrai.return_value = ("distinta", "pdf")
+        mock_parse.return_value = EsitoParsingBonifico(
+            riferimento="CROBPSA20211019",
+            data_documento=date(2021, 10, 19),
+            importo=Decimal("130.00"),
+            causale="SALDO PROFORMA",
+            avvisi=[],
+        )
+        up = SimpleUploadedFile(
+            "BONIFICO BPSA DEL 19 OTTOBRE 2021.pdf", self._pdf_min, content_type="application/pdf"
+        )
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs = applica_pdf_su_movimento_bonifico(self.az, None, mov.pk, up)
+        self.assertTrue(any("allegata con successo al bonifico" in m.lower() for m in msgs), msgs)
+        self.assertTrue(any("data operazione sulla distinta" in m for m in msgs), msgs)
+        mov.refresh_from_db()
+        self.assertTrue(bool(getattr(mov.file, "name", None)))
+
+    @patch("accounts.consulente_registro_studio.parse_testo_bonifico_pdf")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_allega_pdf_ok_senza_importo_pdf_ma_rif_pipe_excel(self, mock_estrai, mock_parse):
+        """PDF senza importo leggibile: si usa |data|importo dal riferimento in libro."""
+        ref_libro = "BONIFICO DOLCEMASCOLO|2021-07-09|130.00"
+        mov = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 7, 9),
+            avere=Decimal("130.00"),
+            dare=Decimal("0"),
+            nome_file="excel/R-dolce",
+            riferimento_pagamento=ref_libro,
+            causale_pagamento="—",
+            metodo_estrazione="excel_riepilogo",
+        )
+        mock_estrai.return_value = ("distinta", "ocr")
+        mock_parse.return_value = EsitoParsingBonifico(
+            riferimento="",
+            data_documento=None,
+            importo=None,
+            causale="",
+            avvisi=["vuoto"],
+        )
+        up = SimpleUploadedFile("distinta.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs = applica_pdf_su_movimento_bonifico(self.az, None, mov.pk, up)
+        self.assertTrue(any("allegata con successo al bonifico" in m.lower() for m in msgs), msgs)
+        mov.refresh_from_db()
+        self.assertTrue(bool(getattr(mov.file, "name", None)))
+
+
+class UploadBonificoPdfDedupTests(TestCase):
+    """Evita doppie righe bonifico se il PDF estratto coincide con un movimento già in libro."""
+
+    _pdf_min = b"%PDF-1.4\n1 0 obj<<>>endobj trailer<<>>\n%%EOF"
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Dedup Bon",
+            partita_iva="IT11223344556",
+            indirizzo="Via Ded 1",
+            email="dedbon@libro.it",
+        )
+
+    @patch("accounts.consulente_registro_studio.parse_testo_bonifico_pdf")
+    @patch("accounts.consulente_registro_studio.estrai_testo_da_pdf")
+    def test_upload_bonifico_pdf_non_duplica_stesso_cro_data_importo(self, mock_estrai, mock_parse):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2026, 2, 1),
+            avere=Decimal("88.50"),
+            dare=Decimal("0"),
+            nome_file="pre/esistente",
+            riferimento_pagamento="CROZZDEDUP123456789",
+            causale_pagamento="Bonifico test dedup",
+            metodo_estrazione="excel_riepilogo",
+        )
+        mock_estrai.return_value = ("distinta", "pdf")
+        mock_parse.return_value = EsitoParsingBonifico(
+            riferimento="CROZZDEDUP123456789",
+            data_documento=date(2026, 2, 1),
+            importo=Decimal("88.50"),
+            causale="Altra causale",
+            avvisi=[],
+        )
+        up = SimpleUploadedFile("nuova_distinta.pdf", self._pdf_min, content_type="application/pdf")
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                msgs = applica_upload_bonifici_pdf(self.az, None, [up])
+        self.assertTrue(any("importazione ignorata" in m.lower() for m in msgs), msgs)
+        self.assertEqual(
+            MovimentoRegistroStudioConsulente.objects.filter(azienda=self.az, tipo_riga="bonifico").count(),
+            1,
+        )
+
+
+class QuadraturaProformaBonificiTests(TestCase):
+    """Vista logica quadratura documenti ↔ bonifici."""
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Quad",
+            partita_iva="IT11122233344",
+            indirizzo="Via Q 1",
+            email="quad@test.it",
+        )
+
+    def test_mappa_export_libro_allineata_a_quadratura(self):
+        doc = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="77",
+            data_documento=date(2025, 3, 1),
+            dare=Decimal("100.00"),
+            nome_file="doc77.pdf",
+            testo_estratto="t",
+        )
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 3, 15),
+            avere=Decimal("40.00"),
+            nome_file="bon77.pdf",
+            causale_pagamento="Incasso parcella 77 quota",
+            riferimento_pagamento="77|2025-03-01|40.00",
+        )
+        m = mappa_quadratura_per_export_libro_movimenti(self.az.id)
+        self.assertEqual(m["documento"][doc.pk]["tot_bonifici"], Decimal("40.00"))
+        self.assertEqual(m["documento"][doc.pk]["residuo"], Decimal("60.00"))
+        self.assertEqual(m["saldo_cumulativo_residui_finale"], Decimal("60.00"))
+        self.assertEqual(m["bonifico_residuo_avere"][bon.pk], Decimal("0"))
+        rip = m["riepilogo_coerenza"]
+        self.assertEqual(rip["tot_dare_parcella"], Decimal("100.00"))
+        self.assertEqual(rip["tot_dare_proforma"], Decimal("0"))
+        self.assertEqual(rip["tot_dare_parcella_proforma"], Decimal("100.00"))
+        self.assertEqual(rip["tot_avere_bonifici_libro"], Decimal("40.00"))
+        self.assertEqual(rip["differenza_dare_meno_avere"], Decimal("60.00"))
+        self.assertEqual(rip["tot_avere_attribuito_documenti"], Decimal("40.00"))
+        self.assertEqual(rip["avere_non_imputato_a_fatture"], Decimal("0"))
+        self.assertLessEqual(abs(rip["scarto_coerenza_sigma_diff"]), Decimal("0.02"))
+        self.assertEqual(
+            m["saldo_cumulativo_residui_finale"],
+            rip["differenza_dare_meno_avere"] + rip["avere_non_imputato_a_fatture"],
+        )
+
+    def test_pipe_riferimento_collega_e_saldo(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="182",
+            data_documento=date(2021, 6, 16),
+            dare=Decimal("130.00"),
+            nome_file="p.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 7, 1),
+            avere=Decimal("130.00"),
+            nome_file="b.xlsx",
+            riferimento_pagamento="PARCELLA 182|2021-06-16|130.00",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q["righe"]), 1)
+        self.assertEqual(q["righe"][0]["stato"], "saldato")
+        self.assertEqual(q["righe"][0]["residuo"], Decimal("0.00"))
+        self.assertEqual(len(q["bonifici_orfani"]), 0)
+        self.assertFalse(q["righe"][0]["bonifici"][0]["ha_riscontro"])
+        self.assertEqual(q["totali"]["bonifici_senza_evidenza_pdf"], 1)
+        self.assertEqual(q["totali"]["totale_avere_attribuito_senza_evidenza_pdf"], Decimal("130.00"))
+        self.assertTrue(q["righe"][0]["saldato_ma_con_bonifici_senza_evidenza_pdf"])
+
+    def test_quadratura_bonifico_con_pdf_ha_riscontro(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="99",
+            data_documento=date(2024, 1, 10),
+            dare=Decimal("40.00"),
+            nome_file="d.pdf",
+            testo_estratto="x",
+        )
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2024, 1, 20),
+            avere=Decimal("40.00"),
+            nome_file="b.pdf",
+            riferimento_pagamento="PARCELLA 99|2024-01-10|40.00",
+        )
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=str(repo_root)) as media_tmp:
+            with self.settings(MEDIA_ROOT=media_tmp):
+                bon.file.save("ricevuta.pdf", ContentFile(b"%PDF-1.4 test"), save=True)
+        bon.refresh_from_db()
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertTrue(q["righe"][0]["bonifici"][0]["ha_riscontro"])
+        self.assertTrue(bonifico_ha_riscontro_documentale_pagamento(bon))
+        self.assertFalse(q["righe"][0]["saldato_ma_con_bonifici_senza_evidenza_pdf"])
+        self.assertEqual(q["totali"]["bonifici_con_evidenza_pdf"], 1)
+        self.assertEqual(q["totali"]["totale_avere_attribuito_senza_evidenza_pdf"], Decimal("0.00"))
+
+    def test_bonifico_senza_documento_in_orfani(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="PF-X",
+            data_documento=date(2024, 1, 1),
+            dare=Decimal("50.00"),
+            nome_file="d.pdf",
+            testo_estratto="z",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2024, 2, 1),
+            avere=Decimal("99.00"),
+            nome_file="bon.pdf",
+            riferimento_pagamento="CRO987654321009988776655",
+            causale_pagamento="Bonifico generico senza numero fattura noto",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q["bonifici_orfani"]), 1)
+        self.assertEqual(q["righe"][0]["stato"], "aperto")
+        m = mappa_quadratura_per_export_libro_movimenti(self.az.id)
+        rip = m["riepilogo_coerenza"]
+        self.assertLessEqual(abs(rip["scarto_coerenza_sigma_diff"]), Decimal("0.02"))
+        self.assertEqual(rip["avere_non_imputato_a_fatture"], Decimal("99.00"))
+        self.assertEqual(
+            m["saldo_cumulativo_residui_finale"],
+            rip["differenza_dare_meno_avere"] + rip["avere_non_imputato_a_fatture"],
+        )
+
+    def test_causale_con_numero_collega_parziale(self):
+        """Aggancio esplicito pipe: incasso parziale rispetto al dare documento."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="77",
+            data_documento=date(2025, 3, 1),
+            dare=Decimal("100.00"),
+            nome_file="doc77.pdf",
+            testo_estratto="t",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 3, 15),
+            avere=Decimal("40.00"),
+            nome_file="bon77.pdf",
+            causale_pagamento="Incasso parcella 77 quota",
+            riferimento_pagamento="77|2025-03-01|40.00",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(q["righe"][0]["stato"], "parziale")
+        self.assertEqual(q["righe"][0]["residuo"], Decimal("60.00"))
+        self.assertEqual(len(q["bonifici_orfani"]), 0)
+
+    def test_bonifico_unico_causale_due_proforma_e_del_anno(self):
+        """Stesso bonifico ripartito su due proforma tramite riferimento pipe esplicito."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="320",
+            data_documento=date(2021, 5, 10),
+            dare=Decimal("100.00"),
+            nome_file="pf320.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="367",
+            data_documento=date(2021, 6, 20),
+            dare=Decimal("174.14"),
+            nome_file="pf367.pdf",
+            testo_estratto="y",
+        )
+        causale = "VA A SALDARE LA PROFORMA 320 E 367 DEL 2021"
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 10, 19),
+            avere=Decimal("274.14"),
+            nome_file="bpsa.pdf",
+            riferimento_pagamento="320|2021-05-10|100.00;367|2021-06-20|174.14",
+            causale_pagamento=causale,
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q["bonifici_orfani"]), 0)
+        righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
+        self.assertEqual(righe_per_num["320"]["stato"], "saldato")
+        self.assertEqual(righe_per_num["367"]["stato"], "saldato")
+        self.assertEqual(righe_per_num["320"]["tot_bonifici"], Decimal("100.00"))
+        self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("174.14"))
+        b320 = righe_per_num["320"]["bonifici"][0]
+        self.assertEqual(b320["bon"].causale_pagamento, causale)
+        self.assertEqual(b320["quota"], Decimal("100.00"))
+        self.assertEqual(righe_per_num["367"]["bonifici"][0]["quota"], Decimal("174.14"))
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
+        rip = q["bonifici_ripartiti_multi_documento"][0]
+        self.assertTrue(rip["coerente"])
+        self.assertEqual(rip["somma_quote"], Decimal("274.14"))
+        nums_q = {p["numero_documento"]: p["quota"] for p in rip["parti"]}
+        self.assertEqual(nums_q["320"], Decimal("100.00"))
+        self.assertEqual(nums_q["367"], Decimal("174.14"))
+
+    def test_bpsa_stesso_bonifico_274_ripartito_196_14_e_78(self):
+        """Dare in libro 196,14 + 78,00 = avere bonifico 274,14 (stesso schema BPSA 320 e 367)."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="320",
+            data_documento=date(2021, 5, 10),
+            dare=Decimal("196.14"),
+            nome_file="pf320.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="367",
+            data_documento=date(2021, 6, 20),
+            dare=Decimal("78.00"),
+            nome_file="pf367.pdf",
+            testo_estratto="y",
+        )
+        causale = "BONIFICO A SALDO PROFORMA 320 E 367 DEL 2021"
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 10, 19),
+            avere=Decimal("274.14"),
+            nome_file="bpsa.pdf",
+            riferimento_pagamento="320|2021-05-10|196.14;367|2021-06-20|78.00",
+            causale_pagamento=causale,
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
+        self.assertEqual(righe_per_num["320"]["tot_bonifici"], Decimal("196.14"))
+        self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("78.00"))
+        self.assertEqual(righe_per_num["320"]["stato"], "saldato")
+        self.assertEqual(righe_per_num["367"]["stato"], "saldato")
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
+        rip = q["bonifici_ripartiti_multi_documento"][0]
+        self.assertTrue(rip["coerente"])
+        self.assertEqual(rip["somma_quote"], Decimal("274.14"))
+        nums_q = {p["numero_documento"]: p["quota"] for p in rip["parti"]}
+        self.assertEqual(nums_q["320"], Decimal("196.14"))
+        self.assertEqual(nums_q["367"], Decimal("78.00"))
+
+    def test_due_proforma_imputazione_sequenziale_non_proporzionale(self):
+        """Bonifico > prima parcella: si satura la prima, il resto va sulla seconda (non % sul dare)."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="320",
+            data_documento=date(2021, 5, 10),
+            dare=Decimal("100.00"),
+            nome_file="a.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="367",
+            data_documento=date(2021, 6, 20),
+            dare=Decimal("174.14"),
+            nome_file="b.pdf",
+            testo_estratto="y",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 10, 19),
+            avere=Decimal("250.00"),
+            nome_file="bon.pdf",
+            causale_pagamento="SALDO PROFORMA 320 E 367 DEL 2021",
+            riferimento_pagamento="320|2021-05-10|100.00;367|2021-06-20|150.00",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
+        self.assertEqual(righe_per_num["320"]["tot_bonifici"], Decimal("100.00"))
+        self.assertEqual(righe_per_num["320"]["stato"], "saldato")
+        self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("150.00"))
+        self.assertEqual(righe_per_num["367"]["stato"], "parziale")
+        self.assertEqual(righe_per_num["367"]["residuo"], Decimal("24.14"))
+
+    def test_causale_pdf_proforma_320_e_proforma_367_solo_in_testo_estratto(self):
+        """Ripartizione esplicita pipe (il testo distinta resta archiviato ma non guida l’incrocio)."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="320",
+            data_documento=date(2021, 5, 10),
+            dare=Decimal("196.14"),
+            nome_file="pf320.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="367",
+            data_documento=date(2021, 6, 20),
+            dare=Decimal("78.00"),
+            nome_file="pf367.pdf",
+            testo_estratto="y",
+        )
+        testo_pdf = (
+            "Disposizione bonifico EUR 274,14. "
+            "A saldo delle PROFORMA 320 E PROFORMA 367 DEL 2021."
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 10, 19),
+            avere=Decimal("274.14"),
+            nome_file="bpsa.pdf",
+            riferimento_pagamento="320|2021-05-10|196.14;367|2021-06-20|78.00",
+            causale_pagamento="",
+            testo_estratto=testo_pdf,
+            metodo_estrazione="pdfplumber",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
+        self.assertEqual(righe_per_num["320"]["tot_bonifici"], Decimal("196.14"))
+        self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("78.00"))
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
+
+    def test_citazione_320_e_proforma_367_ma_bonifico_su_parcella_246(self):
+        """Id 77: causale cita 320 e 367 ma l’importo coincide con la parcella 246 nel testo."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="320",
+            data_documento=date(2021, 5, 10),
+            dare=Decimal("100.00"),
+            nome_file="a.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="proforma",
+            numero_documento="367",
+            data_documento=date(2021, 6, 20),
+            dare=Decimal("174.14"),
+            nome_file="b.pdf",
+            testo_estratto="y",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="246",
+            data_documento=date(2021, 8, 15),
+            dare=Decimal("212.78"),
+            nome_file="p246.pdf",
+            testo_estratto="z",
+        )
+        testo = (
+            "SALDO PROFORMA 320 E PROFORMA 367 BONIFICO BPSA. "
+            "Incasso PARCELLA 246 DEL 2021."
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 8, 30),
+            avere=Decimal("212.78"),
+            nome_file="bon77.pdf",
+            causale_pagamento=testo,
+            riferimento_pagamento="246|2021-08-15|212.78",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
+        self.assertEqual(righe_per_num["246"]["tot_bonifici"], Decimal("212.78"))
+        self.assertEqual(righe_per_num["246"]["stato"], "saldato")
+        self.assertEqual(righe_per_num["320"]["tot_bonifici"], Decimal("0"))
+        self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("0"))
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 0)
+
+    def test_eccedenza_su_320_sposta_quota_su_367_stesso_bonifico_in_causale(self):
+        """Ripartizione esplicita su 320 e 367 (stesso bonifico, due parcelle)."""
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="320",
+            data_documento=date(2021, 9, 12),
+            dare=Decimal("196.14"),
+            nome_file="p320.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="367",
+            data_documento=date(2021, 10, 14),
+            dare=Decimal("78.00"),
+            nome_file="p367.pdf",
+            testo_estratto="y",
+        )
+        causale = (
+            "BONIFICO BPSA SALDO ORDINANZE N. 320 E N. 367 DEL 2021 "
+            "REGISTRAZIONE UNICA CONTABILE STUDIO"
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 10, 19),
+            avere=Decimal("274.14"),
+            nome_file="bpsa78.pdf",
+            riferimento_pagamento="320|2021-09-12|196.14;367|2021-10-14|78.00",
+            causale_pagamento=causale,
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        righe_per_num = {r["documento"].numero_documento: r for r in q["righe"]}
+        self.assertEqual(righe_per_num["320"]["tot_bonifici"], Decimal("196.14"))
+        self.assertEqual(righe_per_num["320"]["stato"], "saldato")
+        self.assertEqual(righe_per_num["367"]["tot_bonifici"], Decimal("78.00"))
+        self.assertEqual(righe_per_num["367"]["stato"], "saldato")
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
+
+    def test_piano_allocazione_pool_due_bonifici_su_un_documento(self):
+        doc = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="P-500",
+            data_documento=date(2025, 1, 5),
+            dare=Decimal("150.00"),
+            nome_file="d.pdf",
+        )
+        b1 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 2, 1),
+            avere=Decimal("100.00"),
+            nome_file="b1.pdf",
+            riferimento_pagamento="CRO-1-NO-DOC",
+        )
+        b2 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 2, 2),
+            avere=Decimal("50.00"),
+            nome_file="b2.pdf",
+            riferimento_pagamento="CRO-2-NO-DOC",
+        )
+        q0 = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q0["bonifici_orfani"]), 2)
+        self.assertEqual(q0["righe"][0]["stato"], "aperto")
+
+        q_ante = quadratura_proforma_parcelle_bonifici_anteprima_allocazione(self.az.id, {b1.pk, b2.pk})
+        self.assertEqual(q_ante["righe"][0]["residuo"], Decimal("150.00"))
+
+        u = get_user_model().objects.create_user("pallocquad", "pallocquad@t.it", "secret12345")
+        salva_piano_allocazione_bonifici_quadratura(self.az, [b1.pk, b2.pk], [(doc.pk, Decimal("150.00"))], u)
+        obj = PianoAllocazioneBonificiQuad.objects.get(azienda=self.az)
+        self.assertEqual(len(obj.righe), 2)
+
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(q["righe"][0]["stato"], "saldato")
+        self.assertEqual(q["righe"][0]["residuo"], Decimal("0.00"))
+        self.assertEqual(len(q["bonifici_orfani"]), 0)
+        self.assertEqual(len(q["bonifici_residuo_post_piano_allocazione"]), 0)
+        self.assertEqual(q["totali"]["totale_residui_avere_post_piano_allocazione"], Decimal("0.00"))
+
+        elimina_piano_allocazione_bonifici_quadratura(self.az.id)
+        self.assertFalse(PianoAllocazioneBonificiQuad.objects.filter(azienda=self.az).exists())
+        q2 = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q2["bonifici_orfani"]), 2)
+
+    def test_rimuovi_righe_piano_per_bonifico(self):
+        doc = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="P-501",
+            data_documento=date(2025, 1, 6),
+            dare=Decimal("150.00"),
+            nome_file="d501.pdf",
+        )
+        b1 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 2, 3),
+            avere=Decimal("100.00"),
+            nome_file="b501a.pdf",
+            riferimento_pagamento="CRO-501A",
+        )
+        b2 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 2, 4),
+            avere=Decimal("50.00"),
+            nome_file="b501b.pdf",
+            riferimento_pagamento="CRO-501B",
+        )
+        u = get_user_model().objects.create_user("pallocstrip", "pstrip@t.it", "secret12345")
+        salva_piano_allocazione_bonifici_quadratura(self.az, [b1.pk, b2.pk], [(doc.pk, Decimal("150.00"))], u)
+        obj = PianoAllocazioneBonificiQuad.objects.get(azienda=self.az)
+        self.assertEqual(len(obj.righe), 2)
+        n = rimuovi_righe_piano_allocazione_per_bonifico(self.az.id, b1.pk, u)
+        self.assertEqual(n, 1)
+        obj.refresh_from_db()
+        self.assertEqual(len(obj.righe), 1)
+        self.assertEqual(int(obj.righe[0]["bonifico_id"]), b2.pk)
+
+    def test_piano_allocazione_cap_allineato_se_bonifico_pool_sarebbe_auto_su_stesso_doc(self):
+        """Il cap non deve usare la quadratura «piena»: altrimenti il bonifico del pool si auto-aggancia e il cap è 0."""
+        doc = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="221",
+            data_documento=date(2025, 4, 1),
+            dare=Decimal("130.00"),
+            nome_file="d221.pdf",
+        )
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 4, 15),
+            avere=Decimal("130.00"),
+            nome_file="b221.pdf",
+            riferimento_pagamento="PARCELLA 221|2025-04-01|130.00",
+        )
+        q_full = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(q_full["righe"][0]["stato"], "saldato")
+        self.assertEqual(q_full["righe"][0]["residuo"], Decimal("0.00"))
+
+        q_ante = quadratura_proforma_parcelle_bonifici_anteprima_allocazione(self.az.id, {bon.pk})
+        self.assertEqual(q_ante["righe"][0]["residuo"], Decimal("130.00"))
+
+        u = get_user_model().objects.create_user("pallocpipe221", "p221@t.it", "secret12345")
+        salva_piano_allocazione_bonifici_quadratura(self.az, [bon.pk], [(doc.pk, Decimal("130.00"))], u)
+        obj = PianoAllocazioneBonificiQuad.objects.get(azienda=self.az)
+        self.assertEqual(len(obj.righe), 1)
+
+    def test_bonifico_senza_disponibilita_utilizzabile_se_tutto_imputato_su_saldato(self):
+        doc = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="332",
+            data_documento=date(2025, 5, 10),
+            dare=Decimal("80.00"),
+            nome_file="d332.pdf",
+        )
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 5, 20),
+            avere=Decimal("80.00"),
+            nome_file="b332.pdf",
+            riferimento_pagamento="PARCELLA 332|2025-05-10|80.00",
+        )
+        util = bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura(self.az.id)
+        self.assertNotIn(bon.pk, util)
+
+        orf = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 5, 21),
+            avere=Decimal("10.00"),
+            nome_file="orphan.pdf",
+            riferimento_pagamento="XYZ-NO-DOC",
+        )
+        util2 = bonifico_ids_con_avere_residuo_utilizzabile_in_quadratura(self.az.id)
+        self.assertNotIn(bon.pk, util2)
+        self.assertIn(orf.pk, util2)
+
+    def test_documenti_step2_solo_aperto_parziale_con_residuo(self):
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="S1",
+            data_documento=date(2025, 6, 1),
+            dare=Decimal("50.00"),
+            nome_file="s1.pdf",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="S2",
+            data_documento=date(2025, 6, 2),
+            dare=Decimal("30.00"),
+            nome_file="s2.pdf",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2025, 6, 10),
+            avere=Decimal("10.00"),
+            nome_file="b10.pdf",
+            causale_pagamento="Incasso parcella S1 quota",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        filtrate = documenti_righe_quadratura_con_residuo_da_coprire(q["righe"])
+        self.assertTrue(any(r["documento"].numero_documento == "S1" for r in filtrate))
+        self.assertTrue(any(r["documento"].numero_documento == "S2" for r in filtrate))
+        for r in filtrate:
+            self.assertIn(r["stato"], ("aperto", "parziale"))
+
+
+class AggancioManualeBonificoSelectTests(TestCase):
+    """Elenco documenti con residuo in quadratura e riferimento ``numero|data|avere`` (Pagamenti)."""
+
+    def setUp(self):
+        self.az = Azienda.objects.create(
+            nome="Az Agg Man",
+            partita_iva="IT99887766554",
+            indirizzo="Via A 1",
+            email="aggman@test.it",
+        )
+
+    def test_distinta_heuristica_per_allegato_pdf_bonifico(self):
+        from accounts.consulente_registro_studio import _distinta_pdf_coerente_bonifico_per_allegato_manuale
+
+        mov = SimpleNamespace(
+            avere=Decimal("196.14"),
+            riferimento_pagamento="PARCELLA N. 224 DEL 16/07/2021 cro 58326812511",
+        )
+        txt = "Bonifico EUR 196,14 accreditato. CRO 58326812511."
+        self.assertTrue(_distinta_pdf_coerente_bonifico_per_allegato_manuale(txt, mov))
+
+    def test_diagnosi_pipe_causale_non_numero_documento(self):
+        """Riferimento tipo «BONIFICO …|data|importo»: pipe parsabile ma numero non in libro → bloccata."""
+        from accounts.consulente_registro_studio import diagnosi_pipe_bonifico_pagamenti, quadratura_proforma_parcelle_bonifici
+
+        bon = SimpleNamespace(
+            pk=9001,
+            avere=Decimal("1000.00"),
+            riferimento_pagamento="BONIFICO BPSA|2022-07-28|1000.00",
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        d = diagnosi_pipe_bonifico_pagamenti(self.az.id, bon, q)
+        self.assertTrue(d["bloccata"])
+        self.assertTrue(d["coerenza_somma_avere"])
+        self.assertEqual(len(d["segmenti_non_risolti"]), 1)
+        self.assertIn("BONIFICO BPSA", d["segmenti_non_risolti"][0])
+        self.assertEqual(len(d["segmenti_risolti"]), 0)
+        self.assertIn("libro", d["hint_title_extra"].lower())
+
+    def test_diagnosi_documenti_quadratura_aggancio_senza_pipe(self):
+        """Badge Aggancio: diagnosi elenca documenti collegati anche senza riferimento pipe."""
+        from accounts.consulente_registro_studio import diagnosi_pipe_bonifico_pagamenti
+
+        bon = SimpleNamespace(pk=77, avere=Decimal("40.00"), riferimento_pagamento="")
+        doc = SimpleNamespace(pk=501, numero_documento="P-1", get_tipo_documento_display=lambda: "Parcella")
+        q = {
+            "righe": [
+                {
+                    "documento": doc,
+                    "stato": "parziale",
+                    "importo_dare": Decimal("100.00"),
+                    "tot_bonifici": Decimal("60.00"),
+                    "residuo": Decimal("40.00"),
+                    "bonifici": [{"bon": bon, "quota": Decimal("40.00")}],
+                },
+            ],
+        }
+        d = diagnosi_pipe_bonifico_pagamenti(self.az.id, bon, q)
+        self.assertEqual(len(d["documenti_quadratura"]), 1)
+        self.assertEqual(d["documenti_quadratura"][0]["quota_questo_bonifico"], Decimal("40.00"))
+        self.assertEqual(d["documenti_quadratura"][0]["stato"], "parziale")
+        self.assertIn("residuo", d["hint_title_extra"].lower())
+
+    def test_metadati_evidenza_bonifico_saldato_libero_pipe_rotto(self):
+        from accounts.consulente_registro_studio import (
+            metadati_evidenza_bonifico_pagamenti,
+            mappa_bonifico_documenti_stato_da_quadratura,
+        )
+
+        doc = SimpleNamespace(pk=1, numero_documento="224", get_tipo_documento_display=lambda: "Parcella")
+        bon_sald = SimpleNamespace(pk=10, riferimento_pagamento="224|2021-07-16|196.14")
+        q = {
+            "righe": [
+                {"documento": doc, "stato": "saldato", "bonifici": [{"bon": bon_sald, "quota": None}]},
+            ],
+        }
+        mappa = mappa_bonifico_documenti_stato_da_quadratura(q)
+        meta = metadati_evidenza_bonifico_pagamenti(bon_sald, q, mappa)
+        self.assertEqual(meta["badge"], "Saldato")
+        self.assertIn("gesper-bon-pag-saldati", meta["classe"])
+
+        bon_lib = SimpleNamespace(pk=11, riferimento_pagamento="CRO 12345678")
+        meta2 = metadati_evidenza_bonifico_pagamenti(bon_lib, q, mappa)
+        self.assertEqual(meta2["badge"], "")
+        self.assertIn("gesper-bon-pag-libero", meta2["classe"])
+
+        bon_pipe = SimpleNamespace(pk=12, riferimento_pagamento="999|2021-01-01|10.00")
+        meta3 = metadati_evidenza_bonifico_pagamenti(bon_pipe, q, mappa)
+        self.assertEqual(meta3["badge"], "Rif. non risolto")
+
+        doc_p = SimpleNamespace(pk=2, numero_documento="501", get_tipo_documento_display=lambda: "Parcella")
+        bon_parz = SimpleNamespace(pk=13, riferimento_pagamento="501|2024-03-01|45.25")
+        q2 = {
+            "righe": [
+                {
+                    "documento": doc_p,
+                    "stato": "parziale",
+                    "bonifici": [{"bon": bon_parz, "quota": Decimal("45.25")}],
+                },
+            ],
+        }
+        m2 = mappa_bonifico_documenti_stato_da_quadratura(q2)
+        meta4 = metadati_evidenza_bonifico_pagamenti(bon_parz, q2, m2)
+        self.assertEqual(meta4["badge"], "Aggancio")
+        self.assertIn("gesper-bon-pag-attivi", meta4["classe"])
+
+    def test_documenti_residuo_select_ordine_cronologico(self):
+        """Elenco «A documento…»: parcelle/proforma con residuo ordinate per data doc. crescente."""
+        from accounts.consulente_registro_studio import documenti_con_residuo_quadratura_per_select
+
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="RECENTE",
+            data_documento=date(2024, 6, 1),
+            dare=Decimal("100.00"),
+            nome_file="recente.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="VECCHIO",
+            data_documento=date(2022, 1, 15),
+            dare=Decimal("80.00"),
+            nome_file="vecchio.pdf",
+            testo_estratto="x",
+        )
+        sel = documenti_con_residuo_quadratura_per_select(self.az.id)
+        self.assertEqual(len(sel), 2)
+        labels = [x["label"] for x in sel]
+        self.assertTrue(labels[0].startswith("Parcella"))
+        self.assertIn("VECCHIO", labels[0])
+        self.assertIn("RECENTE", labels[1])
+        self.assertIn("residuo_cap", sel[0])
+        self.assertEqual(sel[0]["residuo_cap"], Decimal("80.00"))
+
+    def test_messaggio_importi_aggancio_superano_residuo(self):
+        from accounts.consulente_registro_studio import messaggio_se_importi_aggancio_superano_residui
+
+        doc = SimpleNamespace(pk=1, numero_documento="10", get_tipo_documento_display=lambda: "Parcella")
+        caps = {1: Decimal("50.00")}
+        self.assertIsNotNone(messaggio_se_importi_aggancio_superano_residui([(doc, Decimal("60"))], caps))
+        self.assertIsNone(messaggio_se_importi_aggancio_superano_residui([(doc, Decimal("50.00"))], caps))
+        self.assertIsNone(messaggio_se_importi_aggancio_superano_residui([(doc, Decimal("50.01"))], caps))
+
+    def test_documenti_residuo_select_esclude_saldato(self):
+        from accounts.consulente_registro_studio import documenti_con_residuo_quadratura_per_select
+
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="900",
+            data_documento=date(2024, 4, 1),
+            dare=Decimal("50.00"),
+            nome_file="d900.pdf",
+            testo_estratto="x",
+        )
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2024, 4, 10),
+            avere=Decimal("50.00"),
+            nome_file="b900.pdf",
+            riferimento_pagamento="900|2024-04-01|50.00",
+            causale_pagamento="Incasso",
+        )
+        sel = documenti_con_residuo_quadratura_per_select(self.az.id)
+        self.assertEqual(len(sel), 0)
+
+        from accounts.consulente_registro_studio import (
+            documenti_opzioni_aggancio_per_bonifico,
+            mappa_cap_aggancio_importo_per_documento,
+            quadratura_proforma_parcelle_bonifici,
+        )
+
+        doc = MovimentoRegistroStudioConsulente.objects.get(numero_documento="900", azienda=self.az)
+        bon = MovimentoRegistroStudioConsulente.objects.get(
+            tipo_riga="bonifico", riferimento_pagamento__startswith="900|", azienda=self.az
+        )
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        opts = documenti_opzioni_aggancio_per_bonifico(self.az.id, bon, q)
+        self.assertEqual(len(opts), 1)
+        self.assertEqual(opts[0]["id"], doc.pk)
+        self.assertEqual(opts[0]["quota_esistente"], Decimal("50.00"))
+        self.assertEqual(opts[0]["residuo_cap"], Decimal("50.00"))
+        documenti_list = [row["documento"] for row in q.get("righe") or [] if row.get("documento")]
+        caps = mappa_cap_aggancio_importo_per_documento(self.az.id, bon, q, documenti_list)
+        self.assertEqual(caps[doc.pk], Decimal("50.00"))
+
+    def test_documenti_residuo_select_e_riferimento_pipe(self):
+        from accounts.consulente_registro_studio import (
+            documenti_con_residuo_quadratura_per_select,
+            riferimento_pipe_aggancio_bonifico_documento,
+        )
+
+        MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="501",
+            data_documento=date(2024, 3, 1),
+            dare=Decimal("90.00"),
+            nome_file="d501.pdf",
+            testo_estratto="x",
+        )
+        sel = documenti_con_residuo_quadratura_per_select(self.az.id)
+        self.assertEqual(len(sel), 1)
+        self.assertEqual(sel[0]["id"], MovimentoRegistroStudioConsulente.objects.get(numero_documento="501").pk)
+        self.assertIn("501", sel[0]["label"])
+        self.assertIn("90.00", sel[0]["label"])
+
+        doc = MovimentoRegistroStudioConsulente.objects.get(numero_documento="501", azienda=self.az)
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2024, 3, 20),
+            avere=Decimal("45.25"),
+            nome_file="b.pdf",
+            riferimento_pagamento="CRO-X",
+        )
+        self.assertEqual(riferimento_pipe_aggancio_bonifico_documento(bon, doc), "501|2024-03-01|45.25")
+
+    def test_riferimento_pipe_multiplo_quadratura(self):
+        from accounts.consulente_registro_studio import (
+            quadratura_proforma_parcelle_bonifici,
+            riferimento_pipe_aggancio_bonifico_documenti_importi,
+        )
+
+        d1 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="320",
+            data_documento=date(2021, 6, 1),
+            dare=Decimal("60.00"),
+            nome_file="a.pdf",
+            testo_estratto="x",
+        )
+        d2 = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="documento",
+            tipo_documento="parcella",
+            numero_documento="367",
+            data_documento=date(2021, 6, 2),
+            dare=Decimal("70.00"),
+            nome_file="b.pdf",
+            testo_estratto="y",
+        )
+        bon = MovimentoRegistroStudioConsulente.objects.create(
+            azienda=self.az,
+            tipo_riga="bonifico",
+            data_documento=date(2021, 7, 7),
+            avere=Decimal("130.00"),
+            nome_file="bon.pdf",
+            riferimento_pagamento="",
+        )
+        bon.riferimento_pagamento = riferimento_pipe_aggancio_bonifico_documenti_importi(
+            [(d1, Decimal("60.00")), (d2, Decimal("70.00"))]
+        )
+        bon.save(update_fields=["riferimento_pagamento"])
+        q = quadratura_proforma_parcelle_bonifici(self.az.id)
+        self.assertEqual(len(q["righe"]), 2)
+        self.assertEqual(len(q["bonifici_ripartiti_multi_documento"]), 1)
+        self.assertTrue(q["bonifici_ripartiti_multi_documento"][0]["coerente"])
+        self.assertEqual(q["bonifici_ripartiti_multi_documento"][0]["bon"].pk, bon.pk)
+
+
+class LibroNotaConsulenteDisplayTests(SimpleTestCase):
+    """Note libro: prefissi legacy «Import Excel» non mostrati in UI (solo display)."""
+
+    def test_rimuove_prefisso_excel_e_frase_colonna_negativa(self):
+        from accounts.views_consulente import _libro_nota_consulente_display
+
+        raw = (
+            'Import Excel «RIEPILOGO GENERALE»; PDF proforma/parcella collegato: nessun documento. '
+            'Colonna Importo negativa in Excel → avere positivo (incasso). '
+            'PDF distinta allegato da riga singola «20260110_Ricevuta_bonifico.pdf».'
+        )
+        out = _libro_nota_consulente_display(raw)
+        self.assertNotIn("Import Excel", out)
+        self.assertNotIn("Excel", out)
+        self.assertIn("PDF proforma/parcella", out)
+        self.assertIn("Ricevuta_bonifico.pdf", out)
+        self.assertIn("riepilogo", out.lower())
+
+
+class PartitarioLibroLinkAdminMovimentiTests(SimpleTestCase):
+    """Flag colonna Admin sul libro: solo superuser o ruolo admin, non consulente."""
+
+    def test_superuser_e_admin_ruolo_true(self):
+        from unittest.mock import Mock
+
+        from accounts.views_consulente import _partitario_libro_link_admin_movimenti
+
+        su = Mock(is_authenticated=True, is_superuser=True)
+        self.assertTrue(_partitario_libro_link_admin_movimenti(su))
+        adm = Mock(is_authenticated=True, is_superuser=False, has_ruolo=lambda r: r == "admin")
+        self.assertTrue(_partitario_libro_link_admin_movimenti(adm))
+
+    def test_consulente_false(self):
+        from unittest.mock import Mock
+
+        from accounts.views_consulente import _partitario_libro_link_admin_movimenti
+
+        cons = Mock(is_authenticated=True, is_superuser=False, has_ruolo=lambda r: r == "consulente")
+        self.assertFalse(_partitario_libro_link_admin_movimenti(cons))

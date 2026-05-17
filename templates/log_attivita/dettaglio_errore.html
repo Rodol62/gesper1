@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}Dettaglio errore #{{ errore.id }} — {{ config.nome_sito }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:900px">
+
+  <div style="background:linear-gradient(135deg,#7b1414,#a02020);color:#fff;border-radius:6px;
+              padding:.6rem 1rem;margin-bottom:.8rem;display:flex;align-items:center;justify-content:space-between">
+    <h5 style="margin:0;font-size:.92rem;font-weight:800">
+      <i class="bi bi-bug-fill"></i> Dettaglio errore #{{ errore.id }}
+    </h5>
+    <a href="{% url 'lista_log_errori' %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">← Lista errori</a>
+  </div>
+
+  <!-- Riepilogo -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2" style="background:#f9e8e8;color:#7b1414;font-weight:700;font-size:.8rem">
+      <i class="bi bi-info-circle"></i> Riepilogo
+    </div>
+    <div class="card-body" style="font-size:.8rem">
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="color:#666;width:160px;padding:4px 0;vertical-align:top">Data e ora</td>
+          <td><strong>{{ errore.data_ora|date:"d/m/Y H:i:s" }}</strong></td>
+        </tr>
+        <tr>
+          <td style="color:#666;padding:4px 0;vertical-align:top">Livello</td>
+          <td>
+            {% if errore.livello == 'critical' %}
+              <span class="badge bg-danger">Critico</span>
+              <span class="text-muted ms-2" style="font-size:.75rem">Errore grave che potrebbe compromettere il funzionamento del sistema</span>
+            {% elif errore.livello == 'error' %}
+              <span class="badge bg-warning text-dark">Errore</span>
+              <span class="text-muted ms-2" style="font-size:.75rem">Un'operazione non è riuscita a completarsi correttamente</span>
+            {% else %}
+              <span class="badge bg-secondary">Warning</span>
+              <span class="text-muted ms-2" style="font-size:.75rem">Situazione anomala che non ha bloccato l'operazione</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td style="color:#666;padding:4px 0;vertical-align:top">Cosa è successo</td>
+          <td><strong style="color:#8b1c1c">{{ errore.messaggio }}</strong></td>
+        </tr>
+        <tr>
+          <td style="color:#666;padding:4px 0">Pagina coinvolta</td>
+          <td>
+            {% if errore.metodo_http %}
+              <span class="badge bg-light text-dark border">{{ errore.metodo_http }}</span>
+            {% endif %}
+            <code style="font-size:.78rem">{{ errore.url|default:"non disponibile" }}</code>
+          </td>
+        </tr>
+        <tr>
+          <td style="color:#666;padding:4px 0">Utente</td>
+          <td>{% if errore.utente %}<strong>{{ errore.utente.username }}</strong> ({{ errore.utente.get_ruolo_display }}){% else %}<span class="text-muted">Utente anonimo / non autenticato</span>{% endif %}</td>
+        </tr>
+        <tr>
+          <td style="color:#666;padding:4px 0">Indirizzo IP</td>
+          <td>{{ errore.ip_address|default:"non disponibile" }}</td>
+        </tr>
+        <tr>
+          <td style="color:#666;padding:4px 0">Stato</td>
+          <td>
+            {% if errore.risolto %}
+              <span class="badge bg-success">Risolto</span>
+            {% else %}
+              <span class="badge bg-danger">Aperto — non ancora risolto</span>
+            {% endif %}
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Traceback tecnico -->
+  {% if errore.traceback %}
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2" style="background:#2c2c2c;color:#f8f8f2;font-weight:700;font-size:.8rem">
+      <i class="bi bi-terminal"></i> Traceback tecnico
+      <span class="text-muted ms-2" style="font-size:.72rem;font-weight:400">(dettaglio tecnico per lo sviluppatore)</span>
+    </div>
+    <div style="background:#1e1e1e;border-radius:0 0 5px 5px;overflow:auto">
+      <pre style="margin:0;padding:14px 16px;font-size:.72rem;line-height:1.6;color:#d4d4d4;white-space:pre-wrap;word-break:break-word">{{ errore.traceback }}</pre>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not errore.risolto %}
+  <form method="post" action="{% url 'segna_errore_risolto' errore.id %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-success btn-sm">
+      <i class="bi bi-check2-circle"></i> Segna come risolto
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

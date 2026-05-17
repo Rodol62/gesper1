@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Sessione scaduta — GESPER{% endblock %}
+{% block content %}
+<div class="container py-5 text-center">
+  <div class="alert alert-warning" style="font-size:1.1rem">
+    <i class="bi bi-exclamation-triangle-fill"></i> <b>Sessione scaduta</b><br>
+    Per motivi di sicurezza la tua sessione è terminata.<br>
+    Effettua nuovamente il login per continuare a lavorare.
+  </div>
+  <a href="{% url 'login' %}" class="btn btn-primary mt-3"><i class="bi bi-box-arrow-in-right"></i> Vai al login</a>
+</div>
+{% endblock %}

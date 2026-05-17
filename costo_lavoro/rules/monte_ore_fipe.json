@@ -1,0 +1,85 @@
+{
+  "monte_ore_fipe": {
+    "standard": {
+      "ore_giornaliere_standard": 8,
+      "ore_settimanali_standard": 40,
+      "ore_mensili_standard": 173.33,
+      "descrizione": "Monte ore standard per lavoratore full-time nel settore Turismo FIPE"
+    },
+
+    "limiti_massimi": {
+      "giornaliero": {
+        "massimo_ore": 13,
+        "pausa_obbligatoria_minuti": 30,
+        "descrizione": "Limite massimo giornaliero comprensivo di straordinari"
+      },
+      "settimanale": {
+        "massimo_ore": 48,
+        "media_4_mesi": 48,
+        "descrizione": "Limite massimo settimanale secondo normativa europea"
+      },
+      "mensile": {
+        "massimo_ore": 250,
+        "descrizione": "Limite massimo mensile comprensivo di straordinari"
+      }
+    },
+
+    "full_time": {
+      "ore_settimanali": 40,
+      "minimo_ore_settimanali": 38,
+      "massimo_ore_settimanali": 40,
+      "straordinario": {
+        "oltre_40_settimanali": true,
+        "oltre_8_giornaliere": true
+      }
+    },
+
+    "part_time": {
+      "minimo_ore_settimanali": 16,
+      "massimo_ore_settimanali": 30,
+      "lavoro_supplementare": {
+        "consentito": true,
+        "limite_percentuale": 25,
+        "descrizione": "Ore oltre l'orario contrattuale ma entro il full-time"
+      },
+      "straordinario": {
+        "consentito": false,
+        "descrizione": "Lo straordinario non è previsto per il part-time"
+      }
+    },
+
+    "regole_straordinario": {
+      "giornaliero": {
+        "oltre_8_ore": true,
+        "oltre_10_ore": "richiede autorizzazione"
+      },
+      "settimanale": {
+        "oltre_40_ore": true
+      },
+      "mensile": {
+        "oltre_250_ore": false
+      }
+    },
+
+    "regole_supplementare": {
+      "applicabile_solo_part_time": true,
+      "limite_percentuale": 25,
+      "conversione_in_straordinario_se_superato": true
+    },
+
+    "validazioni": {
+      "orario_giornaliero": {
+        "min": 3,
+        "max": 13
+      },
+      "orario_settimanale": {
+        "min": 16,
+        "max": 48
+      },
+      "orario_mensile": {
+        "min": 80,
+        "max": 250
+      }
+    }
+  }
+}

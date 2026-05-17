@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Elimina Richiesta — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3 mb-4" style="max-width:700px">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="d-flex align-items-center mb-3">
+    <a href="{% url 'lista_richieste' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.78rem">
+      <i class="bi bi-arrow-left"></i> Indietro
+    </a>
+    <h5 class="mb-0 ms-2" style="color:#c0392b;font-weight:700">
+      <i class="bi bi-trash"></i> Elimina Richiesta
+    </h5>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-4">
+      <div class="alert alert-danger mb-3" style="font-size:.85rem">
+        <i class="bi bi-exclamation-triangle-fill"></i> <strong>Attenzione!</strong> Questa operazione è irreversibile.
+        La richiesta verrà eliminata definitivamente dal sistema.
+      </div>
+
+      <div class="mb-4">
+        <p style="font-size:.85rem;color:#666"><strong>Richiesta #{richiesta.id}:</strong> {{ richiesta.get_tipo_display }}</p>
+        <p style="font-size:.85rem;color:#666"><strong>Da:</strong> {{ richiesta.dipendente.cognome }} {{ richiesta.dipendente.nome }}</p>
+        {% if richiesta.data_inizio %}
+        <p style="font-size:.85rem;color:#666"><strong>Periodo:</strong> {{ richiesta.data_inizio|date:"d/m/Y" }} → {{ richiesta.data_fine|date:"d/m/Y" }}</p>
+        {% endif %}
+        {% if richiesta.testo_richiesta %}
+        <p style="font-size:.85rem;color:#666"><strong>Descrizione:</strong></p>
+        <div class="p-2 bg-light" style="font-size:.83rem;border-radius:.25rem">
+          {{ richiesta.testo_richiesta|linebreaks }}
+        </div>
+        {% endif %}
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+
+        <p style="font-size:.83rem;color:#666">
+          Sei sicuro di voler eliminare questa richiesta? Questa azione non può essere annullata.
+        </p>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-danger" style="font-size:.85rem">
+            <i class="bi bi-trash"></i> Elimina definitivamente
+          </button>
+          <a href="{% url 'lista_richieste' %}" class="btn btn-secondary" style="font-size:.85rem">
+            <i class="bi bi-x-circle"></i> Annulla
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

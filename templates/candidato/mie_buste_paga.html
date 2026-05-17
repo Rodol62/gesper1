@@ -1,0 +1,103 @@
+{% extends 'base_candidato.html' %}
+{% block title %}Buste paga e CUD — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <a href="{% url 'candidato_dashboard' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.75rem">
+      <i class="bi bi-arrow-left"></i> Dashboard
+    </a>
+    <h6 class="mb-0" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-receipt-cutoff"></i> Buste paga e CUD
+    </h6>
+  </div>
+
+  {# ── Buste paga ─────────────────────────────────────────────── #}
+  <div class="card border-0 shadow-sm mb-3" id="buste">
+    <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+      <i class="bi bi-receipt-cutoff"></i> Buste paga
+    </div>
+    <div class="card-body p-0">
+      {% if buste %}
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:.82rem">
+          <thead style="background:#f4f7fa">
+            <tr>
+              <th style="font-size:.72rem;color:#666;font-weight:600;padding:.5rem .75rem">Data</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">File</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for doc in buste %}
+            <tr>
+              <td style="padding:.5rem .75rem;color:#555">{{ doc.data_caricamento|date:"d/m/Y" }}</td>
+              <td>
+                <i class="bi bi-file-earmark-pdf" style="color:#c0392b"></i>
+                {{ doc.file.name|cut:"documenti/" }}
+              </td>
+              <td>
+                <a href="{% url 'download_documento' doc.id %}"
+                   class="btn btn-sm btn-outline-primary" style="font-size:.72rem;padding:.2rem .5rem">
+                  <i class="bi bi-download"></i> Scarica
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-muted p-3" style="font-size:.83rem">
+        <i class="bi bi-info-circle"></i> Nessuna busta paga disponibile al momento.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── CUD ────────────────────────────────────────────────────── #}
+  <div class="card border-0 shadow-sm" id="cud">
+    <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+      <i class="bi bi-file-earmark-ruled-fill"></i> CUD — Certificazione Unica
+    </div>
+    <div class="card-body p-0">
+      {% if cud_docs %}
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:.82rem">
+          <thead style="background:#f4f7fa">
+            <tr>
+              <th style="font-size:.72rem;color:#666;font-weight:600;padding:.5rem .75rem">Data</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">File</th>
+              <th style="font-size:.72rem;color:#666;font-weight:600">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for doc in cud_docs %}
+            <tr>
+              <td style="padding:.5rem .75rem;color:#555">{{ doc.data_caricamento|date:"d/m/Y" }}</td>
+              <td>
+                <i class="bi bi-file-earmark-pdf" style="color:#c0392b"></i>
+                {{ doc.file.name|cut:"documenti/" }}
+              </td>
+              <td>
+                <a href="{% url 'download_documento' doc.id %}"
+                   class="btn btn-sm btn-outline-primary" style="font-size:.72rem;padding:.2rem .5rem">
+                  <i class="bi bi-download"></i> Scarica
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-muted p-3" style="font-size:.83rem">
+        <i class="bi bi-info-circle"></i> Nessun CUD disponibile al momento.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

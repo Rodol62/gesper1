@@ -1,0 +1,14 @@
+{
+    "github.copilot.enable": {
+        "*": true
+    },
+    "github.copilot.chat.enable": true,
+    "editor.inlineSuggest.enabled": true,
+    "editor.suggest.showWords": false,
+
+    "python.formatting.provider": "black",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.linting.mypyEnabled": false,
+    "python.analysis.autoImportCompletions": true
+}

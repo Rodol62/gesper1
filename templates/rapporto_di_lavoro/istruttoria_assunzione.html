@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}Istruttoria Assunzione{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h2 class="mb-0">Istruttoria Assunzione</h2>
+      <small class="text-muted">Percorso guidato: selezione anagrafica, parametri contrattuali, apertura pratica.</small>
+    </div>
+    <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-outline-secondary btn-sm">Torna elenco</a>
+  </div>
+
+  {% if azienda_operativa %}
+  <div class="alert alert-info py-2">
+    Azienda operativa: <strong>{{ azienda_operativa.nome }}</strong>
+  </div>
+  {% endif %}
+
+  <div class="alert alert-light border small mb-3">
+    <div class="fw-semibold mb-1">Altri strumenti (non sostituiscono questa maschera)</div>
+    <ul class="mb-0 ps-3">
+      <li>
+        <strong>Dipendenti senza contratto digitale / import legacy:</strong>
+        <a href="{% url 'lista_legacy_allineamento' %}">Elenco legacy da allineare</a>
+        oppure <a href="{% url 'lista_dipendenti' %}">Anagrafica dipendenti</a>.
+      </li>
+      <li>
+        <strong>Proposte e contratti gia avviati:</strong>
+        <a href="{% url 'lista_proposte_assunzione' %}">Elenco proposte</a> (bozze, firme, conversione).
+      </li>
+      <li>
+        <strong>Rinnovi (tempo determinato), proroghe o nuova decorrenza su contratto gia sottoscritto:</strong>
+        questa pagina avvia solo <em>nuove</em> pratiche di assunzione / primo inquadramento digitale.
+        La funzione <em>Modifica contratto</em> si applica alle <strong>bozze</strong> (rapporto in stato &quot;proposta&quot;).
+        Per il contratto definitivo usa <strong>Scheda contratto / addendum</strong> dall&apos;elenco proposte (dopo la conversione)
+        o l&apos;URL <code>/rapporti/contratti/&lt;id&gt;/</code>: registri addendum con decorrenza, allegato e, se serve,
+        sincronizzi i campi economici sul rapporto senza cambiare il numero contratto.
+      </li>
+    </ul>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+      <div class="d-flex justify-content-between small text-muted mb-1">
+        <span>Step 1: Anagrafica</span>
+        <span>Step 2: Parametri</span>
+        <span>Step 3: Inquadramento</span>
+      </div>
+      <div class="progress" role="progressbar" aria-label="Avanzamento istruttoria">
+        <div class="progress-bar bg-primary" style="width: 100%"></div>
+      </div>
+      <small class="text-muted d-block mt-1">Compila in sequenza i blocchi sotto e avvia la pratica assistita.</small>
+    </div>
+  </div>
+
+  <form method="post" class="card shadow-sm border-0">
+    {% csrf_token %}
+    <div class="card-body">
+      <div class="alert alert-light border-start border-primary mb-3">
+        <strong>Flusso unico</strong>: seleziona candidato o dipendente attivo, imposta i parametri retributivi
+        correnti e il sistema aprira la compilazione proposta/contratto con i campi gia precompilati.
+      </div>
+
+      {% if checklist %}
+      <div class="card border-warning-subtle bg-warning-subtle mb-3">
+        <div class="card-body py-2">
+          <div class="fw-semibold mb-1">Checklist pre-compilazione (normativa/operativa)</div>
+          <ul class="mb-0 ps-3" style="font-size:.92rem">
+            {% for item in checklist %}
+            <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="border rounded p-3 mb-3">
+        <h6 class="mb-3">1) Selezione anagrafica</h6>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="{{ form.profilo_candidato.id_for_label }}">{{ form.profilo_candidato.label }}</label>
+            {{ form.profilo_candidato }}
+            <small class="text-muted d-block">{{ form.profilo_candidato.help_text }}</small>
+            {% if form.profilo_candidato.errors %}<div class="text-danger small">{{ form.profilo_candidato.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="{{ form.dipendente.id_for_label }}">{{ form.dipendente.label }}</label>
+            {{ form.dipendente }}
+            <small class="text-muted d-block">{{ form.dipendente.help_text }}</small>
+            {% if form.dipendente.errors %}<div class="text-danger small">{{ form.dipendente.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="border rounded p-3 mb-3">
+        <h6 class="mb-3">2) Parametri pratica</h6>
+        <div class="row">
+          <div class="col-md-4 mb-3">
+            <label class="form-label" for="{{ form.percorso.id_for_label }}">{{ form.percorso.label }}</label>
+            {{ form.percorso }}
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label" for="{{ form.data_inizio_rapporto.id_for_label }}">{{ form.data_inizio_rapporto.label }}</label>
+            {{ form.data_inizio_rapporto }}
+            {% if form.data_inizio_rapporto.errors %}<div class="text-danger small">{{ form.data_inizio_rapporto.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label" for="{{ form.tipo_contratto.id_for_label }}">{{ form.tipo_contratto.label }}</label>
+            {{ form.tipo_contratto }}
+          </div>
+        </div>
+      </div>
+
+      <div class="border rounded p-3 mb-2">
+        <h6 class="mb-3">3) Inquadramento CCNL</h6>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="{{ form.ccnl_livello.id_for_label }}">{{ form.ccnl_livello.label }}</label>
+            {{ form.ccnl_livello }}
+            <small class="text-muted d-block">{{ form.ccnl_livello.help_text }}</small>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="{{ form.mansione.id_for_label }}">{{ form.mansione.label }}</label>
+            {{ form.mansione }}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer bg-white d-flex flex-wrap gap-2 justify-content-between align-items-center">
+      <small class="text-muted">Apertura pratica con precompilazione progressiva e controlli di coerenza.</small>
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Apri compilazione assistita</button>
+        <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-secondary">Annulla</a>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

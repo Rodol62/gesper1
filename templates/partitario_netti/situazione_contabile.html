@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+{% load l10n %}
+{% block title %}Partitario netti dipendenti — {{ azienda.nome }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gesper-ec { font-size: .82rem; }
+  .gesper-ec .table { margin-bottom: 0; }
+  .gesper-ec .table thead th { font-weight: 600; color: #1b3a5f; border-color: #c5d4e0; }
+  .gesper-ec .table td, .gesper-ec .table th { vertical-align: middle; border-color: #dee6ed; }
+  .gesper-ec .ec-mese-h { background: #f4f7fb; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: #3d5a73; }
+  .gesper-ec .ec-busta { font-size: .76rem; color: #495057; }
+  .gesper-ec .accordion-button:not(.collapsed) { background: #e8f0f8; color: #1b3a5f; }
+  .gesper-ec .tot-bar { font-size: .8rem; }
+  .gesper-ec .ec-anno-riepilogo { border-left: 3px solid #1b3a5f; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3 gesper-ec">
+  <nav aria-label="Percorso" class="mb-2">
+    <ol class="breadcrumb mb-0" style="font-size:.85rem">
+      <li class="breadcrumb-item"><a href="{% url 'centro_moduli' %}">Moduli</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Partitario netti dipendenti</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <h1 class="h5 mb-1" style="color:#1b3a5f;font-weight:700"><i class="bi bi-journal-richtext me-1"></i> Situazione contabile — netti dipendenti</h1>
+      <p class="text-muted small mb-0">{{ azienda.nome }} · Nell'estratto: <strong>DARE</strong> = pagamenti al dipendente, <strong>AVERE</strong> = importi da riconoscere (netti busta). I netti busta si aggiornano dalla sincronizzazione con le estrazioni cedolino v4.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'partitario_netti_pagamento_nuovo' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> Registra pagamento</a>
+    </div>
+  </div>
+
+  <form method="get" class="card border shadow-sm mb-3">
+    <div class="card-body py-2 px-3 row g-2 align-items-end flex-wrap">
+      <div class="col-auto">
+        <label class="form-label small text-muted mb-0">Anno (riferimento)</label>
+        <input type="number" name="anno" class="form-control form-control-sm" min="2000" max="2100" step="1" inputmode="numeric" pattern="[0-9]{4}" value="{% localize off %}{{ anno }}{% endlocalize %}" title="Usato come default per «Da/A» se non modifichi il periodo">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small text-muted mb-0">Competenza da</label>
+        <input type="month" name="periodo_da" class="form-control form-control-sm" value="{{ periodo_da_html }}">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small text-muted mb-0">Competenza a</label>
+        <input type="month" name="periodo_a" class="form-control form-control-sm" value="{{ periodo_a_html }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small text-muted mb-0">Dipendente</label>
+        <select name="dipendente" class="form-select form-select-sm">
+          <option value="">— Tutti —</option>
+          {% for d in dipendenti_scelta %}
+          <option value="{{ d.id }}" {% if dipendente_filter == d.id|stringformat:"d" %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-funnel"></i> Filtra</button>
+      </div>
+    </div>
+  </form>
+
+  <form method="post" action="{% url 'partitario_netti_sincronizza' %}" class="card border mb-3" onsubmit="return confirm('Sincronizzare i netti da tutti i cedolini motore v4 dell\'azienda? I movimenti di competenza busta (AVERE in estratto) verranno aggiornati.');">
+    {% csrf_token %}
+    <input type="hidden" name="next_query" value="{{ next_query_sync }}">
+    <div class="card-body py-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <span class="small text-muted mb-0">Importa / aggiorna i <strong>netti da busta</strong> (<code>CedolinoMotoreV4</code>), contabilizzati in estratto come <strong>AVERE</strong> (importi da riconoscere al dipendente).</span>
+      <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Sincronizza da buste</button>
+    </div>
+  </form>
+
+  <h2 class="h6 mt-4 mb-1" style="color:#1b3a5f"><i class="bi bi-receipt me-1"></i> Estratto conto</h2>
+  <p class="small text-muted mb-1">Competenza selezionata: <strong>{{ periodo_etichetta }}</strong></p>
+  <p class="small text-muted mb-2">Per dipendente e <strong>anno</strong>: riepilogo con riporto da anno precedente e saldo progressivo fine anno; sotto il dettaglio mensile (<strong>DARE</strong> = pagamenti, <strong>AVERE</strong> = netti da riconoscere, <strong>saldo</strong> = DARE − AVERE). Stampa A4 per singolo dipendente.</p>
+
+  {% if pannelli_estratto %}
+  <div class="accordion shadow-sm mb-4 border rounded-2 overflow-hidden" id="accordionEstratto">
+    {% for p in pannelli_estratto %}
+    <div class="accordion-item border-0 border-bottom">
+      <h2 class="accordion-header" id="hdr-est-{{ p.dipendente.pk }}">
+        <button class="accordion-button collapsed py-2 tot-bar" type="button" data-bs-toggle="collapse" data-bs-target="#col-est-{{ p.dipendente.pk }}" aria-expanded="false" aria-controls="col-est-{{ p.dipendente.pk }}">
+          <span class="fw-semibold me-2">{{ p.dipendente.cognome }} {{ p.dipendente.nome }}</span>
+          <span class="text-muted small me-2">|</span>
+          <span class="small">DARE <span class="font-monospace">{% localize off %}{{ p.tot_dare|floatformat:2 }}{% endlocalize %} €</span></span>
+          <span class="small ms-2">AVERE <span class="font-monospace">{% localize off %}{{ p.tot_avere|floatformat:2 }}{% endlocalize %} €</span></span>
+          <span class="small ms-2 fw-semibold {% if p.saldo < 0 %}text-danger{% elif p.saldo > 0 %}text-success{% endif %}">Saldo <span class="font-monospace">{% localize off %}{{ p.saldo|floatformat:2 }}{% endlocalize %} €</span></span>
+        </button>
+      </h2>
+      <div id="col-est-{{ p.dipendente.pk }}" class="accordion-collapse collapse" data-bs-parent="#accordionEstratto" aria-labelledby="hdr-est-{{ p.dipendente.pk }}">
+        <div class="accordion-body p-0 bg-white">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 pt-2 pb-2 border-bottom bg-light">
+            <div class="small mb-0">
+              <strong>Riporto</strong> all'inizio del periodo <span class="text-muted">({{ periodo_etichetta }})</span>:
+              <span class="font-monospace {% if p.riporto_inizio_periodo < 0 %}text-danger{% elif p.riporto_inizio_periodo > 0 %}text-success{% endif %}">{% localize off %}{{ p.riporto_inizio_periodo|floatformat:2 }}{% endlocalize %} €</span>
+              <span class="text-muted">(DARE pagamenti − AVERE buste, sulle competenze precedenti al periodo)</span>
+            </div>
+            <a href="{% url 'partitario_netti_stampa' %}?dipendente={{ p.dipendente.pk }}&anno={% localize off %}{{ anno }}{% endlocalize %}&periodo_da={{ periodo_da_html }}&periodo_a={{ periodo_a_html }}" class="btn btn-sm btn-outline-secondary text-nowrap" target="_blank" rel="noopener" title="Anteprima e stampa in formato A4"><i class="bi bi-printer"></i> Stampa / PDF</a>
+          </div>
+          {% for a in p.anni %}
+          <div class="px-3 pt-3 pb-2 border-top bg-light ec-anno-riepilogo">
+            <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-2">
+              <span class="fw-semibold" style="color:#1b3a5f">Anno {% localize off %}{{ a.anno|stringformat:"d" }}{% endlocalize %}</span>
+              <span class="small text-muted">Nel periodo filtrato — DARE {% localize off %}{{ a.tot_dare|floatformat:2 }}{% endlocalize %} € · AVERE {% localize off %}{{ a.tot_avere|floatformat:2 }}{% endlocalize %} € · Saldo <span class="font-monospace fw-semibold {% if a.saldo < 0 %}text-danger{% elif a.saldo > 0 %}text-success{% endif %}">{% localize off %}{{ a.saldo|floatformat:2 }}{% endlocalize %} €</span></span>
+            </div>
+            <div class="row g-2 small">
+              <div class="col-md-6">
+                <span class="text-muted">Riporto da anno precedente (inizio {% localize off %}{{ a.anno|stringformat:"d" }}{% endlocalize %}):</span>
+                <span class="font-monospace fw-semibold {% if a.riporto_inizio_anno < 0 %}text-danger{% elif a.riporto_inizio_anno > 0 %}text-success{% endif %}">{% localize off %}{{ a.riporto_inizio_anno|floatformat:2 }}{% endlocalize %} €</span>
+              </div>
+              <div class="col-md-6 text-md-end">
+                <span class="text-muted">Saldo progressivo fine anno {% localize off %}{{ a.anno|stringformat:"d" }}{% endlocalize %}:</span>
+                <span class="font-monospace fw-semibold {% if a.saldo_progressivo_fine_anno < 0 %}text-danger{% elif a.saldo_progressivo_fine_anno > 0 %}text-success{% endif %}">{% localize off %}{{ a.saldo_progressivo_fine_anno|floatformat:2 }}{% endlocalize %} €</span>
+              </div>
+            </div>
+          </div>
+          <div class="table-responsive px-2 pb-2">
+            <table class="table table-sm table-bordered mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Periodo</th>
+                  <th class="text-end">DARE (€)<br><span class="fw-normal text-muted" style="font-size:.68rem">pagamenti</span></th>
+                  <th class="text-end">AVERE (€)<br><span class="fw-normal text-muted" style="font-size:.68rem">da riconoscere</span></th>
+                  <th class="text-end">Saldo mese<br><span class="fw-normal text-muted" style="font-size:.68rem">DARE − AVERE</span></th>
+                  <th class="text-end">Saldo prog.<br><span class="fw-normal text-muted" style="font-size:.68rem">fine mese</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for mx in a.mesi %}
+                <tr class="align-top">
+                  <td class="fw-medium text-nowrap py-2">{{ mx.mese_nome }} {% localize off %}{{ a.anno|stringformat:"d" }}{% endlocalize %}</td>
+                  <td class="text-end py-2 small" style="max-width:14rem">
+                    {% for pg in mx.pagamenti %}
+                    <div class="mb-2 text-break">
+                      {% if pg.documento_ricevuta_id %}
+                      <a href="{% url 'download_documento' pg.documento_ricevuta_id %}" class="font-monospace text-nowrap">{% localize off %}{{ pg.importo|floatformat:2 }}{% endlocalize %} € <i class="bi bi-file-earmark-pdf text-primary" title="Ricevuta PDF"></i></a>
+                      {% else %}
+                      <span class="font-monospace">{% localize off %}{{ pg.importo|floatformat:2 }}{% endlocalize %} €</span>
+                      {% endif %}
+                      <div class="text-muted" style="font-size:.72rem">{{ pg.data_contabile|date:"d/m/Y" }} · {{ pg.get_metodo_pagamento_display }}{% if pg.causale %} · {{ pg.causale|truncatechars:28 }}{% endif %}</div>
+                    </div>
+                    {% empty %}
+                    <span class="text-muted">—</span>
+                    {% endfor %}
+                  </td>
+                  <td class="text-end py-2 small" style="max-width:14rem">
+                    {% for b in mx.buste %}
+                    <div class="mb-2 text-break">
+                      {% if b.documento_busta_id %}
+                      <a href="{% url 'download_documento' b.documento_busta_id %}" class="font-monospace text-nowrap">{% localize off %}{{ b.importo|floatformat:2 }}{% endlocalize %} € <i class="bi bi-file-earmark-pdf text-primary" title="Busta PDF"></i></a>
+                      {% elif b.cedolino_motore_v4 and b.cedolino_motore_v4.documento_id %}
+                      <a href="{% url 'download_documento' b.cedolino_motore_v4.documento_id %}" class="font-monospace text-nowrap">{% localize off %}{{ b.importo|floatformat:2 }}{% endlocalize %} € <i class="bi bi-file-earmark-pdf text-primary" title="Busta PDF"></i></a>
+                      {% else %}
+                      <span class="font-monospace">{% localize off %}{{ b.importo|floatformat:2 }}{% endlocalize %} €</span>
+                      {% endif %}
+                      <div class="text-muted" style="font-size:.72rem"><span class="badge bg-secondary">{{ b.natura_busta }}</span></div>
+                    </div>
+                    {% empty %}
+                    <span class="text-muted">—</span>
+                    {% endfor %}
+                  </td>
+                  <td class="text-end font-monospace py-2 fw-semibold {% if mx.saldo < 0 %}text-danger{% elif mx.saldo > 0 %}text-success{% endif %}">{% localize off %}{{ mx.saldo|floatformat:2 }}{% endlocalize %}</td>
+                  <td class="text-end font-monospace py-2 fw-semibold {% if mx.saldo_progressivo_fine is not None %}{% if mx.saldo_progressivo_fine < 0 %}text-danger{% elif mx.saldo_progressivo_fine > 0 %}text-success{% endif %}{% endif %}">{% if mx.saldo_progressivo_fine is not None %}{% localize off %}{{ mx.saldo_progressivo_fine|floatformat:2 }}{% endlocalize %}{% else %}—{% endif %}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-light border shadow-sm mb-4 small">Nessun movimento per il periodo selezionato. Usa «Sincronizza da buste» dopo aver memorizzato le estrazioni v4.</div>
+  {% endif %}
+
+  <h2 class="h6 mt-4 mb-2" style="color:#1b3a5f"><i class="bi bi-wallet2 me-1"></i> Pagamenti (DARE in estratto) — azioni</h2>
+  <div class="table-responsive card border shadow-sm mb-4">
+    <table class="table table-sm mb-0 align-middle" style="font-size:.78rem">
+      <thead class="table-light">
+        <tr>
+          <th>Dipendente</th>
+          <th>Competenza</th>
+          <th>Data pag.</th>
+          <th class="text-end">Importo</th>
+          <th>Mod.</th>
+          <th>Causale</th>
+          <th class="text-center">Portale dip.</th>
+          <th class="text-end">Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in movimenti_avere %}
+        <tr>
+          <td>{{ m.dipendente.cognome }} {{ m.dipendente.nome }}</td>
+          <td class="text-nowrap small">{% localize off %}{{ m.mese|stringformat:"02d" }}/{{ m.anno|stringformat:"d" }}{% endlocalize %}</td>
+          <td>{{ m.data_contabile|date:"d/m/Y" }}</td>
+          <td class="text-end font-monospace">{{ m.importo|floatformat:2 }}</td>
+          <td>{{ m.get_metodo_pagamento_display }}</td>
+          <td class="small text-muted">{{ m.causale|default:"—"|truncatechars:40 }}</td>
+          <td class="text-center small">
+            {% if m.metodo_pagamento == 'contanti' %}
+              {% if m.documento_ricevuta_firma_id %}
+              <span class="badge text-bg-success border" title="Visibile in I miei documenti del dipendente (scheda Altri)">In area dip.</span>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-end text-nowrap">
+            <a href="{% url 'partitario_netti_pagamento_modifica' m.id %}" class="btn btn-sm btn-outline-primary py-0 px-1">Modifica</a>
+            {% if m.metodo_pagamento == 'contanti' %}
+            <a href="{% url 'partitario_netti_ricevuta_contanti_pdf' m.id %}" class="btn btn-sm btn-outline-dark py-0 px-1" title="Anteprima / stampa ricevuta">PDF</a>
+            <form method="post" action="{% url 'partitario_netti_ricevuta_contanti_pubblica' m.id %}" class="d-inline" onsubmit="return confirm('Pubblicare la ricevuta nell\'area documenti del dipendente (I miei documenti)?');">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-success py-0 px-1" title="Rende il PDF disponibile al dipendente per la firma">Pubblica</button>
+            </form>
+            <form method="post" action="{% url 'partitario_netti_ricevuta_contanti_revoca' m.id %}" class="d-inline" onsubmit="return confirm('Rimuovere la ricevuta dall\'area dipendente?');">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-warning py-0 px-1" {% if not m.documento_ricevuta_firma_id %}disabled{% endif %} title="Revoca disponibilità in portale">Revoca</button>
+            </form>
+            {% endif %}
+            {% if m.documento_ricevuta_id %}
+            <a href="{% url 'download_documento' m.documento_ricevuta_id %}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Scarica allegato caricato">Allegato</a>
+            {% endif %}
+            <a href="{% url 'partitario_netti_pagamento_elimina' m.id %}" class="btn btn-sm btn-outline-danger py-0 px-1">Elimina</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-muted small p-3">Nessun pagamento registrato.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

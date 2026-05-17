@@ -1,0 +1,67 @@
+{
+  "tfr_fipe": {
+    "aliquota_annua": 0.0741,
+    "quota_annua_calcolo": {
+      "formula": "retribuzione_annua / 13.5",
+      "descrizione": "Quota TFR maturata annualmente secondo normativa italiana"
+    },
+
+    "rivalutazione": {
+      "tasso_fisso": 0.015,
+      "tasso_variabile_indice_istat": "75% inflazione",
+      "formula": "1.5% + 75% inflazione",
+      "descrizione": "Rivalutazione annua del TFR accantonato"
+    },
+
+    "fondo_tesoreria_inps": {
+      "obbligatorio": true,
+      "soglia_dipendenti": 50,
+      "versamento_mensile": true,
+      "descrizione": "Per aziende con più di 50 dipendenti il TFR maturando va versato al Fondo Tesoreria INPS"
+    },
+
+    "anticipazioni": {
+      "consentite": true,
+      "percentuale_massima": 0.70,
+      "motivi_ammessi": [
+        "spese sanitarie straordinarie",
+        "acquisto prima casa",
+        "ristrutturazione prima casa",
+        "congedo parentale"
+      ],
+      "anzianita_minima_anni": 8,
+      "frequenza": "una sola volta",
+      "descrizione": "Regole per l'anticipazione del TFR secondo normativa italiana"
+    },
+
+    "cessazione": {
+      "tassazione_separata": true,
+      "aliquota_media": "calcolata su redditi degli ultimi 5 anni",
+      "descrizione": "Il TFR alla cessazione è soggetto a tassazione separata"
+    },
+
+    "computo": {
+      "incluso_in": [
+        "retribuzione fissa",
+        "indennità continuative",
+        "ratei ferie",
+        "ratei tredicesima"
+      ],
+      "escluso_da": [
+        "straordinari",
+        "indennità occasionali",
+        "rimborsi spese"
+      ]
+    },
+
+    "regole_speciali": {
+      "apprendisti": {
+        "computo_tfr": true,
+        "descrizione": "Gli apprendisti maturano TFR come gli altri dipendenti"
+      },
+      "part_time": {
+        "computo_proporzionale": true
+      }
+    }
+  }
+}

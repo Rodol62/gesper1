@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+{% block title %}Agenda scadenze — Gesper{% endblock %}
+
+{% block extra_head %}
+<style>
+.agenda-head {
+  background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent) 100%);
+  color: #fff;
+  border-radius: 6px;
+  padding: .75rem 1rem;
+  margin-bottom: .75rem;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+}
+.agenda-head h1 { font-size: .95rem; font-weight: 800; margin: 0; }
+.cal-wrap {
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+.cal-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .45rem .65rem;
+  background: #f4f7fa;
+  border-bottom: 1px solid var(--c-border);
+  font-size: var(--sz-sm);
+  font-weight: 700;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  font-size: .65rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--c-muted);
+  background: #edf1f5;
+  border-bottom: 1px solid var(--c-border);
+}
+.cal-grid span { padding: .25rem; text-align: center; }
+.cal-cells {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+}
+.cal-cell {
+  min-height: 4.2rem;
+  border-right: 1px solid #eef2f6;
+  border-bottom: 1px solid #eef2f6;
+  padding: .2rem .25rem;
+  font-size: .72rem;
+  vertical-align: top;
+}
+.cal-cell:nth-child(7n) { border-right: none; }
+.cal-cell.out { background: #fafbfc; color: #c5ced6; }
+.cal-cell.today { background: #fff9e6; }
+.cal-cell .dnum { font-weight: 700; font-size: .75rem; color: var(--c-primary); }
+.cal-dot {
+  display: block;
+  margin-top: .12rem;
+  padding: .08rem .2rem;
+  border-radius: 3px;
+  font-size: .62rem;
+  line-height: 1.25;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid transparent;
+}
+.cal-dot:hover { border-color: var(--c-accent); background: #fff; }
+.p1 { background: #fde8e8; color: #9b1c1c; }
+.p2 { background: #fff3cd; color: #664d03; }
+.p3 { background: #cff4fc; color: #055160; }
+.p4 { background: #e9ecef; color: #41464b; }
+.p5 { background: #f8f9fa; color: #6c757d; }
+.agenda-list-scroll { max-height: min(55vh, 520px); overflow: auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="agenda-head">
+  <h1><i class="bi bi-calendar-week me-1"></i> Agenda scadenze</h1>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'centro_moduli' %}" class="btn btn-sm btn-outline-light" style="font-size:var(--sz-xs)">
+      <i class="bi bi-arrow-left"></i> Portale
+    </a>
+  </div>
+</div>
+
+{% if azienda_operativa %}
+<p class="small text-muted mb-2">Azienda operativa: <strong>{{ azienda_operativa.nome }}</strong> — contratti e presenza F24 sono filtrati su questa azienda.</p>
+{% else %}
+<div class="alert alert-warning py-2 small mb-2">
+  <i class="bi bi-building me-1"></i> Nessuna azienda operativa: i <strong>contratti a termine</strong> non compaiono; restano i promemoria F24 generici.
+  <a href="{% url 'lista_aziende' %}">Seleziona un’azienda</a>.
+</div>
+{% endif %}
+
+<p class="small text-muted mb-3">
+  <strong>F24:</strong> date mostrate come promemoria orientativo (16 del mese successivo al periodo di competenza, caso tipico ritenute lavoro).
+  Verificare sempre scadenze effettive e normativa. <strong>Contratti:</strong> TD in scadenza o scaduti ancora aperti, come in
+  <a href="{% url 'lista_contratti_scadenza' %}">Contratti — scadenze</a>.
+</p>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="cal-wrap">
+      <div class="cal-nav">
+        <a class="btn btn-sm btn-outline-secondary" href="{{ prev_month_url }}"><i class="bi bi-chevron-left"></i></a>
+        <span>{{ month_title }}</span>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ next_month_url }}"><i class="bi bi-chevron-right"></i></a>
+      </div>
+      <div class="cal-grid">
+        <span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span>
+      </div>
+      <div class="cal-cells">
+        {% for week in cal_rows %}
+          {% for cell in week %}
+            {% if cell.day == 0 %}
+              <div class="cal-cell out"></div>
+            {% else %}
+              <div class="cal-cell{% if cal_year == oggi.year and cal_month == oggi.month and cell.day == oggi.day %} today{% endif %}">
+                <div class="dnum">{{ cell.day }}</div>
+                {% for it in cell.items %}
+                  <a class="cal-dot p{{ it.priorita }}" href="{{ it.url }}" title="{{ it.descrizione|truncatechars:120 }}">{{ it.titolo|truncatechars:22 }}</a>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card border shadow-sm">
+      <div class="card-header py-2 small fw-semibold">
+        <i class="bi bi-list-task me-1"></i> Eventi nel mese ({{ month_items|length }})
+      </div>
+      <div class="card-body p-0 agenda-list-scroll">
+        {% if month_items %}
+        <ul class="list-group list-group-flush small">
+          {% for it in month_items %}
+          <li class="list-group-item d-flex flex-column gap-1 py-2">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <span class="badge bg-{% if it.priorita == 1 %}danger{% elif it.priorita == 2 %}warning text-dark{% elif it.priorita == 3 %}info text-dark{% else %}secondary{% endif %}">{{ it.priorita_label }}</span>
+              <span class="text-muted text-nowrap">{{ it.data|date:"d/m/Y" }}</span>
+            </div>
+            <strong>{{ it.titolo }}</strong>
+            <span class="text-muted" style="font-size:.72rem">{{ it.descrizione }}</span>
+            <a href="{{ it.url }}" class="align-self-start btn btn-sm btn-outline-primary py-0">Apri</a>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted small p-3 mb-0">Nessuna scadenza in questo mese (nel range calcolato).</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border shadow-sm mt-3">
+  <div class="card-header py-2 small fw-semibold">
+    <i class="bi bi-sort-down me-1"></i> Tutte le scadenze in elenco (ordinate per priorità e data)
+  </div>
+  <div class="card-body p-0 gesper-list-scroll">
+    <table class="table table-sm table-hover mb-0 small">
+      <thead class="table-light">
+        <tr>
+          <th>Priorità</th>
+          <th>Data</th>
+          <th>Titolo</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in agenda_full %}
+        <tr>
+          <td><span class="badge bg-{% if it.priorita == 1 %}danger{% elif it.priorita == 2 %}warning text-dark{% elif it.priorita == 3 %}info text-dark{% else %}secondary{% endif %}">{{ it.priorita_label }}</span></td>
+          <td class="text-nowrap">{{ it.data|date:"d/m/Y" }}</td>
+          <td>
+            <div class="fw-semibold">{{ it.titolo }}</div>
+            <div class="text-muted" style="font-size:.68rem">{{ it.descrizione|truncatechars:140 }}</div>
+          </td>
+          <td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-primary py-0" href="{{ it.url }}">Apri</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,475 @@
+{% extends 'base_candidato.html' %}
+{% load format_it_tags l10n %}
+{% block title %}I miei documenti — GESPER{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+  .doc-tab-pane .table { font-size: .88rem; }
+  .doc-year-sum { cursor: pointer; user-select: none; }
+  .doc-year-sum td { background: #e8eef5 !important; color: #1b3a5f; font-weight: 600; }
+  .doc-year-sum:hover td { background: #dde6f0 !important; }
+  .doc-actions .btn { font-size: .78rem; padding: .15rem .45rem; }
+  .doc-sort-link { color: #6c757d; text-decoration: none; padding: 0 .12rem; vertical-align: middle; }
+  .doc-sort-link:hover { color: #1b3a5f; }
+  .doc-sort-active { color: #1b3a5f !important; font-weight: 700; }
+  /* Collapse su secondo <tbody>: Bootstrap di default non gestisce bene display sulle righe */
+  tbody.collapse:not(.show) { display: none !important; }
+  tbody.collapse.show,
+  tbody.collapsing { display: table-row-group !important; }
+  tr.doc-year-sum[aria-expanded="false"] .doc-year-chev { transform: rotate(-90deg); }
+  tr.doc-year-sum .doc-year-chev { transition: transform .2s ease; display: inline-block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{% if msg.tags == 'error' %}danger{% else %}{{ msg.tags|default:'info' }}{% endif %} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <a href="{% url 'candidato_dashboard' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.86rem">
+      <i class="bi bi-arrow-left"></i> Dashboard
+    </a>
+    <h6 class="mb-0 me-auto" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-folder2-open"></i> I miei documenti
+    </h6>
+    <a href="{% url 'upload_documento_personale' %}"
+       class="btn btn-sm" style="background:#1b3a5f;color:#fff;font-size:.88rem">
+      <i class="bi bi-upload"></i> Carica documento
+    </a>
+  </div>
+
+  <div class="mb-2 p-2 rounded" style="background:#fffbe6;border:1px solid #f5dfa0;font-size:.83rem;color:#7a5c00">
+    <i class="bi bi-lock-fill"></i>
+    <strong>Documenti acquisiti:</strong> i file caricati da te e già visualizzati dall’azienda non possono essere eliminati.
+  </div>
+
+  <p class="text-muted small mb-2 mb-md-3">
+    Contenuti raggruppati per <strong>anno di competenza</strong> (riepilogo collassabile; il primo anno della pagina è aperto).
+    Le buste sono ordinate per <strong>periodo retributivo</strong> (mese/anno di paga, da nome file o import), dal più recente al più vecchio, salvo inversione con le icone sotto le colonne.
+    Se ci sono molti anni, usa la <strong>paginazione</strong> in fondo alla scheda.
+  </p>
+
+  {% if not has_any_documento %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body text-muted p-4 text-center" style="font-size:.93rem">
+      <i class="bi bi-folder2" style="font-size:2rem;opacity:.4"></i>
+      <div class="mt-2">Nessun documento disponibile al momento.</div>
+      <a href="{% url 'upload_documento_personale' %}" class="btn btn-sm mt-3"
+         style="background:#1b3a5f;color:#fff;font-size:.88rem">
+        <i class="bi bi-upload"></i> Carica il primo documento
+      </a>
+    </div>
+  </div>
+  {% else %}
+
+  {% with mord=month_order_desc|yesno:"recenti,vecchi" %}
+
+  <ul class="nav nav-tabs border-bottom-0 gap-1 flex-wrap" id="docTabs" role="tablist" style="font-size:.86rem">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link fw-semibold {% if active_tab == 'buste' %}active{% endif %}" id="tab-buste" data-bs-toggle="tab" data-bs-target="#pane-buste" type="button" role="tab" aria-controls="pane-buste" aria-selected="{% if active_tab == 'buste' %}true{% else %}false{% endif %}">
+        <i class="bi bi-receipt-cutoff"></i> Buste paga
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link fw-semibold {% if active_tab == 'cud' %}active{% endif %}" id="tab-cud" data-bs-toggle="tab" data-bs-target="#pane-cud" type="button" role="tab" aria-selected="{% if active_tab == 'cud' %}true{% else %}false{% endif %}">
+        <i class="bi bi-file-earmark-ruled-fill"></i> CUD / Certificati
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link fw-semibold {% if active_tab == 'contratti' %}active{% endif %}" id="tab-contratti" data-bs-toggle="tab" data-bs-target="#pane-contratti" type="button" role="tab" aria-selected="{% if active_tab == 'contratti' %}true{% else %}false{% endif %}">
+        <i class="bi bi-file-earmark-text-fill"></i> Contratti
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link fw-semibold {% if active_tab == 'altri' %}active{% endif %}" id="tab-altri" data-bs-toggle="tab" data-bs-target="#pane-altri" type="button" role="tab" aria-selected="{% if active_tab == 'altri' %}true{% else %}false{% endif %}">
+        <i class="bi bi-files"></i> Altri documenti
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content border border-top-0 rounded-bottom shadow-sm bg-white p-2 p-md-3 doc-tab-pane" id="docTabsContent">
+
+    {# ── Buste paga ───────────────────────────────────────────── #}
+    <div class="tab-pane fade {% if active_tab == 'buste' %}show active{% endif %}" id="pane-buste" role="tabpanel" aria-labelledby="tab-buste">
+      <p class="text-muted small mb-2 mb-md-3">Lordo e netto provengono dai movimenti collegati all’import paghe. Le buste PDF senza collegamento e senza importi non sono elencate.</p>
+      {% if buste_by_year %}
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead class="table-light" style="font-size:.78rem">
+            <tr>
+              <th class="text-nowrap">
+                Periodo
+                <span class="ms-1 d-inline-flex align-items-center gap-0">
+                  <a href="?mese_ord=recenti&amp;tab=buste&amp;page=1" class="doc-sort-link {% if month_order_desc %}doc-sort-active{% endif %}" title="Dal mese più recente al più vecchio (es. 12 → 1)"><i class="bi bi-sort-numeric-down"></i></a>
+                  <a href="?mese_ord=vecchi&amp;tab=buste&amp;page=1" class="doc-sort-link {% if not month_order_desc %}doc-sort-active{% endif %}" title="Dal mese più vecchio al più recente (es. 1 → 12)"><i class="bi bi-sort-numeric-up"></i></a>
+                </span>
+              </th>
+              <th>Natura</th>
+              <th class="text-end">Lordo</th>
+              <th class="text-end">Netto</th>
+              <th>Busta paga</th>
+              <th>Stato</th>
+              <th class="text-end">Azioni</th>
+            </tr>
+          </thead>
+          {% for y in buste_by_year %}
+          <tbody>
+            <tr class="doc-year-sum" role="button" tabindex="0"
+                data-bs-toggle="collapse" data-bs-target="#doc-buste-y{{ y.collapse_suffix }}"
+                aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" aria-controls="doc-buste-y{{ y.collapse_suffix }}">
+              <td colspan="7" class="py-2">
+                <i class="bi bi-calendar3 me-1"></i>
+                {% localize off %}
+                <strong>Anno {{ y.anno }}</strong>
+                {% endlocalize %}
+                — {{ y.n_docs }} busta/e
+                {% if y.has_amounts %}
+                  <span class="ms-2 text-success">Tot. lordo € {{ y.sum_lordo|euro_it }}</span>
+                  <span class="ms-2 text-primary">Tot. netto € {{ y.sum_netto|euro_it }}</span>
+                {% endif %}
+                <i class="bi bi-chevron-down float-end mt-1 doc-year-chev"></i>
+              </td>
+            </tr>
+          </tbody>
+          <tbody id="doc-buste-y{{ y.collapse_suffix }}" class="collapse {% if forloop.first %}show{% endif %}">
+            {% for r in y.rows %}
+            <tr>
+              <td class="fw-semibold" style="color:#1b3a5f;white-space:nowrap">{{ r.periodo_label }}</td>
+              <td style="font-size:.82rem">{{ r.natura_display }}</td>
+              <td class="text-end">{% if r.lordo is not None %}€ {{ r.lordo|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+              <td class="text-end">{% if r.netto is not None %}€ {{ r.netto|euro_it }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+              <td class="doc-actions text-nowrap">
+                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi #{{ r.doc.id }}</a>
+                {% if r.doc.file and r.doc.file.name|lower|slice:"-4:" == ".pdf" %}
+                <a href="{% url 'visualizza_cedolino_busta' r.doc.id %}" class="btn btn-outline-info">Cedolino</a>
+                {% endif %}
+                <a href="{% url 'download_documento' r.doc.id %}" class="btn btn-outline-secondary">Scarica</a>
+              </td>
+              <td style="font-size:.78rem">
+                {% if r.doc.caricato_dal_dipendente %}
+                  {% if r.doc.visualizzato_da_azienda %}
+                    <span class="badge" style="background:#7a5c00"><i class="bi bi-lock-fill"></i> Acquisito</span>
+                  {% else %}
+                    <span class="badge bg-secondary"><i class="bi bi-clock"></i> In attesa</span>
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="text-end text-nowrap">
+                {% if r.doc.caricato_dal_dipendente and not r.doc.visualizzato_da_azienda %}
+                <form method="post" action="{% url 'elimina_documento' r.doc.id %}" class="d-inline"
+                      >
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ miei_documenti_url }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size:.75rem"><i class="bi bi-trash"></i></button>
+                </form>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          {% endfor %}
+        </table>
+      </div>
+      {% if buste_page.has_other_pages %}
+      <nav class="mt-3 d-flex justify-content-center" aria-label="Paginazione buste per anno">
+        <ul class="pagination pagination-sm mb-0 flex-wrap">
+          {% if buste_page.has_previous %}
+          <li class="page-item"><a class="page-link" href="?tab=buste&amp;mese_ord={{ mord }}&amp;page={{ buste_page.previous_page_number }}">Precedente</a></li>
+          {% endif %}
+          <li class="page-item disabled"><span class="page-link">Pagina {{ buste_page.number }} di {{ buste_page.paginator.num_pages }}</span></li>
+          {% if buste_page.has_next %}
+          <li class="page-item"><a class="page-link" href="?tab=buste&amp;mese_ord={{ mord }}&amp;page={{ buste_page.next_page_number }}">Successiva</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+      {% else %}
+      <p class="text-muted small mb-0">Nessuna busta paga disponibile in questa area.</p>
+      {% endif %}
+    </div>
+
+    {# ── CUD ────────────────────────────────────────────────────── #}
+    <div class="tab-pane fade {% if active_tab == 'cud' %}show active{% endif %}" id="pane-cud" role="tabpanel">
+      {% if cud_by_year %}
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead class="table-light" style="font-size:.78rem">
+            <tr>
+              <th>Documento</th>
+              <th class="text-nowrap">
+                Data caricamento
+                <span class="ms-1 d-inline-flex align-items-center gap-0">
+                  <a href="?mese_ord=recenti&amp;tab=cud&amp;page=1" class="doc-sort-link {% if month_order_desc %}doc-sort-active{% endif %}" title="Dal più recente"><i class="bi bi-sort-numeric-down"></i></a>
+                  <a href="?mese_ord=vecchi&amp;tab=cud&amp;page=1" class="doc-sort-link {% if not month_order_desc %}doc-sort-active{% endif %}" title="Dal più vecchio"><i class="bi bi-sort-numeric-up"></i></a>
+                </span>
+              </th>
+              <th class="text-end">Azioni</th>
+            </tr>
+          </thead>
+          {% for y in cud_by_year %}
+          <tbody>
+            <tr class="doc-year-sum" role="button" tabindex="0"
+                data-bs-toggle="collapse" data-bs-target="#doc-cud-y{{ y.collapse_suffix }}"
+                aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" aria-controls="doc-cud-y{{ y.collapse_suffix }}">
+              <td colspan="3" class="py-2">
+                <i class="bi bi-calendar3 me-1"></i>
+                {% localize off %}
+                <strong>Anno {{ y.anno }}</strong>
+                {% endlocalize %}
+                — {{ y.n_docs }} documento/i CUD o certificato
+                <i class="bi bi-chevron-down float-end mt-1 doc-year-chev"></i>
+              </td>
+            </tr>
+          </tbody>
+          <tbody id="doc-cud-y{{ y.collapse_suffix }}" class="collapse {% if forloop.first %}show{% endif %}">
+            {% for r in y.rows %}
+            <tr>
+              <td>
+                <strong>{{ r.titolo }}</strong>
+                <div class="text-muted" style="font-size:.72rem">{{ r.doc.nome_file }}</div>
+              </td>
+              <td style="white-space:nowrap;font-size:.82rem">{{ r.data_caricamento|date:"d/m/Y H:i" }}</td>
+              <td class="text-end doc-actions text-nowrap">
+                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi #{{ r.doc.id }}</a>
+                <a href="{% url 'download_documento' r.doc.id %}" class="btn btn-outline-secondary">Scarica</a>
+                {% if r.doc.caricato_dal_dipendente and not r.doc.visualizzato_da_azienda %}
+                <form method="post" action="{% url 'elimina_documento' r.doc.id %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ miei_documenti_url }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size:.75rem"><i class="bi bi-trash"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          {% endfor %}
+        </table>
+      </div>
+      {% if cud_page.has_other_pages %}
+      <nav class="mt-3 d-flex justify-content-center" aria-label="Paginazione CUD per anno">
+        <ul class="pagination pagination-sm mb-0 flex-wrap">
+          {% if cud_page.has_previous %}
+          <li class="page-item"><a class="page-link" href="?tab=cud&amp;mese_ord={{ mord }}&amp;page={{ cud_page.previous_page_number }}">Precedente</a></li>
+          {% endif %}
+          <li class="page-item disabled"><span class="page-link">Pagina {{ cud_page.number }} di {{ cud_page.paginator.num_pages }}</span></li>
+          {% if cud_page.has_next %}
+          <li class="page-item"><a class="page-link" href="?tab=cud&amp;mese_ord={{ mord }}&amp;page={{ cud_page.next_page_number }}">Successiva</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+      {% else %}
+      <p class="text-muted small mb-0">Nessun CUD o certificato fiscale disponibile.</p>
+      {% endif %}
+    </div>
+
+    {# ── Contratti (rapporti + documenti archivio) ───────────────── #}
+    <div class="tab-pane fade {% if active_tab == 'contratti' %}show active{% endif %}" id="pane-contratti" role="tabpanel">
+      <p class="text-muted small mb-2 mb-md-3">
+        <strong>Proposta (PRP)</strong>: testo completo della proposta sottoscritta dal candidato (come nello storico amministrazione).
+        <strong>Contratto (CTR)</strong>: documento di rapporto; se presente in archivio viene usato il file caricato dall’azienda o il PDF salvato in documenti, non solo la bozza generata.
+        {% if contratto_portale_pk %}
+        Per il contratto in vigore: <a href="{% url 'candidato_mio_contratto' %}">scheda dettaglio retributiva</a>.
+        {% endif %}
+      </p>
+      {% if contratti_by_year %}
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead class="table-light" style="font-size:.78rem">
+            <tr>
+              <th>Contenuto</th>
+              <th class="text-nowrap">
+                Date
+                <span class="ms-1 d-inline-flex align-items-center gap-0">
+                  <a href="?mese_ord=recenti&amp;tab=contratti&amp;page=1" class="doc-sort-link {% if month_order_desc %}doc-sort-active{% endif %}" title="Dal più recente"><i class="bi bi-sort-numeric-down"></i></a>
+                  <a href="?mese_ord=vecchi&amp;tab=contratti&amp;page=1" class="doc-sort-link {% if not month_order_desc %}doc-sort-active{% endif %}" title="Dal più vecchio"><i class="bi bi-sort-numeric-up"></i></a>
+                </span>
+              </th>
+              <th class="text-end">Azioni</th>
+            </tr>
+          </thead>
+          {% for y in contratti_by_year %}
+          <tbody>
+            <tr class="doc-year-sum" role="button" tabindex="0"
+                data-bs-toggle="collapse" data-bs-target="#doc-contratti-y{{ y.collapse_suffix }}"
+                aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" aria-controls="doc-contratti-y{{ y.collapse_suffix }}">
+              <td colspan="3" class="py-2">
+                <i class="bi bi-calendar3 me-1"></i>
+                {% localize off %}
+                <strong>Anno {{ y.anno }}</strong>
+                {% endlocalize %}
+                — {{ y.n_docs }} voce/i
+                <i class="bi bi-chevron-down float-end mt-1 doc-year-chev"></i>
+              </td>
+            </tr>
+          </tbody>
+          <tbody id="doc-contratti-y{{ y.collapse_suffix }}" class="collapse {% if forloop.first %}show{% endif %}">
+            {% for r in y.rows %}
+            {% if r.kind == 'rapporto' %}
+            {% with rap=r.rapporto %}
+            <tr>
+              <td>
+                <strong>{{ rap.numero_contratto }}</strong>
+                <span class="badge bg-light text-dark border ms-1" style="font-size:.72rem">{{ rap.get_stato_display }}</span>
+                <div class="text-muted" style="font-size:.75rem">{{ rap.tipo_contratto.nome }} · {{ rap.azienda.nome }}</div>
+              </td>
+              <td style="white-space:nowrap;font-size:.82rem">
+                Inizio {{ rap.data_inizio_rapporto|date:"d/m/Y" }}
+                {% if rap.data_fine_rapporto %}<br><span class="text-muted">Fine {{ rap.data_fine_rapporto|date:"d/m/Y" }}</span>{% endif %}
+              </td>
+              <td class="text-end doc-actions text-nowrap">
+                {% if rap.proposta_origine %}
+                <a href="{% url 'proposta_pdf' rap.proposta_origine.id %}?ui=1&amp;next={{ miei_documenti_next_contratti_pdf|urlencode }}"
+                   class="btn btn-outline-primary" title="Stesso testo proposta indicato nello storico documenti (PRP firmata)">PDF proposta</a>
+                <a href="{% url 'proposta_pdf' rap.proposta_origine.id %}" class="btn btn-outline-secondary btn-sm">Scarica proposta</a>
+                {% endif %}
+                <a href="{% url 'contratto_pdf' rap.id %}?ui=1&amp;next={{ miei_documenti_next_contratti_pdf|urlencode }}"
+                   class="btn btn-outline-dark">Anteprima contratto</a>
+                <a href="{% url 'contratto_pdf' rap.id %}" class="btn btn-outline-secondary btn-sm">Scarica contratto</a>
+                {% if contratto_portale_pk and rap.pk == contratto_portale_pk %}
+                <a href="{% url 'candidato_mio_contratto' %}" class="btn btn-outline-success">Scheda retributiva</a>
+                {% endif %}
+                {% if rap.stato == 'proposta' %}
+                <a href="{% url 'accetta_contratto_dipendente' rap.id %}" class="btn btn-outline-warning">Firma / accetta</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endwith %}
+            {% else %}
+            <tr>
+              <td>
+                <strong>{{ r.titolo }}</strong>
+                <span class="badge ms-1" style="font-size:.68rem;background:#e8eef5;color:#1b3a5f">Archivio documenti</span>
+                <div class="text-muted" style="font-size:.72rem">{{ r.doc.nome_file }}</div>
+              </td>
+              <td style="white-space:nowrap;font-size:.82rem">{{ r.data_caricamento|date:"d/m/Y H:i" }}</td>
+              <td class="text-end doc-actions text-nowrap">
+                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi #{{ r.doc.id }}</a>
+                <a href="{% url 'download_documento' r.doc.id %}" class="btn btn-outline-secondary">Scarica</a>
+                {% if r.doc.caricato_dal_dipendente and not r.doc.visualizzato_da_azienda %}
+                <form method="post" action="{% url 'elimina_documento' r.doc.id %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ miei_documenti_url }}?tab=contratti">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size:.75rem"><i class="bi bi-trash"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+          {% endfor %}
+        </table>
+      </div>
+      {% if contratti_page.has_other_pages %}
+      <nav class="mt-3 d-flex justify-content-center" aria-label="Paginazione contratti per anno">
+        <ul class="pagination pagination-sm mb-0 flex-wrap">
+          {% if contratti_page.has_previous %}
+          <li class="page-item"><a class="page-link" href="?tab=contratti&amp;mese_ord={{ mord }}&amp;page={{ contratti_page.previous_page_number }}">Precedente</a></li>
+          {% endif %}
+          <li class="page-item disabled"><span class="page-link">Pagina {{ contratti_page.number }} di {{ contratti_page.paginator.num_pages }}</span></li>
+          {% if contratti_page.has_next %}
+          <li class="page-item"><a class="page-link" href="?tab=contratti&amp;mese_ord={{ mord }}&amp;page={{ contratti_page.next_page_number }}">Successiva</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+      {% else %}
+      <p class="text-muted small mb-0">Nessun contratto in elenco.</p>
+      {% endif %}
+    </div>
+
+    {# ── Altri ──────────────────────────────────────────────────── #}
+    <div class="tab-pane fade {% if active_tab == 'altri' %}show active{% endif %}" id="pane-altri" role="tabpanel">
+      {% if altri_by_year %}
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <thead class="table-light" style="font-size:.78rem">
+            <tr>
+              <th>Tipo</th>
+              <th>Documento</th>
+              <th class="text-nowrap">
+                Data caricamento
+                <span class="ms-1 d-inline-flex align-items-center gap-0">
+                  <a href="?mese_ord=recenti&amp;tab=altri&amp;page=1" class="doc-sort-link {% if month_order_desc %}doc-sort-active{% endif %}" title="Dal più recente"><i class="bi bi-sort-numeric-down"></i></a>
+                  <a href="?mese_ord=vecchi&amp;tab=altri&amp;page=1" class="doc-sort-link {% if not month_order_desc %}doc-sort-active{% endif %}" title="Dal più vecchio"><i class="bi bi-sort-numeric-up"></i></a>
+                </span>
+              </th>
+              <th class="text-end">Azioni</th>
+            </tr>
+          </thead>
+          {% for y in altri_by_year %}
+          <tbody>
+            <tr class="doc-year-sum" role="button" tabindex="0"
+                data-bs-toggle="collapse" data-bs-target="#doc-altri-y{{ y.collapse_suffix }}"
+                aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" aria-controls="doc-altri-y{{ y.collapse_suffix }}">
+              <td colspan="4" class="py-2">
+                <i class="bi bi-calendar3 me-1"></i>
+                {% localize off %}
+                <strong>Anno {{ y.anno }}</strong>
+                {% endlocalize %}
+                — {{ y.n_docs }} documento/i
+                <i class="bi bi-chevron-down float-end mt-1 doc-year-chev"></i>
+              </td>
+            </tr>
+          </tbody>
+          <tbody id="doc-altri-y{{ y.collapse_suffix }}" class="collapse {% if forloop.first %}show{% endif %}">
+            {% for r in y.rows %}
+            <tr>
+              <td style="font-size:.82rem;white-space:nowrap"><span class="badge bg-light text-dark border">{{ r.tipo_display }}</span></td>
+              <td>
+                <strong>{{ r.titolo }}</strong>
+                <div class="text-muted" style="font-size:.72rem">{{ r.doc.nome_file }}</div>
+              </td>
+              <td style="white-space:nowrap;font-size:.82rem">{{ r.data_caricamento|date:"d/m/Y H:i" }}</td>
+              <td class="text-end doc-actions text-nowrap">
+                <a href="{% url 'visualizza_documento' r.doc.id %}" class="btn btn-outline-primary">Vedi #{{ r.doc.id }}</a>
+                <a href="{% url 'download_documento' r.doc.id %}" class="btn btn-outline-secondary">Scarica</a>
+                {% if r.doc.caricato_dal_dipendente and not r.doc.visualizzato_da_azienda %}
+                <form method="post" action="{% url 'elimina_documento' r.doc.id %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ miei_documenti_url }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" style="font-size:.75rem"><i class="bi bi-trash"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          {% endfor %}
+        </table>
+      </div>
+      {% if altri_page.has_other_pages %}
+      <nav class="mt-3 d-flex justify-content-center" aria-label="Paginazione altri documenti per anno">
+        <ul class="pagination pagination-sm mb-0 flex-wrap">
+          {% if altri_page.has_previous %}
+          <li class="page-item"><a class="page-link" href="?tab=altri&amp;mese_ord={{ mord }}&amp;page={{ altri_page.previous_page_number }}">Precedente</a></li>
+          {% endif %}
+          <li class="page-item disabled"><span class="page-link">Pagina {{ altri_page.number }} di {{ altri_page.paginator.num_pages }}</span></li>
+          {% if altri_page.has_next %}
+          <li class="page-item"><a class="page-link" href="?tab=altri&amp;mese_ord={{ mord }}&amp;page={{ altri_page.next_page_number }}">Successiva</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+      {% else %}
+      <p class="text-muted small mb-0">Nessun altro documento (F24 caricati come «altro», identità, allegati vari, ecc.). I contratti sono nella scheda dedicata.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endwith %}
+  {% endif %}
+
+</div>
+{% endblock %}

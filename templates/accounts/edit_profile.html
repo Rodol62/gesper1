@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}Modifica Profilo{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-8">
+
+    {% if messages %}
+      {% for msg in messages %}
+        <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show">
+          {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <div class="card shadow mb-4">
+      <div class="card-header bg-primary text-white">
+        <h4 class="mb-0">Modifica Profilo</h4>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nome utente</label>
+            <input type="text" class="form-control" value="{{ user.username }}" disabled>
+            <small class="text-muted">Il nome utente non è modificabile.</small>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="first_name" class="form-label fw-semibold">Nome</label>
+              <input type="text" class="form-control" id="first_name" name="first_name"
+                     value="{{ user.first_name }}" required>
+            </div>
+            <div class="col-md-6">
+              <label for="last_name" class="form-label fw-semibold">Cognome</label>
+              <input type="text" class="form-control" id="last_name" name="last_name"
+                     value="{{ user.last_name }}" required>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="email" class="form-label fw-semibold">Email</label>
+            {% if gesper_demo_mask_contacts %}
+            <input type="email" class="form-control" id="email" name="email" value="" disabled
+                   placeholder="Non esposta né modificabile in modalità dimostrativa">
+            {% else %}
+            <input type="email" class="form-control" id="email" name="email"
+                   value="{{ user.email }}">
+            {% endif %}
+          </div>
+
+          <hr>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Consenso privacy GDPR</label>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="privacy_accettata"
+                     name="privacy_accettata" value="true"
+                     {% if user.privacy_accettata %}checked disabled{% endif %}>
+              <label class="form-check-label" for="privacy_accettata">
+                Accetto il trattamento dei dati personali ai sensi della normativa italiana sulla privacy.
+              </label>
+            </div>
+            {% if user.privacy_accettata %}
+              <small class="text-success">
+                Consenso già dato il {{ user.privacy_data|date:'d/m/Y H:i' }}
+              </small>
+            {% endif %}
+          </div>
+
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">Salva modifiche</button>
+            <a href="{% url 'profile' %}" class="btn btn-secondary">Annulla</a>
+            <a href="{% url 'password_change' %}" class="btn btn-outline-secondary ms-auto">Cambia password</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

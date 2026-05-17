@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Anagrafiche Dipendenti e Candidati{% endblock %}
+{% block content %}
+<h2 class="mb-4">Anagrafiche Dipendenti e Candidati</h2>
+<table class="table table-striped table-responsive">
+    <thead>
+        <tr>
+            <th>Nome</th>
+            <th>Cognome</th>
+            <th>Ruolo</th>
+            <th>Azienda</th>
+            <th>Stato</th>
+            <th>Azioni</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for dipendente in dipendenti %}
+        <tr>
+            <td>{{ dipendente.nome }}</td>
+            <td>{{ dipendente.cognome }}</td>
+            <td>{{ dipendente.ruolo }}</td>
+            <td>{{ dipendente.azienda.nome }}</td>
+            <td>{{ dipendente.stato }}</td>
+            <td>
+                <a href="{% url 'dettaglio_dipendente' dipendente.id %}" class="btn btn-sm btn-primary">Dettagli</a>
+            </td>
+        </tr>
+        {% endfor %}
+        {% for candidato in candidati %}
+        <tr class="table-warning">
+            <td>{{ candidato.nome }}</td>
+            <td>{{ candidato.cognome }}</td>
+            <td>Candidato</td>
+            <td>{{ candidato.azienda.nome if candidato.azienda else '-' }}</td>
+            <td>{{ candidato.stato }}</td>
+            <td>
+                <a href="{% url 'candidato_admin_dettaglio' candidato.id %}" class="btn btn-sm btn-secondary">Dettagli</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<a href="{% url 'crea_dipendente' %}" class="btn btn-success mt-3">Aggiungi Nuovo</a>
+{% endblock %}

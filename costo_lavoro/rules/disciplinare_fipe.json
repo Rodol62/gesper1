@@ -1,0 +1,89 @@
+{
+  "disciplinare_fipe": {
+    "richiamo_verbale": {
+      "gravita": "lieve",
+      "applicabile_per": [
+        "ritardi occasionali",
+        "mancato rispetto procedure minori",
+        "comportamento non conforme non reiterato"
+      ],
+      "note": "Non viene registrato nel fascicolo personale"
+    },
+
+    "richiamo_scritto": {
+      "gravita": "media",
+      "applicabile_per": [
+        "ritardi reiterati",
+        "assenza ingiustificata singola",
+        "violazione procedure aziendali",
+        "comportamento scorretto verso colleghi o clienti"
+      ],
+      "note": "Registrato nel fascicolo personale"
+    },
+
+    "sospensione": {
+      "gravita": "grave",
+      "durata_massima_giorni": 10,
+      "applicabile_per": [
+        "assenze ingiustificate reiterate",
+        "abbandono temporaneo del posto di lavoro",
+        "insubordinazione non grave",
+        "negligenza con danno lieve"
+      ],
+      "retribuzione": false,
+      "note": "Comporta sospensione della retribuzione"
+    },
+
+    "licenziamento_disciplinare": {
+      "gravita": "gravissima",
+      "tipologie": {
+        "con_preavviso": {
+          "applicabile_per": [
+            "inadempienze gravi ma non irreversibili",
+            "ripetute violazioni disciplinari"
+          ]
+        },
+        "senza_preavviso": {
+          "applicabile_per": [
+            "furto",
+            "danneggiamento volontario",
+            "abbandono del posto con rischio per persone o beni",
+            "insubordinazione grave",
+            "aggressioni fisiche o verbali",
+            "gravi violazioni della sicurezza"
+          ]
+        }
+      },
+      "note": "Il licenziamento senza preavviso richiede giusta causa"
+    },
+
+    "collegamenti_eventi": {
+      "ritardo": {
+        "prima_volta": "richiamo_verbale",
+        "reiterato": "richiamo_scritto",
+        "abituale": "sospensione"
+      },
+      "assenza_ingiustificata": {
+        "singola": "richiamo_scritto",
+        "multipla": "sospensione",
+        "prolungata": "licenziamento_disciplinare_senza_preavviso"
+      }
+    },
+
+    "procedure": {
+      "contestazione": {
+        "obbligatoria": true,
+        "forma": "scritta",
+        "termine_risposta_lavoratore_giorni": 5
+      },
+      "audizione": {
+        "diritto_lavoratore": true,
+        "presenza_rappresentante_sindacale": true
+      },
+      "decisione": {
+        "tempistiche_giorni": 10,
+        "comunicazione": "scritta"
+      }
+    }
+  }
+}

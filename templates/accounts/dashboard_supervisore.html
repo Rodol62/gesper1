@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard Supervisore{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>Utenti da convalidare</h2>
+    <table class="table table-bordered table-striped mt-3">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Ruolo</th>
+                <th>Privacy</th>
+                <th>Azioni</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for utente in utenti %}
+            <tr>
+                <td>{{ utente.username }}</td>
+                <td>{{ utente.email }}</td>
+                <td>{{ utente.get_ruolo_display }}</td>
+                <td>{% if utente.privacy_accettata %}Accettata il {{ utente.privacy_data|date:'d/m/Y H:i' }}{% else %}No{% endif %}</td>
+                <td>
+                    <form method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="user_id" value="{{ utente.id }}">
+                        <button type="submit" class="btn btn-success btn-sm">Convalida</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center">Nessun utente da convalidare</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Elimina {{ verbose_name }} — Gesper{% endblock %}
+
+{% block content %}
+<div class="mx-auto" style="max-width:520px">
+  <div class="card border-0 shadow-sm border-danger" style="border-width:2px!important">
+    <div class="card-body py-4">
+      <h5 class="text-danger mb-2" style="font-size:1rem"><i class="bi bi-exclamation-triangle-fill"></i> Conferma eliminazione</h5>
+      <p class="mb-2" style="font-size:var(--sz-sm)">
+        Stai per eliminare definitivamente <strong>{{ verbose_name }}</strong> <code>#{{ obj.pk }}</code>:
+      </p>
+      <p class="p-2 rounded mb-3" style="font-size:var(--sz-sm);background:#f8f9fa;border:1px solid var(--c-border)">{{ obj }}</p>
+      <p class="text-muted mb-3" style="font-size:.75rem">L’operazione non è annullabile. Se altri record dipendono da questo, l’eliminazione verrà rifiutata.</p>
+      <form method="post" class="d-flex flex-wrap gap-2">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm">Sì, elimina</button>
+        <a href="{% url 'admin_db_record_detail' app_label model_name obj.pk %}" class="btn btn-outline-secondary btn-sm">No, torna al dettaglio</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

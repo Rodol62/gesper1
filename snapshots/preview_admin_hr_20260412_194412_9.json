@@ -1,0 +1,100 @@
+{
+  "pdf": "/private/var/folders/nw/sr7j6wzn5vddsg2xt35mfvgh0000gn/T/tmpodxtvb_9.pdf",
+  "source_name": "3 MARZO 2024.pdf",
+  "natura_busta_file": "ORDINARIA",
+  "azienda": {
+    "id": 1,
+    "nome": "Punto Zero SRLS"
+  },
+  "f24_pages": [
+    {
+      "page": 9,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 10,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 11,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    }
+  ],
+  "summary": {
+    "pages_total": 12,
+    "buste_pages": 8,
+    "f24_pages": 3,
+    "f24_importo_stimato": null,
+    "buste_uniche": 4,
+    "buste_duplicate_pages": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "matched": 4,
+    "to_create": 0,
+    "ambiguous": 0,
+    "already_present": 0
+  },
+  "rows": [
+    {
+      "page": 1,
+      "periodo": "03/2024",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massmo",
+      "birth_date": "10/03/74",
+      "lordo_busta": null,
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 18,
+      "dipendente_nome": "Cardella Massimo"
+    },
+    {
+      "page": 2,
+      "periodo": "03/2024",
+      "cf": "GMSJSC92A42Z307O",
+      "full_name": "Ferrera Jesscane",
+      "birth_date": "02/01/92",
+      "lordo_busta": null,
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 19,
+      "dipendente_nome": "Gomes Ferreira Jessica Aline"
+    },
+    {
+      "page": 3,
+      "periodo": "03/2024",
+      "cf": "HSSNYT87C06Z249W",
+      "full_name": "Hussa Anayet",
+      "birth_date": "06/03/87",
+      "lordo_busta": null,
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 20,
+      "dipendente_nome": "Hussa Anayet"
+    },
+    {
+      "page": 4,
+      "periodo": "03/2024",
+      "cf": "BBSSWR98A47Z352H",
+      "full_name": "Abbass War",
+      "birth_date": "07/01/98",
+      "lordo_busta": null,
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 21,
+      "dipendente_nome": "Abbass War"
+    }
+  ]
+}

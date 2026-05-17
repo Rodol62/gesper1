@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% load format_it_tags %}
+{% block title %}Posizione contabile — {{ azienda.nome }}{% endblock %}
+
+{% block extra_head %}
+{% include "consulente/_posizione_elenco_head_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3 gesper-libro-page gesper-libro-wrap">
+  <nav aria-label="breadcrumb" class="small mb-2">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url partitario_back.url_name %}">{{ partitario_back.label }}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_posizione_contabile' %}">Posizione contabile</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Movimenti</li>
+    </ol>
+  </nav>
+
+  <header class="gesper-libro-hero">
+    <h1><i class="bi bi-calculator me-2"></i>Posizione contabile</h1>
+    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — libro movimenti (dare / avere / saldo progressivo)</p>
+    <p class="gesper-libro-lead">Saldo positivo = residuo a debito verso il consulente. Per regole su PDF, duplicati e pulizia dati apri <strong>Aiuto</strong> sotto.</p>
+  </header>
+
+  {% include "consulente/posizione_contabile_subnav.html" %}
+
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+
+  <div class="gesper-libro-filter-card">
+    <form method="get" class="row g-2 align-items-end small">
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Anno</label>
+        <select name="anno" class="form-select form-select-sm">
+          <option value="">Tutti</option>
+          {% for y in anni_disponibili %}
+          <option value="{{ y|anno_it }}"{% if libro_filter.anno|anno_it == y|anno_it %} selected{% endif %}>{{ y|anno_it }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Da data</label>
+        <input type="date" name="data_da" class="form-control form-control-sm" value="{{ libro_filter.data_da }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">A data</label>
+        <input type="date" name="data_a" class="form-control form-control-sm" value="{{ libro_filter.data_a }}">
+      </div>
+      <div class="col-6 col-md-3 d-flex gap-1">
+        <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Applica filtri</button>
+        <a href="{% url 'consulente_posizione_libro' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+      </div>
+      <div class="col-12 col-md-3 text-muted small align-self-center pt-md-0 pt-1">
+        {% if filtro_attivo %}Filtro attivo: il saldo è sempre quello <strong>globale</strong> del libro dopo la riga.{% else %}Nessun filtro: tutti i movimenti.{% endif %}
+      </div>
+    </form>
+  </div>
+
+  <div class="gesper-libro-toolbar">
+    <a href="{% url 'consulente_posizione_libro_pdf' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" target="_blank" rel="noopener" class="btn btn-light btn-sm border">
+      <i class="bi bi-printer me-1"></i>Stampa PDF A4
+    </a>
+    <a href="{% url 'consulente_posizione_libro_excel' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-light btn-sm border text-success">
+      <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+    </a>
+    <form method="post" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" name="action" value="ricalcola_saldi" class="btn btn-outline-light btn-sm border bg-white text-dark">Ricalcola saldi</button>
+    </form>
+    <form method="post" class="d-inline" onsubmit="return confirm('Rileggere i totali da testo già estratto dai PDF delle proforma/parcelle? Aggiorna importi e dare dove il parsing trova un valore; poi ricalcola i saldi.');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="rileggi_totali_pdf">
+      <button type="submit" class="btn btn-outline-primary btn-sm">Rileggi totali da PDF</button>
+    </form>
+    <span class="small text-muted ms-md-2 d-block d-md-inline mt-2 mt-md-0">Stampa PDF ed export Excel: colonne «Pagato» / «Residuo» calcolate con lo stesso criterio di imputazione degli incassi sui documenti (qui in tabella resta il saldo progressivo di libro).</span>
+  </div>
+
+  <details class="gesper-help mb-3">
+    {% include "consulente/_posizione_help_summary.html" with hint="libro, Rileggi totali, PDF, duplicati, pulizia bonifici" %}
+    <div class="gesper-help-body">
+      <p class="text-muted small mb-2">«Rileggi totali» applica i pattern aggiornati (es. Totale parcella / proforma) alle righe documento che hanno ancora il testo estratto; le righe senza testo vanno reimportate dalla sezione Proforma/parcelle.</p>
+      <p class="text-muted small mb-0">
+        I bonifici in avere si registrano in <strong>Pagamenti</strong> (manuale o distinte PDF); le proforma/parcelle in dare dagli <strong>upload PDF</strong> in Proforma. Due righe documento simili di solito sono due PDF con
+        <strong>nome file diverso</strong> ma stesso numero estratto: il secondo upload viene ignorato (messaggio «Già presente in libro …»).
+        Il libro considera univoca la coppia <strong>data documento + numero</strong> (stesso numero in anni diversi è ammesso se le date differiscono). Badge <span class="badge bg-warning text-dark" style="font-size:.65rem">Doppio</span> se la stessa terna data+numero+tipo compare più volte.
+        Righe da togliere: utenti <strong>admin</strong> hanno in tabella la colonna <strong>Admin</strong> con link Modifica/Elimina (Django Admin); altrimenti Admin → <strong>ACCOUNTS</strong> → <strong>Movimenti partitario consulente–azienda</strong>. Dopo eliminazioni i saldi si ricalcolano da soli.
+        Pulizia massiva di bonifici sintetici errati (riferimento tipo <code>PARCELLA …|data|importo</code> duplicati rispetto al dare): da terminale, con l’<strong>ID azienda</strong> corretto, prima anteprima poi esecuzione —
+        <code class="small">python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID --solo-parcella-proforma-sintetici</code>
+        poi
+        <code class="small">python manage.py rimuovi_bonifici_import_excel_studio --azienda-id ID --solo-parcella-proforma-sintetici --execute</code>
+        (non tocca i bonifici bancari reali registrati manualmente). Per un intervento più ampio sull’azienda vedi lo stesso comando <strong>senza</strong> <code class="small">--solo-parcella-proforma-sintetici</code> in <code class="small">deploy/PROCEDURA_DEPLOY.md</code>.
+      </p>
+    </div>
+  </details>
+
+  <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
+    <table class="table table-hover mb-0 align-middle table-gesper-libro">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Movimento</th>
+          <th>Dettaglio</th>
+          <th class="text-end">Dare</th>
+          <th class="text-end">Avere</th>
+          <th class="text-end">Saldo</th>
+          <th>Doc.</th>
+          {% if libro_link_admin_movimenti %}<th class="text-center gesper-libro-admin-col-h small text-white-50">Admin</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in righe %}
+        <tr class="{% if r.tipo_riga == 'documento' %}gesper-libro-row-doc{% elif r.tipo_riga == 'bonifico' %}gesper-libro-row-bon{% else %}gesper-libro-row-ret{% endif %}">
+          <td class="text-nowrap text-secondary">{% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+          <td class="fw-medium">{{ r.get_tipo_riga_display }}</td>
+          <td>
+            {% if r.tipo_riga == 'bonifico' %}
+              <span class="font-monospace small">{{ r.riferimento_pagamento|default:"—" }}</span>
+              {% if r.causale_pagamento %}<div class="text-muted small">{{ r.causale_pagamento|truncatechars:72 }}</div>{% endif %}
+            {% else %}
+              {{ r.get_tipo_documento_display }} {% if r.numero_documento %}<span class="font-monospace small">n. {{ r.numero_documento }}</span>{% endif %}
+              {% if r.id in documento_duplicato_ids %}
+                <span class="badge bg-warning text-dark ms-1 align-middle" style="font-size:.65rem" title="Stessa combinazione data + numero + tipo compare più volte: controllare doppio caricamento PDF. Elimina la riga in eccesso da Admin.">Doppio</span>
+              {% endif %}
+            {% endif %}
+          </td>
+          <td class="text-end font-monospace gesper-libro-amt text-primary">€ {{ r.dare|num_it:2 }}</td>
+          <td class="text-end font-monospace gesper-libro-amt text-success">€ {{ r.avere|num_it:2 }}</td>
+          <td class="text-end font-monospace gesper-libro-amt {% if r.saldo_progressivo > 0 %}gesper-libro-saldo-pos{% elif r.saldo_progressivo < 0 %}gesper-libro-saldo-neg{% else %}gesper-libro-saldo-zero{% endif %}">€ {{ r.saldo_progressivo|num_it:2 }}</td>
+          <td>{% if r.file %}<a href="{{ r.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">PDF</a>{% else %}<span class="text-muted small">—</span>{% endif %}</td>
+          {% if libro_link_admin_movimenti %}
+          <td class="gesper-libro-admin-col align-top">
+            <a href="{% url 'admin:accounts_movimentoregistrostudioconsulente_change' r.pk %}" class="btn btn-sm btn-outline-secondary py-0 px-1" target="_blank" rel="noopener">Modifica</a>
+            <a href="{% url 'admin:accounts_movimentoregistrostudioconsulente_delete' r.pk %}" class="btn btn-sm btn-outline-danger py-0 px-1" target="_blank" rel="noopener">Elimina</a>
+          </td>
+          {% endif %}
+        </tr>
+        {% if r.nota_libro_display %}<tr class="border-0"><td colspan="{% if libro_link_admin_movimenti %}8{% else %}7{% endif %}" class="pt-0 pb-2 small text-muted bg-white">{{ r.nota_libro_display }}</td></tr>{% endif %}
+        {% empty %}
+        <tr><td colspan="{% if libro_link_admin_movimenti %}8{% else %}7{% endif %}" class="text-center text-muted py-5">Nessun movimento in questo intervallo.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

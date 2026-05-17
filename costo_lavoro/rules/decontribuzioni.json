@@ -1,0 +1,39 @@
+[
+    {
+        "name": "Decontribuzione Sud",
+        "regione": "sicilia",
+        "priority": 20,
+        "_nota": "SOSPESA — DURC non in regola. Ripristinare a 0.30 quando DURC regolarizzato (L. 178/2020 art. 1 c. 161)",
+        "values": {
+            "tipo": "percentuale",
+            "valore": 0.00
+        }
+    },
+    {
+        "name": "Under 36",
+        "tipo_contratto": "indeterminato",
+        "eta": { "op": "<", "value": 36 },
+        "priority": 30,
+        "values": {
+            "tipo": "esonero_totale"
+        }
+    },
+    {
+        "name": "Donne svantaggiate",
+        "categoria": "donna_svantaggiata",
+        "priority": 25,
+        "values": {
+            "tipo": "esonero_parziale",
+            "valore": 0.50
+        }
+    },
+    {
+        "name": "NASpI",
+        "percettore_naspi": true,
+        "priority": 15,
+        "values": {
+            "tipo": "percentuale",
+            "valore": 0.20
+        }
+    }
+]

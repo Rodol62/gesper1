@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+{% block title %}Buste — conciliazione PDF / estrazione v4{% endblock %}
+
+{% block extra_head %}
+<style>
+.conc-h1 { color: #1b3a5f; font-weight: 700; }
+.conc-lead { font-size: .88rem; color: #5c6b7d; max-width: 52rem; }
+.conc-kpi {
+  display: flex; flex-wrap: wrap; gap: .5rem .85rem;
+  font-size: .78rem; align-items: center;
+}
+.conc-kpi span.sep { color: #c5d0dc; }
+.conc-table-wrap { border-radius: 6px; overflow: hidden; border: 1px solid #dee6ef; }
+.conc-table { font-size: .8rem; margin-bottom: 0; }
+.conc-table thead th {
+  font-size: .65rem; text-transform: uppercase; letter-spacing: .04em;
+  color: #5c6b7d; background: #f4f7fa; border-bottom: 1px solid #dee6ef;
+  white-space: nowrap; vertical-align: middle;
+}
+.conc-table tbody td { vertical-align: middle; border-color: #eef2f6; }
+.conc-pair { line-height: 1.3; }
+.conc-pair .lbl { font-size: .62rem; color: #8b99a8; font-weight: 600; letter-spacing: .02em; }
+.mono { font-variant-numeric: tabular-nums; }
+.conc-actions .btn { padding: .12rem .4rem; font-size: .72rem; }
+details.conc-det > summary {
+  cursor: pointer; font-size: .72rem; color: #2d6199; padding: .35rem .5rem;
+  list-style: none;
+}
+details.conc-det > summary::-webkit-details-marker { display: none; }
+details.conc-det[open] > summary { margin-bottom: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% load l10n pagination_tags %}
+<nav aria-label="Percorso" class="mb-2">
+  <ol class="breadcrumb mb-0" style="font-size:.8rem">
+    <li class="breadcrumb-item"><a href="{% url 'lista_documenti' %}">Documenti</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'verifica_buste_paga' %}">Verifica buste paghe</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Conciliazione buste</li>
+  </ol>
+</nav>
+
+<h1 class="h5 mb-2 conc-h1"><i class="bi bi-check2-square me-1"></i> Conciliazione buste paga</h1>
+<p class="conc-lead mb-3">
+  <strong>Passo 4 (Verifica buste paghe):</strong> qui vedi solo le buste dell’anno, con esito sintetico
+  <span class="badge bg-success">OK</span> (tutti i controlli ok),
+  <span class="badge bg-danger">Δ</span> (da verificare o memorizzare di nuovo),
+  <span class="badge bg-secondary">Senza v4</span> (eseguire prima il passo 3 — memorizza estrazione).
+  Per ogni busta con dati memorizzati il sistema <strong>ricostruisce il cedolino dal DB</strong>, riesegue le <strong>formule F1–F9</strong> del motore v4 e confronta <strong>subtotali calcolati</strong> e <strong>totali letti oggi dal PDF</strong> (con tolleranze dedicate e, se serve, coerenza con i campi memorizzati al salvataggio). Per l’esito <span class="badge bg-success">OK</span> in elenco contano soprattutto le righe sintetiche <strong>lordo / netto / imponibile / contributi</strong> vs PDF; i controlli F in dettaglio sono <strong>diagnostici</strong> (il totale contributi TS può discostarsi dal solo imponibile×9,36%).
+  <span class="text-muted" title="{{ tol_legenda_breve }}">Soglie motore: F1–F3, F5–F7, F9 <strong>{{ tol_formule_label }}</strong> · F4 impon. <strong>{{ tol_impon_f4_label }}</strong> · F8 trattenute <strong>{{ tol_f8_label }}</strong> · import anagrafiche <strong>{{ tol_confronto_label }}</strong>.</span>
+  Passi correlati:
+  <a href="{% url 'buste_paga_estrazione_motore_v4' %}?{% if pagination_qs %}{{ pagination_qs }}&{% endif %}page={{ page_obj.number }}">3 · Memorizza v4</a> ·
+  <a href="{% url 'buste_paga_lettura_cedolino' %}?{% if pagination_qs %}{{ pagination_qs }}&{% endif %}page={{ page_obj.number }}">5 · Dettaglio cedolino</a>.
+</p>
+
+{% localize off %}
+<form method="get" class="card border shadow-sm mb-3">
+  <div class="card-body py-2 px-3">
+    <div class="row g-2 align-items-end flex-wrap">
+      <div class="col-auto">
+        <label class="form-label small fw-semibold text-muted mb-0">Anno</label>
+        <select name="anno" class="form-select form-select-sm" style="min-width:7rem">
+          {% for y in anni_disponibili %}
+          <option value="{{ y }}" {% if y == anno %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if show_staff_filters and aziende_scelta %}
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold text-muted mb-0">Azienda</label>
+        <select name="azienda_id" class="form-select form-select-sm">
+          {% for a in aziende_scelta %}
+          <option value="{{ a.id }}" {% if a.id == azienda.id %}selected{% endif %}>{{ a.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      {% if show_staff_filters %}
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold text-muted mb-0">Dipendente</label>
+        <select name="dipendente" class="form-select form-select-sm">
+          <option value="">— Tutti —</option>
+          {% for d in dipendenti_filtro %}
+          <option value="{{ d.id }}" {% if dipendente_filter == d.id|stringformat:"d" %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-arrow-repeat me-1"></i> Aggiorna</button>
+      </div>
+    </div>
+  </div>
+</form>
+{% endlocalize %}
+
+{% if not page_obj.paginator.count %}
+<div class="alert alert-info">
+  {% localize off %}Nessuna busta paga in archivio per l&rsquo;anno <strong>{{ anno }}</strong> con i criteri indicati.{% endlocalize %}
+</div>
+{% else %}
+{% localize off %}
+<p class="small text-muted mb-2">
+  <strong>{{ page_obj.paginator.count }}</strong> buste · pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+  {% if azienda %}· {{ azienda.nome }}{% endif %}
+</p>
+
+{% if confronto_riepilogo.pagina %}
+<div class="card border-0 shadow-sm mb-3" style="background: linear-gradient(90deg, #f0f5fa 0%, #fafcfe 100%); border: 1px solid #d8e4f0 !important;">
+  <div class="card-body py-2 px-3">
+    <div class="conc-kpi text-secondary">
+      <span><strong class="text-dark">{{ confronto_riepilogo.pagina }}</strong> in questa pagina</span>
+      <span class="sep">|</span>
+      <span><span class="text-success">OK</span> <strong class="text-dark">{{ confronto_riepilogo.coerenti }}</strong></span>
+      <span class="sep">|</span>
+      <span><span class="text-danger">Differenze</span> <strong class="text-dark">{{ confronto_riepilogo.differenze }}</strong></span>
+      <span class="sep">|</span>
+      <span>Con estrazione v4 <strong class="text-dark">{{ confronto_riepilogo.con_estrazione_v4 }}</strong></span>
+      <span class="sep">|</span>
+      <span>Senza estrazione v4 <strong class="text-dark">{{ confronto_riepilogo.senza_estrazione_v4 }}</strong></span>
+      <span class="sep">|</span>
+      <span><span class="text-warning">PDF non letto</span> <strong class="text-dark">{{ confronto_riepilogo.senza_report }}</strong></span>
+      {% if confronto_riepilogo.n_mesi_conciliati_ok_pagina %}
+      <span class="sep">|</span>
+      <span title="Somma dei netti/lordi letti dal PDF sulle sole buste con esito OK in questa pagina (base per totali mensili; ripetere su ogni pagina per copertura anno)">Σ netto OK <strong class="text-dark mono">{{ confronto_riepilogo.somma_netto_pdf_coerenti_pagina }}</strong> €</span>
+      <span class="sep">|</span>
+      <span>Σ lordo OK <strong class="text-dark mono">{{ confronto_riepilogo.somma_lordo_pdf_coerenti_pagina }}</strong> €</span>
+      <span class="sep">|</span>
+      <span class="text-muted">{{ confronto_riepilogo.n_mesi_conciliati_ok_pagina }} mese/i OK</span>
+      {% endif %}
+      {% if confronto_riepilogo.n_buste_ricalcolo_formula %}
+      <span class="sep">|</span>
+      <span class="text-danger" title="Somma dei singoli controlli F1–F9 non superati sulle buste con estrazione v4 e ricalcolo da DB in questa pagina (una busta può avere più check KO).">Formule KO <strong>{{ confronto_riepilogo.tot_checks_formula_ko_pagina }}</strong> <span class="text-muted fw-normal">/ {{ confronto_riepilogo.n_buste_ricalcolo_formula }} buste ricalcolate</span></span>
+      {% endif %}
+    </div>
+    <p class="small text-muted mb-0 mt-1" style="font-size:.7rem;line-height:1.35">
+      <strong>Solo questa pagina</strong> (pag. {{ page_obj.number }}/{{ page_obj.paginator.num_pages }}): i KPI non sono totali d’anno finché non scorri tutte le pagine.
+      Esiti mutuamente esclusivi:
+      <span class="text-success">OK</span> + <span class="text-danger">Differenze</span> + <span class="text-warning">PDF non letto</span> + Senza estrazione v4
+      = <strong>{{ confronto_riepilogo.esiti_somma }}</strong>
+      {% if confronto_riepilogo.esiti_somma_coerente %}(= righe pagina){% else %}<span class="text-warning">(atteso {{ confronto_riepilogo.pagina }})</span>{% endif %}.
+      «Con estrazione v4» conta le buste con lettura PDF riuscita e snapshot <code>CedolinoMotoreV4</code> usato in conciliazione (di norma coincide con OK+Differenze se PDF letto).
+      Σ netto/lordo: somma solo delle buste <span class="text-success">OK</span> in questa pagina.
+    </p>
+    <p class="small text-muted mb-0 mt-2 pt-1 border-top border-light" style="font-size:.72rem" title="{{ tol_legenda_breve }}">
+      Ripilogo soglie: F1–F3,F5–F7,F9 {{ tol_formule_label }} · F4 {{ tol_impon_f4_label }} · F8 {{ tol_f8_label }} · import {{ tol_confronto_label }}
+    </p>
+  </div>
+</div>
+{% endif %}
+{% endlocalize %}
+
+{% gesper_pagination page_obj "Paginazione conciliazione buste paga" %}
+<div class="gesper-list-scroll mb-3">
+<div class="conc-table-wrap">
+  <div class="table-responsive">
+    <table class="table conc-table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th style="width:7rem">Esito</th>
+          <th>Dipendente</th>
+          <th>Periodo</th>
+          <th>Netto €</th>
+          <th>Lordo €</th>
+          <th>Voci DB / PDF</th>
+          <th>Motore lettura</th>
+          <th class="text-end" style="min-width:9rem">Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in righe %}
+        <tr>
+          <td>
+            {% with t=row.conc_tab %}
+            <span class="badge bg-{{ t.badge }}" {% if t.etichetta_title %}title="{{ t.etichetta_title }}"{% endif %}>{{ t.etichetta }}</span>
+            {% endwith %}
+          </td>
+          <td>
+            <strong>{{ row.dipendente_label }}</strong>
+            {% if row.tipo_cedolino %}
+            <span class="badge rounded-pill bg-light text-secondary border ms-1" style="font-size:.65rem">{{ row.tipo_cedolino }}</span>
+            {% endif %}
+          </td>
+          <td class="mono" {% if row.periodo_doc_mismatch %}title="Descrizione file: {{ row.periodo_doc_mismatch }} — periodo da PDF: {{ row.periodo_label }}"{% endif %}>{{ row.periodo_label }}</td>
+          <td class="mono">
+            {% with t=row.conc_tab %}
+            <div class="conc-pair"><span class="lbl">DB</span> {{ t.netto_v4 }} €</div>
+            <div class="conc-pair"><span class="lbl">PDF</span>
+              {% if t.netto_ok == False %}<span class="text-danger fw-semibold">{{ t.netto_pdf }} €</span>
+              {% elif t.netto_ok == True %}<span class="text-success">{{ t.netto_pdf }} €</span>
+              {% else %}{{ t.netto_pdf }} €{% endif %}
+            </div>
+            {% endwith %}
+          </td>
+          <td class="mono">
+            {% with t=row.conc_tab %}
+            <div class="conc-pair"><span class="lbl">DB</span> {{ t.lordo_v4 }} €</div>
+            <div class="conc-pair"><span class="lbl">PDF</span>
+              {% if t.lordo_ok == False %}<span class="text-danger fw-semibold">{{ t.lordo_pdf }} €</span>
+              {% elif t.lordo_ok == True %}<span class="text-success">{{ t.lordo_pdf }} €</span>
+              {% else %}{{ t.lordo_pdf }} €{% endif %}
+            </div>
+            {% endwith %}
+          </td>
+          <td class="mono small">
+            {% with t=row.conc_tab %}
+            {{ t.voci }}
+            {% if t.voci_ok == False %}<i class="bi bi-exclamation-circle text-danger ms-1" title="Conteggio voci diverso"></i>{% endif %}
+            {% endwith %}
+          </td>
+          <td class="small text-break" style="max-width:8rem">{{ row.conc_tab.motore }}</td>
+          <td class="text-end conc-actions">
+            <a href="{% url 'visualizza_documento' row.documento.id %}" class="btn btn-outline-secondary btn-sm" title="Apri PDF">PDF #{{ row.documento.id }}</a>
+            {% if not row.extraction_error %}
+            <a href="{% url 'visualizza_cedolino_busta' row.documento.id %}" class="btn btn-outline-primary btn-sm" title="Scheda cedolino">Cedolino</a>
+            {% endif %}
+            {% if show_staff_filters and not row.extraction_error %}
+            <form method="post" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="salva_estrazione_v4" value="{{ row.documento.id }}">
+              <input type="hidden" name="buste_scheda" value="conciliazione">
+              <input type="hidden" name="anno" value="{{ cedolino_ref_post.anno }}">
+              <input type="hidden" name="page" value="{{ cedolino_ref_post.page }}">
+              {% if cedolino_ref_post.azienda_id %}
+              <input type="hidden" name="azienda_id" value="{{ cedolino_ref_post.azienda_id }}">
+              {% endif %}
+              {% if cedolino_ref_post.dipendente %}
+              <input type="hidden" name="dipendente" value="{{ cedolino_ref_post.dipendente }}">
+              {% endif %}
+              <button type="submit" class="btn btn-outline-dark btn-sm" title="Salva estrazione v4 da questo PDF">v4</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% if row.extraction_error %}
+        <tr class="table-warning">
+          <td colspan="8" class="small py-1">Lettura PDF non riuscita: <span class="text-break">{{ row.extraction_error }}</span></td>
+        </tr>
+        {% elif row.conciliazione_v4.stato != "senza_report" %}
+        <tr class="border-0">
+          <td colspan="8" class="p-0 border-0 bg-light bg-opacity-25">
+            <details class="conc-det">
+              <summary class="user-select-none"><i class="bi bi-chevron-right me-1"></i> Tutti i controlli di conciliazione</summary>
+              <div class="px-2 pb-2 border-top bg-white">
+                {% include "documenti/_cedolino_conciliazione_motore_v4.html" with conciliazione_v4=row.conciliazione_v4 documento_id=row.documento.id show_staff_filters=False cedolino_ref_post=cedolino_ref_post v4_conflitto_documento_id=row.v4_conflitto_documento_id %}
+              </div>
+            </details>
+          </td>
+        </tr>
+        {% endif %}
+        {% empty %}
+        {% if page_obj.paginator.count %}
+        <tr><td colspan="8" class="text-muted small">Nessuna riga visibile (filtri di accesso).</td></tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</div>
+{% gesper_pagination page_obj "Paginazione conciliazione buste paga" %}
+{% endif %}
+{% endblock %}

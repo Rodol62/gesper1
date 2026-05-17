@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% load format_it_tags pagination_tags %}
+{% block title %}Anagrafiche candidati — Consulente{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1200px;margin:0 auto;padding:1.5rem 1rem">
+
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" style="font-size:.82rem;margin-bottom:1rem">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'centro_moduli' %}">Consulente</a></li>
+      <li class="breadcrumb-item active">Anagrafiche</li>
+    </ol>
+  </nav>
+
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h2 class="mb-0" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+      <i class="bi bi-person-lines-fill me-2"></i>Anagrafiche candidati
+    </h2>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="?stato={{ stato_filter }}&formato=excel" class="btn btn-success btn-sm">
+        <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+      </a>
+      <a href="?stato={{ stato_filter }}&formato=csv" class="btn btn-outline-success btn-sm">
+        <i class="bi bi-filetype-csv me-1"></i>Export CSV
+      </a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert" style="font-size:.88rem">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Filtri stato -->
+  <div class="d-flex gap-2 mb-3 flex-wrap" style="font-size:.83rem">
+    <a href="?" class="btn btn-sm {% if not stato_filter %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+      Tutti ({{ totale }})
+    </a>
+    <a href="?stato=inviata_candidato" class="btn btn-sm {% if stato_filter == 'inviata_candidato' %}btn-info text-white{% else %}btn-outline-info{% endif %}">
+      <i class="bi bi-send me-1"></i>Inviata al candidato
+      {% if cnt_inviata %}<span class="badge bg-white text-dark ms-1" style="font-size:.72rem">{{ cnt_inviata }}</span>{% endif %}
+    </a>
+    <a href="?stato=firmata_candidato" class="btn btn-sm {% if stato_filter == 'firmata_candidato' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+      <i class="bi bi-pen me-1"></i>Firmata dal candidato
+      {% if cnt_firmata %}<span class="badge bg-white text-dark ms-1" style="font-size:.72rem">{{ cnt_firmata }}</span>{% endif %}
+    </a>
+    <a href="?stato=contratto_attivo" class="btn btn-sm {% if stato_filter == 'contratto_attivo' %}btn-success{% else %}btn-outline-success{% endif %}">
+      <i class="bi bi-check-circle me-1"></i>Contratto attivo
+      {% if cnt_attivo %}<span class="badge bg-white text-dark ms-1" style="font-size:.72rem">{{ cnt_attivo }}</span>{% endif %}
+    </a>
+  </div>
+
+  <!-- Tabella -->
+  {% if page_obj.paginator.count %}
+  {% gesper_pagination page_obj "Paginazione anagrafiche candidati" %}
+  <div class="card border-0 shadow-sm">
+    <div class="gesper-list-scroll">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" style="font-size:.84rem">
+        <thead style="background:#1b3a5f;color:#fff">
+          <tr>
+            <th class="py-2 px-3">Dipendente</th>
+            <th class="py-2">Posizione / Livello</th>
+            <th class="py-2">Tipo contratto</th>
+            <th class="py-2">Data inizio</th>
+            <th class="py-2 text-end">Stipendio lordo</th>
+            <th class="py-2 text-center">Stato</th>
+            <th class="py-2 text-center">Firma cand.</th>
+            <th class="py-2 text-center">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in proposte %}
+          <tr>
+            <td class="py-2 px-3">
+              <div style="font-weight:600">{{ p.dipendente.cognome }} {{ p.dipendente.nome }}</div>
+              {% if p.dipendente.codice_fiscale %}
+                <div class="text-muted" style="font-size:.76rem;font-family:monospace">{{ p.dipendente.codice_fiscale }}</div>
+              {% endif %}
+            </td>
+            <td class="py-2">
+              <div>{{ p.posizione }}</div>
+              <div class="text-muted" style="font-size:.76rem">Liv. {{ p.livello_ccnl }}</div>
+            </td>
+            <td class="py-2">{{ p.tipo_contratto.nome|default:"—" }}</td>
+            <td class="py-2">{{ p.data_inizio_rapporto|date:"d/m/Y" }}
+              {% if p.data_fine_rapporto %}
+                <div class="text-muted" style="font-size:.76rem">→ {{ p.data_fine_rapporto|date:"d/m/Y" }}</div>
+              {% endif %}
+            </td>
+            <td class="py-2 text-end">€ {{ p.stipendio_lordo_mensile|euro_it }}</td>
+            <td class="py-2 text-center">
+              {% if p.stato_canonico == 'inviata_candidato' %}
+                <span class="badge" style="background:#cff4fc;color:#055160;border:1px solid #9eeaf9;font-size:.74rem">
+                  <i class="bi bi-send me-1"></i>Inviata
+                </span>
+              {% elif p.stato_canonico == 'firmata_candidato' %}
+                <span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;font-size:.74rem">
+                  <i class="bi bi-pen me-1"></i>Firmata
+                </span>
+              {% elif p.stato_canonico == 'contratto_attivo' %}
+                <span class="badge" style="background:#d1e7dd;color:#0a3622;border:1px solid #a3cfbb;font-size:.74rem">
+                  <i class="bi bi-check-circle me-1"></i>Attivo
+                </span>
+              {% else %}
+                <span class="badge bg-secondary" style="font-size:.74rem">{{ p.get_stato_display }}</span>
+              {% endif %}
+            </td>
+            <td class="py-2 text-center">
+              {% if p.data_firma_candidato %}
+                <small class="text-success"><i class="bi bi-check2 me-1"></i>{{ p.data_firma_candidato|date:"d/m/Y" }}</small>
+              {% elif p.stato_canonico == 'inviata_candidato' %}
+                <small class="text-info"><i class="bi bi-hourglass-split me-1"></i>In attesa</small>
+              {% else %}
+                <small class="text-muted">—</small>
+              {% endif %}
+            </td>
+            <td class="py-2 text-center">
+              <div class="d-flex gap-1 justify-content-center flex-wrap">
+                <a href="{% url 'consulente_proposta_detail' p.id %}"
+                   class="btn btn-sm btn-outline-primary" style="font-size:.75rem;padding:.2rem .6rem"
+                   title="Vedi proposta">
+                  <i class="bi bi-eye me-1"></i>Vedi
+                </a>
+                <a href="{% url 'consulente_proposta_pdf' p.id %}"
+                   class="btn btn-sm btn-outline-danger" style="font-size:.75rem;padding:.2rem .6rem"
+                   title="Scarica PDF proposta">
+                  <i class="bi bi-file-earmark-pdf"></i>
+                </a>
+                {% if p.stato_canonico == 'firmata_candidato' %}
+                <a href="{% url 'consulente_approva_proposta' p.id %}"
+                   class="btn btn-sm btn-warning" style="font-size:.75rem;padding:.2rem .6rem"
+                   title="Approva e converti in contratto">
+                  <i class="bi bi-check-lg me-1"></i>Approva
+                </a>
+                {% endif %}
+                <a href="{% url 'consulente_documenti_dipendente' p.dipendente.id %}"
+                   class="btn btn-sm btn-outline-secondary" style="font-size:.75rem;padding:.2rem .6rem"
+                   title="Documenti">
+                  <i class="bi bi-file-earmark-person"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    </div>
+  </div>
+  {% gesper_pagination page_obj "Paginazione anagrafiche candidati" %}
+  {% else %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-person-x" style="font-size:2.5rem;opacity:.4"></i>
+    <p class="mt-2" style="font-size:.9rem">Nessuna proposta di contratto trovata{% if stato_filter %} con il filtro selezionato{% endif %}.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

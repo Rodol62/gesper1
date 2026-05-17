@@ -1,0 +1,43 @@
+{
+  "pdf": "/private/var/folders/nw/sr7j6wzn5vddsg2xt35mfvgh0000gn/T/tmpl61j0eqs.pdf",
+  "source_name": "busta gennaio 226 cardella.pdf",
+  "natura_busta_file": "ORDINARIA",
+  "azienda": {
+    "id": 1,
+    "nome": "AZIENDA DIMOSTRATIVA (sandbox)"
+  },
+  "diagnostics": {
+    "pdf_pages": 1,
+    "is_encrypted": false,
+    "decrypt_with_configured_passwords": true,
+    "hint": ""
+  },
+  "f24_pages": [],
+  "summary": {
+    "pages_total": 1,
+    "buste_pages": 1,
+    "f24_pages": 0,
+    "f24_importo_stimato": null,
+    "buste_uniche": 1,
+    "buste_duplicate_pages": [],
+    "matched": 0,
+    "to_create": 1,
+    "ambiguous": 0,
+    "already_present": 0
+  },
+  "rows": [
+    {
+      "page": 1,
+      "periodo": "-",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massimo",
+      "birth_date": "10/03/74",
+      "lordo_busta": "4.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "create",
+      "dipendente_id": null,
+      "dipendente_nome": null
+    }
+  ]
+}

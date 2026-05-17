@@ -1,0 +1,141 @@
+{
+  "validazioni_fipe": {
+    "struttura_input": {
+      "campi_obbligatori": [
+        "dati_lavoratore",
+        "dati_azienda",
+        "dati_orario"
+      ],
+      "campi_opzionali": [
+        "dati_assenze",
+        "dati_benefit",
+        "dati_retribuzione"
+      ],
+      "descrizione": "Validazione della struttura minima richiesta per eseguire il calcolo"
+    },
+
+    "validazioni_lavoratore": {
+      "livello_valido": true,
+      "mansione_compatibile_con_livello": true,
+      "anzianita_non_negativa": true,
+      "contratto_valido": [
+        "tempo_indeterminato",
+        "tempo_determinato",
+        "stagionale",
+        "apprendistato",
+        "part_time"
+      ]
+    },
+
+    "validazioni_azienda": {
+      "ateco_valido": true,
+      "numero_dipendenti_non_negativo": true,
+      "azienda_minore_coerente": "numero_dipendenti < 15",
+      "stagionalita_coerente": true
+    },
+
+    "validazioni_orario": {
+      "ore_non_negative": true,
+
+      "limiti_giornalieri": {
+        "min": 3,
+        "max": 13
+      },
+
+      "limiti_settimanali": {
+        "min": 16,
+        "max": 48
+      },
+
+      "limiti_mensili": {
+        "min": 80,
+        "max": 250
+      },
+
+      "part_time": {
+        "min_ore_settimanali": 16,
+        "max_ore_settimanali": 30,
+        "supplementare_non_supera_25_percento": true,
+        "straordinario_non_consentito": true,
+        "descrizione": "Validazioni specifiche per contratti part-time"
+      },
+
+      "straordinario": {
+        "consentito_full_time": true,
+        "vietato_part_time": true,
+        "richiede_autorizzazione_oltre_10_ore_giornaliere": true
+      }
+    },
+
+    "validazioni_assenze": {
+      "tipi_ammessi": [
+        "malattia",
+        "infortunio",
+        "ferie",
+        "permesso",
+        "maternita",
+        "104",
+        "congedo_parentale"
+      ],
+      "giorni_non_negativi": true,
+      "assenze_non_superano_mese": true
+    },
+
+    "validazioni_retribuzione": {
+      "superminimi_non_negativi": true,
+      "premi_non_negativi": true,
+      "indennita_valide": true
+    },
+
+    "validazioni_benefit": {
+      "fringe_benefit_non_negativi": true,
+      "welfare_non_negativo": true,
+      "fringe_soglia_superata": {
+        "conversione_in_imponibile": true
+      }
+    },
+
+    "validazioni_contributive": {
+      "inps": {
+        "aliquota_valida": true,
+        "imponibile_non_negativo": true
+      },
+      "inail": {
+        "tasso_valido": true,
+        "imponibile_non_negativo": true
+      }
+    },
+
+    "validazioni_fiscali": {
+      "scaglione_irpef_valido": true,
+      "detrazioni_non_negative": true,
+      "addizionali_coerenti_con_regione_comune": true
+    },
+
+    "validazioni_tfr": {
+      "quota_non_negativa": true,
+      "rivalutazione_non_negativa": true
+    },
+
+    "validazioni_finali": {
+      "coerenza_totale": [
+        "retribuzione_lorda >= 0",
+        "netto_in_busta >= 0",
+        "contributi >= 0"
+      ],
+      "errori_bloccanti": [
+        "livello_non_valido",
+        "orario_fuori_limiti",
+        "assenze_non_valide",
+        "contratto_non_ammesso",
+        "straordinario_non_consentito_part_time",
+        "supplementare_superiore_limite"
+      ],
+      "warning": [
+        "superamento_soglia_fringe",
+        "ore_supplementari_elevate",
+        "assenze_elevate"
+      ]
+    }
+  }
+}

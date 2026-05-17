@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% load format_it_tags %}
+{% block title %}Incassi documenti — {{ azienda.nome }}{% endblock %}
+
+{% block extra_head %}
+{% include "consulente/_posizione_elenco_head_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3 gesper-libro-page gesper-libro-wrap" style="max-width:1200px;margin:0 auto">
+  <nav aria-label="breadcrumb" class="small mb-2">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url partitario_back.url_name %}">{{ partitario_back.label }}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_posizione_contabile' %}">Posizione contabile</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Incassi documenti</li>
+    </ol>
+  </nav>
+
+  <header class="gesper-libro-hero mb-3">
+    <h1><i class="bi bi-ui-checks-grid me-2"></i>Incassi su proforma e parcelle</h1>
+    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — lettura delle righe già in libro</p>
+    <p class="gesper-libro-lead mb-0">Ogni incasso su una fattura deriva dal <strong>riferimento pagamento in formato pipe</strong> impostato in <strong>Pagamenti</strong> (una o più triple <code>numero|data|importo</code>). Causale e testo distinta <strong>non</strong> collegano automaticamente i bonifici alle fatture: per aggiornare gli accoppiamenti usare <strong>Pagamenti → A documento…</strong>.</p>
+  </header>
+
+  {% include "consulente/posizione_contabile_subnav.html" %}
+
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+
+  <div class="row g-2 small text-muted mb-3">
+    <div class="col-6 col-md-auto"><span class="text-uppercase fw-semibold">Documenti</span> {{ quad.totali.documenti_n }}</div>
+    <div class="col-6 col-md-auto"><span class="text-uppercase fw-semibold">Bonifici</span> {{ quad.totali.bonifici_n }}</div>
+    <div class="col-6 col-md-auto"><span class="text-uppercase fw-semibold">Σ dare</span> € {{ quad.totali.totale_dare|euro_it }}</div>
+    <div class="col-6 col-md-auto"><span class="text-uppercase fw-semibold">Σ avere (libro)</span> € {{ quad.totali.totale_avere_libro|euro_it }}</div>
+    <div class="col-12 col-md-auto"><span class="text-uppercase fw-semibold">Σ avere attribuito</span> € {{ quad.totali.totale_avere_attribuito|euro_it }} · <span class="text-uppercase fw-semibold">non attrib.</span> € {{ quad.totali.totale_orfani_avere|euro_it }}</div>
+    <div class="col-12 col-md-auto"><span class="text-uppercase fw-semibold">Bonif. con PDF riscontro</span> {{ quad.totali.bonifici_con_evidenza_pdf }} / {{ quad.totali.bonifici_n }} · <span class="text-uppercase fw-semibold">attrib. senza PDF</span> € {{ quad.totali.totale_avere_attribuito_senza_evidenza_pdf|euro_it }}{% if quad.totali.totale_orfani_avere_senza_evidenza_pdf %} · <span class="text-uppercase fw-semibold">orfani senza PDF</span> € {{ quad.totali.totale_orfani_avere_senza_evidenza_pdf|euro_it }}{% endif %}</div>
+  </div>
+
+  {% if quad.totali.totale_avere_attribuito_senza_evidenza_pdf > 0 or quad.totali.totale_orfani_avere_senza_evidenza_pdf > 0 %}
+  <div class="alert alert-warning small mb-3 py-2" role="status">
+    Parte degli incassi risulta collegata a fatture <strong>senza PDF di riscontro</strong> sul bonifico (ricevuta, movimento da estratto conto o estratto conto caricati in <strong>Pagamenti</strong>). Senza uno di questi allegati non si può dimostrare al consulente di aver pagato: <strong>operativamente</strong> si considera il pagamento non comprovato e la parcella o la proforma restano da saldare finché non si allega la documentazione.
+  </div>
+  {% endif %}
+
+  <p class="small text-muted border rounded px-2 py-2 mb-3" style="background:#f8fafc;line-height:1.4">
+    <strong>Residuo documento</strong> = dare fattura − somma delle quote incassate attribuite tramite pipe da Pagamenti. Stato <strong>Parziale</strong> = incassato in parte; <strong>Saldato</strong> = dare coperto; <strong>Eccedenza</strong> = incassi oltre il dare.
+    <strong>Saldo cumulativo residui</strong> = somma progressiva dei residui nell’ordine delle date documento.
+    Il <strong>saldo di posizione</strong> complessivo resta nel <strong>libro movimenti</strong> (include rettifiche e righe fuori da questa vista). Per allegare PDF usare <strong>Proforma / parcelle</strong> e <strong>Pagamenti</strong>.
+    <strong>Riscontro consulente:</strong> badge «con / senza PDF» sul bonifico come in Pagamenti; senza PDF il saldo numerico può risultare completo ma manca la documentazione da esibire.
+  </p>
+
+  <div class="table-responsive border rounded-3 shadow-sm mb-4 overflow-hidden">
+    <table class="table table-sm table-hover mb-0 align-middle table-gesper-libro">
+      <thead>
+        <tr>
+          <th>Data doc.</th>
+          <th>Tipo</th>
+          <th>N.</th>
+          <th style="min-width:7rem">PDF doc.</th>
+          <th class="text-end">Dare</th>
+          <th class="text-center">Bonif.</th>
+          <th class="text-end">Σ incassi</th>
+          <th class="text-end">Residuo</th>
+          <th class="text-end">Σ residui</th>
+          <th>Stato</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in quad.righe %}
+        <tr class="{% if row.documento.tipo_documento == 'proforma' %}gesper-libro-row-doc{% elif row.documento.tipo_documento == 'parcella' %}gesper-libro-row-bon{% else %}gesper-libro-row-ret{% endif %}">
+          <td class="text-nowrap text-secondary">{% if row.documento.data_documento %}{{ row.documento.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+          <td class="fw-medium">{{ row.documento.get_tipo_documento_display }}</td>
+          <td class="font-monospace small">{{ row.documento.numero_documento|default:"—" }}</td>
+          <td class="align-top">
+            {% if row.documento.file %}
+            <a href="{{ row.documento.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">Apri PDF</a>
+            {% else %}
+            <span class="text-muted small">—</span>
+            <a href="{% url 'consulente_posizione_proforma' %}" class="small d-block mt-1">Proforma →</a>
+            {% endif %}
+          </td>
+          <td class="text-end font-monospace gesper-libro-amt text-primary">€ {{ row.importo_dare|euro_it }}</td>
+          <td class="text-center">{{ row.bonifici|length }}</td>
+          <td class="text-end font-monospace gesper-libro-amt text-success">€ {{ row.tot_bonifici|euro_it }}</td>
+          <td class="text-end font-monospace gesper-libro-amt {% if row.residuo > 0 %}text-danger{% elif row.residuo < 0 %}text-warning{% else %}text-success{% endif %}">€ {{ row.residuo|euro_it }}</td>
+          <td class="text-end text-muted font-monospace gesper-libro-amt">€ {{ row.saldo_progressivo_residui|euro_it }}</td>
+          <td>
+            {% if row.stato == 'saldato' %}<span class="badge bg-success">Saldato</span>
+            {% elif row.stato == 'parziale' %}<span class="badge bg-warning text-dark">Parziale</span>
+            {% elif row.stato == 'eccedenza' %}<span class="badge bg-info text-dark">Eccedenza</span>
+            {% else %}<span class="badge bg-secondary">Aperto</span>{% endif %}
+            {% if row.saldato_ma_con_bonifici_senza_evidenza_pdf %}
+            <div class="mt-1"><span class="badge bg-warning text-dark" title="Saldato in libro ma senza PDF sul bonifico collegato">Saldato senza riscontro PDF</span></div>
+            {% endif %}
+          </td>
+        </tr>
+        {% if row.bonifici %}
+        <tr class="border-0">
+          <td colspan="10" class="pt-0 pb-2 ps-4 small text-muted bg-white">
+            {% for entry in row.bonifici %}
+              {% with b=entry.bon %}
+              <div class="mb-2 d-flex flex-wrap align-items-center gap-2">
+                {% if entry.ha_riscontro %}<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">Con PDF riscontro</span>{% else %}<span class="badge bg-warning-subtle text-dark border border-warning">Senza PDF riscontro</span>{% endif %}
+                <span class="font-monospace">id {{ b.id }}</span>
+                <span>·</span>
+                <span>{% if b.data_documento %}{{ b.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</span>
+                <span>·</span>
+                <span class="font-monospace text-success">{% if entry.quota is not None %}€ {{ entry.quota|euro_it }} <span class="text-muted fw-normal">(quota su bonif. € {{ b.avere|euro_it }})</span>{% else %}€ {{ b.avere|euro_it }}{% endif %}</span>
+                {% if b.file %}
+                <a href="{{ b.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">Apri PDF</a>
+                {% else %}
+                <a href="{% url 'consulente_posizione_pagamenti' %}" class="btn btn-sm btn-outline-secondary py-0">Pagamenti → allega</a>
+                {% endif %}
+                {% if b.riferimento_pagamento %}<span class="text-break" title="{{ b.riferimento_pagamento }}">· {{ b.riferimento_pagamento|truncatechars:48 }}</span>{% endif %}
+              </div>
+              {% endwith %}
+            {% endfor %}
+          </td>
+        </tr>
+        {% endif %}
+        {% empty %}
+        <tr><td colspan="10" class="text-muted py-4 text-center">Nessun documento proforma/parcella in libro. Aggiungili dalla sezione <strong>Proforma / parcelle</strong>.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if quad.bonifici_ripartiti_multi_documento %}
+  <h2 class="h6 text-secondary mb-2">Bonifici ripartiti su più documenti</h2>
+  <p class="small text-muted mb-2">Stesso movimento in avere suddiviso in quote sulle fatture collegate (ordine come in tabella sopra). Verificate che la somma delle quote coincida con l’avere del bonifico.</p>
+  <div class="list-group list-group-flush border rounded-3 shadow-sm mb-4 small overflow-hidden">
+    {% for rip in quad.bonifici_ripartiti_multi_documento %}
+    {% with b=rip.bon %}
+    <div class="list-group-item py-2">
+      <div><strong>Bonifico id {{ b.id }}</strong> · {% if b.data_documento %}{{ b.data_documento|date:"d/m/Y" }}{% else %}—{% endif %} · avere <span class="font-monospace text-success">€ {{ rip.avere|euro_it }}</span></div>
+      <div class="mt-1 text-muted">{% for p in rip.parti %}doc. {{ p.numero_documento }} → <span class="font-monospace">€ {{ p.quota|euro_it }}</span>{% if not forloop.last %}; {% endif %}{% endfor %}</div>
+      <div class="font-monospace mt-1">Σ quote € {{ rip.somma_quote|euro_it }}{% if rip.coerente %} <span class="text-success small">(= avere bonifico)</span>{% else %} <span class="text-warning small">≠ avere: controllare pipe in Pagamenti o dare in libro</span>{% endif %}</div>
+    </div>
+    {% endwith %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if quad.bonifici_orfani %}
+  <h2 class="h6 text-secondary mb-2">Bonifici senza aggancio esplicito</h2>
+  <p class="small text-muted mb-2">Bonifici senza riferimento pipe valido (o con importi che non coincidono con l’avere), quindi non collegati alle fatture in tabella. Totale avere in questa sezione: <strong>€ {{ quad.totali.totale_orfani_avere|euro_it }}</strong> — impostare l’aggancio in <strong>Pagamenti</strong>.</p>
+  <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
+    <table class="table table-sm mb-0 table-gesper-libro">
+      <thead>
+        <tr>
+          <th>id</th>
+          <th>Data</th>
+          <th class="text-end">Avere</th>
+          <th>Riscontro</th>
+          <th style="min-width:7rem">PDF</th>
+          <th>Riferimento / causale</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in quad.bonifici_orfani %}
+        <tr class="gesper-libro-row-bon">
+          <td class="font-monospace">{{ b.id }}</td>
+          <td class="text-nowrap text-secondary">{% if b.data_documento %}{{ b.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+          <td class="text-end font-monospace gesper-libro-amt text-success">€ {{ b.avere|euro_it }}</td>
+          <td>{% if b.file %}<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle small">Con PDF</span>{% else %}<span class="badge bg-warning-subtle text-dark border border-warning small">Senza PDF</span>{% endif %}</td>
+          <td>
+            {% if b.file %}
+            <a href="{{ b.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">Apri PDF</a>
+            {% else %}
+            <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td class="small">
+            {{ b.riferimento_pagamento|default:""|truncatechars:80 }}
+            {% if b.causale_pagamento %}<div class="text-muted">{{ b.causale_pagamento|truncatechars:120 }}</div>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

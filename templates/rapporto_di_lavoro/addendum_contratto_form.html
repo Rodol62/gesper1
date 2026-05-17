@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Nuovo addendum — {{ contratto.numero_contratto }}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <h2 class="h4 mb-3">Nuovo addendum — {{ contratto.numero_contratto }}</h2>
+  <p class="small text-muted">{{ contratto.dipendente.cognome }} {{ contratto.dipendente.nome }}</p>
+
+  {% if not sincronizzabile %}
+  <div class="alert alert-warning py-2 small">Contratto in stato <strong>{{ contratto.get_stato_display }}</strong>: puoi registrare lo storico ma non sincronizzare i campi sul rapporto.</div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="card shadow-sm border-0">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+    <div class="card-body">
+      <div class="row">
+        {% for field in form %}
+          {% if field.name != 'applica_valori_al_contratto' %}
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<small class="text-muted d-block">{{ field.help_text }}</small>{% endif %}
+            {% for err in field.errors %}<div class="text-danger small">{{ err }}</div>{% endfor %}
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% if sincronizzabile %}
+      <div class="form-check mb-3">
+        {{ form.applica_valori_al_contratto }}
+        <label class="form-check-label" for="{{ form.applica_valori_al_contratto.id_for_label }}">{{ form.applica_valori_al_contratto.label }}</label>
+        {% if form.applica_valori_al_contratto.help_text %}<small class="text-muted d-block">{{ form.applica_valori_al_contratto.help_text }}</small>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="card-footer bg-white d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Salva addendum</button>
+      <a href="{% url 'dettaglio_contratto' contratto.id %}" class="btn btn-secondary">Annulla</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

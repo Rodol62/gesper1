@@ -1,0 +1,437 @@
+{% extends 'base_candidato.html' %}
+{% load format_it_tags %}
+{% block title %}Le mie presenze — GESPER{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<style>
+  .cal-cand-wrap { border: 1px solid #dde4ec; border-radius: 8px; overflow: hidden; background: #fff; margin-bottom: 1rem; }
+  .cal-cand-table { width: 100%; border-collapse: collapse; font-size: .72rem; table-layout: fixed; }
+  .cal-cand-table th {
+    background: #f4f7fa; color: #1b3a5f; font-weight: 700; text-align: center; padding: .35rem .2rem;
+    border: 1px solid #dde4ec; font-size: .65rem;
+  }
+  .cal-cand-table td {
+    border: 1px solid #dde4ec; vertical-align: top; padding: .25rem .2rem; min-height: 4.2rem; height: 1%;
+    background: #fff;
+  }
+  .cal-cand-table td.cal-pad { background: #f8f9fa; }
+  .cal-cand-table td.cal-we { background: #f0f4f8; }
+  .cal-cand-table td.cal-fest { background: #fff8e7; }
+  .cal-cand-table td.cal-chiuso { background: #ececec; }
+  .cal-cand-table td.cal-prev { opacity: .45; }
+  .cal-cand-table td.cal-today { box-shadow: inset 0 0 0 2px #1b3a5f; }
+  .cal-day-num { font-weight: 800; font-size: .85rem; color: #1b3a5f; line-height: 1.1; }
+  .cal-day-num.we { color: #5a6d82; }
+  .cal-day-num.fest { color: #b85a00; }
+  .cal-time { font-size: .62rem; color: #0a6640; font-weight: 600; line-height: 1.25; word-break: break-word; }
+  .cal-time.t2 { color: #856404; }
+  .cal-time.t3 { color: #2d6a20; }
+  .cal-badge-ore { display: inline-block; margin-top: 2px; font-size: .58rem; font-weight: 700; background: #1b3a5f; color: #fff; padding: 1px 5px; border-radius: 4px; }
+  .cal-riposo { font-size: .62rem; color: #6c757d; font-weight: 600; }
+  .cal-in-corso { font-size: .58rem; color: #b85a00; font-weight: 700; }
+  @media (max-width: 576px) {
+    .cal-cand-table { font-size: .62rem; }
+    .cal-day-num { font-size: .78rem; }
+    .cal-time { font-size: .55rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <a href="{% url 'candidato_dashboard' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.86rem">
+      <i class="bi bi-arrow-left"></i> Dashboard
+    </a>
+    <h6 class="mb-0" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-calendar2-check-fill"></i> Presenze — {{ mese_nome }} {{ anno|anno_it }}
+    </h6>
+    <a href="{% url 'calendario_presenze' dipendente.id %}?anno={{ anno|anno_it }}&mese={{ mese }}"
+       class="btn btn-sm btn-outline-primary ms-sm-auto" style="font-size:.86rem" title="Vista tecnica orari (sola lettura)">
+      <i class="bi bi-calendar3"></i> Planning orari
+    </a>
+  </div>
+
+  {% if geo_enabled %}
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+      <div class="d-flex flex-wrap align-items-center gap-2" style="font-size:.86rem">
+        <span class="badge" style="background:#1b3a5f">Timbratura mobile</span>
+        {% if geo_test_mode and geo_test_allow_nogps %}
+          <span class="badge bg-warning text-dark">Modalità test locale</span>
+        {% elif geo_test_mode %}
+          <span class="badge bg-info text-dark">Modalità test con geofence attivo</span>
+        {% endif %}
+        <span class="text-muted">Oggi:
+          {% if oggi_presenza and oggi_presenza.ora_entrata %}
+            ingresso {{ oggi_presenza.ora_entrata|time:"H:i" }}
+            {% if oggi_presenza.ora_uscita %} · uscita {{ oggi_presenza.ora_uscita|time:"H:i" }}{% endif %}
+          {% else %}
+            nessuna timbratura
+          {% endif %}
+        </span>
+      </div>
+
+      <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+        <button id="btn-checkin-geo" type="button" class="btn btn-sm btn-success" style="font-size:.84rem">
+          <i class="bi bi-geo-alt-fill"></i> Check-in GPS
+        </button>
+        <button id="btn-checkout-geo" type="button" class="btn btn-sm btn-primary" style="font-size:.84rem">
+          <i class="bi bi-geo"></i> Check-out GPS
+        </button>
+        {% if geo_test_allow_nogps %}
+        <button id="btn-checkin-test" type="button" class="btn btn-sm btn-outline-success" style="font-size:.84rem">
+          <i class="bi bi-tools"></i> Check-in TEST
+        </button>
+        <button id="btn-checkout-test" type="button" class="btn btn-sm btn-outline-primary" style="font-size:.84rem">
+          <i class="bi bi-tools"></i> Check-out TEST
+        </button>
+        {% endif %}
+      </div>
+      <div id="geo-feedback" class="mt-2 small text-muted"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Info data di inizio validità ────────────────────────────── #}
+  {% if data_inizio_validita %}
+  <div class="mb-2 py-1 px-2 rounded" style="background:{% if origine_data == 'contratto' %}#e8f5ee;border:1px solid #b7dfc9{% else %}#fffbe6;border:1px solid #f5dfa0{% endif %};font-size:.83rem">
+    {% if origine_data == 'contratto' %}
+      <i class="bi bi-file-earmark-check-fill" style="color:#0a6640"></i>
+      <strong>Presenze dal contratto:</strong> visualizzazione dal <strong>{{ data_inizio_validita|date:"d/m/Y" }}</strong> (data di inizio rapporto di lavoro).
+    {% else %}
+      <i class="bi bi-calendar2-event" style="color:#8a5700"></i>
+      <strong>Simulazione provvisoria:</strong> presenze dal <strong>{{ data_inizio_validita|date:"d/m/Y" }}</strong> (data di disponibilità indicata nel profilo). Aggiornato alla firma del contratto definitivo.
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Navigazione mese ────────────────────────────────────────── #}
+  <div class="d-flex align-items-center gap-2 mb-3">
+    {% if prev_disabilitato %}
+      <button class="btn btn-sm btn-outline-secondary" style="font-size:.86rem;opacity:.35" disabled>
+        <i class="bi bi-chevron-left"></i>
+      </button>
+    {% else %}
+      <a href="?anno={{ anno_prev|anno_it }}&mese={{ mese_prev }}"
+         class="btn btn-sm btn-outline-secondary" style="font-size:.86rem">
+        <i class="bi bi-chevron-left"></i>
+      </a>
+    {% endif %}
+    <span style="font-weight:700;font-size:.88rem;color:#1b3a5f;min-width:120px;text-align:center">
+      {{ mese_nome }} {{ anno|anno_it }}
+    </span>
+    <a href="?anno={{ anno_next|anno_it }}&mese={{ mese_next }}"
+       class="btn btn-sm btn-outline-secondary" style="font-size:.86rem">
+      <i class="bi bi-chevron-right"></i>
+    </a>
+    {% if totale_ore or totale_min_rest %}
+    <span class="badge" style="background:#1b3a5f;font-size:.83rem;margin-left:.5rem">
+      Ore timbrate: {{ totale_ore }}h {{ totale_min_rest }}min
+    </span>
+    {% endif %}
+    {% if straord_tot and straord_tot > 0 %}
+    <span class="badge" style="background:#1a4a20;font-size:.83rem;margin-left:.25rem" title="Ore straordinario registrate nel mese">
+      Straord. {{ straord_tot|floatformat:2 }} h
+    </span>
+    {% endif %}
+  </div>
+
+  {% if straord_tot and straord_tot > 0 or magg_straord_ccnl %}
+  <div class="card border-0 shadow-sm mb-3" style="border-left:4px solid #1a4a20!important">
+    <div class="card-body py-2 px-3" style="font-size:.86rem">
+      <div class="fw-semibold text-dark mb-1"><i class="bi bi-clock-history"></i> Riepilogo mese — straordinario</div>
+      {% if straord_tot and straord_tot > 0 %}
+      <div class="mb-1">
+        <strong>Totale ore straordinario:</strong> {{ straord_tot|floatformat:2 }} h
+        {% if straord_per_tipo %}
+        <span class="text-muted">·</span>
+        {% for row in straord_per_tipo %}
+          <span class="badge bg-light text-dark border" style="font-size:.78rem">{{ row.label }}: {{ row.ore|floatformat:2 }} h</span>{% if not forloop.last %} {% endif %}
+        {% endfor %}
+        {% endif %}
+      </div>
+      {% endif %}
+      {% if magg_straord_ccnl %}
+      <div class="text-muted" style="font-size:.8rem;line-height:1.45" title="Percentuali di maggiorazione sul contratto (riferimento CCNL)">
+        <strong class="text-secondary">Maggiorazioni di riferimento sul contratto:</strong>
+        diurno +{{ magg_straord_ccnl.diurno|floatformat:0 }}% ·
+        notturno +{{ magg_straord_ccnl.notturno|floatformat:0 }}% ·
+        festivo +{{ magg_straord_ccnl.festivo|floatformat:0 }}%
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Calendario mensile (vista principale) ───────────────────── #}
+  <div class="cal-cand-wrap shadow-sm">
+    <table class="cal-cand-table mb-0">
+      <thead>
+        <tr>
+          <th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th><th>Sab</th><th>Dom</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for week in griglia_calendario %}
+        <tr>
+          {% for cell in week %}
+            {% if cell %}
+              <td class="{% if cell.prima_validita %}cal-prev{% endif %}{% if cell.data == oggi %} cal-today{% endif %}{% if cell.is_festivo %} cal-fest{% elif cell.is_chiusura_sett %} cal-chiuso{% elif cell.is_weekend %} cal-we{% endif %}">
+                <div class="cal-day-num{% if cell.is_festivo %} fest{% elif cell.is_weekend %} we{% endif %}">{{ cell.num }}</div>
+                {% with p=cell.presenza %}
+                  {% if p %}
+                    {% if p.causale == 'R' %}
+                      <div class="cal-riposo">Riposo</div>
+                    {% else %}
+                      {% if p.ora_entrata %}
+                        <div class="cal-time">T1 {{ p.ora_entrata|time:"H:i" }}{% if p.ora_uscita %}–{{ p.ora_uscita|time:"H:i" }}{% else %} <span class="cal-in-corso">in corso</span>{% endif %}</div>
+                      {% endif %}
+                      {% if p.ora_entrata2 or p.ora_uscita2 %}
+                        <div class="cal-time t2">T2 {{ p.ora_entrata2|time:"H:i"|default:"—" }}–{{ p.ora_uscita2|time:"H:i"|default:"—" }}</div>
+                      {% endif %}
+                      {% if p.ora_entrata3 or p.ora_uscita3 %}
+                        <div class="cal-time t3">T3 {{ p.ora_entrata3|time:"H:i"|default:"—" }}–{{ p.ora_uscita3|time:"H:i"|default:"—" }}</div>
+                      {% endif %}
+                      {% if not p.ora_entrata and not p.ora_entrata2 and not p.ora_entrata3 %}
+                        <div class="cal-riposo">{{ p.get_causale_display }}</div>
+                      {% endif %}
+                      {% if cell.ore_tot_hhmm and p.causale != 'R' %}
+                        <span class="cal-badge-ore" title="Ore totali giornata">Σ {{ cell.ore_tot_hhmm }}</span>
+                      {% endif %}
+                    {% endif %}
+                  {% endif %}
+                {% endwith %}
+              </td>
+            {% else %}
+              <td class="cal-pad"></td>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if not presenze %}
+  <div class="alert alert-light border mb-3" style="font-size:.88rem">
+    <i class="bi bi-calendar-x"></i> Nessuna timbratura o presenza con orari in {{ mese_nome }} {{ anno|anno_it }}.
+  </div>
+  {% endif %}
+
+  <details class="card border-0 shadow-sm mb-2">
+    <summary class="card-header bg-white py-2" style="font-size:.82rem;font-weight:600;color:#1b3a5f;cursor:pointer;list-style-position:outside">
+      Dettaglio turni (tabella) — {{ righe_presenze|length }} righe
+    </summary>
+    <div class="card-body p-0 border-top">
+      {% if righe_presenze %}
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:.88rem">
+          <thead style="background:#f4f7fa">
+            <tr>
+              <th style="font-size:.78rem;color:#666;font-weight:600;padding:.45rem .6rem">Data</th>
+              <th style="font-size:.78rem;color:#666;font-weight:600">Turno</th>
+              <th style="font-size:.78rem;color:#666;font-weight:600">Entrata</th>
+              <th style="font-size:.78rem;color:#666;font-weight:600">Uscita</th>
+              <th style="font-size:.78rem;color:#666;font-weight:600">Parziale</th>
+              <th style="font-size:.78rem;color:#666;font-weight:600">Prog.</th>
+              <th style="font-size:.78rem;color:#666;font-weight:600">Rilevazione</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in righe_presenze %}
+            <tr>
+              <td style="padding:.45rem .6rem;font-weight:600;color:#1b3a5f;white-space:nowrap">
+                {{ r.data|date:"d/m/Y" }}
+                <span class="text-muted" style="font-size:.75rem">({{ r.data|date:"D"|slice:":2" }})</span>
+              </td>
+              <td><span class="badge" style="background:#e8f0fe;color:#1b3a5f">T{{ r.turno }}</span></td>
+              <td>{{ r.entrata|time:"H:i"|default:"—" }}</td>
+              <td>{{ r.uscita|time:"H:i"|default:"—" }}</td>
+              <td>
+                {% if r.in_corso %}<span class="text-warning fw-semibold">In corso</span>{% else %}<span class="text-success fw-semibold">{{ r.parziale_hhmm }}</span>{% endif %}
+              </td>
+              <td class="fw-semibold" style="color:#1b3a5f">{{ r.progressivo_hhmm }}</td>
+              <td class="text-muted" style="font-size:.8rem;white-space:nowrap">{{ r.rilevazione }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot style="background:#f9fbfc">
+            <tr>
+              <td colspan="5" class="fw-bold" style="font-size:.82rem;color:#1b3a5f;padding:.45rem .6rem">{{ presenze|length }} giornate</td>
+              <td colspan="2" class="fw-bold text-success">{{ totale_ore }}h {{ totale_min_rest }}min</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-muted p-3" style="font-size:.86rem">Nessuna riga da mostrare in tabella per questo mese.</div>
+      {% endif %}
+    </div>
+  </details>
+
+</div>
+
+{% if geo_enabled %}
+<form id="geo-csrf-form" style="display:none">{% csrf_token %}</form>
+<script>
+(function () {
+  const feedback = document.getElementById('geo-feedback');
+  const url = "{% url 'candidato_timbratura_geo' %}";
+  const isTestMode = {% if geo_test_allow_nogps %}true{% else %}false{% endif %};
+
+  function setMsg(msg, ok) {
+    if (!feedback) return;
+    feedback.className = ok ? 'mt-2 small text-success' : 'mt-2 small text-danger';
+    feedback.textContent = msg;
+  }
+
+  function csrfToken() {
+    const input = document.querySelector('#geo-csrf-form input[name="csrfmiddlewaretoken"]');
+    if (input && input.value) return input.value;
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+
+  function postTimbratura(azione, coords) {
+    const form = new FormData();
+    form.append('azione', azione);
+    const token = csrfToken();
+    if (token) form.append('csrfmiddlewaretoken', token);
+    if (coords && typeof coords.lat === 'number' && typeof coords.lon === 'number') {
+      form.append('lat', String(coords.lat));
+      form.append('lon', String(coords.lon));
+      if (typeof coords.acc === 'number') form.append('acc', String(coords.acc));
+    }
+
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' },
+      body: form,
+      credentials: 'same-origin'
+    }).then(async (r) => {
+      const rc = r.clone();
+      try {
+        const data = await rc.json();
+        return { status: r.status, data };
+      } catch (_) {
+        const txt = await r.text();
+        let err = 'Errore server durante la timbratura.';
+        const low = (txt || '').toLowerCase();
+        if (low.includes('csrf')) {
+          err = 'Sessione scaduta o token CSRF non valido. Ricarica la pagina e rifai login.';
+        } else if (r.status === 403) {
+          err = 'Accesso negato (403). Verifica login e permessi utente.';
+        } else if (r.status === 302 || r.status === 301) {
+          err = 'Sessione non valida: effettua nuovamente il login.';
+        } else if (r.status >= 500) {
+          err = 'Errore interno server. Riprova tra pochi secondi.';
+        }
+        return { status: r.status, data: { ok: false, error: err } };
+      }
+    }).catch((e) => {
+      const msg = e && e.message ? e.message : 'Connessione assente o interrotta.';
+      return { status: 0, data: { ok: false, error: 'Errore di rete: ' + msg } };
+    });
+  }
+
+  function timbraConGps(azione) {
+    if (!navigator.geolocation) {
+      setMsg('Geolocalizzazione non supportata dal dispositivo.', false);
+      return;
+    }
+    const geolocationErrorMessage = function(err) {
+      if (!err || typeof err.code !== 'number') return 'Impossibile leggere la posizione.';
+      if (err.code === 1) return 'Permesso posizione negato dal browser';
+      if (err.code === 2) return 'Posizione non disponibile sul dispositivo';
+      if (err.code === 3) return 'Timeout acquisizione posizione GPS';
+      return 'Impossibile leggere la posizione';
+    };
+
+    const onSuccess = function (pos) {
+      postTimbratura(azione, {
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude,
+        acc: pos.coords.accuracy
+      }).then(({ status, data }) => {
+        if (status >= 200 && status < 300 && data.ok) {
+          setMsg('Timbratura registrata alle ' + data.ora + '. Aggiorno la pagina…', true);
+          setTimeout(() => window.location.reload(), 600);
+        } else {
+          setMsg(data.error || 'Errore durante la timbratura.', false);
+        }
+      }).catch(() => setMsg('Errore imprevisto durante la timbratura.', false));
+    };
+
+    const retryWithCoarse = function () {
+      setMsg('GPS lento: riprovo in modalità standard…', true);
+      navigator.geolocation.getCurrentPosition(
+        onSuccess,
+        function (err2) {
+          const msg2 = geolocationErrorMessage(err2);
+          if (isTestMode) {
+            setMsg('GPS non disponibile (' + msg2 + '). Uso fallback TEST locale…', true);
+            timbraTest(azione);
+            return;
+          }
+          if (err2 && err2.code === 1) {
+            setMsg('GPS non disponibile: ' + msg2 + '. Abilita la posizione per il sito.', false);
+            return;
+          }
+          setMsg('GPS non disponibile: ' + msg2 + '. Riprova oppure usa un dispositivo con GPS attivo.', false);
+        },
+        { enableHighAccuracy: false, timeout: 20000, maximumAge: 30000 }
+      );
+    };
+
+    setMsg('Rilevazione posizione in corso…', true);
+    navigator.geolocation.getCurrentPosition(
+      onSuccess,
+      function (err) {
+        if (err && err.code === 3) {
+          retryWithCoarse();
+          return;
+        }
+        const msg = geolocationErrorMessage(err);
+        if (isTestMode) {
+          setMsg('GPS non disponibile (' + msg + '). Uso fallback TEST locale…', true);
+          timbraTest(azione);
+          return;
+        }
+        if (err && err.code === 1) {
+          setMsg('GPS non disponibile: ' + msg + '. Abilita la posizione per il sito.', false);
+          return;
+        }
+        setMsg('GPS non disponibile: ' + msg + '. Riprova tra qualche secondo.', false);
+      },
+      { enableHighAccuracy: true, timeout: 18000, maximumAge: 10000 }
+    );
+  }
+
+  function timbraTest(azione) {
+    setMsg('Timbratura test locale in corso…', true);
+    postTimbratura(azione, null).then(({ status, data }) => {
+      if (status >= 200 && status < 300 && data.ok) {
+        setMsg('Timbratura TEST registrata alle ' + data.ora + '. Aggiorno la pagina…', true);
+        setTimeout(() => window.location.reload(), 600);
+      } else {
+        setMsg(data.error || 'Errore durante la timbratura test.', false);
+      }
+    }).catch(() => setMsg('Errore imprevisto durante la timbratura test.', false));
+  }
+
+  const bIn = document.getElementById('btn-checkin-geo');
+  const bOut = document.getElementById('btn-checkout-geo');
+  const bInTest = document.getElementById('btn-checkin-test');
+  const bOutTest = document.getElementById('btn-checkout-test');
+
+  if (bIn) bIn.addEventListener('click', () => timbraConGps('checkin'));
+  if (bOut) bOut.addEventListener('click', () => timbraConGps('checkout'));
+  if (bInTest) bInTest.addEventListener('click', () => timbraTest('checkin'));
+  if (bOutTest) bOutTest.addEventListener('click', () => timbraTest('checkout'));
+})();
+</script>
+{% endif %}
+{% endblock %}

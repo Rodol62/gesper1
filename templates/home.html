@@ -1,0 +1,536 @@
+{% extends 'base.html' %}
+{% load ruoli_tags format_it_tags %}
+{% block title %}{% if mostra_pannello_dashboard_admin %}Gesper — Portale amministratore{% elif mostra_pannello_consulente and not consulente_portale_senza_azienda %}Gesper — {{ azienda.nome }}{% else %}Gesper — Moduli{% endif %}{% endblock %}
+
+{% block extra_head %}
+<style>
+/* Hero moduli: default portale */
+.welcome-hero {
+  background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent) 100%);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1.5rem 2rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 16px rgba(27, 58, 95, 0.12);
+}
+.welcome-hero h2 { font-size: 1.3rem; font-weight: 800; margin: 0 0 .35rem; letter-spacing: -0.02em; }
+.welcome-hero p  { font-size: var(--sz-sm); opacity: .9; margin: 0; line-height: 1.45; }
+/* Stile allineato alla barra Django admin (base_site: #205067 / #417690 / testo #c4dce8) */
+.welcome-hero.welcome-hero--adminlite {
+  background: linear-gradient(135deg, #205067 0%, #2a5f7c 50%, #417690 100%);
+  border: 1px solid #417690;
+  border-radius: 12px;
+  box-shadow: 0 6px 22px rgba(32, 80, 103, 0.22);
+}
+.welcome-hero.welcome-hero--adminlite h2 { font-size: 1.42rem; font-weight: 700; }
+.welcome-hero.welcome-hero--adminlite p {
+  color: #c4dce8;
+  opacity: 1;
+  font-size: 0.95rem;
+  max-width: 52rem;
+}
+
+.module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .65rem; }
+.module-card {
+  background: #fff;
+  border: 1px solid var(--c-border);
+  border-top: 3px solid var(--c-accent);
+  border-radius: 8px;
+  padding: .8rem 1rem;
+  text-decoration: none;
+  color: inherit;
+  transition: box-shadow .15s, transform .15s, border-color .15s;
+  display: flex; flex-direction: column; gap: .25rem;
+}
+.module-card:hover {
+  box-shadow: 0 4px 14px rgba(32, 80, 103, 0.1);
+  transform: translateY(-2px);
+  color: inherit;
+  border-top-color: var(--c-primary);
+}
+.module-card .mc-icon { font-size: 1.35rem; color: var(--c-accent); }
+.module-card .mc-title { font-size: var(--sz-sm); font-weight: 700; color: var(--c-primary); }
+.module-card .mc-desc  { font-size: var(--sz-xs); color: var(--c-muted); line-height: 1.45; }
+
+.module-card.mc-admin { border-top-color: #b8770d; }
+.module-card.mc-admin .mc-icon { color: #b8770d; }
+.module-card.mc-prior { border-top-color: #2e7d4a; }
+.module-card.mc-prior .mc-icon { color: #2e7d4a; }
+
+/* Griglia consulente: stesso linguaggio visivo dell’admin */
+.module-grid--consulente .module-card {
+  border: 1px solid #d5e3ed;
+  border-top: 3px solid #417690;
+  box-shadow: 0 1px 3px rgba(32, 80, 103, 0.06);
+}
+.module-grid--consulente .module-card:hover {
+  border-top-color: #205067;
+  box-shadow: 0 6px 18px rgba(32, 80, 103, 0.12);
+}
+.module-grid--consulente .module-card.mc-prior {
+  border-top-color: #c9a227;
+}
+.module-grid--consulente .module-card.mc-prior .mc-icon { color: #205067; }
+.module-grid--consulente .mc-title { color: #205067; }
+.module-grid--consulente .mc-icon { color: #417690; }
+.module-grid--consulente .mc-desc { color: #3d4d5c; }
+.module-grid--consulente .module-card .mc-chip {
+  display: inline-block;
+  margin-top: .35rem;
+  font-size: .62rem;
+  font-weight: 700;
+  padding: .12rem .45rem;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+.module-grid--consulente .module-card .mc-chip-warn {
+  background: #fff3cd;
+  color: #664d03;
+  border: 1px solid #e6d48a;
+}
+.module-grid--consulente .module-card .mc-chip-danger {
+  background: #f8d7da;
+  color: #842029;
+  border: 1px solid #e7b3b9;
+}
+.module-grid--consulente .module-card .mc-chip-muted {
+  background: #eef4f8;
+  color: #3d4d5c;
+  border: 1px solid #d5e3ed;
+}
+.module-grid--consulente .module-card.mc-hot {
+  box-shadow: 0 0 0 2px rgba(201, 162, 39, .35);
+  border-top-color: #c9a227 !important;
+}
+
+{% if mostra_pannello_dashboard_admin %}
+/* Pannello dashboard (ex pagina dedicata), ora su /moduli/ */
+.dash-header {
+  background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-accent) 100%);
+  color: #fff;
+  border-radius: 6px;
+  padding: .9rem 1.2rem;
+  margin-bottom: .8rem;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+}
+.dash-header h4 { margin: 0; font-size: .95rem; font-weight: 800; }
+.dash-header .sub { font-size: var(--sz-xs); opacity: .8; margin-top: 2px; }
+.azienda-bar {
+  border-radius: 5px;
+  padding: .4rem .9rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  margin-bottom: .8rem;
+  font-size: var(--sz-sm);
+}
+.azienda-bar.has-az  { background: #e8f4ff; border: 1px solid #b3d4f5; }
+.azienda-bar.no-az   { background: #fff8e1; border: 1px solid #f5d882; }
+.azienda-bar .az-name { font-weight: 700; color: var(--c-primary); font-size: var(--sz-md); }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: .5rem;
+  margin-bottom: 1rem;
+}
+.stat-box {
+  background: #fff;
+  border: 1px solid var(--c-border);
+  border-radius: 5px;
+  padding: .55rem .75rem;
+  display: flex; align-items: center; gap: .6rem;
+}
+.stat-box .sb-icon { font-size: 1.3rem; color: var(--c-accent); opacity: .85; flex-shrink: 0; }
+.stat-box .sb-count { font-size: .95rem; font-weight: 800; color: var(--c-primary); line-height: 1.1; }
+.stat-box .sb-label { font-size: .62rem; color: var(--c-muted); text-transform: uppercase; letter-spacing: .04em; }
+.stat-box a { text-decoration: none; color: inherit; }
+.stat-box:hover { border-color: var(--c-accent); box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+.ql-wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: .65rem;
+  margin-bottom: .75rem;
+}
+.ql-card {
+  background: var(--c-alt, #f4f7fa);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  padding: .55rem .7rem;
+}
+.ql-card h6 {
+  margin: 0 0 .4rem;
+  font-size: .62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--c-muted);
+}
+.ql-card .quick-links { margin: 0; display: flex; flex-wrap: wrap; gap: .35rem; }
+.quick-links a {
+  font-size: var(--sz-xs);
+  padding: .28rem .6rem;
+  border-radius: 4px;
+  text-decoration: none;
+  border: 1px solid var(--c-border);
+  background: #fff;
+  color: var(--c-primary);
+  transition: background .12s;
+  display: inline-flex; align-items: center; gap: .3rem;
+}
+.quick-links a:hover { background: #fff; border-color: var(--c-accent); }
+{% endif %}
+
+{% if mostra_pannello_consulente %}
+/* Pannello consulente (ex dashboard dedicata), ora su /moduli/ */
+.cons-dash {
+  --cd-admin-bg: #205067;
+  --cd-admin-border: #417690;
+  --cd-admin-link: #79aec8;
+  --cd-admin-muted: #c4dce8;
+  --cd-primary: #205067;
+  --cd-accent: #417690;
+  --cd-muted: #4b5563;
+  --cd-border: #c7d7e4;
+  --cd-surface: #e8eef3;
+  --cd-success: #0a6640;
+  --cd-warning: #9a7b0a;
+  --cd-danger: #a8232d;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2rem;
+}
+.cons-dash-section-title { font-size: .95rem; font-weight: 700; color: var(--cd-primary); margin-bottom: .65rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.cons-dash-panel { border-radius: 10px; border: 1px solid var(--cd-border); overflow: hidden; background: #fff; box-shadow: 0 2px 10px rgba(27,58,95,.06); }
+.cons-dash-panel .ph { padding: .65rem 1rem; background: var(--cd-surface); border-bottom: 1px solid var(--cd-border); font-size: .82rem; font-weight: 700; color: var(--cd-primary); display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+.cons-dash-panel .table { font-size: .82rem; margin-bottom: 0; }
+.cons-dash-panel .table thead th { background: var(--cd-surface); color: var(--cd-primary); font-weight: 700; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; border-color: var(--cd-border); white-space: nowrap; }
+.cons-dash-toolbar {
+  border: 1px solid var(--cd-border);
+  border-radius: 10px;
+  background: #fafcfd;
+  padding: .55rem .85rem;
+  font-size: .84rem;
+  color: #374151;
+}
+.cons-dash-toolbar a { color: #205067; font-weight: 600; text-decoration: none; }
+.cons-dash-toolbar a:hover { text-decoration: underline; color: var(--cd-admin-border); }
+.cons-dash-toolbar .sep { color: #94a3b8; margin: 0 .35rem; }
+.cons-dash-panel .table td { border-color: #e8edf3; vertical-align: middle; }
+.cons-dash-badge { font-size: .68rem; font-weight: 600; padding: .2rem .45rem; border-radius: 4px; }
+{% endif %}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="welcome-hero{% if user.is_authenticated %}{% if user|has_ruolo:'consulente' or user.is_superuser or user|has_ruolo:'admin' %} welcome-hero--adminlite{% endif %}{% endif %}">
+  <h2>Benvenuto in Gesper</h2>
+  {% if user.is_authenticated %}
+    {% if user.is_superuser or user|has_ruolo:'admin' %}
+    <p>{% if mostra_pannello_dashboard_admin %}Moduli in alto; sotto indicatori e collegamenti operativi.{% else %}Gestione Personale Multiaziendale &mdash; seleziona un modulo per iniziare{% endif %}</p>
+    {% elif user|has_ruolo:'consulente' %}
+    <p>{% if mostra_pannello_consulente and not consulente_portale_senza_azienda %}Moduli in alto; sotto panoramica e KPI consulente.{% else %}Area consulente &mdash; strumenti documenti/presenze/paghe{% endif %}</p>
+    {% elif user|has_ruolo:'dipendente' %}
+    <p>Portale dipendente &mdash; i tuoi dati, presenze e documenti</p>
+    {% elif user|has_ruolo:'candidato' %}
+    <p>Portale candidato &mdash; completa il profilo e segui la tua candidatura</p>
+    {% else %}
+    <p>Gestione Personale Multiaziendale &mdash; seleziona un modulo per iniziare</p>
+    {% endif %}
+  {% else %}
+  <p>Gestione Personale Multiaziendale &mdash; accedi per continuare</p>
+  {% endif %}
+</div>
+
+{% if user.is_authenticated %}
+  {# ── Portale dipendente ───────────────────────────────────── #}
+  {% if user|has_ruolo:'dipendente' %}
+  <div class="module-grid">
+    <a href="{% url 'profile' %}" class="module-card mc-prior">
+      <span class="mc-icon"><i class="bi bi-person-circle"></i></span>
+      <span class="mc-title">Profilo</span>
+      <span class="mc-desc">Dati account, contratti e riepiloghi</span>
+    </a>
+    <a href="{% url 'lista_presenze' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calendar-check-fill"></i></span>
+      <span class="mc-title">Presenze</span>
+      <span class="mc-desc">Timbrature e calendario</span>
+    </a>
+    <a href="{% url 'lista_documenti' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-text-fill"></i></span>
+      <span class="mc-title">Documenti</span>
+      <span class="mc-desc">Archivio personale</span>
+    </a>
+    <a href="{% url 'lista_richieste' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-chat-dots-fill"></i></span>
+      <span class="mc-title">Richieste</span>
+      <span class="mc-desc">Ferie, permessi e richieste</span>
+    </a>
+  </div>
+
+  {# ── Portale candidato (senza ruolo dipendente) ───────────── #}
+  {% elif user|has_ruolo:'candidato' %}
+  <div class="module-grid">
+    <a href="{% url 'candidato_dashboard' %}" class="module-card mc-prior">
+      <span class="mc-icon"><i class="bi bi-person-circle"></i></span>
+      <span class="mc-title">La mia area</span>
+      <span class="mc-desc">Dashboard candidatura</span>
+    </a>
+    <a href="{% url 'profile' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-person-badge"></i></span>
+      <span class="mc-title">Profilo account</span>
+      <span class="mc-desc">Dati di accesso e privacy</span>
+    </a>
+  </div>
+
+  {# ── HR / admin (prima del consulente: admin+consulente → griglia completa) ── #}
+  {% elif user.is_superuser or user|has_ruolo:'admin' %}
+  <h2 class="h6 text-secondary mb-2 mt-1" id="gesper-griglia-moduli"><i class="bi bi-grid-3x3-gap"></i> Moduli</h2>
+  <div class="module-grid mb-3">
+    <a href="{% url 'index_anagrafiche' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-people-fill"></i></span>
+      <span class="mc-title">Anagrafiche</span>
+      <span class="mc-desc">Dipendenti, aziende e anagrafica generale</span>
+    </a>
+    {% if azienda_operativa %}
+    <a href="{% url 'modifica_azienda' azienda_operativa.pk %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-building-gear"></i></span>
+      <span class="mc-title">Anagrafica azienda operativa</span>
+      <span class="mc-desc">{{ azienda_operativa.nome }} — indirizzo, P.IVA, CCNL predefiniti…</span>
+    </a>
+    <a href="{% url 'impostazioni_sistema' %}?tab=sito" class="module-card">
+      <span class="mc-icon"><i class="bi bi-person-badge"></i></span>
+      <span class="mc-title">Firmatario e impostazioni globali</span>
+      <span class="mc-desc">Nome e ruolo firmatario documenti, sede legale testuale, e-mail…</span>
+    </a>
+    {% endif %}
+    <a href="{% url 'lista_documenti' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-text-fill"></i></span>
+      <span class="mc-title">Documenti</span>
+      <span class="mc-desc">Archivio documenti e allegati</span>
+    </a>
+    <a href="{% url 'verifica_buste_paga' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-shield-check"></i></span>
+      <span class="mc-title">Verifica buste paghe</span>
+      <span class="mc-desc">Conciliazione cedolino, scostamenti e export</span>
+    </a>
+    <a href="{% url 'partitario_netti_situazione' %}" class="module-card mc-admin">
+      <span class="mc-icon"><i class="bi bi-journal-richtext"></i></span>
+      <span class="mc-title">Partitario netti dipendenti</span>
+      <span class="mc-desc">DARE da buste (netto), AVERE da pagamenti; si aggiorna anche all’upload delle buste</span>
+    </a>
+    <a href="{% url 'lista_presenze' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calendar-check-fill"></i></span>
+      <span class="mc-title">Presenze</span>
+      <span class="mc-desc">Registrazione e gestione timbrature</span>
+    </a>
+    <a href="{% url 'lista_richieste' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-chat-dots-fill"></i></span>
+      <span class="mc-title">Richieste</span>
+      <span class="mc-desc">Ferie, permessi e richieste del personale</span>
+    </a>
+    <a href="{% url 'centro_rapporti_lavoro' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-briefcase-fill"></i></span>
+      <span class="mc-title">Rapporti di lavoro</span>
+      <span class="mc-desc">Centro unico: proposte, contratti, scadenze e workflow recesso</span>
+    </a>
+    <a href="{% url 'storico_home' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-clock-history"></i></span>
+      <span class="mc-title">Storico</span>
+      <span class="mc-desc">Registro accessi, storico dipendenti</span>
+    </a>
+    <a href="{% url 'simulazione_2026_config' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-graph-up-arrow"></i></span>
+      <span class="mc-title">Simulazione annua</span>
+      <span class="mc-desc">Organico per ruoli vs dipendenti in carico; costo annuo CCNL FIPE</span>
+    </a>
+    <a href="{% url 'calendario_aziendale' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calendar3"></i></span>
+      <span class="mc-title">Calendario</span>
+      <span class="mc-desc">Giorni lavorativi, festività e chiusure aziendali</span>
+    </a>
+    <a href="{% url 'gestione_riferimenti_economici' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-currency-euro"></i></span>
+      <span class="mc-title">Rif. Economici</span>
+      <span class="mc-desc">Parametri CCNL, contributi e aliquote</span>
+    </a>
+  </div>
+  {% if mostra_pannello_dashboard_admin %}
+  {% include 'accounts/includes/dashboard_admin_panel.html' %}
+  {% endif %}
+
+  {# ── Consulente del lavoro (solo consulente, non admin) ───── #}
+  {% elif user|has_ruolo:'consulente' %}
+  {% if mostra_pannello_consulente and consulente_portale_senza_azienda %}
+  <div class="alert alert-warning border shadow-sm mb-3" role="alert">
+    <strong>Nessuna azienda associata</strong> al tuo account consulente. Contatta l'amministratore, poi aggiorna il profilo.
+  </div>
+  {% endif %}
+  <h2 class="h6 text-secondary mb-2 mt-1" id="gesper-griglia-moduli-consulente"><i class="bi bi-grid-3x3-gap"></i> Moduli</h2>
+  <div class="module-grid module-grid--consulente mb-3">
+    {% if user.azienda %}
+    <a href="{% url 'modifica_azienda' user.azienda.pk %}" class="module-card mc-prior">
+      <span class="mc-icon"><i class="bi bi-building-gear"></i></span>
+      <span class="mc-title">Anagrafica azienda</span>
+      <span class="mc-desc">Ragione sociale, indirizzo, P.IVA e CCNL predefiniti{% if not consulente_portale_senza_azienda and mese_corrente %}<span class="mc-chip mc-chip-muted">{{ azienda.nome }} · {{ mese_corrente }} {{ anno_corrente|anno_it }}</span>{% endif %}</span>
+    </a>
+    {% endif %}
+    <a href="{% if recesso_prova_in_verifica_count %}{% url 'centro_moduli' %}#cons-recesso-prova{% else %}{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo{% endif %}" class="module-card{% if recesso_prova_in_verifica_count %} mc-hot{% endif %}">
+      <span class="mc-icon"><i class="bi bi-envelope-paper"></i></span>
+      <span class="mc-title">Recesso in prova</span>
+      <span class="mc-desc">Lettera e workflow verifica consulente{% if recesso_prova_in_verifica_count %}<span class="mc-chip mc-chip-warn">{{ recesso_prova_in_verifica_count }} in verifica</span>{% endif %}</span>
+    </a>
+    <a href="{% if proposte_da_approvare %}{% url 'consulente_candidati' %}?stato=firmata_candidato{% else %}{% url 'consulente_candidati' %}{% endif %}" class="module-card{% if proposte_da_approvare %} mc-hot{% endif %}">
+      <span class="mc-icon"><i class="bi bi-person-lines-fill"></i></span>
+      <span class="mc-title">Candidati e proposte</span>
+      <span class="mc-desc">Anagrafiche, firma candidato, approvazioni{% if proposte_da_approvare %}<span class="mc-chip mc-chip-warn">{{ proposte_da_approvare }} da approvare</span>{% elif candidati_count %}<span class="mc-chip mc-chip-muted">{{ candidati_count }} candidati</span>{% endif %}</span>
+    </a>
+    <a href="{% url 'consulente_documenti' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-text-fill"></i></span>
+      <span class="mc-title">Documenti per dipendente</span>
+      <span class="mc-desc">Elenco archiviato per persona</span>
+    </a>
+    <a href="{% url 'consulente_carica_documento' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-cloud-arrow-up"></i></span>
+      <span class="mc-title">Carica paghe / documenti</span>
+      <span class="mc-desc">Upload buste e allegati verso dipendenti</span>
+    </a>
+    <a href="{% url 'riepilogo_presenze_mese' %}{% if not consulente_portale_senza_azienda %}?anno={{ anno_corrente }}&mese={{ mese_corrente_num }}{% endif %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-grid-3x3-gap-fill"></i></span>
+      <span class="mc-title">Griglia presenze mese</span>
+      <span class="mc-desc">Riepilogo mensile tutti i dipendenti{% if not consulente_portale_senza_azienda %}<span class="mc-chip mc-chip-muted">{{ presenze_mese_count }} registrazioni · {{ mese_corrente }}</span>{% endif %}</span>
+    </a>
+    <a href="{% url 'export_presenze_excel' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-excel-fill"></i></span>
+      <span class="mc-title">Export presenze Excel</span>
+      <span class="mc-desc">Mese corrente o selezionato</span>
+    </a>
+    <a href="{% url 'consulente_upload_buste_paga' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-arrow-up"></i></span>
+      <span class="mc-title">Carica buste paga</span>
+      <span class="mc-desc">Upload buste verso archivio dipendenti{% if not consulente_portale_senza_azienda %}<span class="mc-chip mc-chip-muted">{{ buste_paga_count }} in archivio</span>{% endif %}</span>
+    </a>
+    <a href="{% url 'consulente_upload_cud' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-ruled"></i></span>
+      <span class="mc-title">Carica CUD</span>
+      <span class="mc-desc">Certificazioni uniche{% if not consulente_portale_senza_azienda %}<span class="mc-chip mc-chip-muted">{{ cud_certificati_count }} CUD certificati</span>{% endif %}</span>
+    </a>
+    <a href="{% url 'consulente_partitario_paghe' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-journal-text"></i></span>
+      <span class="mc-title">Partitario paghe</span>
+      <span class="mc-desc">Vista partitario e movimenti paghe</span>
+    </a>
+    <a href="{% url 'consulente_riepilogo_f24_annuale' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-bar-graph"></i></span>
+      <span class="mc-title">Riepilogo F24 annuale</span>
+      <span class="mc-desc">Quadro riepilogativo{% if not consulente_portale_senza_azienda %}<span class="mc-chip mc-chip-muted">{{ f24_documenti_count }} documenti F24</span>{% endif %}</span>
+    </a>
+    <a href="{% url 'consulente_import_pdf_unico' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-filetype-pdf"></i></span>
+      <span class="mc-title">Import PDF unico</span>
+      <span class="mc-desc">Import massivo da PDF</span>
+    </a>
+    <a href="{% url 'consulente_posizione_contabile' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-journal-bookmark-fill"></i></span>
+      <span class="mc-title">Posizione contabile</span>
+      <span class="mc-desc">Proforma, bonifici, libro movimenti</span>
+    </a>
+    <a href="{% url 'libro_paga_lista' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-book-half"></i></span>
+      <span class="mc-title">Libro paga</span>
+      <span class="mc-desc">Registro buste e riferimenti INPS</span>
+    </a>
+    <a href="{% url 'lista_dipendenti' %}?stato=attivo" class="module-card">
+      <span class="mc-icon"><i class="bi bi-people-fill"></i></span>
+      <span class="mc-title">Dipendenti attivi</span>
+      <span class="mc-desc">Elenco in forza{% if not consulente_portale_senza_azienda %}<span class="mc-chip mc-chip-muted">{{ dipendenti_attivi }} in forza</span>{% endif %}</span>
+    </a>
+    <a href="{% url 'lista_contratti_scadenza' %}" class="module-card{% if td_scaduti_aperti or td_in_scadenza %} mc-hot{% endif %}">
+      <span class="mc-icon"><i class="bi bi-calendar-event"></i></span>
+      <span class="mc-title">Scadenze contratti TD</span>
+      <span class="mc-desc">Termini e proroghe{% if td_scaduti_aperti %}<span class="mc-chip mc-chip-danger">{{ td_scaduti_aperti }} scaduti aperti</span>{% elif td_in_scadenza %}<span class="mc-chip mc-chip-warn">{{ td_in_scadenza }} in scadenza</span>{% endif %}</span>
+    </a>
+    <a href="{% url 'consulente_contratti' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-files"></i></span>
+      <span class="mc-title">Contratti (elenco)</span>
+      <span class="mc-desc">Tutti i rapporti dell’azienda{% if not consulente_portale_senza_azienda %}<span class="mc-chip mc-chip-muted">{{ contratti_registrati_count }} rapporti{% if addendum_anno_count %} · {{ addendum_anno_count }} addendum {{ anno_corrente|anno_it }}{% endif %}</span>{% endif %}</span>
+    </a>
+    <a href="{% url 'centro_rapporti_lavoro' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-briefcase-fill"></i></span>
+      <span class="mc-title">Centro rapporti di lavoro</span>
+      <span class="mc-desc">Proposte, contratti, workflow</span>
+    </a>
+    <a href="{% url 'riepilogo_scostamento_cedolino' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-arrow-left-right"></i></span>
+      <span class="mc-title">Scostamento vs cedolino</span>
+      <span class="mc-desc">Calendario lavorato rispetto al cedolino</span>
+    </a>
+    <a href="{% url 'guida_modulo' 'modulo-consulente' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-question-circle-fill"></i></span>
+      <span class="mc-title">Guida consulente</span>
+      <span class="mc-desc">Istruzioni e flussi</span>
+    </a>
+    <a href="{% url 'profile' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-person"></i></span>
+      <span class="mc-title">Profilo</span>
+      <span class="mc-desc">Account e impostazioni</span>
+    </a>
+  </div>
+  {% if mostra_pannello_consulente and not consulente_portale_senza_azienda %}
+  {% include 'accounts/includes/consulente_portale_panel.html' %}
+  {% endif %}
+
+  {# ── HR / altri ruoli interni (senza fascia solo-admin) ─── #}
+  {% else %}
+  <div class="module-grid">
+    {% if user.azienda and user|has_ruolo:'hr' %}
+    <a href="{% url 'modifica_azienda' user.azienda.pk %}" class="module-card mc-prior">
+      <span class="mc-icon"><i class="bi bi-building-gear"></i></span>
+      <span class="mc-title">Anagrafica azienda</span>
+      <span class="mc-desc">Dati {{ user.azienda.nome }} e parametri CCNL; il firmatario nelle lettere è nelle Impostazioni globali (solo admin)</span>
+    </a>
+    {% endif %}
+    <a href="{% url 'index_anagrafiche' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-people-fill"></i></span>
+      <span class="mc-title">Anagrafiche</span>
+      <span class="mc-desc">Dipendenti, aziende e anagrafica generale</span>
+    </a>
+    <a href="{% url 'lista_documenti' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-file-earmark-text-fill"></i></span>
+      <span class="mc-title">Documenti</span>
+      <span class="mc-desc">Archivio documenti e allegati</span>
+    </a>
+    <a href="{% url 'verifica_buste_paga' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-shield-check"></i></span>
+      <span class="mc-title">Verifica buste paghe</span>
+      <span class="mc-desc">Conciliazione cedolino e strumenti collegati</span>
+    </a>
+    <a href="{% url 'lista_presenze' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calendar-check-fill"></i></span>
+      <span class="mc-title">Presenze</span>
+      <span class="mc-desc">Registrazione e gestione timbrature</span>
+    </a>
+    <a href="{% url 'lista_richieste' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-chat-dots-fill"></i></span>
+      <span class="mc-title">Richieste</span>
+      <span class="mc-desc">Ferie, permessi e richieste del personale</span>
+    </a>
+    <a href="{% url 'centro_rapporti_lavoro' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-briefcase-fill"></i></span>
+      <span class="mc-title">Rapporti di lavoro</span>
+      <span class="mc-desc">Centro unico: proposte, contratti, scadenze e workflow recesso</span>
+    </a>
+    <a href="{% url 'storico_home' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-clock-history"></i></span>
+      <span class="mc-title">Storico</span>
+      <span class="mc-desc">Registro accessi, storico dipendenti</span>
+    </a>
+  </div>
+  {% endif %}
+{% else %}
+<div class="card text-center" style="max-width:360px;margin:3rem auto">
+  <div class="card-body" style="padding:1.5rem">
+    <i class="bi bi-lock-fill" style="font-size:2rem;color:var(--c-muted)"></i>
+    <p style="margin:.75rem 0 1rem;font-size:var(--sz-sm)">Accedi per utilizzare Gesper</p>
+    <a href="{% url 'login' %}" class="btn btn-primary btn-sm w-100">Accedi</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,247 @@
+"""
+Risolve contratto attivo e ParametroCCNLTurismo coerenti con anagrafica/contratto,
+per riallineare il motore busta paga al cedolino (oltre al fallback da RuoloOrganico2026).
+"""
+import calendar
+from datetime import date
+from decimal import Decimal
+from typing import Dict, Optional, Tuple
+
+from django.db.models import Q
+
+from .models import AddendumContrattuale, ParametroCCNLTurismo, ParametroScattiAnnuali, RapportoDiLavoro
+
+
+def _parametro_valido_nel_mese(parametro: ParametroCCNLTurismo | None, primo: date, ultimo: date) -> bool:
+    """Verifica intersezione tra validità parametro e mese richiesto."""
+    if parametro is None or not getattr(parametro, "attivo", False):
+        return False
+    da = getattr(parametro, "decorrenza_validita_da", None)
+    a = getattr(parametro, "decorrenza_validita_a", None)
+    if da and da > ultimo:
+        return False
+    if a and a < primo:
+        return False
+    return True
+
+
+def rapporto_sottoscritto_attivo_nel_mese(
+    *,
+    dipendente,
+    azienda,
+    anno: int,
+    mese: int,
+) -> Optional[RapportoDiLavoro]:
+    """Contratto firmato il cui arco temporale interseca il mese richiesto."""
+    ultimo = date(anno, mese, calendar.monthrange(anno, mese)[1])
+    primo = date(anno, mese, 1)
+    return (
+        RapportoDiLavoro.objects.filter(
+            azienda=azienda,
+            dipendente=dipendente,
+            stato='sottoscritto',
+            data_inizio_rapporto__lte=ultimo,
+        )
+        .filter(Q(data_fine_rapporto__isnull=True) | Q(data_fine_rapporto__gte=primo))
+        .select_related(
+            'tipo_contratto',
+            'proposta_origine',
+            'proposta_origine__parametro_ccnl',
+        )
+        .order_by('-data_inizio_rapporto', '-id')
+        .first()
+    )
+
+
+def matrice_rapporti_sottoscritti_anno(
+    *,
+    dipendente_ids: set[int],
+    azienda,
+    anno: int,
+) -> Dict[Tuple[int, int], Optional[RapportoDiLavoro]]:
+    """
+    Precarica il contratto sottoscritto per ogni (dipendente_id, mese) nell'anno.
+
+    Evita N×12 query ripetute rispetto a chiamare ``rapporto_sottoscritto_attivo_nel_mese``
+    in ciclo (simulazione organico / risultato annuo).
+    """
+    out: Dict[Tuple[int, int], Optional[RapportoDiLavoro]] = {}
+    if not dipendente_ids or azienda is None:
+        return out
+
+    rapporti = list(
+        RapportoDiLavoro.objects.filter(
+            azienda=azienda,
+            dipendente_id__in=dipendente_ids,
+            stato='sottoscritto',
+        )
+        .select_related(
+            'tipo_contratto',
+            'proposta_origine',
+            'proposta_origine__parametro_ccnl',
+        )
+        .order_by('dipendente_id', '-data_inizio_rapporto', '-id')
+    )
+    by_dip: dict[int, list[RapportoDiLavoro]] = {}
+    for r in rapporti:
+        by_dip.setdefault(r.dipendente_id, []).append(r)
+
+    for did in dipendente_ids:
+        lst = by_dip.get(did, [])
+        for mese in range(1, 13):
+            ultimo = date(anno, mese, calendar.monthrange(anno, mese)[1])
+            primo = date(anno, mese, 1)
+            scelto: Optional[RapportoDiLavoro] = None
+            for r in lst:
+                di = r.data_inizio_rapporto
+                if di is None or di > ultimo:
+                    continue
+                df = r.data_fine_rapporto
+                if df is not None and df < primo:
+                    continue
+                scelto = r
+                break
+            out[(did, mese)] = scelto
+    return out
+
+
+def risolvi_parametro_ccnl_per_mese(
+    *,
+    rapporto: Optional[RapportoDiLavoro],
+    data_primo_giorno_mese: date,
+    livello_fallback: str,
+) -> Tuple[Optional[ParametroCCNLTurismo], str]:
+    """
+    Restituisce (parametro, fonte) dove fonte ∈
+    {'proposta_origine','addendum','tabella_livello','tabella_fallback'}.
+    """
+    livello = (livello_fallback or '').strip()
+    ultimo = date(
+        data_primo_giorno_mese.year,
+        data_primo_giorno_mese.month,
+        calendar.monthrange(data_primo_giorno_mese.year, data_primo_giorno_mese.month)[1],
+    )
+    if rapporto:
+        proposta = getattr(rapporto, 'proposta_origine', None)
+        if proposta is not None and getattr(proposta, 'parametro_ccnl_id', None):
+            pc = proposta.parametro_ccnl
+            if _parametro_valido_nel_mese(pc, data_primo_giorno_mese, ultimo):
+                return pc, 'proposta_origine'
+        add = (
+            AddendumContrattuale.objects.filter(
+                rapporto=rapporto,
+                data_decorrenza__lte=ultimo,
+                parametro_ccnl__isnull=False,
+            )
+            .select_related('parametro_ccnl')
+            .order_by('-data_decorrenza', '-id')
+            .first()
+        )
+        if (
+            add is not None
+            and add.parametro_ccnl_id
+            and _parametro_valido_nel_mese(add.parametro_ccnl, data_primo_giorno_mese, ultimo)
+        ):
+            return add.parametro_ccnl, 'addendum'
+        livello = (rapporto.livello_ccnl or livello or '').strip()
+
+    if not livello:
+        return None, 'tabella_fallback'
+
+    pc = (
+        ParametroCCNLTurismo.objects.filter(
+            attivo=True,
+            livello=livello,
+            decorrenza_validita_da__lte=ultimo,
+        )
+        .filter(
+            Q(decorrenza_validita_a__isnull=True) | Q(decorrenza_validita_a__gte=data_primo_giorno_mese),
+        )
+        .order_by('-decorrenza_validita_da')
+        .first()
+    )
+    if pc:
+        return pc, 'tabella_livello'
+    return None, 'tabella_fallback'
+
+
+def superminimo_da_rapporto_o_ruolo(*, rapporto: RapportoDiLavoro | None, ruolo_superminimo) -> Decimal:
+    """
+    Superminimo mensile di riferimento **a tempo pieno** da ``RapportoDiLavoro.superminimo_mensile``
+    (o da ruolo in simulazioni organico). Il motore applica il coefficiente part-time.
+    """
+    if rapporto is not None:
+        try:
+            return Decimal(str(rapporto.superminimo_mensile or 0)).quantize(Decimal('0.01'))
+        except Exception:
+            pass
+    try:
+        return Decimal(str(ruolo_superminimo or 0)).quantize(Decimal('0.01'))
+    except Exception:
+        return Decimal('0.00')
+
+
+def divisore_str_da_parametro_get(raw: Optional[str]) -> str:
+    """Allineato alla simulazione 2026: 172 | 26 | 173.33 (default)."""
+    s = (raw or '173.33').strip()
+    if s == '172':
+        return '172'
+    if s == '26':
+        return '26'
+    return '173.33'
+
+
+def anni_di_servizio(data_inizio: date, ref: date) -> int:
+    """Anni completi di servizio da ``data_inizio`` alla data di riferimento (es. primo giorno del mese simulato)."""
+    if not data_inizio or data_inizio > ref:
+        return 0
+    y = ref.year - data_inizio.year
+    if (ref.month, ref.day) < (data_inizio.month, data_inizio.day):
+        y -= 1
+    return max(0, y)
+
+
+def build_scatti_db(ccnl, anno: int) -> dict:
+    """
+    Mappa livello → [(soglia_anni, importo_mensile), ...] ordinata per soglia.
+    Usata con :func:`calcola_scatto_totale_maturato` (stessa logica organico / presenze).
+    """
+    scatti_db: dict = {}
+    if ccnl is None:
+        return scatti_db
+    for s in ParametroScattiAnnuali.objects.filter(ccnl=ccnl, anno=anno, attivo=True):
+        scatti_db.setdefault(s.livello, []).append((int(s.anni_anzianita or 0), Decimal(str(s.importo_scatto or 0))))
+    for k in scatti_db:
+        scatti_db[k].sort(key=lambda x: x[0])
+    return scatti_db
+
+
+def calcola_scatto_totale_maturato(livello: str, anni_anzianita: int, scatti_db: dict) -> Decimal:
+    """
+    Importo mensile cumulato degli scatti maturati (soglie anni ≤ anzianità).
+    Allineato a FIPE: ogni soglia in tabella concorre con il relativo importo mensile.
+    """
+    key = (livello or '').strip()
+    soglie = scatti_db.get(key, [])
+    totale = Decimal('0')
+    for (soglia, importo) in soglie:
+        if anni_anzianita >= soglia:
+            totale += importo
+    return totale
+
+
+def kwargs_percorso_fiscale_sim(percorso: Optional[str]) -> dict:
+    """
+    Allinea il motore al trattamento fiscale tipico cedolino (L.207/2024 come detrazione IRPEF).
+
+    GET ``percorso_fiscale``:
+    - ``standard`` (default): calcolo «integrato» netto (TI+L207 come crediti a netto).
+    - ``ced_l207_det``: modalità cedolino con L207 in detrazione IRPEF (come ``calcola_busta_paga_mese``).
+    """
+    p = (percorso or 'standard').strip().lower()
+    if p in ('ced_l207_det', 'cedolino', 'ts', 'l207_detrazione'):
+        return {
+            'fiscale_modalita_cedolino': True,
+            'l207_come_detrazione_irpef': True,
+        }
+    return {}

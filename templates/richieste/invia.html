@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Invia richiesta</h2>
+<form method="post">
+    {% csrf_token %}
+    <!-- Qui va il form di invio richiesta -->
+    <input type="text" name="tipo" placeholder="Tipo richiesta">
+    <textarea name="descrizione" placeholder="Descrizione"></textarea>
+    <input type="submit" value="Invia">
+</form>
+{% endblock %}

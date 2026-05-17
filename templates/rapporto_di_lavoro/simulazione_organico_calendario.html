@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% load currency_filters %}
+
+{% block title %}Calendario presenze simulazione organico{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4" style="font-size:0.86rem;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h2 class="mb-1">🗓️ Calendario presenze e maggiorazioni</h2>
+      <div class="text-muted">Mese di riferimento: <strong>{{ mese_riferimento }}</strong></div>
+    </div>
+    <div class="d-flex gap-2">
+      {% if querystring_origine %}
+        <a href="{% url 'simulazione_organico_risultato' %}?{{ querystring_origine }}" class="btn btn-outline-primary btn-sm">Torna al risultato</a>
+      {% endif %}
+      <a href="{% url 'simulazione_organico' %}{% if querystring_origine %}?{{ querystring_origine }}{% endif %}" class="btn btn-outline-secondary btn-sm">Configura simulazione</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-8">
+      <div class="card h-100">
+        <div class="card-header py-2 bg-light"><strong>Sintesi mese</strong></div>
+        <div class="card-body py-2">
+          <div class="row g-2">
+            <div class="col-md-3"><div class="small text-muted">Giorni mese</div><div class="fw-bold">{{ stats_mese.conteggi.giorni_nel_mese }}</div></div>
+            <div class="col-md-3"><div class="small text-muted">Sabati</div><div class="fw-bold">{{ stats_mese.conteggi.sabati }}</div></div>
+            <div class="col-md-3"><div class="small text-muted">Domeniche</div><div class="fw-bold">{{ stats_mese.conteggi.domeniche }}</div></div>
+            <div class="col-md-3"><div class="small text-muted">Festività infrasett.</div><div class="fw-bold">{{ stats_mese.conteggi.festivita_infrasettimanali }}</div></div>
+          </div>
+          <div class="mt-2 small text-muted">
+            Le maggiorazioni vengono calcolate solo se valorizzi le ore/giorni nelle righe sotto. Le chiusure aziendali possono azzerare lavoro domenicale/festivo se impostate come ferie/riposo/chiusura non retribuita.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header py-2 bg-light"><strong>Festività e chiusure</strong></div>
+        <div class="card-body py-2">
+          <div class="mb-2">
+            <div class="small text-muted fw-semibold">Festività del mese</div>
+            <ul class="mb-0 ps-3 small">
+              {% for f in stats_mese.festivita %}
+                <li>{{ f.data|date:"d/m" }} - {{ f.nome }}</li>
+              {% empty %}
+                <li class="text-muted">Nessuna festività locale/nazionale caricata nel periodo.</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div>
+            <div class="small text-muted fw-semibold">Chiusure aziendali</div>
+            <ul class="mb-0 ps-3 small">
+              {% for c in stats_mese.chiusure %}
+                <li>{{ c.data_inizio|date:"d/m" }} - {{ c.data_fine|date:"d/m" }} · {{ c.get_trattamento_display }}</li>
+              {% empty %}
+                <li class="text-muted">Nessuna chiusura aziendale presente nel mese.</li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <hr class="my-2">
+          <form method="post" class="mb-2">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_chiusura">
+            <input type="hidden" name="mese_riferimento" value="{{ mese_riferimento }}">
+            <input type="hidden" name="querystring_origine" value="{{ querystring_origine }}">
+            <div class="small text-muted fw-semibold mb-1">Aggiungi chiusura</div>
+            <div class="row g-1 mb-1">
+              <div class="col-6"><input type="date" name="chiusura_data_inizio" class="form-control form-control-sm" required></div>
+              <div class="col-6"><input type="date" name="chiusura_data_fine" class="form-control form-control-sm" required></div>
+            </div>
+            <div class="row g-1 mb-1">
+              <div class="col-12">
+                <select name="chiusura_trattamento" class="form-select form-select-sm">
+                  {% for value, label in chiusura_trattamenti %}
+                    <option value="{{ value }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="row g-1">
+              <div class="col-12">
+                <input type="text" name="chiusura_descrizione" class="form-control form-control-sm" placeholder="Descrizione (opzionale)">
+              </div>
+            </div>
+            <div class="mt-1 text-end">
+              <button type="submit" class="btn btn-outline-primary btn-sm">Aggiungi</button>
+            </div>
+          </form>
+
+          {% if stats_mese.chiusure %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="delete_chiusura">
+              <input type="hidden" name="mese_riferimento" value="{{ mese_riferimento }}">
+              <input type="hidden" name="querystring_origine" value="{{ querystring_origine }}">
+              <div class="small text-muted fw-semibold mb-1">Elimina chiusura</div>
+              <div class="row g-1">
+                <div class="col-9">
+                  <select name="chiusura_id" class="form-select form-select-sm">
+                    {% for c in stats_mese.chiusure %}
+                      <option value="{{ c.id }}">{{ c.data_inizio|date:"d/m" }}-{{ c.data_fine|date:"d/m" }} · {{ c.get_trattamento_display }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-3 d-grid">
+                  <button type="submit" class="btn btn-outline-danger btn-sm" >Del</button>
+                </div>
+              </div>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="save_calendario">
+    <input type="hidden" name="mese_riferimento" value="{{ mese_riferimento }}">
+    <input type="hidden" name="querystring_origine" value="{{ querystring_origine }}">
+
+    <div class="card">
+      <div class="card-header py-2 bg-primary text-white d-flex justify-content-between align-items-center">
+        <strong>Calendario mensile per profilo simulato</strong>
+        <button type="submit" class="btn btn-light btn-sm">Salva calendario</button>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle mb-0" style="font-size:0.78rem;">
+            <thead class="table-secondary">
+              <tr>
+                <th>Profilo</th>
+                <th class="text-end">Presenza</th>
+                <th class="text-end">Assenza</th>
+                <th class="text-end">Ferie</th>
+                <th class="text-end">Riposi comp.</th>
+                <th class="text-end">Straord. diurno</th>
+                <th class="text-end">Straord. notturno</th>
+                <th class="text-end">Straord. festivo</th>
+                <th class="text-end">Lav. domenicale</th>
+                <th class="text-end">Lav. festivo</th>
+                <th>Opzioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in ruoli_calendario %}
+                <tr>
+                  <td>
+                    <strong>{{ r.label_unita }}</strong><br>
+                    <span class="text-muted">{{ r.nome }}</span>
+                    {% if r.quantita|default:0 > 1 %}<span class="badge bg-secondary ms-1">profilo da gruppo {{ r.quantita }}x</span>{% endif %}
+                  </td>
+                  <td><input type="number" step="0.5" min="0" class="form-control form-control-sm text-end" name="{{ r.id_unita }}_giorni_presenza" value="{% if r.calendario %}{{ r.calendario.giorni_presenza }}{% else %}0{% endif %}"></td>
+                  <td><input type="number" step="0.5" min="0" class="form-control form-control-sm text-end" name="{{ r.id_unita }}_giorni_assenza" value="{% if r.calendario %}{{ r.calendario.giorni_assenza }}{% else %}0{% endif %}"></td>
+                  <td><input type="number" step="0.5" min="0" class="form-control form-control-sm text-end" name="{{ r.id_unita }}_giorni_ferie" value="{% if r.calendario %}{{ r.calendario.giorni_ferie }}{% else %}0{% endif %}"></td>
+                  <td><input type="number" step="0.5" min="0" class="form-control form-control-sm text-end" name="{{ r.id_unita }}_giorni_riposo_compensativo" value="{% if r.calendario %}{{ r.calendario.giorni_riposo_compensativo }}{% else %}0{% endif %}"></td>
+                  <td><input type="number" step="0.5" min="0" class="form-control form-control-sm text-end" name="{{ r.id_unita }}_ore_straordinario_diurno" value="{% if r.calendario %}{{ r.calendario.ore_straordinario_diurno }}{% else %}0{% endif %}"></td>
+                  <td><input type="number" step="0.5" min="0" class="form-control form-control-sm text-end" name="{{ r.id_unita }}_ore_straordinario_notturno" value="{% if r.calendario %}{{ r.calendario.ore_straordinario_notturno }}{% else %}0{% endif %}"></td>
+                  <td><input type="number" step="0.5" min="0" class="form-control form-control-sm text-end" name="{{ r.id_unita }}_ore_straordinario_festivo" value="{% if r.calendario %}{{ r.calendario.ore_straordinario_festivo }}{% else %}0{% endif %}"></td>
+                  <td><input type="number" step="0.5" min="0" class="form-control form-control-sm text-end" name="{{ r.id_unita }}_ore_lavoro_domenicale" value="{% if r.calendario %}{{ r.calendario.ore_lavoro_domenicale }}{% else %}0{% endif %}"></td>
+                  <td><input type="number" step="0.5" min="0" class="form-control form-control-sm text-end" name="{{ r.id_unita }}_ore_lavoro_festivo" value="{% if r.calendario %}{{ r.calendario.ore_lavoro_festivo }}{% else %}0{% endif %}"></td>
+                  <td style="min-width:260px;">
+                    <div class="form-check small">
+                      <input class="form-check-input" type="checkbox" name="{{ r.id_unita }}_applica_chiusure_aziendali" id="{{ r.id_unita }}_applica_chiusure_aziendali" {% if not r.calendario or r.calendario.applica_chiusure_aziendali %}checked{% endif %}>
+                      <label class="form-check-label" for="{{ r.id_unita }}_applica_chiusure_aziendali">applica chiusure aziendali</label>
+                    </div>
+                    <div class="form-check small mb-1">
+                      <input class="form-check-input" type="checkbox" name="{{ r.id_unita }}_includi_ratei_nel_netto" id="{{ r.id_unita }}_includi_ratei_nel_netto" {% if r.calendario and r.calendario.includi_ratei_nel_netto %}checked{% endif %}>
+                      <label class="form-check-label" for="{{ r.id_unita }}_includi_ratei_nel_netto">ratei inclusi nel netto</label>
+                    </div>
+                    <textarea name="{{ r.id_unita }}_note" class="form-control form-control-sm" rows="2" placeholder="Note operative / turni / eccezioni">{% if r.calendario %}{{ r.calendario.note }}{% endif %}</textarea>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="11" class="text-center text-muted py-4">Nessun profilo attivo disponibile. Esegui prima una simulazione organico.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

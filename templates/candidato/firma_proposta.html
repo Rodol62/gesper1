@@ -1,0 +1,271 @@
+{% extends 'base_candidato.html' %}
+{% load currency_filters format_it_tags %}
+{% block title %}Firma proposta di assunzione — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:900px">
+
+  {# ── Header ────────────────────────────────────────────────── #}
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d5f9a);color:#fff;border-radius:6px;
+              padding:.7rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;
+              justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+    <div>
+      <h5 style="margin:0;font-size:.95rem;font-weight:800">
+        <i class="bi bi-pen-fill"></i> Proposta di assunzione — Firma digitale
+      </h5>
+      <div style="font-size:.72rem;opacity:.85;margin-top:2px">
+        {{ proposta.numero_proposta }} &nbsp;·&nbsp; {{ proposta.azienda.nome }}
+      </div>
+    </div>
+    <a href="{% url 'candidato_dashboard' %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">
+      ← Dashboard
+    </a>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="alert alert-info py-2 mb-3" style="font-size:.82rem">
+    <i class="bi bi-info-circle-fill"></i>
+    Leggi attentamente le condizioni della proposta. La firma digitale tramite spunta equivale
+    ad accettazione piena e incondizionata ai sensi dell'art. 1326 c.c. e sarà registrata
+    con data, ora e indirizzo IP per tracciabilità.
+  </div>
+
+  <div class="row g-3">
+
+    {# ── Colonna SX ─────────────────────────────────────────── #}
+    <div class="col-12 col-md-7">
+
+      {# Condizioni contrattuali #}
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2 px-3"
+             style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+          <i class="bi bi-file-text"></i> Condizioni della proposta
+        </div>
+        <div class="card-body py-2 px-3">
+          <div class="row g-2" style="font-size:.82rem">
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Datore di lavoro</span>
+              <strong>{{ proposta.azienda.nome }}</strong>
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Tipo contratto</span>
+              {{ proposta.tipo_contratto }}
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Data inizio</span>
+              <strong>{{ proposta.data_inizio_rapporto|date:"d/m/Y" }}</strong>
+            </div>
+            {% if proposta.data_fine_rapporto %}
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Scadenza</span>
+              <strong class="text-danger">{{ proposta.data_fine_rapporto|date:"d/m/Y" }}</strong>
+            </div>
+            {% endif %}
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Posizione / Qualifica</span>
+              {{ proposta.posizione }}{% if proposta.qualifica %} — {{ proposta.qualifica }}{% endif %}
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Livello CCNL</span>
+              {{ proposta.livello_ccnl }}
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Ore settimanali</span>
+              {{ proposta.ore_settimanali|ore_hm }} ore/sett.
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Stipendio lordo mensile (incl. ratei)</span>
+              <strong style="color:#1b5e20">€ {{ lordo_mensile_totale|euro_it }}</strong>
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Ferie annuali</span>
+              {{ proposta.giorni_ferie_annuali }} giorni
+            </div>
+            <div class="col-6">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Permessi annuali</span>
+              {{ proposta.giorni_permesso_annuali }} giorni
+            </div>
+            {% if proposta.tredicesima or proposta.quattordicesima %}
+            <div class="col-12">
+              <span class="text-muted d-block" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em">Mensilità aggiuntive</span>
+              {% if proposta.tredicesima %}<span class="badge bg-secondary me-1">13ª mensilità</span>{% endif %}
+              {% if proposta.quattordicesima %}<span class="badge bg-secondary me-1">14ª mensilità</span>{% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {# Maggiorazioni e scatti #}
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2 px-3"
+             style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+          <i class="bi bi-arrow-up-right-circle"></i> Maggiorazioni straordinario e scatti
+        </div>
+        <div class="card-body py-2 px-3">
+          <div class="row g-2" style="font-size:.82rem">
+            <div class="col-4 text-center">
+              <div class="text-muted" style="font-size:.7rem">Diurno</div>
+              <strong>+{{ proposta.straordinario_diurno_maggiorazione }}%</strong>
+            </div>
+            <div class="col-4 text-center">
+              <div class="text-muted" style="font-size:.7rem">Notturno</div>
+              <strong>+{{ proposta.straordinario_notturno_maggiorazione }}%</strong>
+            </div>
+            <div class="col-4 text-center">
+              <div class="text-muted" style="font-size:.7rem">Festivo</div>
+              <strong>+{{ proposta.straordinario_festivo_maggiorazione }}%</strong>
+            </div>
+            <div class="col-12 mt-1" style="font-size:.78rem;color:#555">
+              Scatti di anzianità: ogni {{ proposta.scatto_periodicita_mesi }} mesi —
+              € {{ proposta.scatto_importo|euro_it }}/scatto — max {{ proposta.numero_scatti_massimi }} scatti.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Riferimenti normativi #}
+      {% if proposta.riferimenti_normativi %}
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2 px-3"
+             style="background:#f4f7fa;font-size:.82rem;font-weight:700;color:#1b3a5f;border-bottom:1px solid #dee2e6">
+          <i class="bi bi-book"></i> Riferimenti normativi
+        </div>
+        <div class="card-body py-2 px-3" style="font-size:.78rem;color:#555;line-height:1.5">
+          {{ proposta.riferimenti_normativi }}
+        </div>
+      </div>
+      {% endif %}
+
+      {# Form firma digitale #}
+      <div class="card border-0 shadow-sm mb-4" style="border-left:4px solid #1b3a5f !important">
+        <div class="card-body py-3 px-3">
+          <form method="post">
+            {% csrf_token %}
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="accetto" id="accetto" required>
+              <label class="form-check-label" for="accetto" style="font-size:.85rem;font-weight:600">
+                Dichiaro di aver letto e di accettare integralmente le condizioni della presente
+                proposta di assunzione e di essere consapevole delle responsabilità che ne derivano.
+              </label>
+            </div>
+            <div class="mb-3">
+              <label for="note_dipendente" style="font-size:.78rem;color:#666">
+                Note / osservazioni (opzionale):
+              </label>
+              <textarea name="note_dipendente" id="note_dipendente" class="form-control form-control-sm"
+                        rows="2" style="font-size:.8rem" maxlength="500"></textarea>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+              <button type="submit" class="btn btn-primary btn-sm fw-bold">
+                <i class="bi bi-pen-fill"></i> Firma digitalmente la proposta
+              </button>
+              <a href="{% url 'candidato_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+                Annulla
+              </a>
+              <span style="font-size:.7rem;color:#888;margin-left:auto">
+                <i class="bi bi-shield-lock"></i>
+                La firma sarà registrata con data, ora e IP ({% now "d/m/Y H:i" %})
+              </span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>{# /col SX #}
+
+    {# ── Colonna DX: riepilogo economico ──────────────────────── #}
+    <div class="col-12 col-md-5">
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2 px-3"
+             style="background:#e8f5e9;font-size:.82rem;font-weight:700;color:#1b5e20;border-bottom:1px solid #c8e6c9">
+          <i class="bi bi-cash-coin"></i> Retribuzione lorda mensile
+        </div>
+        <div class="card-body py-2 px-3" style="font-size:.82rem">
+          {% if proposta.paga_base_mensile %}
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">Paga base</span>
+            <span>€ {{ proposta.paga_base_mensile|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if proposta.contingenza_mensile %}
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">Contingenza</span>
+            <span>€ {{ proposta.contingenza_mensile|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if proposta.edr_mensile %}
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">EDR</span>
+            <span>€ {{ proposta.edr_mensile|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if rat13_mensile %}
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">+ Rateo 13ª (1/12)</span>
+            <span>€ {{ rat13_mensile|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if rat14_mensile %}
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">+ Rateo 14ª (1/12)</span>
+            <span>€ {{ rat14_mensile|euro_it }}</span>
+          </div>
+          {% endif %}
+          <div class="d-flex justify-content-between py-1 border-top mt-1">
+            <span class="text-muted">Lordo totale (incl. ratei)</span>
+            <strong style="color:#1b5e20;font-size:.95rem">€ {{ lordo_mensile_totale|euro_it }}</strong>
+          </div>
+        </div>
+      </div>
+
+      {% if extra %}
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2 px-3"
+             style="background:#fff8e1;font-size:.82rem;font-weight:700;color:#7b4f00;border-bottom:1px solid #ffe082">
+          <i class="bi bi-calculator"></i> Dati retributivi
+          <span class="badge bg-warning text-dark ms-1" style="font-size:.68rem;font-weight:500">Calcolo</span>
+        </div>
+        <div class="card-body py-2 px-3" style="font-size:.82rem">
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted">RAL annua</span>
+            <span>€ {{ extra.ral|euro_it }}</span>
+          </div>
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">Paga oraria lorda</span>
+            <span>€ {{ extra.paga_oraria|num_it:4 }}</span>
+          </div>
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted" style="font-size:.78rem">Paga giornaliera</span>
+            <span>€ {{ extra.paga_giornaliera|num_it:4 }}</span>
+          </div>
+          {% if extra.prova_giorni %}
+          <div class="d-flex justify-content-between py-1 border-top mt-1 pt-1">
+            <span class="text-muted" style="font-size:.78rem">Periodo di prova</span>
+            <span style="font-size:.78rem">{{ extra.prova_descrizione }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card border-0 shadow-sm mb-3" style="border-left:3px solid #1b3a5f !important">
+        <div class="card-body py-2 px-3" style="font-size:.78rem;color:#555">
+          <i class="bi bi-shield-check" style="color:#1b3a5f"></i>
+          <strong>Firma digitale tracciata:</strong> la spunta registra data, ora e indirizzo IP
+          come evidenza elettronica dell'accettazione ai sensi dell'art. 1326 c.c.
+          Potrai scaricare il contratto in PDF una volta completata la procedura.
+        </div>
+      </div>
+
+    </div>{# /col DX #}
+  </div>{# /row #}
+
+</div>
+{% endblock %}

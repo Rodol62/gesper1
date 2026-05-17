@@ -1,0 +1,159 @@
+{
+  "file": "/Applications/XAMPP/xamppfiles/htdocs/gesper/1 GENNAIO 2024.pdf",
+  "pages_total": 14,
+  "counts": {
+    "buste": 11,
+    "f24": 3,
+    "altro": 0,
+    "buste_uniche": 6,
+    "buste_duplicate_pagine": [
+      6,
+      7,
+      8,
+      9,
+      10
+    ]
+  },
+  "records": [
+    {
+      "page": 1,
+      "kind": "BUSTA",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massmo",
+      "birth_date": "10/03/74",
+      "netto_busta": "103.88",
+      "period_month": 1,
+      "period_year": 2024
+    },
+    {
+      "page": 2,
+      "kind": "BUSTA",
+      "cf": "GMSJSC92A42Z307O",
+      "full_name": "Ferrera Jesscane",
+      "birth_date": "02/01/92",
+      "netto_busta": "50.89",
+      "period_month": 1,
+      "period_year": 2024
+    },
+    {
+      "page": 3,
+      "kind": "BUSTA",
+      "cf": "HSSNYT87C06Z249W",
+      "full_name": "Hussa Anayet",
+      "birth_date": "06/03/87",
+      "netto_busta": null,
+      "period_month": 1,
+      "period_year": 2024
+    },
+    {
+      "page": 4,
+      "kind": "BUSTA",
+      "cf": "BBSSWR98A47Z352H",
+      "full_name": "Abbass War",
+      "birth_date": "07/01/98",
+      "netto_busta": null,
+      "period_month": 1,
+      "period_year": 2024
+    },
+    {
+      "page": 5,
+      "kind": "BUSTA",
+      "cf": "PCHRCC85H07G273Z",
+      "full_name": "Poch Rocco",
+      "birth_date": "07/06/85",
+      "netto_busta": "54.60",
+      "period_month": 1,
+      "period_year": 2024
+    },
+    {
+      "page": 6,
+      "kind": "BUSTA",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massmo",
+      "birth_date": "10/03/74",
+      "netto_busta": "103.88",
+      "period_month": 1,
+      "period_year": 2024
+    },
+    {
+      "page": 7,
+      "kind": "BUSTA",
+      "cf": "GMSJSC92A42Z307O",
+      "full_name": "Ferrera Jesscane",
+      "birth_date": "02/01/92",
+      "netto_busta": "50.89",
+      "period_month": 1,
+      "period_year": 2024
+    },
+    {
+      "page": 8,
+      "kind": "BUSTA",
+      "cf": "HSSNYT87C06Z249W",
+      "full_name": "Hussa Anayet",
+      "birth_date": "06/03/87",
+      "netto_busta": null,
+      "period_month": 1,
+      "period_year": 2024
+    },
+    {
+      "page": 9,
+      "kind": "BUSTA",
+      "cf": "BBSSWR98A47Z352H",
+      "full_name": "Abbass War",
+      "birth_date": "07/01/98",
+      "netto_busta": null,
+      "period_month": 1,
+      "period_year": 2024
+    },
+    {
+      "page": 10,
+      "kind": "BUSTA",
+      "cf": "PCHRCC85H07G273Z",
+      "full_name": "Poch Rocco",
+      "birth_date": "07/06/85",
+      "netto_busta": "54.60",
+      "period_month": 1,
+      "period_year": 2024
+    },
+    {
+      "page": 11,
+      "kind": "F24",
+      "cf": null,
+      "full_name": null,
+      "birth_date": null,
+      "netto_busta": null,
+      "period_month": 6,
+      "period_year": 2013
+    },
+    {
+      "page": 12,
+      "kind": "F24",
+      "cf": null,
+      "full_name": null,
+      "birth_date": null,
+      "netto_busta": null,
+      "period_month": 6,
+      "period_year": 2013
+    },
+    {
+      "page": 13,
+      "kind": "F24",
+      "cf": null,
+      "full_name": null,
+      "birth_date": null,
+      "netto_busta": null,
+      "period_month": 6,
+      "period_year": 2013
+    },
+    {
+      "page": 14,
+      "kind": "BUSTA",
+      "cf": null,
+      "full_name": "Puntozero Srls",
+      "birth_date": null,
+      "netto_busta": null,
+      "period_month": 1,
+      "period_year": 2024
+    }
+  ]
+}

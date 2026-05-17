@@ -1,0 +1,295 @@
+{% extends 'base.html' %}
+
+{% block title %}Accesso — {% if config %}{{ config.nome_sito }}{% else %}Gesper{% endif %}{% endblock %}
+
+{# Nessuna navbar sulla pagina di accesso — layout full-page pulito #}
+{% block header %}{% endblock %}
+
+{% block content %}
+<style>
+  body { background: var(--c-primary); min-height: 100vh; }
+
+  .login-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+
+  .login-box {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  /* Brand area */
+  .login-brand {
+    text-align: center;
+    margin-bottom: 1.8rem;
+    color: #fff;
+  }
+  .login-brand .brand-logo {
+    font-size: 2.4rem;
+    font-weight: 900;
+    letter-spacing: .06em;
+    line-height: 1;
+    margin-bottom: .3rem;
+  }
+  .login-brand .brand-logo span { color: #7ec8f0; }
+  .login-brand .brand-azienda {
+    font-size: .95rem;
+    font-weight: 600;
+    color: rgba(255,255,255,.85);
+    margin-bottom: .5rem;
+  }
+  .login-brand .brand-desc {
+    font-size: .78rem;
+    color: rgba(255,255,255,.55);
+    max-width: 320px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
+
+  /* Card form */
+  .login-card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.28);
+    padding: 1.8rem 2rem;
+  }
+  .login-card h2 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--c-primary);
+    margin-bottom: 1.2rem;
+    border-bottom: 2px solid var(--c-primary);
+    padding-bottom: .45rem;
+  }
+  .login-card .form-label { color: #444; }
+  .login-card .btn-accedi {
+    background: var(--c-primary);
+    border: none;
+    color: #fff;
+    font-weight: 600;
+    font-size: .85rem;
+    padding: .55rem 1rem;
+    border-radius: 5px;
+    width: 100%;
+    transition: background .15s;
+  }
+  .login-card .btn-accedi:hover { background: var(--c-primary-h, #14304f); }
+
+  /* Links bottom */
+  .login-links {
+    margin-top: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    text-align: center;
+  }
+  .login-links a {
+    font-size: .78rem;
+    color: rgba(255,255,255,.72);
+    text-decoration: none;
+    transition: color .15s;
+  }
+  .login-links a:hover { color: #fff; }
+  .login-links .sep { color: rgba(255,255,255,.25); }
+
+  .login-register-box {
+    margin-top: .9rem;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 6px;
+    padding: .8rem 1rem;
+    text-align: center;
+  }
+  .login-register-box p {
+    font-size: .78rem;
+    color: rgba(255,255,255,.65);
+    margin-bottom: .4rem;
+  }
+  .login-register-box a {
+    display: inline-block;
+    background: rgba(255,255,255,.15);
+    border: 1px solid rgba(255,255,255,.3);
+    color: #fff;
+    font-size: .8rem;
+    font-weight: 600;
+    border-radius: 4px;
+    padding: .35rem .9rem;
+    text-decoration: none;
+    transition: background .15s;
+  }
+  .login-register-box a:hover { background: rgba(255,255,255,.25); }
+
+  /* Errori non-field */
+  .login-errors {
+    background: #fff3f3;
+    border: 1px solid #f5c6c6;
+    border-radius: 5px;
+    padding: .55rem .75rem;
+    margin-bottom: 1rem;
+    font-size: .8rem;
+    color: #8b1c1c;
+  }
+
+  /* Footer mini */
+  .login-footer {
+    text-align: center;
+    margin-top: 1.4rem;
+    font-size: .68rem;
+    color: rgba(255,255,255,.3);
+  }
+
+  /* Accesso demo: nascosto dietro summary (no password in chiaro) */
+  .login-demo-details {
+    margin-top: 1rem;
+    padding-top: .85rem;
+    border-top: 1px solid #e8e8e8;
+    font-size: .78rem;
+    color: #444;
+  }
+  .login-demo-details > summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--c-primary);
+    list-style: none;
+  }
+  .login-demo-details > summary::-webkit-details-marker { display: none; }
+  .login-demo-details > summary::before {
+    content: '\25B6\00a0';
+    font-size: .65rem;
+    opacity: .75;
+  }
+  .login-demo-details[open] > summary::before { content: '\25BC\00a0'; }
+  .login-demo-panel {
+    margin-top: .55rem;
+    padding: .65rem .75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    line-height: 1.5;
+  }
+  .login-demo-panel code { font-size: .72rem; }
+  .login-demo-quick {
+    display: inline-block;
+    margin-top: .35rem;
+    font-size: .72rem;
+    color: var(--c-primary);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .login-demo-quick:hover { text-decoration: underline; }
+</style>
+
+<div class="login-wrap">
+  <div class="login-box">
+
+    <!-- Brand & descrizione -->
+    <div class="login-brand">
+      <div class="brand-logo">
+        <span>Ges</span>per
+      </div>
+      {% if config and config.nome_azienda %}
+      <div class="brand-azienda">{{ config.nome_azienda }}</div>
+      {% endif %}
+      <p class="brand-desc">
+        Portale di gestione del personale: dipendenti, presenze, documenti, richieste e candidature — tutto in un unico spazio.
+      </p>
+    </div>
+
+    <!-- Form di accesso -->
+    <div class="login-card">
+      <h2><i class="bi bi-box-arrow-in-right"></i> Accedi al portale</h2>
+
+      {% if form.non_field_errors %}
+      <div class="login-errors">
+        {% for error in form.non_field_errors %}
+          <div><i class="bi bi-exclamation-triangle-fill"></i> {{ error }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if messages %}
+        {% for message in messages %}
+        <div class="login-errors" style="{% if message.tags == 'success' %}background:#f0fff4;border-color:#b7e1c4;color:#0a6640;{% endif %}">
+          {{ message }}
+        </div>
+        {% endfor %}
+      {% endif %}
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="id_username" class="form-label">Nome utente</label>
+          <input type="text" name="username" class="form-control" id="id_username"
+                 autocomplete="username" required autofocus
+                 placeholder="Inserisci il tuo username"
+                 {% if gesper_sandbox_abilitato and request.GET.demo == '1' %}value="{{ gesper_sandbox_demo_username_hint }}"{% endif %}>
+          {% if form.username.errors %}
+            <div class="text-danger" style="font-size:.75rem;margin-top:3px">{{ form.username.errors.0 }}</div>
+          {% endif %}
+        </div>
+        <div class="mb-4">
+          <label for="id_password" class="form-label">Password</label>
+          <input type="password" name="password" class="form-control" id="id_password"
+                 autocomplete="current-password" required
+                 placeholder="••••••••••••">
+          {% if form.password.errors %}
+            <div class="text-danger" style="font-size:.75rem;margin-top:3px">{{ form.password.errors.0 }}</div>
+          {% endif %}
+        </div>
+        <button type="submit" class="btn-accedi">
+          <i class="bi bi-box-arrow-in-right"></i> Accedi
+        </button>
+      </form>
+
+      {% if gesper_sandbox_abilitato %}
+      <a class="login-demo-quick" href="{% url 'login' %}?demo=1#accesso-demo" title="Apre le istruzioni e precompila lo username demo">
+        <i class="bi bi-easel"></i> Accesso dimostrativo (sandbox)
+      </a>
+      <details id="accesso-demo" class="login-demo-details" {% if request.GET.demo == '1' %}open{% endif %}>
+        <summary>Come accedere alla modalità demo</summary>
+        <div class="login-demo-panel">
+          <p class="mb-2" style="margin:0;">
+            Usa lo username <code>{{ gesper_sandbox_demo_username_hint }}</code>
+            (una sola parola, senza spazi; non è il nome anagrafico «Utente Dimostrativo»).
+            Puoi usare anche <code>{{ gesper_sandbox_demo_username_hint }}@invalid.local</code>.
+          </p>
+          <p class="mb-0" style="margin:0;">
+            La password è quella configurata in ambiente come
+            <code>GESPER_SANDBOX_DEMO_PASSWORD</code> (vedi <code>settings.py</code> o il tuo file <code>.env</code>):
+            non viene mostrata qui per motivi di sicurezza.
+          </p>
+          <p class="mb-0 mt-2" style="margin:0;font-size:.72rem;color:#64748b;">
+            Il comando <code>gesper_sandbox_migrate</code> prepara solo le tabelle vuote: per copiare i dati
+            dell'operativo serve <code>python manage.py gesper_sandbox_clone_operativo --yes</code>
+            (server fermo o a basso traffico). Verifica con <code>gesper_sandbox_status</code>.
+            Per anonimizzare: <code>gesper_sandbox_anonymize --yes</code>.
+          </p>
+        </div>
+      </details>
+      {% endif %}
+    </div>
+
+    <!-- Box registrazione candidati -->
+    <div class="login-register-box">
+      <p>Non hai ancora un account? Candidati alle nostre posizioni aperte.</p>
+      <a href="{% url 'register_candidato' %}"><i class="bi bi-person-plus"></i> Registrati come candidato</a>
+    </div>
+
+    <!-- Link recupero password -->
+    <div class="login-links">
+      <a href="{% url 'password_reset' %}"><i class="bi bi-key"></i> Password dimenticata?</a>
+    </div>
+
+    <div class="login-footer">
+      &copy; 2026 {% if config %}{{ config.nome_sito }}{% else %}Gesper{% endif %} &mdash; Gestione Personale Multiaziendale
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}

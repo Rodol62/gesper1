@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Dettaglio notifica</h2>
+<p><strong>Messaggio:</strong> {{ notifica.messaggio }}</p>
+<p><strong>Data invio:</strong> {{ notifica.data_invio }}</p>
+<p><strong>Stato:</strong> {% if notifica.letta %}Letta{% else %}Non letta{% endif %}</p>
+<a href="{% url 'lista_notifiche' %}">Torna alle notifiche</a>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Approvazione richiesta</h2>
+<p>Tipo: {{ richiesta.tipo }}</p>
+<p>Dipendente: {{ richiesta.dipendente }}</p>
+<form method="post">
+    {% csrf_token %}
+    <textarea name="note_risposta" placeholder="Note di approvazione"></textarea>
+    <input type="submit" value="Approva">
+</form>
+{% endblock %}

@@ -1,0 +1,71 @@
+{
+  "mappatura_eventi_fipe": {
+    "orario": {
+      "ordinario": ["orario_fipe", "monte_ore_fipe"],
+
+      "straordinario": [
+        "maggiorazioni_fipe",
+        "monte_ore_fipe"
+      ],
+
+      "notturno": ["maggiorazioni_fipe"],
+      "festivo": ["maggiorazioni_fipe"],
+      "notturno_festivo": ["maggiorazioni_fipe"],
+
+      "supplementare_part_time": [
+        "part_time_fipe",
+        "monte_ore_fipe",
+        "maggiorazioni_fipe"
+      ]
+    },
+
+    "assenze": {
+      "malattia": ["assenze_fipe", "inps_fipe"],
+      "infortunio": ["assenze_fipe", "inail_fipe"],
+      "maternita": ["assenze_fipe", "inps_fipe"],
+      "congedo_parentale": ["assenze_fipe", "inps_fipe"],
+      "permesso_retribuito": ["assenze_fipe"],
+      "permesso_non_retribuito": ["assenze_fipe"],
+      "ferie": ["ferie_permessi_fipe"],
+      "rol": ["ferie_permessi_fipe"],
+      "104": ["assenze_fipe"]
+    },
+
+    "retribuzione": {
+      "paga_base": ["retribuzioni_fipe"],
+      "scatti_anzianita": ["scatti_anzianita_fipe"],
+      "indennita": ["indennita_fipe"],
+      "superminimi": ["retribuzioni_fipe"]
+    },
+
+    "contratti": {
+      "tempo_determinato": ["contratti_a_termine_fipe", "inps_fipe"],
+      "stagionale": ["contratti_stagionali_fipe", "inps_fipe", "inail_fipe"],
+      "apprendistato": ["apprendistato_fipe", "inps_fipe"],
+      "part_time": ["part_time_fipe"]
+    },
+
+    "benefit": {
+      "fringe_benefit": ["fringe_benefit_fipe", "irpef_fipe", "inps_fipe"],
+      "welfare": ["welfare_fipe", "irpef_fipe"]
+    },
+
+    "contributi": {
+      "inps": ["inps_fipe"],
+      "inail": ["inail_fipe"],
+      "tfr": ["tfr_fipe"]
+    },
+
+    "azienda": {
+      "banca_ore": ["banca_ore_fipe"],
+      "vitto_alloggio": ["indennita_fipe", "fringe_benefit_fipe"],
+      "accordi_integrativi": ["azienda_fipe"]
+    },
+
+    "eventi_speciali": {
+      "premio_risultato": ["retribuzioni_fipe", "irpef_fipe", "welfare_fipe"],
+      "trasferta": ["indennita_fipe"],
+      "trasferimento": ["indennita_fipe"]
+    }
+  }
+}

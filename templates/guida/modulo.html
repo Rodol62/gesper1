@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}{{ modulo.titolo }} — Guida{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width: 800px">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'guida_indice' %}">Guida moduli</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ modulo.titolo }}</li>
+    </ol>
+  </nav>
+
+  <h1 class="h4 mb-2">{{ modulo.titolo }}</h1>
+  <p class="text-muted small mb-4">{{ modulo.descrizione }}</p>
+  <p class="small font-monospace text-secondary mb-2">codice: <strong>{{ modulo.codice }}</strong></p>
+  <p class="small mb-4">
+    {% if modulo.evoluzione == 'nuovo' %}
+    <span class="badge bg-secondary">nuovo</span> modulo target — implementazione da completare.
+    {% elif modulo.evoluzione == 'ibrido' %}
+    <span class="badge bg-warning text-dark">ibrido</span> — in produzione insieme a voci legacy da smantellare a regime.
+    {% else %}
+    <span class="badge bg-success">consolidato</span> — riferimento stabile per questo ambito.
+    {% endif %}
+  </p>
+
+  {% if legacy_collegate %}
+  <div class="card border-warning mb-4">
+    <div class="card-header py-2 small bg-warning bg-opacity-10"><strong>Legacy collegato</strong> (da smantellare a favore di questo modulo)</div>
+    <ul class="list-group list-group-flush small">
+      {% for L in legacy_collegate %}
+      <li class="list-group-item">
+        <div class="d-flex justify-content-between flex-wrap gap-1">
+          <span class="fw-semibold">{{ L.titolo }}</span>
+          {% if L.stato == 'rimosso' %}
+          <span class="badge bg-success">rimosso</span>
+          {% elif L.stato == 'da_smantellare' %}
+          <span class="badge bg-danger">da smantellare</span>
+          {% else %}
+          <span class="badge bg-secondary">convivenza</span>
+          {% endif %}
+        </div>
+        <div class="text-muted mt-1">{{ L.ubicazione }}</div>
+        <div class="mt-2" style="white-space:pre-wrap">{{ L.criterio_rimozione }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if not voci %}
+  <div class="alert alert-light border">
+    <i class="bi bi-info-circle"></i> Non sono ancora state inserite voci di aiuto per questo modulo.
+    Un amministratore può aggiungerle da <strong>Django Admin → Guida e help contestuale → Voci guida</strong>.
+  </div>
+  {% else %}
+  {% for v in voci %}
+  <section class="card mb-3 shadow-sm" id="campo-{{ v.codice_campo|default:'intro' }}">
+    <div class="card-header py-2 small text-muted">
+      {% if v.codice_campo %}
+      <span class="badge bg-light text-dark border me-1">{{ v.codice_campo }}</span>
+      {% else %}
+      <span class="badge bg-primary me-1">Generale</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <h2 class="h6 card-title">{{ v.titolo }}</h2>
+      <div class="card-text small" style="white-space:pre-wrap">{{ v.testo }}</div>
+    </div>
+  </section>
+  {% endfor %}
+  {% endif %}
+
+  <p class="mt-4 small">
+    <a href="{% url 'guida_indice' %}"><i class="bi bi-arrow-left"></i> Torna all’indice moduli</a>
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,204 @@
+{# Pannello indicatori + link rapidi (stessa pagina di /moduli/ per admin). #}
+<div class="dash-header">
+  <div>
+    <h4><i class="bi bi-speedometer2"></i> Dashboard amministratore</h4>
+    <div class="sub">Indicatori e collegamenti operativi</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'simulazione_2026_config' %}" class="btn btn-sm btn-light" style="font-size:var(--sz-xs)" title="Scenario ruoli vs dipendenti in carico"><i class="bi bi-graph-up"></i> Simulazione annua</a>
+    <a href="{% url 'simulatore_paga' %}" class="btn btn-sm btn-light" style="font-size:var(--sz-xs)"><i class="bi bi-calculator"></i> Simulatore paga</a>
+    <a href="{% url 'gestione_riferimenti_economici' %}" class="btn btn-sm btn-light" style="font-size:var(--sz-xs)"><i class="bi bi-currency-euro"></i> Rif. economici</a>
+    <a href="{% url 'partitario_netti_situazione' %}" class="btn btn-sm btn-light text-dark" style="font-size:var(--sz-xs)" title="Netti da buste vs pagamenti effettuati"><i class="bi bi-journal-richtext"></i> Partitario netti</a>
+    <a href="#gesper-griglia-moduli" class="btn btn-sm btn-outline-light" style="font-size:var(--sz-xs)"><i class="bi bi-grid-3x3-gap"></i> Griglia moduli</a>
+    <a href="{% url 'admin_agenda_scadenze' %}" class="btn btn-sm btn-light text-dark" style="font-size:var(--sz-xs)"><i class="bi bi-calendar-week"></i> Agenda scadenze</a>
+  </div>
+</div>
+
+{% if azienda_operativa %}
+<div class="azienda-bar has-az">
+  <span><i class="bi bi-building text-primary"></i> Azienda operativa: <span class="az-name">{{ azienda_operativa.nome }}</span></span>
+  <span class="d-flex flex-wrap gap-1 justify-content-end">
+    <a href="{% url 'modifica_azienda' azienda_operativa.pk %}" class="btn btn-sm btn-primary" style="font-size:var(--sz-xs)" title="Ragione sociale, indirizzo, P.IVA, CCNL…"><i class="bi bi-building-gear"></i> Anagrafica azienda</a>
+    <a href="{% url 'impostazioni_sistema' %}?tab=sito" class="btn btn-sm btn-outline-primary" style="font-size:var(--sz-xs)" title="Firmatario documenti, sede legale testuale, nome sito…"><i class="bi bi-person-badge"></i> Firmatario / impostazioni globali</a>
+    <a href="{% url 'lista_aziende' %}" class="btn btn-sm btn-outline-secondary" style="font-size:var(--sz-xs)"><i class="bi bi-arrow-repeat"></i> Cambia azienda</a>
+  </span>
+</div>
+{% else %}
+<div class="azienda-bar no-az">
+  <span><i class="bi bi-exclamation-triangle text-warning"></i> Nessuna azienda operativa selezionata</span>
+  <span class="d-flex flex-wrap gap-1 justify-content-end">
+    <a href="{% url 'lista_aziende' %}" class="btn btn-sm btn-warning" style="font-size:var(--sz-xs)"><i class="bi bi-plus-circle"></i> Seleziona azienda</a>
+    <a href="{% url 'impostazioni_sistema' %}?tab=sito" class="btn btn-sm btn-outline-primary" style="font-size:var(--sz-xs)"><i class="bi bi-person-badge"></i> Firmatario / impostazioni globali</a>
+  </span>
+</div>
+{% endif %}
+
+<div class="stat-grid">
+  <a href="{% url 'admin_table_detail' 'accounts' 'user' %}{% if azienda_operativa %}?azienda={{ azienda_operativa.pk }}{% endif %}" style="text-decoration:none" title="Account di accesso (gestione integrata)">
+    <div class="stat-box">
+      <span class="sb-icon"><i class="bi bi-person-badge"></i></span>
+      <div><div class="sb-count">{{ utenti_count|default:"—" }}</div><div class="sb-label">Utenti</div></div>
+    </div>
+  </a>
+  <a href="{% url 'lista_dipendenti' %}" style="text-decoration:none">
+    <div class="stat-box">
+      <span class="sb-icon"><i class="bi bi-people-fill"></i></span>
+      <div><div class="sb-count">{{ dipendenti_count|default:"—" }}</div><div class="sb-label">Dipendenti</div></div>
+    </div>
+  </a>
+  <a href="{% url 'lista_aziende' %}" style="text-decoration:none">
+    <div class="stat-box">
+      <span class="sb-icon" style="color:var(--c-green)"><i class="bi bi-building-fill"></i></span>
+      <div><div class="sb-count">{{ aziende_count|default:"—" }}</div><div class="sb-label">Aziende</div></div>
+    </div>
+  </a>
+  <a href="{% url 'lista_documenti' %}" style="text-decoration:none">
+    <div class="stat-box">
+      <span class="sb-icon" style="color:var(--c-amber)"><i class="bi bi-file-earmark-fill"></i></span>
+      <div><div class="sb-count">{{ documenti_count|default:"—" }}</div><div class="sb-label">Documenti</div></div>
+    </div>
+  </a>
+  <a href="{% url 'lista_buste_paga_documenti' %}" style="text-decoration:none">
+    <div class="stat-box">
+      <span class="sb-icon" style="color:#0b6fa4"><i class="bi bi-receipt-cutoff"></i></span>
+      <div><div class="sb-count">{{ buste_count|default:"—" }}</div><div class="sb-label">Buste paga</div></div>
+    </div>
+  </a>
+  <a href="{% url 'lista_f24_documenti' %}" style="text-decoration:none">
+    <div class="stat-box">
+      <span class="sb-icon" style="color:#8a5700"><i class="bi bi-bank"></i></span>
+      <div><div class="sb-count">{{ f24_count|default:"—" }}</div><div class="sb-label">F24</div></div>
+    </div>
+  </a>
+  <a href="{% url 'lista_cud_documenti' %}" style="text-decoration:none">
+    <div class="stat-box">
+      <span class="sb-icon" style="color:#5b2d8e"><i class="bi bi-file-earmark-ruled"></i></span>
+      <div><div class="sb-count">{{ cud_count|default:"—" }}</div><div class="sb-label">CUD</div></div>
+    </div>
+  </a>
+  <a href="{% url 'lista_presenze' %}" style="text-decoration:none">
+    <div class="stat-box">
+      <span class="sb-icon" style="color:#0891b2"><i class="bi bi-calendar-check-fill"></i></span>
+      <div><div class="sb-count">{{ presenze_count|default:"—" }}</div><div class="sb-label">Presenze</div></div>
+    </div>
+  </a>
+  <a href="{% url 'lista_richieste' %}" style="text-decoration:none">
+    <div class="stat-box">
+      <span class="sb-icon" style="color:var(--c-red)"><i class="bi bi-chat-dots-fill"></i></span>
+      <div><div class="sb-count">{{ richieste_count|default:"—" }}</div><div class="sb-label">Richieste</div></div>
+    </div>
+  </a>
+  <a href="{% url 'lista_log_attivita' %}" style="text-decoration:none">
+    <div class="stat-box">
+      <span class="sb-icon" style="color:var(--c-muted)"><i class="bi bi-journal-text"></i></span>
+      <div><div class="sb-count">{{ log_count|default:"—" }}</div><div class="sb-label">Log attività</div></div>
+    </div>
+  </a>
+</div>
+
+<div class="ql-wrap">
+  <div class="ql-card">
+    <h6>Presenze &amp; cedolino</h6>
+    <div class="quick-links">
+      <a href="{% url 'riepilogo_presenze_mese' %}"><i class="bi bi-calendar3-week"></i> Griglia mese</a>
+      <a href="{% url 'export_presenze_excel' %}"><i class="bi bi-file-earmark-excel-fill"></i> Export Excel</a>
+      <a href="{% url 'riepilogo_mensile_motore' %}"><i class="bi bi-calculator"></i> Cedolino da riepilogo</a>
+      <a href="{% url 'calendario_aziendale' %}"><i class="bi bi-calendar3"></i> Calendario aziendale</a>
+    </div>
+  </div>
+  <div class="ql-card">
+    <h6>Verifica buste paghe</h6>
+    <div class="quick-links">
+      <a href="{% url 'verifica_buste_paga' %}"><i class="bi bi-shield-check"></i> Hub strumenti (riconciliazione)</a>
+      <a href="{% url 'buste_paga_conciliazione_cedolino' %}"><i class="bi bi-check2-square"></i> Conciliazione PDF / DB</a>
+      <a href="{% url 'riepilogo_scostamento_fiscale_cedolino' %}"><i class="bi bi-calculator"></i> Scostamento fiscale vs cedolino</a>
+      <a href="{% url 'partitario_netti_situazione' %}"><i class="bi bi-journal-richtext"></i> Partitario netti (DARE/AVERE)</a>
+    </div>
+  </div>
+  <div class="ql-card">
+    <h6>Studio / consulente</h6>
+    <div class="quick-links">
+      <a href="{% url 'consulente_posizione_contabile' %}"><i class="bi bi-calculator"></i> Posizione contabile consulente</a>
+    </div>
+    <p class="text-muted mb-0 mt-1" style="font-size:.58rem;line-height:1.35">Solo admin/consulente. Serve l’azienda operativa (barra in alto o profilo).</p>
+  </div>
+  <div class="ql-card">
+    <h6>Contratti &amp; paghe</h6>
+    <div class="quick-links">
+      <a href="{% url 'centro_rapporti_lavoro' %}"><i class="bi bi-grid-3x3-gap"></i> Centro rapporti di lavoro</a>
+      <a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo"><i class="bi bi-envelope-paper"></i> Recesso in periodo di prova (lettera)</a>
+      <a href="{% url 'lista_contratti_scadenza' %}"><i class="bi bi-hourglass-split"></i> Scadenze contratti TD</a>
+      <a href="{% url 'lista_proposte_assunzione' %}"><i class="bi bi-briefcase"></i> Proposte assunzione</a>
+      <a href="{% url 'libro_paga_lista' %}"><i class="bi bi-journal-richtext"></i> Libro paga</a>
+    </div>
+  </div>
+  <div class="ql-card">
+    <h6>Sistema</h6>
+    <div class="quick-links">
+      <a href="{% url 'profile' %}"><i class="bi bi-person-gear"></i> Profilo &amp; azienda operativa</a>
+      <a href="{% url 'inbox_email_dipendenti' %}"><i class="bi bi-inbox-fill"></i> Email in arrivo dipendenti</a>
+      <a href="{% url 'admin_data_overview' %}"><i class="bi bi-database-fill"></i> Gestione database</a>
+      <a href="{% url 'admin_agenda_scadenze' %}"><i class="bi bi-calendar2-check"></i> Agenda scadenze (F24, contratti)</a>
+    </div>
+  </div>
+</div>
+
+<div class="alert alert-light border py-2 mb-2" style="font-size:var(--sz-xs)">
+  <i class="bi bi-info-circle text-primary"></i>
+  Le schede in alto aprono le liste operative. <strong>Gestione database</strong> consente di consultare, creare, modificare ed eliminare i record di tutte le tabelle applicative (stessi diritti per utente <em>superuser</em> Django e ruolo applicativo <em>admin</em>).
+</div>
+
+{% if agenda_todo %}
+<div class="modal fade" id="modalAgendaPriorita" tabindex="-1" aria-labelledby="modalAgendaPrioritaLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" id="modalAgendaPrioritaLabel"><i class="bi bi-exclamation-octagon me-1 text-warning"></i> Da fare — per priorità</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="small text-muted mb-2">Promemoria generati da contratti a termine e da scadenze F24 sintetiche (vedi <a href="{% url 'admin_agenda_scadenze' %}">agenda completa</a>).</p>
+        <ol class="list-group list-group-numbered">
+          {% for it in agenda_todo %}
+          <li class="list-group-item d-flex flex-column flex-md-row gap-2 justify-content-between align-items-start">
+            <div class="flex-grow-1">
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                <span class="badge bg-{% if it.priorita == 1 %}danger{% elif it.priorita == 2 %}warning text-dark{% elif it.priorita == 3 %}info text-dark{% else %}secondary{% endif %}">{{ it.priorita_label }}</span>
+                <span class="text-muted small">{{ it.data|date:"d/m/Y" }}</span>
+              </div>
+              <strong class="small d-block">{{ it.titolo }}</strong>
+              <span class="small text-muted">{{ it.descrizione|truncatechars:200 }}</span>
+            </div>
+            <a href="{{ it.url }}" class="btn btn-sm btn-outline-primary flex-shrink-0">Apri</a>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+      <div class="modal-footer border-0 pt-0 flex-wrap gap-2">
+        <a href="{% url 'admin_agenda_scadenze' %}" class="btn btn-primary btn-sm"><i class="bi bi-calendar-week me-1"></i> Agenda e calendario</a>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="agendaPopupDismissOggi">Non mostrare più oggi</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Chiudi</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  const modalEl = document.getElementById('modalAgendaPriorita');
+  if (!modalEl || typeof bootstrap === 'undefined') return;
+  const key = 'gesper_agenda_popup_{{ agenda_oggi|date:"Y-m-d" }}';
+  try {
+    if (window.localStorage.getItem(key)) return;
+  } catch (e) {}
+  const modal = new bootstrap.Modal(modalEl);
+  modal.show();
+  const btn = document.getElementById('agendaPopupDismissOggi');
+  if (btn) {
+    btn.addEventListener('click', function () {
+      try { window.localStorage.setItem(key, '1'); } catch (e) {}
+      modal.hide();
+    });
+  }
+})();
+</script>
+{% endif %}

@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% load ruoli_tags guida_tags pagination_tags %}
+{% block title %}Elenco aziende{% endblock %}
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div>
+      <h2 class="mb-0"><i class="bi bi-building me-2 text-primary"></i>Elenco aziende{% guida_link "multi-azienda" %}</h2>
+      <small class="text-muted">Imposta l’<strong>azienda operativa</strong> per filtrare dipendenti, documenti, presenze e report (puoi cambiarla anche dal profilo).</small>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <a href="{% url 'password_change' %}" class="btn btn-outline-secondary btn-sm" title="Aggiorna la password del tuo account amministratore">
+        <i class="bi bi-key-fill me-1"></i>Cambia password
+      </a>
+      <a href="{% url 'crea_azienda' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-circle me-1"></i>Nuova azienda
+      </a>
+    </div>
+  </div>
+
+  {% if request.user.is_superuser or request.user|has_ruolo:'admin' %}
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <div class="mb-1"><strong>Contesto multi-azienda.</strong> L’etichetta <span class="badge bg-success" style="font-size:.65rem">Operativa</span> indica su quale società stai lavorando ora; i permessi restano legati al tuo ruolo.</div>
+    <div class="mb-0 text-muted" style="font-size:.9em;">
+      <a href="{% url 'guida_modulo' 'multi-azienda' %}">Guida: contesto multi-aziendale</a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if page_obj.paginator.count %}
+  {% gesper_pagination page_obj "Paginazione elenco aziende" %}
+  <div class="gesper-list-scroll card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover table-striped align-middle mb-0" style="font-size:.88rem">
+      <thead class="table-light">
+        <tr>
+          <th class="text-nowrap">ID</th>
+          <th>Ragione sociale</th>
+          <th class="text-nowrap">P. IVA</th>
+          <th>Tipologia</th>
+          <th class="text-nowrap">CCNL</th>
+          <th>Contratto</th>
+          <th class="text-nowrap">Orari</th>
+          <th class="text-nowrap">Attivazione</th>
+          <th>Indirizzo</th>
+          <th class="text-end text-nowrap">Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for az in page_obj %}
+        <tr>
+          <td class="font-monospace small">{{ az.id }}</td>
+          <td class="fw-semibold">
+            {{ az.nome }}
+            {% if request.user.azienda_id == az.id %}
+            <span class="badge bg-success ms-1" style="font-size:.65rem">Operativa</span>
+            {% endif %}
+          </td>
+          <td><small class="font-monospace">{{ az.partita_iva }}</small></td>
+          <td><small>{{ az.get_tipologia_dimensionale_display }}</small></td>
+          <td><small>{% if az.ccnl_predefinito %}{{ az.ccnl_predefinito.sigla }}{% else %}—{% endif %}</small></td>
+          <td><small>{% if az.tipo_contratto_predefinito %}{{ az.tipo_contratto_predefinito.nome }}{% else %}—{% endif %}</small></td>
+          <td><small>{{ az.ore_settimanali_standard }}h/sett · {{ az.ore_giornaliere_standard }}h/g</small></td>
+          <td><small>{% if az.data_attivazione_contratto %}{{ az.data_attivazione_contratto|date:'d/m/Y' }}{% else %}—{% endif %}</small></td>
+          <td><small class="text-muted">{{ az.indirizzo|truncatechars:42 }}</small></td>
+          <td class="text-end">
+            <div class="d-flex flex-column flex-sm-row gap-1 justify-content-end align-items-stretch">
+              <form method="post" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="azienda_id" value="{{ az.id }}">
+                <button type="submit" class="btn btn-sm btn-outline-success w-100 text-nowrap" style="font-size:.72rem">Operativa</button>
+              </form>
+              <a href="{% url 'modifica_azienda' az.id %}" class="btn btn-sm btn-outline-primary text-nowrap" style="font-size:.72rem">Modifica</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  </div>
+
+  {% gesper_pagination page_obj "Paginazione elenco aziende" %}
+  <div class="text-muted small mt-1">
+    {{ page_obj.paginator.count }} azienda/e
+    {% if page_obj.paginator.num_pages > 1 %} — pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}{% endif %}.
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>Nessuna azienda presente. <a href="{% url 'crea_azienda' %}">Crea la prima azienda</a>.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

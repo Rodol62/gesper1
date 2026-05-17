@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load format_it_tags %}
+{% block title %}Approva proposta — Consulente{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:700px;margin:0 auto;padding:1.5rem 1rem">
+
+  <nav aria-label="breadcrumb" style="font-size:.82rem;margin-bottom:1rem">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'centro_moduli' %}">Consulente</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_candidati' %}">Anagrafiche</a></li>
+      <li class="breadcrumb-item active">Approva proposta</li>
+    </ol>
+  </nav>
+
+  <h2 class="mb-4" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+    <i class="bi bi-pen-fill me-2"></i>Approva proposta di assunzione
+  </h2>
+
+  <!-- Riepilogo proposta -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header" style="background:#1b3a5f;color:#fff;font-size:.9rem;font-weight:600">
+      <i class="bi bi-file-earmark-check me-1"></i>{{ proposta.numero_proposta }}
+    </div>
+    <div class="card-body" style="font-size:.88rem">
+      <div class="row g-2">
+        <div class="col-6">
+          <div class="text-muted" style="font-size:.76rem">Candidato</div>
+          <div class="fw-600">{{ proposta.dipendente.cognome }} {{ proposta.dipendente.nome }}</div>
+        </div>
+        <div class="col-6">
+          <div class="text-muted" style="font-size:.76rem">Posizione</div>
+          <div>{{ proposta.posizione }} — Liv. {{ proposta.livello_ccnl }}</div>
+        </div>
+        <div class="col-6">
+          <div class="text-muted" style="font-size:.76rem">Tipo contratto</div>
+          <div>{{ proposta.tipo_contratto.nome|default:"—" }}</div>
+        </div>
+        <div class="col-6">
+          <div class="text-muted" style="font-size:.76rem">Data inizio</div>
+          <div>{{ proposta.data_inizio_rapporto|date:"d/m/Y" }}</div>
+        </div>
+        <div class="col-6">
+          <div class="text-muted" style="font-size:.76rem">Stipendio lordo mensile</div>
+          <div class="fw-bold text-success">€ {{ proposta.stipendio_lordo_mensile|euro_it }}</div>
+        </div>
+        <div class="col-6">
+          <div class="text-muted" style="font-size:.76rem">Ore settimanali</div>
+          <div>{{ proposta.ore_settimanali }}h</div>
+        </div>
+        {% if proposta.data_firma_candidato %}
+        <div class="col-12">
+          <div class="text-muted" style="font-size:.76rem">Firma candidato</div>
+          <div class="text-success"><i class="bi bi-check-circle me-1"></i>{{ proposta.data_firma_candidato|date:"d/m/Y H:i" }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Alert conferma -->
+  <div class="alert alert-warning d-flex align-items-start gap-2" style="font-size:.87rem">
+    <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1" style="font-size:1.1rem"></i>
+    <div>
+      <strong>Attenzione — operazione irreversibile.</strong><br>
+      Approvando questa proposta, il candidato verrà <strong>promosso a dipendente attivo</strong>
+      e verrà emesso il contratto definitivo.
+      Lo stato passerà da <em>Firmata dal candidato</em> a <em>Contratto attivo</em>.
+    </div>
+  </div>
+
+  <!-- Form conferma -->
+  <form method="post">
+    {% csrf_token %}
+    <div class="d-flex gap-3">
+      <button type="submit" class="btn btn-warning fw-bold px-4">
+        <i class="bi bi-check-circle me-1"></i>Conferma approvazione
+      </button>
+      <a href="{% url 'consulente_candidati' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-x me-1"></i>Annulla
+      </a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

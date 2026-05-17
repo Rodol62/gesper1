@@ -1,0 +1,63 @@
+{
+  "apprendistato_fipe": {
+    "durata": {
+      "Qa": 36,
+      "Qb": 36,
+      "1": 36,
+      "2": 36,
+      "3": 36,
+      "4": 30,
+      "5": 30,
+      "6s": 24,
+      "6": 24,
+      "7": 24
+    },
+
+    "percentuali_retributive": {
+      "anno_1": 0.80,
+      "anno_2": 0.90,
+      "anno_3": 1.00
+    },
+
+    "progressione_automatica": {
+      "abilitata": true,
+      "regole": {
+        "passaggio_anno_2": "12 mesi di servizio",
+        "passaggio_anno_3": "24 mesi di servizio"
+      }
+    },
+
+    "proroga": {
+      "consentita": true,
+      "durata_massima_mesi": 6,
+      "motivazioni": [
+        "assenze prolungate",
+        "malattia",
+        "infortunio",
+        "maternità"
+      ]
+    },
+
+    "trasformazione": {
+      "automatica_a_scadenza": true,
+      "tipo_contratto": "tempo_indeterminato"
+    },
+
+    "formazione": {
+      "ore_annue_minime": 120,
+      "modalita": [
+        "formazione interna",
+        "formazione esterna",
+        "affiancamento"
+      ]
+    },
+
+    "tutela_retributiva": {
+      "computo_ferie": true,
+      "computo_rol": true,
+      "computo_tfr": true,
+      "computo_malattia": true,
+      "computo_infortunio": true
+    }
+  }
+}

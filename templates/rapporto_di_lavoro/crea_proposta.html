@@ -1,0 +1,487 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{{ page_title|default:'Nuova Proposta Assunzione' }}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <div id="js-build-marker" data-proposta-js-version="{{ proposta_js_version|default:'2026-04-21-1' }}" data-edit-mode="{% if is_edit_mode %}1{% else %}0{% endif %}" class="d-none"></div>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">{{ page_title|default:'Nuova Proposta di Assunzione' }}</h2>
+    <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-outline-secondary">Torna elenco</a>
+  </div>
+
+  {% if azienda_operativa %}
+  <div class="alert alert-info py-2">
+    Azienda operativa: <strong>{{ azienda_operativa.nome }}</strong>
+  </div>
+  {% endif %}
+
+  <form method="post" class="card card-body">
+    {% csrf_token %}
+    {% if forza_nuova %}
+      <input type="hidden" name="forza_nuova" value="1">
+      <div class="alert alert-warning py-2">
+        Modalità autorizzata: stai creando una <strong>nuova proposta</strong> anche in presenza di una proposta già attiva per lo stesso dipendente.
+      </div>
+    {% endif %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <p class="text-muted small mb-4">
+      Flusso consigliato:
+      <strong>1 Dipendente</strong> → <strong>2 Modulo</strong> (es. «Contratto di Assunzione» se firmi subito il contratto) →
+      <strong>3 Mansione</strong> → <strong>4 Livello CCNL</strong> → <strong>5 Tipo contratto</strong> →
+      retribuzione, ore e qualifica automatizzate.
+    </p>
+
+    <!-- 1–3 Anagrafica e mansione -->
+    <h5 class="mt-0 mb-3 border-bottom pb-2">1. Dipendente, modulo e mansione</h5>
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.dipendente.id_for_label }}">
+          {{ form.dipendente.label }}
+          <span class="badge bg-danger">*</span>
+        </label>
+        {{ form.dipendente }}
+        {% if form.dipendente.help_text %}
+          <small class="text-muted d-block">Seleziona un dipendente attivo dell'azienda</small>
+        {% endif %}
+        {% if form.dipendente.errors %}
+          <div class="text-danger small">{{ form.dipendente.errors }}</div>
+        {% endif %}
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.modulo.id_for_label }}">{{ form.modulo.label }} <span class="badge bg-danger">*</span></label>
+        {{ form.modulo }}
+        <small class="text-muted d-block">Includi <strong>Contratto di Assunzione</strong> per il flusso proposta → contratto diretto.</small>
+        {% if form.modulo.errors %}<div class="text-danger small">{{ form.modulo.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.mansione.id_for_label }}">{{ form.mansione.label }} <span class="badge bg-danger">*</span></label>
+        {{ form.mansione }}
+        <small class="text-muted d-block">Ruolo operativo (cuoco, cameriere, …) che deve coincidere con la qualifica tabellare CCNL.</small>
+        <div id="msg-mansioni-coerenti" class="alert alert-light border py-2 mt-2 mb-0" style="display:none;"></div>
+        <small class="text-muted d-block mt-1">Mappatura gestibile in Admin: <strong>Mappature Mansione-Livello CCNL</strong>.</small>
+        {% if form.mansione.errors %}<div class="text-danger small">{{ form.mansione.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- 4 Livello CCNL (solo livello) -->
+    <h5 class="mt-4 mb-3 border-bottom pb-2">4. Livello retributivo CCNL</h5>
+    <div class="row">
+      <div class="col-md-8 mb-3">
+        <label class="form-label" for="{{ form.ccnl_livello_scelta.id_for_label }}">{{ form.ccnl_livello_scelta.label }}</label>
+        {{ form.ccnl_livello_scelta }}
+        <small class="text-muted d-block">{{ form.ccnl_livello_scelta.help_text }}</small>
+        {% if form.ccnl_livello_scelta.errors %}<div class="text-danger small">{{ form.ccnl_livello_scelta.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- 5 Tipo contratto -->
+    <h5 class="mt-4 mb-3 border-bottom pb-2">5. Tipo contratto (incidenza ore)</h5>
+    <div class="row">
+      <div class="col-md-8 mb-3">
+        <label class="form-label" for="{{ form.tipo_contratto.id_for_label }}">
+          {{ form.tipo_contratto.label }}
+          <span class="badge bg-danger">*</span>
+          <span class="badge bg-warning text-dark">Ore</span>
+        </label>
+        {{ form.tipo_contratto }}
+        <small class="text-muted d-block">Full-time (100%) o Part-time (50/60/70/80%): aggiorna le ore contrattuali e i totali.</small>
+        <div id="msg-tipo-contratto-info" class="alert alert-light mt-2 mb-0" style="display: none; padding: 0.5rem;"></div>
+        {% if form.tipo_contratto.errors %}<div class="text-danger small">{{ form.tipo_contratto.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-8 mb-3 d-none">
+        {{ form.parametro_ccnl }}
+      </div>
+      <div class="col-md-8 mb-3">
+        <label class="form-label" for="{{ form.qualifica.id_for_label }}">{{ form.qualifica.label }} <span class="badge bg-secondary">Auto</span></label>
+        {{ form.qualifica }}
+        <small class="text-muted d-block">Agganciata automaticamente al livello CCNL selezionato.</small>
+        {% if form.qualifica.errors %}<div class="text-danger small">{{ form.qualifica.errors }}</div>{% endif %}
+        {% if form.parametro_ccnl.errors %}<div class="text-danger small">{{ form.parametro_ccnl.errors }}</div>{% endif %}
+      </div>
+    </div>
+    {# posizione e livello_ccnl compilati in salvataggio (compatibilità report/contratti) #}
+    <div class="d-none">
+      {{ form.posizione }}
+      {{ form.livello_ccnl }}
+    </div>
+
+    <h5 class="mt-4 mb-3 border-bottom pb-2">Titolo proposta</h5>
+    <div class="row">
+      <div class="col-md-12 mb-3">
+        <label class="form-label" for="{{ form.titolo.id_for_label }}">{{ form.titolo.label }} <span class="badge bg-danger">*</span></label>
+        {{ form.titolo }}
+        {% if form.titolo.errors %}<div class="text-danger small">{{ form.titolo.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- Sezione 3: Retribuzione -->
+    <h5 class="mt-4 mb-3">Retribuzione Mensile <span class="badge bg-secondary">€ = Euro; precompilata</span></h5>
+    <div class="alert alert-light border-start border-info p-3 mb-3">
+      <strong>Formula Stipendio Lordo (riferimento):</strong> Paga Base + Contingenza + EDR + Indennità (+ superminimo se previsto) → allineamento al lordo mensile.
+      <br/><small>Le voci tabellari si precompilano dal CCNL; il <strong>superminimo</strong> è un importo concordato oltre il minimo CCNL (€/mese, imponibile), da indicare solo se applicabile.</small>
+    </div>
+    <div id="msg-retribuzione-source" class="alert alert-success py-2 mb-3" style="display:none;">
+      Dati retributivi precompilati da CCNL vigente.
+    </div>
+
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.paga_base_mensile.id_for_label }}">
+          {{ form.paga_base_mensile.label }} <span class="badge bg-secondary">Auto €</span>
+        </label>
+        {{ form.paga_base_mensile }}
+        <small class="text-muted d-block">Parte fissa della retribuzione CCNL</small>
+        {% if form.paga_base_mensile.errors %}<div class="text-danger small">{{ form.paga_base_mensile.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.contingenza_mensile.id_for_label }}">
+          {{ form.contingenza_mensile.label }} <span class="badge bg-secondary">Auto €</span>
+        </label>
+        {{ form.contingenza_mensile }}
+        <small class="text-muted d-block">Indennità per adeguamento inflazione</small>
+        {% if form.contingenza_mensile.errors %}<div class="text-danger small">{{ form.contingenza_mensile.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.edr_mensile.id_for_label }}">
+          {{ form.edr_mensile.label }} <span class="badge bg-secondary">Auto €</span>
+        </label>
+        {{ form.edr_mensile }}
+        <small class="text-muted d-block">Elemento Distinitivo Retributivo specifico CCNL</small>
+        {% if form.edr_mensile.errors %}<div class="text-danger small">{{ form.edr_mensile.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label class="form-label" for="{{ form.superminimo_mensile.id_for_label }}">{{ form.superminimo_mensile.label }} (€/mese)</label>
+        {{ form.superminimo_mensile }}
+        <small class="text-muted d-block">Riferimento a tempo pieno: è la fonte per busta e simulatore (in cedolino si applica la % part-time del tipo contratto). Imponibile, stabile. 0 se non previsto.</small>
+        {% if form.superminimo_mensile.errors %}<div class="text-danger small">{{ form.superminimo_mensile.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label class="form-label" for="{{ form.stipendio_lordo_mensile.id_for_label }}">
+          {{ form.stipendio_lordo_mensile.label }} <span class="badge bg-danger">Auto €</span>
+        </label>
+        {{ form.stipendio_lordo_mensile }}
+        <small class="text-muted d-block">Somma di tutte le componenti fisse (precompilato, modificabile se necessario)</small>
+        {% if form.stipendio_lordo_mensile.errors %}<div class="text-danger small">{{ form.stipendio_lordo_mensile.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-6 mb-3">
+        <label class="form-label" for="{{ form.indennita_mensile.id_for_label }}">{{ form.indennita_mensile.label }} (€)</label>
+        {{ form.indennita_mensile }}
+        <small class="text-muted d-block">Integrazioni aggiuntive (mensa, trasporto, ecc.)</small>
+        {% if form.indennita_mensile.errors %}<div class="text-danger small">{{ form.indennita_mensile.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- Sezione 4: Orario di Lavoro -->
+    <h5 class="mt-4 mb-3">Orario di Lavoro <span class="badge bg-secondary">Ore; calcolate automaticamente da type contratto</span></h5>
+    <div class="alert alert-light border-start border-success p-3 mb-3">
+      <strong>Le ore si adeguano automaticamente:</strong> Part-time 50% = 50% delle ore standard; Part-time 80% = 80% delle ore standard, ecc.
+      <br/><small>I valori sono calcolati dal sistema ma modificabili se necessario.</small>
+    </div>
+
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.ore_settimanali.id_for_label }}">
+          {{ form.ore_settimanali.label }} <span class="badge bg-secondary">Auto</span>
+        </label>
+        {{ form.ore_settimanali }}
+        <small class="text-muted d-block">Es. 40h full-time, 20h part-time 50%</small>
+        {% if form.ore_settimanali.errors %}<div class="text-danger small">{{ form.ore_settimanali.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.ore_mensili.id_for_label }}">
+          {{ form.ore_mensili.label }} <span class="badge bg-secondary">Auto</span>
+        </label>
+        {{ form.ore_mensili }}
+        <small class="text-muted d-block">Ore medie mensili (4.33 settimane)</small>
+        {% if form.ore_mensili.errors %}<div class="text-danger small">{{ form.ore_mensili.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.ore_giornaliere.id_for_label }}">
+          {{ form.ore_giornaliere.label }} <span class="badge bg-secondary">Auto</span>
+        </label>
+        {{ form.ore_giornaliere }}
+        <small class="text-muted d-block">Es. 8h al giorno (su 5 giorni settimanali)</small>
+        {% if form.ore_giornaliere.errors %}<div class="text-danger small">{{ form.ore_giornaliere.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-3 mb-3">
+        <label class="form-label" for="{{ form.giorni_ferie_annuali.id_for_label }}">
+          {{ form.giorni_ferie_annuali.label }} <span class="badge bg-info">CCNL</span>
+        </label>
+        {{ form.giorni_ferie_annuali }}
+        <small class="text-muted d-block">Giorni ferie annui (art. 7 D.Lgs. 66/2003) — precompilato da CCNL</small>
+        {% if form.giorni_ferie_annuali.errors %}<div class="text-danger small">{{ form.giorni_ferie_annuali.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-3 mb-3">
+        <label class="form-label" for="{{ form.giorni_permesso_annuali.id_for_label }}">
+          {{ form.giorni_permesso_annuali.label }} <span class="badge bg-info">CCNL</span>
+        </label>
+        {{ form.giorni_permesso_annuali }}
+        <small class="text-muted d-block">Permessi retribuiti annui — precompilato da CCNL</small>
+        {% if form.giorni_permesso_annuali.errors %}<div class="text-danger small">{{ form.giorni_permesso_annuali.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-3 mb-3 d-flex align-items-center pt-4">
+        <div class="form-check">
+          {{ form.tredicesima }}
+          <label class="form-check-label" for="{{ form.tredicesima.id_for_label }}">
+            <strong>Tredicesima</strong>
+            <span class="badge bg-success ms-1">dicembre</span>
+          </label>
+          <small class="text-muted d-block">Se flaggata: rateo mensile in busta (deroga su richiesta dipendente); se non flaggata: pagamento ordinario a dicembre</small>
+        </div>
+      </div>
+
+      <div class="col-md-3 mb-3 d-flex align-items-center pt-4">
+        <div class="form-check">
+          {{ form.quattordicesima }}
+          <label class="form-check-label" for="{{ form.quattordicesima.id_for_label }}">
+            <strong>Quattordicesima</strong>
+            <span class="badge bg-primary ms-1">luglio</span>
+          </label>
+          <small class="text-muted d-block">Se flaggata: rateo mensile in busta (deroga su richiesta dipendente); se non flaggata: pagamento ordinario a luglio</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <div class="form-check">
+          {{ form.tredicesima_rateo_mensile_in_imponibile }}
+          <label class="form-check-label" for="{{ form.tredicesima_rateo_mensile_in_imponibile.id_for_label }}">
+            <strong>13ª: quota 1/12 in imponibile mensile</strong>
+          </label>
+          <small class="text-muted d-block">Solo se la quota è effettivamente in cedolino ogni mese (INPS/IRPEF/INAIL sul mese). Altrimenti il motore calcola il rateo solo come riferimento.</small>
+        </div>
+      </div>
+      <div class="col-md-6 mb-3">
+        <div class="form-check">
+          {{ form.quattordicesima_rateo_mensile_in_imponibile }}
+          <label class="form-check-label" for="{{ form.quattordicesima_rateo_mensile_in_imponibile.id_for_label }}">
+            <strong>14ª: quota 1/12 in imponibile mensile</strong>
+          </label>
+          <small class="text-muted d-block">Come sopra, per la quattordicesima.</small>
+        </div>
+      </div>
+    </div>
+
+    {# Campi display-only (form extra fields) ancora presenti per compatibilità JS #}
+    <div style="display:none">
+      {{ form.ferie_annue_giorni }}
+      {{ form.permessi_annui_ore }}
+    </div>
+
+    <!-- Sezione 5: Straordinari -->
+    <h5 class="mt-4 mb-3">Straordinari <span class="badge bg-secondary">% = Percentuale sulla paga oraria</span></h5>
+    <div class="alert alert-light border-start border-warning p-3 mb-3">
+      <strong>Maggiorazioni percentuali su paga oraria:</strong> 15% diurno, 30% notturno, 30% festivo (standard CCNL Turismo)
+      <br/><small>Espressi in percentuale sulla paga oraria base.</small>
+    </div>
+
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.straordinario_diurno_maggiorazione.id_for_label }}">
+          {{ form.straordinario_diurno_maggiorazione.label }} <span class="badge bg-secondary">Auto %</span>
+        </label>
+        {{ form.straordinario_diurno_maggiorazione }}
+        <small class="text-muted d-block">Maggiorazione straordinario diurno (tipico 15%)</small>
+        {% if form.straordinario_diurno_maggiorazione.errors %}<div class="text-danger small">{{ form.straordinario_diurno_maggiorazione.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.straordinario_notturno_maggiorazione.id_for_label }}">
+          {{ form.straordinario_notturno_maggiorazione.label }} <span class="badge bg-secondary">Auto %</span>
+        </label>
+        {{ form.straordinario_notturno_maggiorazione }}
+        <small class="text-muted d-block">Maggiorazione lavoro notturno (tipico 30%)</small>
+        {% if form.straordinario_notturno_maggiorazione.errors %}<div class="text-danger small">{{ form.straordinario_notturno_maggiorazione.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.straordinario_festivo_maggiorazione.id_for_label }}">
+          {{ form.straordinario_festivo_maggiorazione.label }} <span class="badge bg-secondary">Auto %</span>
+        </label>
+        {{ form.straordinario_festivo_maggiorazione }}
+        <small class="text-muted d-block">Maggiorazione lavoro festivo (tipico 30%)</small>
+        {% if form.straordinario_festivo_maggiorazione.errors %}<div class="text-danger small">{{ form.straordinario_festivo_maggiorazione.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- Sezione 6: Scatti e Date -->
+    <h5 class="mt-4 mb-3">Scatti Anzianità e Decorrenza</h5>
+
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.decorrenza_validita_da.id_for_label }}">
+          {{ form.decorrenza_validita_da.label }} <span class="badge bg-secondary">Auto</span>
+        </label>
+        {{ form.decorrenza_validita_da }}
+        <small class="text-muted d-block">Data inizio validità CCNL applicato</small>
+        {% if form.decorrenza_validita_da.errors %}<div class="text-danger small">{{ form.decorrenza_validita_da.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.decorrenza_validita_a.id_for_label }}">
+          {{ form.decorrenza_validita_a.label }} <span class="badge bg-secondary">Auto</span>
+        </label>
+        {{ form.decorrenza_validita_a }}
+        <small class="text-muted d-block">Data fine validità CCNL applicato</small>
+        {% if form.decorrenza_validita_a.errors %}<div class="text-danger small">{{ form.decorrenza_validita_a.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.scatto_periodicita_mesi.id_for_label }}">
+          {{ form.scatto_periodicita_mesi.label }} <span class="badge bg-secondary">Auto</span>
+        </label>
+        {{ form.scatto_periodicita_mesi }}
+        <small class="text-muted d-block">Mesi di anzianità tra uno scatto e l'altro (tipico 24)</small>
+        {% if form.scatto_periodicita_mesi.errors %}<div class="text-danger small">{{ form.scatto_periodicita_mesi.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.scatto_importo.id_for_label }}">
+          {{ form.scatto_importo.label }} <span class="badge bg-secondary">Auto €</span>
+        </label>
+        {{ form.scatto_importo }}
+        <small class="text-muted d-block">Importo in euro per ogni scatto maturato</small>
+        {% if form.scatto_importo.errors %}<div class="text-danger small">{{ form.scatto_importo.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-4 mb-3">
+        <label class="form-label" for="{{ form.numero_scatti_massimi.id_for_label }}">
+          {{ form.numero_scatti_massimi.label }} <span class="badge bg-secondary">Auto</span>
+        </label>
+        {{ form.numero_scatti_massimi }}
+        <small class="text-muted d-block">Numero massimo di scatti (tipico 10)</small>
+        {% if form.numero_scatti_massimi.errors %}<div class="text-danger small">{{ form.numero_scatti_massimi.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- Sezione 7: Riposi e Date Importanti -->
+    <h5 class="mt-4 mb-3">Riposi Compensativi e Date Contrattuali</h5>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label class="form-label" for="{{ form.riposi_compensativi_regola.id_for_label }}">
+          {{ form.riposi_compensativi_regola.label }} <span class="badge bg-secondary">Auto</span>
+        </label>
+        {{ form.riposi_compensativi_regola }}
+        <small class="text-muted d-block">Regola di maturazione e fruizione riposi compensativi CCNL</small>
+        {% if form.riposi_compensativi_regola.errors %}<div class="text-danger small">{{ form.riposi_compensativi_regola.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-6 mb-3">
+        <label class="form-label" for="{{ form.data_inizio_rapporto.id_for_label }}">
+          {{ form.data_inizio_rapporto.label }}
+          <span class="badge bg-danger">*</span>
+        </label>
+        {{ form.data_inizio_rapporto }}
+        <small class="text-muted d-block">Data di inizio del rapporto di lavoro</small>
+        {% if form.data_inizio_rapporto.errors %}<div class="text-danger small">{{ form.data_inizio_rapporto.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <label class="form-label" for="{{ form.data_fine_rapporto.id_for_label }}">{{ form.data_fine_rapporto.label }}</label>
+        {{ form.data_fine_rapporto }}
+        <small class="text-muted d-block">Vuoto per contratto a tempo indeterminato</small>
+        {% if form.data_fine_rapporto.errors %}<div class="text-danger small">{{ form.data_fine_rapporto.errors }}</div>{% endif %}
+      </div>
+
+      <div class="col-md-6 mb-3">
+        <label class="form-label" for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>
+        {{ form.note }}
+        {% if form.note.errors %}<div class="text-danger small">{{ form.note.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- Upload mansionario_file -->
+    <div class="row">
+      <div class="col-md-12 mb-3">
+        <label class="form-label" for="{{ form.mansionario_file.id_for_label }}">Mansionario allegato (PDF)</label>
+        {{ form.mansionario_file }}
+        {% if form.mansionario_file.errors %}<div class="text-danger small">{{ form.mansionario_file.errors }}</div>{% endif %}
+        <small class="text-muted d-block">Allega il mansionario specifico per questa mansione (formato PDF, opzionale).</small>
+        {% if form.instance.mansionario_file %}
+          <div class="mt-2">
+            <a href="{% url 'proposta_mansionario_file' form.instance.pk %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-pdf"></i> Visualizza mansionario allegato</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Sezione 8: Conformità legale -->
+    <h5 class="mt-4 mb-3">Conformità Legale</h5>
+
+    <div class="row">
+      <div class="col-md-12 mb-3">
+        <div class="form-check">
+          {{ form.dichiarazione_conformita_legale }}
+          <label class="form-check-label" for="{{ form.dichiarazione_conformita_legale.id_for_label }}">
+            {{ form.dichiarazione_conformita_legale.label }}
+          </label>
+        </div>
+        <small class="text-muted d-block">Conferma conformità a diritto del lavoro italiano e CCNL applicato</small>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-12 mb-3">
+        <label class="form-label" for="{{ form.riferimenti_normativi.id_for_label }}">{{ form.riferimenti_normativi.label }}</label>
+        {{ form.riferimenti_normativi }}
+        <small class="text-muted d-block">Riferimenti legali e normativi italiani applicati</small>
+        {% if form.riferimenti_normativi.errors %}<div class="text-danger small">{{ form.riferimenti_normativi.errors }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="mt-4 d-flex gap-2">
+      <button type="submit" class="btn btn-primary">{{ submit_label|default:'Crea proposta' }}</button>
+      <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-secondary">Annulla</a>
+    </div>
+  </form>
+
+  <div class="alert alert-info border mt-4">
+    <h6>📋 Istruzioni per la compilazione:</h6>
+    <ul class="mb-0">
+      <li><strong>Dipendente e modulo:</strong> identificazione e riferimento contrattuale applicato.</li>
+      <li><strong>Mansione:</strong> ruolo operativo; deve coincidere con la qualifica tabellare del livello scelto.</li>
+      <li><strong>Livello CCNL:</strong> livello retributivo usato per agganciare automaticamente la voce tabellare.</li>
+      <li><strong>Tipo contratto:</strong> Full-time o Part-time (50/60/70/80%): aggiorna ore e totali retributivi.</li>
+      <li><strong>Qualifica (auto):</strong> derivata in automatico dalla voce tabellare coerente con il livello selezionato.</li>
+      <li><strong>Campi Economici (€ Euro):</strong> Sono precompilati da CCNL e rappresentano importi fissi mensili. Modificabili solo se necessario.</li>
+      <li><strong>Campi Straordinari (% Percentuale):</strong> Sono percentuali sulla paga oraria. 15% diurno, 30% notturno/festivo è lo standard.</li>
+      <li><strong>Campi Ore:</strong> Si calcolano automaticamente dal tipo contratto, ma rimangono modificabili.</li>
+      <li>Clicca <strong>Salva</strong> per salvare la proposta. Sarà inviata al dipendente.</li>
+    </ul>
+  </div>
+</div>
+
+<script src="{% static 'js/proposta_form_dinamico.js' %}?v={{ proposta_js_version|default:'2026-04-21-1' }}"></script>
+{% endblock %}
+

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Candidatura — GESPER | Registrazione</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <style>
+    :root {
+      --c-primary: #1b3a5f;
+      --c-accent:  #2d6199;
+      --c-border:  #c5d0dc;
+      --c-muted:   #5c6b7d;
+      --c-alt:     #f4f7fa;
+      --c-green:   #0a6640;
+      --c-red:     #9c1c1c;
+      --c-warn:    #7a5c00;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #e8eef5 0%, #dde6f0 100%);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 14px;
+      color: #222;
+    }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    .reg-wrap {
+      max-width: 680px;
+      margin: 20px auto 40px;
+      padding: 0 12px;
+    }
+    .reg-brand {
+      text-align: center;
+      padding: 20px 0 10px;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--c-primary);
+      letter-spacing: .04em;
+    }
+    .reg-brand span { color: var(--c-accent); }
+    .reg-subtitle {
+      text-align: center;
+      color: var(--c-muted);
+      font-size: .82rem;
+      margin-bottom: 18px;
+    }
+    .reg-card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.1);
+      padding: 28px 32px 32px;
+    }
+    .reg-card h2 {
+      font-size: 1.05rem;
+      color: var(--c-primary);
+      font-weight: 700;
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--c-border);
+    }
+
+    /* ── Sezioni ─────────────────────────────────────────── */
+    .reg-section {
+      margin-bottom: 22px;
+    }
+    .reg-section-title {
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--c-accent);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── Campi ───────────────────────────────────────────── */
+    .freg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 480px) { .freg-row { grid-template-columns: 1fr; } }
+    .freg-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+    .freg-field label { font-size: .78rem; font-weight: 600; color: var(--c-muted); }
+    .freg-field label .req { color: var(--c-red); margin-left: 2px; }
+    .freg-input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--c-border);
+      border-radius: 4px;
+      font-size: .88rem;
+      background: #fff;
+      transition: border-color .15s;
+    }
+    .freg-input:focus {
+      outline: none;
+      border-color: var(--c-accent);
+      box-shadow: 0 0 0 2px rgba(45,97,153,.15);
+    }
+    .freg-help {
+      font-size: .72rem;
+      color: var(--c-muted);
+      margin-top: 2px;
+    }
+    .freg-error {
+      font-size: .72rem;
+      color: var(--c-red);
+      margin-top: 2px;
+    }
+
+    /* ── Password strength ───────────────────────────────── */
+    .pw-strength { display: flex; gap: 4px; margin-top: 6px; }
+    .pw-bar {
+      flex: 1; height: 4px; border-radius: 2px;
+      background: #ddd; transition: background .25s;
+    }
+    .pw-bar.active-1 { background: #e55; }
+    .pw-bar.active-2 { background: #e95; }
+    .pw-bar.active-3 { background: #cc5; }
+    .pw-bar.active-4, .pw-bar.active-5 { background: #5b5; }
+    .pw-label { font-size: .7rem; color: var(--c-muted); margin-top: 3px; }
+
+    /* ── Consensi GDPR ───────────────────────────────────── */
+    .gdpr-box {
+      background: var(--c-alt);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .gdpr-box.required { border-left: 3px solid var(--c-accent); }
+    .gdpr-check-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .freg-check {
+      margin-top: 2px;
+      width: 16px; height: 16px;
+      cursor: pointer;
+      flex-shrink: 0;
+      accent-color: var(--c-accent);
+    }
+    .gdpr-text {
+      font-size: .78rem;
+      line-height: 1.5;
+      color: #333;
+    }
+    .gdpr-badge {
+      display: inline-block;
+      font-size: .65rem;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    .badge-req { background: #ddeeff; color: var(--c-accent); }
+    .badge-opt { background: #eee; color: #666; }
+
+    /* ── Informativa sintetica ───────────────────────────── */
+    .info-privacy {
+      background: #fff8e1;
+      border: 1px solid #f5d882;
+      border-radius: 5px;
+      padding: 10px 14px;
+      font-size: .73rem;
+      color: var(--c-warn);
+      line-height: 1.55;
+      margin-bottom: 18px;
+    }
+
+    /* ── Sicurezza badge ─────────────────────────────────── */
+    .security-badge {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .sec-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: .7rem;
+      color: var(--c-muted);
+    }
+    .sec-item i { color: var(--c-green); }
+
+    /* ── Submit ──────────────────────────────────────────── */
+    .reg-submit {
+      width: 100%;
+      padding: 11px;
+      background: var(--c-primary);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: .95rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: .03em;
+      transition: background .15s;
+    }
+    .reg-submit:hover { background: var(--c-accent); }
+
+    /* ── Errori globali ──────────────────────────────────── */
+    .alert-errori {
+      background: #fdecea;
+      border: 1px solid #f5c5c0;
+      border-radius: 5px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      font-size: .8rem;
+      color: var(--c-red);
+    }
+    .alert-errori ul { margin: 6px 0 0 16px; }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    .reg-footer {
+      text-align: center;
+      margin-top: 18px;
+      font-size: .78rem;
+      color: var(--c-muted);
+    }
+    .reg-footer a { color: var(--c-accent); text-decoration: none; }
+
+    /* Honeypot nascosto */
+    .hp-field { display: none !important; visibility: hidden; position: absolute; left: -9999px; }
+  </style>
+<style>html{font-size:16px}:root{--sz-xs:.82rem;--sz-sm:.92rem;--sz-base:1rem}</style>
+</head>
+<body>
+
+<div class="reg-wrap">
+
+  <div class="reg-brand"><span>Ges</span>per &mdash; Portale Candidati</div>
+  <div class="reg-subtitle">
+    Registrati per inviare la tua candidatura &mdash; è rapido e gratuito
+  </div>
+
+  <div class="reg-card">
+    <h2><i class="bi bi-person-plus-fill"></i> Nuova registrazione candidato</h2>
+
+    {% if form.errors %}
+    <div class="alert-errori">
+      <strong><i class="bi bi-exclamation-triangle"></i> Correggi i seguenti errori:</strong>
+      <ul>
+        {% for field in form %}
+          {% for error in field.errors %}
+            <li><strong>{{ field.label }}:</strong> {{ error }}</li>
+          {% endfor %}
+        {% endfor %}
+        {% for error in form.non_field_errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if otp_form and otp_form.errors %}
+    <div class="alert-errori">
+      <strong><i class="bi bi-exclamation-triangle"></i> Codice non valido</strong>
+      <ul>
+        {% for field in otp_form %}
+          {% for error in field.errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if step == 2 %}
+    <p style="font-size:.9rem;color:var(--c-muted);margin-bottom:16px;">
+      Abbiamo inviato un <strong>codice a 6 cifre</strong> all’indirizzo e-mail indicato. Inseriscilo qui sotto per completare la registrazione.
+    </p>
+    <form method="post" novalidate autocomplete="off">
+      {% csrf_token %}
+      <input type="hidden" name="reg_step" value="otp" />
+      <div class="freg-field">
+        <label for="{{ otp_form.otp.id_for_label }}">Codice e-mail <span class="req">*</span></label>
+        {{ otp_form.otp }}
+      </div>
+      <button type="submit" class="reg-submit">
+        <i class="bi bi-check2-circle"></i> Conferma e crea account
+      </button>
+      <p style="margin-top:14px;font-size:.85rem;">
+        <a href="{% url 'register_candidato' %}">Torna al modulo e richiedi un nuovo codice</a>
+      </p>
+    </form>
+    {% else %}
+
+    <form method="post" novalidate autocomplete="off">
+      {% csrf_token %}
+
+      <!-- Honeypot anti-bot -->
+      <div class="hp-field" aria-hidden="true">
+        {{ form.website }}
+      </div>
+
+      <!-- SEZIONE 1: Dati personali -->
+      <div class="reg-section">
+        <div class="reg-section-title">
+          <i class="bi bi-person"></i> Dati personali
+        </div>
+        <div class="freg-row">
+          <div class="freg-field">
+            <label for="{{ form.first_name.id_for_label }}">
+              Nome <span class="req">*</span>
+            </label>
+            {{ form.first_name }}
+            {% if form.first_name.errors %}
+              <span class="freg-error">{{ form.first_name.errors.0 }}</span>
+            {% endif %}
+          </div>
+          <div class="freg-field">
+            <label for="{{ form.last_name.id_for_label }}">
+              Cognome <span class="req">*</span>
+            </label>
+            {{ form.last_name }}
+            {% if form.last_name.errors %}
+              <span class="freg-error">{{ form.last_name.errors.0 }}</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- SEZIONE 2: E-mail -->
+      <div class="reg-section">
+        <div class="reg-section-title">
+          <i class="bi bi-envelope"></i> Indirizzo e-mail
+        </div>
+        <div class="freg-field">
+          <label for="{{ form.email.id_for_label }}">
+            E-mail <span class="req">*</span>
+          </label>
+          {{ form.email }}
+          <span class="freg-help">{{ form.email.help_text }}</span>
+          {% if form.email.errors %}
+            <span class="freg-error">{{ form.email.errors.0 }}</span>
+          {% endif %}
+        </div>
+        <div class="freg-field">
+          <label for="{{ form.email_conferma.id_for_label }}">
+            Conferma e-mail <span class="req">*</span>
+          </label>
+          {{ form.email_conferma }}
+          {% if form.email_conferma.errors %}
+            <span class="freg-error">{{ form.email_conferma.errors.0 }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- SEZIONE 3: Codice fiscale e cellulare -->
+      <div class="reg-section">
+        <div class="reg-section-title">
+          <i class="bi bi-shield-lock"></i> Accesso e recapito
+        </div>
+        <p style="font-size:.82rem;color:var(--c-muted);margin-bottom:10px;">
+          Il <strong>nome utente</strong> sarà nel formato <em>nome.cognome</em> (es. mario.rossi). La <strong>password iniziale</strong> è il tuo codice fiscale (16 caratteri). Riceverai un codice via e-mail per confermare la registrazione; il cellulare resta un recapito per l’azienda.
+        </p>
+        <div class="freg-field">
+          <label for="{{ form.codice_fiscale.id_for_label }}">
+            Codice fiscale (password iniziale) <span class="req">*</span>
+          </label>
+          {{ form.codice_fiscale }}
+          <span class="freg-help">{{ form.codice_fiscale.help_text }}</span>
+          {% if form.codice_fiscale.errors %}
+            <span class="freg-error">{{ form.codice_fiscale.errors.0 }}</span>
+          {% endif %}
+        </div>
+        <div class="freg-field">
+          <label for="{{ form.telefono.id_for_label }}">
+            Cellulare (Italia) <span class="req">*</span>
+          </label>
+          {{ form.telefono }}
+          <span class="freg-help">{{ form.telefono.help_text }}</span>
+          {% if form.telefono.errors %}
+            <span class="freg-error">{{ form.telefono.errors.0 }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- SEZIONE 4: Consensi GDPR -->
+      <div class="reg-section">
+        <div class="reg-section-title">
+          <i class="bi bi-file-earmark-lock2"></i> Consenso al trattamento dei dati personali
+        </div>
+
+        <div class="info-privacy">
+          <strong><i class="bi bi-info-circle"></i> Informativa sintetica (art. 13 GDPR — Reg. UE 2016/679)</strong><br>
+          I dati personali da Lei forniti saranno trattati da <strong>GESPER</strong> in qualità di titolare del trattamento,
+          esclusivamente per finalità di gestione del processo di selezione del personale.
+          La base giuridica del trattamento è il suo consenso (art. 6, par. 1, lett. a) GDPR).
+          I dati non saranno ceduti a terzi senza specifico consenso, né trasferiti fuori dall'UE.
+          Lei può esercitare i diritti di cui agli artt. 15–22 GDPR scrivendo a
+          <em>privacy@gesper.it</em>. L'informativa completa è disponibile sul sito aziendale.
+        </div>
+
+        <!-- Consenso 1 - obbligatorio -->
+        <div class="gdpr-box required">
+          <div class="gdpr-check-row">
+            <input type="checkbox" name="consenso_trattamento" id="id_consenso_trattamento"
+                   class="freg-check" {% if form.consenso_trattamento.value %}checked{% endif %} required>
+            <label for="id_consenso_trattamento" class="gdpr-text">
+              Ho letto l'informativa sul trattamento dei dati personali e presto il mio
+              <strong>consenso al trattamento dei dati</strong> per le finalità di selezione del personale
+              ai sensi dell'art. 6(1)(a) del GDPR e del D.Lgs. 101/2018.
+              <span class="gdpr-badge badge-req">Obbligatorio</span>
+            </label>
+          </div>
+          {% if form.consenso_trattamento.errors %}
+            <div class="freg-error" style="margin-top:6px">{{ form.consenso_trattamento.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Consenso 2 - facoltativo -->
+        <div class="gdpr-box">
+          <div class="gdpr-check-row">
+            <input type="checkbox" name="consenso_conservazione" id="id_consenso_conservazione"
+                   class="freg-check" {% if form.consenso_conservazione.value %}checked{% endif %}>
+            <label for="id_consenso_conservazione" class="gdpr-text">
+              Acconsento alla <strong>conservazione del mio profilo</strong> nel database
+              per un periodo massimo di <strong>12 mesi</strong> dalla registrazione,
+              al fine di essere valutato per future selezioni del personale.
+              <span class="gdpr-badge badge-opt">Facoltativo</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Consenso 3 - facoltativo -->
+        <div class="gdpr-box">
+          <div class="gdpr-check-row">
+            <input type="checkbox" name="consenso_comunicazione" id="id_consenso_comunicazione"
+                   class="freg-check" {% if form.consenso_comunicazione.value %}checked{% endif %}>
+            <label for="id_consenso_comunicazione" class="gdpr-text">
+              Acconsento alla <strong>comunicazione dei miei dati</strong> a società collegate
+              o partner dell'azienda, per finalità di selezione del personale
+              (art. 6(1)(a) GDPR).
+              <span class="gdpr-badge badge-opt">Facoltativo</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="reg-submit">
+        <i class="bi bi-envelope-at"></i> Invia codice e-mail e continua
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="reg-footer">
+    Hai già un account?
+    <a href="{% url 'login' %}">Accedi</a>
+    &nbsp;·&nbsp;
+    Non hai ricevuto l'e-mail di verifica?
+    <a href="{% url 'reinvia_verifica' %}">Reinvia</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  const cf = document.getElementById('id_codice_fiscale');
+  if (cf) cf.addEventListener('input', function () { this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16); });
+})();
+</script>
+</body>
+</html>

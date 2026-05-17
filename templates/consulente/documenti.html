@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% load guida_tags %}
+{% block title %}Documenti dipendenti — Consulente{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1000px;margin:0 auto;padding:1.5rem 1rem">
+
+  <nav aria-label="breadcrumb" style="font-size:.82rem;margin-bottom:1rem">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'centro_moduli' %}">Consulente</a></li>
+      <li class="breadcrumb-item active">Documenti</li>
+    </ol>
+  </nav>
+
+  <h2 class="mb-2" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+    <i class="bi bi-file-earmark-person me-2"></i>Documenti dipendenti{% guida_link "modulo-consulente" %}
+  </h2>
+  <p class="text-muted mb-3" style="font-size:.85rem">
+    Documenti personali: identità, codice fiscale, permesso di soggiorno, attestati professionali.
+  </p>
+  <div class="alert alert-light border py-2 small mb-4" role="status">
+    <div class="mb-1"><strong>Documenti anagrafici.</strong> Distinti da buste/CUD/F24 (menu Documenti o hub <em>Carica documenti paghe</em>).</div>
+    <div class="mb-0 text-muted" style="font-size:.9em">
+      <a href="{% url 'guida_modulo' 'documenti-compliance' %}">Guida: documenti e compliance</a>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert" style="font-size:.88rem">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {% if dipendenti_list %}
+  <div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" style="font-size:.85rem">
+        <thead style="background:#1b3a5f;color:#fff">
+          <tr>
+            <th class="py-2 px-3">Dipendente</th>
+            <th class="py-2">Email</th>
+            <th class="py-2">Stato</th>
+            <th class="py-2 text-center">Documenti</th>
+            <th class="py-2 text-center">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in dipendenti_list %}
+          <tr>
+            <td class="py-2 px-3">
+              <div style="font-weight:600">{{ item.dip.cognome }} {{ item.dip.nome }}</div>
+              {% if item.dip.codice_fiscale %}
+                <div class="text-muted" style="font-size:.75rem;font-family:monospace">{{ item.dip.codice_fiscale }}</div>
+              {% endif %}
+            </td>
+            <td class="py-2 text-muted">{{ item.dip.email|default:"—" }}</td>
+            <td class="py-2">
+              <span class="badge {% if item.dip.stato == 'attivo' %}bg-success{% elif item.dip.stato == 'candidato' %}bg-warning text-dark{% else %}bg-secondary{% endif %}" style="font-size:.74rem">
+                {{ item.dip.get_stato_display }}
+              </span>
+            </td>
+            <td class="py-2 text-center">
+              {% if item.num_documenti > 0 %}
+                <span class="badge" style="background:#d1e7dd;color:#0a3622;font-size:.78rem">
+                  <i class="bi bi-file-earmark me-1"></i>{{ item.num_documenti }}
+                </span>
+              {% else %}
+                <span class="text-muted" style="font-size:.8rem">—</span>
+              {% endif %}
+            </td>
+            <td class="py-2 text-center">
+              <a href="{% url 'consulente_documenti_dipendente' item.dip.id %}"
+                 class="btn btn-sm btn-outline-primary" style="font-size:.75rem;padding:.2rem .6rem">
+                <i class="bi bi-folder2-open me-1"></i>Vedi documenti
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-people" style="font-size:2.5rem;opacity:.4"></i>
+    <p class="mt-2" style="font-size:.9rem">Nessun dipendente trovato.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

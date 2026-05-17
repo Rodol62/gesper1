@@ -1,0 +1,46 @@
+{
+  "scatti_anzianita_fipe": {
+    "regole_generali": {
+      "periodicita_anni": 3,
+      "numero_massimo_scatti": 6,
+      "descrizione": "Gli scatti di anzianità maturano ogni 3 anni fino a un massimo di 6 scatti"
+    },
+
+    "importi_per_livello": {
+      "Qa": 26.00,
+      "Qb": 24.00,
+      "1": 22.00,
+      "2": 20.00,
+      "3": 18.00,
+      "4": 16.00,
+      "5": 14.00,
+      "6s": 12.00,
+      "6": 12.00,
+      "7": 10.00
+    },
+
+    "calcolo": {
+      "formula": "importo_scatti_livello * numero_scatti_maturati",
+      "incluso_in": [
+        "retribuzione mensile",
+        "base imponibile INPS",
+        "base imponibile IRPEF",
+        "quota TFR"
+      ],
+      "escluso_da": [
+        "indennità occasionali",
+        "rimborsi spese"
+      ]
+    },
+
+    "regole_speciali": {
+      "apprendisti": {
+        "maturazione_durante_apprendistato": false,
+        "decorrenza": "dal momento della trasformazione a tempo indeterminato"
+      },
+      "part_time": {
+        "proporzionale": true
+      }
+    }
+  }
+}

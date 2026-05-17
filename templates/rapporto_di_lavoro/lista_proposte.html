@@ -1,0 +1,211 @@
+{% extends base_template %}
+{% load ruoli_tags guida_tags pagination_tags %}
+{% block title %}{% if user|has_ruolo:'candidato' %}Proposta di assunzione{% else %}Proposte di Assunzione{% endif %}{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">{% if user|has_ruolo:'candidato' %}Proposta di assunzione{% else %}Proposte di Assunzione{% endif %}{% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %} {% guida_link "modulo-admin" %}{% endif %}</h2>
+  {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %}
+  <div class="d-flex gap-2">
+    <a href="{% url 'istruttoria_assunzione' %}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-magic"></i> Avvia istruttoria
+    </a>
+    <a href="{% url 'lista_contratti_scadenza' %}" class="btn btn-sm btn-outline-dark">
+      <i class="bi bi-calendar-event"></i> Scadenze TD
+    </a>
+    <a href="{% url 'lista_legacy_allineamento' %}" class="btn btn-sm btn-outline-warning">
+      <i class="bi bi-people"></i> Backlog legacy
+    </a>
+    <a href="{% url 'crea_proposta_assunzione' %}" class="btn btn-sm btn-primary">
+      <i class="bi bi-plus-circle"></i> Nuova proposta manuale
+    </a>
+  </div>
+  {% elif user|has_ruolo:'consulente' %}
+  <div class="d-flex gap-2">
+    <a href="{% url 'lista_contratti_scadenza' %}" class="btn btn-sm btn-outline-dark">
+      <i class="bi bi-calendar-event"></i> Scadenze TD
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{% if azienda_operativa %}
+<div class="alert alert-info py-1" style="font-size:.8rem">
+  Azienda operativa: <strong>{{ azienda_operativa.nome }}</strong>
+</div>
+{% endif %}
+
+{% if messages %}
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags }} py-2" style="font-size:.82rem">{{ message }}</div>
+  {% endfor %}
+{% endif %}
+
+{# ── Banner candidati pronti per proposta (admin/HR/consulente) ─── #}
+{% if candidati_pronti %}
+<div class="alert py-2 mb-3" style="background:#e8f4e8;border:1px solid #5a9a5a;font-size:.82rem">
+  <div class="d-flex align-items-center gap-2 mb-1">
+    <i class="bi bi-person-check-fill" style="color:#2d6a2d"></i>
+    <strong style="color:#2d6a2d">{{ candidati_pronti|length }} candidato/i pronti per la proposta di assunzione</strong>
+  </div>
+  <div class="d-flex flex-wrap gap-2 mt-2">
+    {% for cand in candidati_pronti %}
+    <a href="{% url 'crea_proposta_da_candidato' cand.id %}"
+       class="btn btn-sm btn-success"
+       style="font-size:.78rem">
+      <i class="bi bi-file-earmark-plus"></i>
+      {{ cand.first_name }} {{ cand.last_name }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ── Banner bozza in preparazione (candidato) ────────────────────── #}
+{% if ha_bozza_in_lavorazione and user|has_ruolo:'candidato' %}
+<div class="alert py-2 mb-3" style="background:#fff8e1;border:1px solid #d4a000;font-size:.83rem">
+  <i class="bi bi-hourglass-split" style="color:#7a5c00"></i>
+  <strong style="color:#5c4200">Proposta in preparazione</strong> —
+  L'ufficio HR sta predisponendo la tua proposta di assunzione. Riceverai una notifica non appena sarà disponibile per la tua firma.
+</div>
+{% endif %}
+
+{% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
+  {% if contratti_td_prossimi or contratti_td_scaduti %}
+  <div class="alert py-2 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-2"
+       style="background:#fff4e5;border:1px solid #e8a54a;font-size:.82rem">
+    <div>
+      <i class="bi bi-calendar-event me-1" style="color:#a65c00"></i>
+      <strong>Contratti TD:</strong>
+      {% if contratti_td_prossimi %}<span class="ms-1">{{ contratti_td_prossimi|length }} in scadenza (≤30 gg)</span>{% endif %}
+      {% if contratti_td_scaduti %}<span class="ms-1 text-danger">{{ contratti_td_scaduti|length }} scaduti ancora aperti</span>{% endif %}
+    </div>
+    <a href="{% url 'lista_contratti_scadenza' %}" class="btn btn-sm btn-warning text-dark fw-semibold">
+      Vedi elenco e azioni
+    </a>
+  </div>
+  {% endif %}
+{% endif %}
+
+{# ── Banner per dipendente: proposte che richiedono firma ───────────── #}
+{% if user|has_ruolo:'dipendente' %}
+  {% for p in proposte_for_alerts %}
+    {% if p.approvata_admin and not p.accettata_dipendente and p.stato != 'rifiutata_dipendente' and p.stato_canonico != 'contratto_attivo' %}
+    <div class="alert d-flex align-items-center gap-3 mb-2"
+         style="background:#fff8e1;border:1px solid #f0c040;font-size:.82rem">
+      <i class="bi bi-pen-fill fs-5" style="color:#8a5700"></i>
+      <div class="flex-grow-1">
+        <strong>Proposta {{ p.numero_proposta }} — {{ p.titolo }}</strong><br>
+        L'azienda ha approvato questa proposta di assunzione. Leggila attentamente e comunicaci la tua risposta.
+      </div>
+      <a href="{% url 'dettaglio_proposta' p.id %}" class="btn btn-sm btn-warning fw-bold text-dark text-nowrap">
+        <i class="bi bi-eye"></i> Visualizza e firma
+      </a>
+    </div>
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+{# ── Filtro per stato ────────────────────────────────────────── #}
+{% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' or user|has_ruolo:'consulente' %}
+<form method="get" class="d-flex align-items-center gap-2 mb-3 flex-wrap" style="font-size:.82rem">
+  <label class="text-muted mb-0" style="white-space:nowrap">Filtra per stato:</label>
+  <select name="stato" class="form-select form-select-sm" style="max-width:220px" onchange="this.form.submit()">
+    <option value="">— Tutti gli stati —</option>
+    {% for val, label in stato_choices %}
+    <option value="{{ val }}" {% if stato_filter == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% if stato_filter %}
+  <a href="?" class="btn btn-sm btn-outline-secondary" style="font-size:.78rem">
+    <i class="bi bi-x-circle"></i> Rimuovi filtro
+  </a>
+  {% endif %}
+  <span class="text-muted" style="font-size:.75rem">{{ page_obj.paginator.count }} proposta/e</span>
+</form>
+{% endif %}
+
+{% gesper_pagination page_obj "Paginazione elenco proposte" %}
+<div class="card">
+  <div class="card-body p-0 gesper-list-scroll">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th style="width:140px">Numero</th>
+          {% if not user|has_ruolo:'dipendente' %}<th>Dipendente</th>{% endif %}
+          <th>Titolo / posizione</th>
+          <th style="width:160px">Stato</th>
+          <th style="width:80px">Inizio</th>
+          <th style="width:190px" class="text-end">Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for proposta in proposte %}
+        <tr {% if user|has_ruolo:'dipendente' and proposta.approvata_admin and not proposta.accettata_dipendente and proposta.stato != 'rifiutata_dipendente' and proposta.stato_canonico != 'contratto_attivo' %}style="background:#fffbeb"{% endif %}>
+          <td class="fw-semibold" style="font-size:.76rem">{{ proposta.numero_proposta }}</td>
+          {% if not user|has_ruolo:'dipendente' %}
+          <td>{{ proposta.dipendente.nome }} {{ proposta.dipendente.cognome }}</td>
+          {% endif %}
+          <td>
+            {{ proposta.titolo }}
+            {% if proposta.posizione %}<span class="text-muted" style="font-size:.75rem"> — {{ proposta.posizione }}</span>{% endif %}
+            {% if proposta.note and '[ALLINEAMENTO LEGACY]' in proposta.note %}
+              <span class="badge bg-warning text-dark ms-1">Legacy</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if proposta.stato == 'bozza' %}
+              <span class="badge bg-secondary">Bozza</span>
+            {% elif proposta.stato_canonico == 'inviata_candidato' %}
+              <span class="badge bg-info text-dark">Inviata al candidato</span>
+            {% elif proposta.stato_canonico == 'firmata_candidato' %}
+              {% if user|has_ruolo:'dipendente' and proposta.approvata_admin and not proposta.accettata_dipendente %}
+                <span class="badge" style="background:#8a5700">Da firmare</span>
+              {% else %}
+                <span class="badge bg-success">Firmata dal candidato</span>
+              {% endif %}
+            {% elif proposta.stato == 'rifiutata_dipendente' or proposta.stato == 'rifiutata_candidato' %}
+              <span class="badge bg-danger">Rifiutata</span>
+            {% elif proposta.stato == 'rifiutata_admin' %}
+              <span class="badge bg-warning text-dark">Rifiutata da admin</span>
+            {% elif proposta.stato_canonico == 'contratto_attivo' %}
+              <span class="badge bg-dark">Contratto emesso</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ proposta.get_stato_display }}</span>
+            {% endif %}
+          </td>
+          <td style="font-size:.76rem">{{ proposta.data_inizio_rapporto|date:"d/m/Y" }}</td>
+          <td class="text-end text-nowrap">
+            <a href="{% url 'dettaglio_proposta' proposta.id %}"
+               class="btn btn-xs {% if user|has_ruolo:'dipendente' and proposta.approvata_admin and not proposta.accettata_dipendente and proposta.stato != 'rifiutata_dipendente' and proposta.stato_canonico != 'contratto_attivo' %}btn-warning text-dark fw-bold{% else %}btn-outline-primary{% endif %}">
+              {% if user|has_ruolo:'dipendente' and proposta.approvata_admin and not proposta.accettata_dipendente and proposta.stato != 'rifiutata_dipendente' and proposta.stato_canonico != 'contratto_attivo' %}
+                <i class="bi bi-pen"></i> Firma
+              {% else %}
+                <i class="bi bi-eye"></i> Apri
+              {% endif %}
+            </a>
+            {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %}
+              {% if proposta.stato == 'bozza' %}
+                <a href="{% url 'modifica_proposta_assunzione' proposta.id %}" class="btn btn-xs btn-outline-secondary">
+                  <i class="bi bi-pencil"></i> Modifica
+                </a>
+                <form method="post" action="{% url 'elimina_proposta_assunzione' proposta.id %}" class="d-inline"
+                      onsubmit="return confirm('Confermi eliminazione proposta {{ proposta.numero_proposta }}?');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-xs btn-outline-danger">
+                    <i class="bi bi-trash"></i> Cancella
+                  </button>
+                </form>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-3" style="font-size:.82rem">Nessuna proposta disponibile.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% gesper_pagination page_obj "Paginazione elenco proposte" %}
+{% endblock %}

@@ -1,0 +1,79 @@
+{
+  "fringe_benefit_fipe": {
+    "soglie_esenzione": {
+      "lavoratori_senza_figli": 1000,
+      "lavoratori_con_figli": 2000,
+      "descrizione": "Soglie annuali di esenzione IRPEF e INPS per i fringe benefit"
+    },
+
+    "tipologie": {
+      "auto_aziendale": {
+        "uso_promiscuo": true,
+        "percentuale_imponibile": 0.30,
+        "calcolo_km_annui": 15000,
+        "descrizione": "Auto aziendale ad uso promiscuo con imponibile calcolato su 30% del valore convenzionale"
+      },
+      "telefono_aziendale": {
+        "uso_promiscuo": true,
+        "imponibile": 0,
+        "descrizione": "Telefono aziendale non costituisce imponibile se l'uso è promiscuo"
+      },
+      "alloggio": {
+        "imponibile": "valore_mercato",
+        "esente_se": "alloggio_in_servizio",
+        "descrizione": "L'alloggio è imponibile salvo casi di necessità di servizio"
+      },
+      "vitto": {
+        "ticket_restaurant": {
+          "cartaceo_esente_fino": 4.00,
+          "elettronico_esente_fino": 8.00
+        },
+        "mensa_aziendale": {
+          "esente": true
+        },
+        "descrizione": "Regole per vitto, mensa e ticket restaurant"
+      },
+      "buoni_benzina": {
+        "esente_fino": 200,
+        "descrizione": "Buoni carburante esenti fino a 200 euro annui"
+      },
+      "welfare_aziendale": {
+        "esente": true,
+        "descrizione": "Prestazioni welfare non concorrono a imponibile"
+      }
+    },
+
+    "base_imponibile": {
+      "incluso": [
+        "auto aziendale uso promiscuo",
+        "alloggio non di servizio",
+        "ticket restaurant oltre soglia",
+        "buoni benzina oltre soglia"
+      ],
+      "escluso": [
+        "telefono aziendale uso promiscuo",
+        "mensa aziendale",
+        "welfare aziendale",
+        "ticket restaurant entro soglia"
+      ]
+    },
+
+    "regole_speciali": {
+      "part_time": {
+        "benefit_proporzionali": false,
+        "descrizione": "I fringe benefit non si riducono in base al part-time"
+      },
+      "stagionali": {
+        "benefit_consentiti": true,
+        "note": "Applicabili anche ai contratti stagionali"
+      }
+    },
+
+    "validazioni": {
+      "superamento_soglia": {
+        "conversione_in_imponibile": true,
+        "descrizione": "Se si supera la soglia esente, l'intero importo diventa imponibile"
+      }
+    }
+  }
+}

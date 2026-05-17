@@ -1,0 +1,41 @@
+{# Sezioni ferie / previdenziale / progressivi (stesse chiavi del report cedolino unificato). #}
+{% if report %}
+<div class="ced-riepilogo-grid border-top bg-light bg-opacity-50">
+  <div class="ced-section ced-section-compact border-bottom">
+    <h3 class="ced-subsec-title"><i class="bi bi-sun me-1"></i>Ferie, permessi e ROL</h3>
+    <p class="ced-sec-hint small text-muted px-2 mb-1">Saldi e movimenti estratti dal testo del cedolino (layout dipendente).</p>
+    <dl class="ced-kv ced-kv-compact">
+      {% for label, value in report.ferie_permessi_rol.items %}
+      <dt>{{ label }}</dt>
+      <dd>{% if value %}{{ value }}{% else %}<span class="text-muted">—</span>{% endif %}</dd>
+      {% empty %}
+      <dd class="text-muted small">Nessun campo disponibile.</dd>
+      {% endfor %}
+    </dl>
+  </div>
+  <div class="ced-section ced-section-compact border-bottom">
+    <h3 class="ced-subsec-title"><i class="bi bi-building me-1"></i>Previdenziale / INPS / INAIL</h3>
+    <p class="ced-sec-hint small text-muted px-2 mb-1">Imponibili, giornate e riferimenti TFR ove rilevabili.</p>
+    <dl class="ced-kv ced-kv-compact">
+      {% for label, value in report.dati_previdenziali.items %}
+      <dt>{{ label }}</dt>
+      <dd>{% if value %}{{ value }}{% else %}<span class="text-muted">—</span>{% endif %}</dd>
+      {% empty %}
+      <dd class="text-muted small">Nessun campo disponibile.</dd>
+      {% endfor %}
+    </dl>
+  </div>
+  <div class="ced-section ced-section-compact mb-0">
+    <h3 class="ced-subsec-title"><i class="bi bi-graph-up-arrow me-1"></i>Progressivi annui</h3>
+    <p class="ced-sec-hint small text-muted px-2 mb-1">Cumulati anno (imponibili, contributi, IRPEF) se presenti in coda cedolino.</p>
+    <dl class="ced-kv ced-kv-compact">
+      {% for label, value in report.progressivi_annui.items %}
+      <dt>{{ label }}</dt>
+      <dd>{% if value %}{{ value }} €{% else %}<span class="text-muted">—</span>{% endif %}</dd>
+      {% empty %}
+      <dd class="text-muted small">Nessun campo disponibile.</dd>
+      {% endfor %}
+    </dl>
+  </div>
+</div>
+{% endif %}

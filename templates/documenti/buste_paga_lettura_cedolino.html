@@ -1,0 +1,254 @@
+{% extends 'base.html' %}
+{% block title %}{% if buste_scheda == 'estrazione_v4' %}Buste — estrazione motore v4{% elif buste_scheda == 'conciliazione' %}Buste — conciliazione cedolino{% else %}Buste paga — lettura cedolino{% endif %}{% endblock %}
+
+{% block extra_head %}
+<style>
+:root {
+  --c-primary: #1b3a5f;
+  --c-accent: #2d6199;
+  --c-border: #c5d0dc;
+  --c-muted: #5c6b7d;
+  --c-alt: #f4f7fa;
+}
+.ced-note {
+  font-size: .82rem;
+  color: var(--c-muted);
+  border-left: 3px solid var(--c-accent);
+  padding: .5rem .75rem;
+  background: var(--c-alt);
+  border-radius: 0 4px 4px 0;
+  margin-bottom: 1rem;
+}
+.ced-table-wrap { padding: 0 .5rem .5rem; }
+.ced-table-wrap .table { font-size: .78rem; margin-bottom: 0; }
+.ced-table-wrap .table th { font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; color: var(--c-muted); }
+.text-euro { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ced-section-compact {
+  background: #fff;
+}
+.ced-subsec-title {
+  margin: 0;
+  padding: .45rem .65rem;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #1b3a5f;
+  background: linear-gradient(90deg, #e8eef5 0%, #f8fafc 100%);
+  border-bottom: 1px solid #d8e0ea;
+}
+.ced-sec-hint { padding-left: .65rem !important; padding-right: .65rem !important; }
+.ced-kv-compact { margin: 0; font-size: .78rem; }
+.ced-kv-compact dt {
+  color: #5c6b7d;
+  font-weight: 600;
+  font-size: .7rem;
+  padding: .3rem .65rem 0;
+}
+.ced-kv-compact dd {
+  margin: 0;
+  padding: .05rem .65rem .35rem;
+  border-bottom: 1px solid #eef2f6;
+  font-variant-numeric: tabular-nums;
+}
+.ced-kv-compact dd:last-of-type { border-bottom: none; }
+@media (min-width: 992px) {
+  .ced-riepilogo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .ced-riepilogo-grid .ced-section-compact { border-bottom: none !important; }
+  .ced-riepilogo-grid .ced-section-compact:not(:last-child) { border-right: 1px solid #dee6ef; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% load l10n pagination_tags %}
+<nav aria-label="Percorso" class="mb-2">
+  <ol class="breadcrumb mb-0" style="font-size:.8rem">
+    <li class="breadcrumb-item"><a href="{% url 'lista_documenti' %}">Documenti</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'verifica_buste_paga' %}">Verifica buste paghe</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{% if buste_scheda == 'estrazione_v4' %}Estrazione motore v4{% elif buste_scheda == 'conciliazione' %}Conciliazione cedolino{% else %}Lettura cedolino{% endif %}</li>
+  </ol>
+</nav>
+
+<h2 class="h5 mb-2" style="color:#1b3a5f;font-weight:700">
+  {% if buste_scheda == 'estrazione_v4' %}
+  <i class="bi bi-database-down me-1"></i> Buste paga — lettura e memorizzazione (motore cedolino v4)
+  {% elif buste_scheda == 'conciliazione' %}
+  <i class="bi bi-check2-square me-1"></i> Buste paga — conciliazione lettura PDF vs dati salvati (v4)
+  {% else %}
+  <i class="bi bi-list-columns-reverse me-1"></i> Buste paga — lettura cedolino (voci e riepiloghi)
+  {% endif %}
+</h2>
+
+<p class="small text-muted mb-2">
+  {% if buste_scheda == 'estrazione_v4' %}
+  <a href="{% url 'buste_paga_conciliazione_cedolino' %}?{% if pagination_qs %}{{ pagination_qs }}&{% endif %}page={{ page_obj.number }}">Vai alla conciliazione PDF / DB</a>
+  · <a href="{% url 'buste_paga_lettura_cedolino' %}?{% if pagination_qs %}{{ pagination_qs }}&{% endif %}page={{ page_obj.number }}">Vista completa</a>
+  {% elif buste_scheda == 'conciliazione' %}
+  <a href="{% url 'buste_paga_estrazione_motore_v4' %}?{% if pagination_qs %}{{ pagination_qs }}&{% endif %}page={{ page_obj.number }}">Vai alla memorizzazione motore v4</a>
+  · <a href="{% url 'buste_paga_lettura_cedolino' %}?{% if pagination_qs %}{{ pagination_qs }}&{% endif %}page={{ page_obj.number }}">Vista completa</a>
+  {% else %}
+  <a href="{% url 'buste_paga_estrazione_motore_v4' %}?{% if pagination_qs %}{{ pagination_qs }}&{% endif %}page={{ page_obj.number }}">Solo memorizzazione v4</a>
+  · <a href="{% url 'buste_paga_conciliazione_cedolino' %}?{% if pagination_qs %}{{ pagination_qs }}&{% endif %}page={{ page_obj.number }}">Solo conciliazione</a>
+  {% endif %}
+</p>
+
+<p class="ced-note mb-3">
+  {% if buste_scheda == 'estrazione_v4' %}
+  <strong>Passo 3 (Verifica buste paghe):</strong> lettura PDF con <code>parse_bytes</code> e salvataggio in <code>CedolinoMotoreV4</code> (e voci).
+  Dopo la memorizzazione, controlla l’esito in <a href="{% url 'buste_paga_conciliazione_cedolino' %}?{% if pagination_qs %}{{ pagination_qs }}&{% endif %}page={{ page_obj.number }}">passo 4 · Conciliazione</a> (badge OK / differenze).
+  Pulsante <em>Memorizza / Aggiorna estrazione v4</em> sotto ogni busta (HR / consulente). Se il motore v4 è stato aggiornato, riesegui <em>Aggiorna</em> sulle buste già salvate per allineare colonne orarie (F1) e conciliazione.
+  Dettaglio voci nel pannello espandibile.
+  {% elif buste_scheda == 'conciliazione' %}
+  Scheda dedicata al <strong>controllo di coerenza</strong>: confronto tra la lettura cedolino odierna dal PDF e i totali salvati con l’estrazione v4 (stesso dipendente e periodo).
+  Per popolare o aggiornare il dato di riferimento usa la voce di menu <strong>Buste — estrazione v4 (memorizza)</strong>.
+  {% else %}
+  <strong>Passo 5 (Verifica buste paghe):</strong> vista completa con <strong>voci</strong>, <strong>ferie/ROL</strong>, <strong>previdenziale</strong>, <strong>progressivi</strong> e blocco conciliazione v4.
+  {% endif %}
+  Criterio anno come lo ZIP cedolini. Lista <strong>paginata</strong> ({{ page_obj.paginator.per_page }} buste per pagina).
+</p>
+
+{% localize off %}
+<form method="get" class="card border shadow-sm mb-4">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-end flex-wrap">
+      <div class="col-auto">
+        <label class="form-label small fw-semibold text-muted mb-0">Anno</label>
+        <select name="anno" class="form-select form-select-sm" style="min-width:7rem">
+          {% for y in anni_disponibili %}
+          <option value="{{ y }}" {% if y == anno %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if show_staff_filters and aziende_scelta %}
+      <div class="col-md-5">
+        <label class="form-label small fw-semibold text-muted mb-0">Azienda</label>
+        <select name="azienda_id" class="form-select form-select-sm">
+          {% for a in aziende_scelta %}
+          <option value="{{ a.id }}" {% if a.id == azienda.id %}selected{% endif %}>{{ a.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      {% if show_staff_filters %}
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold text-muted mb-0">Dipendente (opz.)</label>
+        <select name="dipendente" class="form-select form-select-sm">
+          <option value="">— Tutti —</option>
+          {% for d in dipendenti_filtro %}
+          <option value="{{ d.id }}" {% if dipendente_filter == d.id|stringformat:"d" %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel me-1"></i> Aggiorna</button>
+      </div>
+    </div>
+  </div>
+</form>
+{% endlocalize %}
+
+{% if not page_obj.paginator.count %}
+<div class="alert alert-info">
+  {% localize off %}Nessuna busta paga in archivio per l&rsquo;anno <strong>{{ anno }}</strong> con i criteri indicati.{% endlocalize %}
+</div>
+{% else %}
+{% localize off %}
+<p class="small text-muted mb-2">
+  <strong>{{ page_obj.paginator.count }}</strong> buste nell&rsquo;anno · pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}
+  {% if azienda %}· {{ azienda.nome }}{% endif %}
+</p>
+{% if confronto_riepilogo.pagina %}
+<div class="card border-info shadow-sm mb-3" style="border-width:2px">
+  <div class="card-body py-2 px-3">
+    <div class="small fw-semibold text-info-emphasis mb-1"><i class="bi bi-shuffle me-1"></i> {% if buste_scheda == 'estrazione_v4' %}Riepilogo memorizzazione v4{% elif buste_scheda == 'conciliazione' %}Riepilogo conciliazione{% else %}Riepilogo conciliazione v4{% endif %} (solo questa pagina)</div>
+    <p class="small text-muted mb-2 mb-md-1" title="{{ tol_legenda_breve }}">Soglie motore: F1–F3,F5–F7,F9 {{ tol_formule_label }} · F4 {{ tol_impon_f4_label }} · F8 {{ tol_f8_label }} · import {{ tol_confronto_label }}</p>
+    <ul class="mb-0 small list-unstyled d-flex flex-wrap gap-3">
+      <li><span class="text-muted">Analizzate:</span> {{ confronto_riepilogo.pagina }}</li>
+      {% if buste_scheda != 'conciliazione' %}
+      <li><span class="text-muted">Con estrazione v4 in DB:</span> {{ confronto_riepilogo.con_estrazione_v4 }}</li>
+      <li><span class="text-secondary">Senza estrazione v4:</span> {{ confronto_riepilogo.senza_estrazione_v4 }}
+        {% if confronto_riepilogo.senza_estrazione_v4 %}
+        <span class="text-muted">(di cui lettura solo testo/regex: {{ confronto_riepilogo.senza_v4_lettura_motore_legacy }},
+        v4 in lettura ma non salvato in DB: {{ confronto_riepilogo.senza_v4_motore_v4_senza_persist }})</span>
+        {% endif %}
+      </li>
+      {% endif %}
+      {% if buste_scheda != 'estrazione_v4' %}
+      <li><span class="text-success">Coerenti con salvato:</span> {{ confronto_riepilogo.coerenti }}</li>
+      <li><span class="text-danger">Con differenze:</span> {{ confronto_riepilogo.differenze }}</li>
+      <li><span class="text-warning">Senza lettura PDF:</span> {{ confronto_riepilogo.senza_report }}</li>
+      {% endif %}
+      {% if buste_scheda == 'estrazione_v4' %}
+      <li><span class="text-warning">Senza lettura PDF:</span> {{ confronto_riepilogo.senza_report }}</li>
+      {% endif %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+{% endlocalize %}
+
+{% gesper_pagination page_obj "Paginazione buste paga cedolino" %}
+<div class="gesper-list-scroll">
+{% for row in righe %}
+<div class="card border shadow-sm mb-4">
+  <div class="card-header py-2 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background:#f4f7fa;font-size:.85rem">
+    <div>
+      <strong>{{ row.dipendente_label }}</strong>
+      <span class="text-muted" {% if row.periodo_doc_mismatch %}title="Periodo da descrizione file: {{ row.periodo_doc_mismatch }} (in elenco si usa il mese retribuito letto dal PDF)"{% endif %}>· {{ row.periodo_label }}</span>
+      {% if row.tipo_cedolino %}
+      <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">{{ row.tipo_cedolino }}</span>
+      {% endif %}
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <a href="{% url 'visualizza_cedolino_busta' row.documento.id %}" class="btn btn-outline-primary btn-sm py-0">
+        <i class="bi bi-file-earmark-richtext"></i> Cedolino completo
+      </a>
+      <a href="{% url 'visualizza_documento' row.documento.id %}" class="btn btn-outline-secondary btn-sm py-0">
+        <i class="bi bi-eye"></i> Documento #{{ row.documento.id }}
+      </a>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    {% if not row.extraction_error %}
+    {% include "documenti/_cedolino_conciliazione_motore_v4.html" with conciliazione_v4=row.conciliazione_v4 documento_id=row.documento.id show_staff_filters=show_staff_filters cedolino_ref_post=cedolino_ref_post v4_conflitto_documento_id=row.v4_conflitto_documento_id %}
+    {% endif %}
+    {% if row.extraction_error %}
+    <div class="alert alert-warning m-3 mb-0">
+      <strong>Lettura PDF non riuscita.</strong>
+      <span class="d-block small mt-1 text-break">{{ row.extraction_error }}</span>
+    </div>
+    {% else %}
+    {% if buste_scheda == 'estrazione_v4' or buste_scheda == 'conciliazione' %}
+    <details class="ced-detail-voci border-top">
+      <summary class="px-3 py-2 small fw-semibold" style="cursor:pointer;color:#5c6b7d;background:#fafbfc">Voci retributive, ferie e progressivi (espandi)</summary>
+      <div class="px-2 pt-2 pb-1">
+        <p class="small text-muted text-uppercase fw-semibold mb-2" style="letter-spacing:.04em;font-size:.68rem">Voci retributive</p>
+        {% include "documenti/_cedolino_voci_table.html" with voci=row.voci empty_message="Nessuna voce estratta dal testo del PDF." %}
+      </div>
+      {% include "documenti/_cedolino_ferie_prev_prog.html" with report=row.report %}
+    </details>
+    {% else %}
+    <div class="px-2 pt-2 pb-1">
+      <p class="small text-muted text-uppercase fw-semibold mb-2" style="letter-spacing:.04em;font-size:.68rem">Voci retributive</p>
+      {% include "documenti/_cedolino_voci_table.html" with voci=row.voci empty_message="Nessuna voce estratta dal testo del PDF." %}
+    </div>
+    {% include "documenti/_cedolino_ferie_prev_prog.html" with report=row.report %}
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% empty %}
+{% if page_obj.paginator.count %}
+<div class="alert alert-secondary">Nessuna busta in questa pagina (verifica i filtri di accesso).</div>
+{% endif %}
+{% endfor %}
+</div>
+{% gesper_pagination page_obj "Paginazione buste paga cedolino" %}
+{% endif %}
+
+{% endblock %}

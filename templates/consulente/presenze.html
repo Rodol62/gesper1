@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load l10n format_it_tags %}
+{% block title %}Presenze — Consulente{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:900px;margin:0 auto;padding:1.5rem 1rem">
+
+  <nav aria-label="breadcrumb" style="font-size:.82rem;margin-bottom:1rem">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'centro_moduli' %}">Consulente</a></li>
+      <li class="breadcrumb-item active">Presenze</li>
+    </ol>
+  </nav>
+
+  <h2 class="mb-3" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+    <i class="bi bi-calendar-check me-2"></i>Presenze dipendenti
+  </h2>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert" style="font-size:.88rem">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Selezione periodo -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-body py-3">
+      <form method="get" class="d-flex align-items-end gap-3 flex-wrap">
+        <div>
+          <label class="form-label mb-1" style="font-size:.82rem;font-weight:600">Mese</label>
+          <select name="mese" class="form-select form-select-sm" style="min-width:130px">
+            {% for n, nome in mesi %}
+              <option value="{{ n }}" {% if n == mese %}selected{% endif %}>{{ nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label mb-1" style="font-size:.82rem;font-weight:600">Anno</label>
+          <select name="anno" class="form-select form-select-sm" style="min-width:90px">
+            {% for a in anni %}
+              <option value="{{ a|anno_it }}" {% if a == anno %}selected{% endif %}>{{ a|anno_it }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="bi bi-funnel me-1"></i>Applica
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Pulsanti export per il periodo selezionato (tutti i dipendenti) -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header" style="font-size:.88rem;font-weight:600;color:#1b3a5f;background:#f8f9fa;border-bottom:1px solid #e5e8ec">
+      <i class="bi bi-cloud-download me-1"></i>Export presenze — {{ mese_nome }} {{ anno|anno_it }}
+    </div>
+    <div class="card-body py-3">
+      <p class="text-muted mb-3" style="font-size:.84rem">
+        Scarica le presenze di tutti i dipendenti per il periodo selezionato.
+      </p>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'export_presenze_excel' %}?anno={{ anno|anno_it }}&mese={{ mese }}"
+           class="btn btn-success btn-sm">
+          <i class="bi bi-file-earmark-excel me-1"></i>Export Excel (tutti)
+        </a>
+        <a href="{% url 'consulente_presenze_export_csv' %}?anno={{ anno|anno_it }}&mese={{ mese }}"
+           class="btn btn-outline-success btn-sm">
+          <i class="bi bi-filetype-csv me-1"></i>Export CSV (tutti)
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista dipendenti con export individuale -->
+  {% if dipendenti %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-header" style="font-size:.88rem;font-weight:600;color:#1b3a5f;background:#f8f9fa;border-bottom:1px solid #e5e8ec">
+      <i class="bi bi-people me-1"></i>Export per singolo dipendente
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" style="font-size:.84rem">
+        <thead style="background:#e9ecef">
+          <tr>
+            <th class="py-2 px-3">Dipendente</th>
+            <th class="py-2 text-center">Export CSV</th>
+            <th class="py-2 text-center">Export Excel</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for dip in dipendenti %}
+          <tr>
+            <td class="py-2 px-3">
+              <div style="font-weight:600">{{ dip.cognome }} {{ dip.nome }}</div>
+            </td>
+            <td class="py-2 text-center">
+                <a href="{% url 'consulente_presenze_export_csv' %}?anno={{ anno|anno_it }}&mese={{ mese }}&dipendente={{ dip.id }}"
+                 class="btn btn-sm btn-outline-success" style="font-size:.75rem;padding:.2rem .6rem">
+                <i class="bi bi-filetype-csv me-1"></i>CSV
+              </a>
+            </td>
+            <td class="py-2 text-center">
+                <a href="{% url 'export_presenze_excel' %}?anno={{ anno|anno_it }}&mese={{ mese }}&dipendente={{ dip.id }}"
+                 class="btn btn-sm btn-outline-success" style="font-size:.75rem;padding:.2rem .6rem">
+                <i class="bi bi-file-earmark-excel me-1"></i>Excel
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="text-center text-muted py-4">
+    <i class="bi bi-people" style="font-size:2rem;opacity:.4"></i>
+    <p class="mt-2" style="font-size:.9rem">Nessun dipendente trovato.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

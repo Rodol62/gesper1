@@ -1,0 +1,93 @@
+{
+  "contratti_stagionali_fipe": {
+    "definizione": {
+      "descrizione": "Contratti per attività a carattere stagionale nel settore Turismo e Ristorazione",
+      "riferimento_normativo": "D.Lgs. 81/2015 e CCNL Turismo FIPE"
+    },
+
+    "periodi_stagionali": {
+      "tipici": [
+        "stagione estiva",
+        "stagione invernale",
+        "periodi festivi",
+        "eventi e picchi turistici"
+      ],
+      "flessibilita": true,
+      "note": "La stagionalità può essere definita anche da esigenze aziendali documentate"
+    },
+
+    "durata": {
+      "massima_mesi": 6,
+      "rinnovi_illimitati": true,
+      "stop_and_go": false,
+      "descrizione": "I contratti stagionali non sono soggetti ai limiti dei contratti a termine ordinari"
+    },
+
+    "causali": {
+      "richieste": false,
+      "descrizione": "I contratti stagionali non richiedono causale, indipendentemente dalla durata"
+    },
+
+    "limiti_percentuali": {
+      "applicazione": false,
+      "descrizione": "I contratti stagionali non rientrano nel limite del 20% dei contratti a termine"
+    },
+
+    "inps": {
+      "addizionale_1_4": false,
+      "incremento_rinnovi": false,
+      "note": "Esenzione dall'addizionale contributiva prevista per i contratti a termine"
+    },
+
+    "inail": {
+      "tasso_ridotto": true,
+      "descrizione": "Possibile riduzione del tasso INAIL per attività stagionali"
+    },
+
+    "monte_ore": {
+      "flessibilita_oraria": true,
+      "limiti_massimi": {
+        "giornaliero": 13,
+        "settimanale": 48
+      },
+      "note": "Maggiore elasticità oraria rispetto ai contratti ordinari"
+    },
+
+    "part_time": {
+      "consentito": true,
+      "descrizione": "Il part-time è pienamente compatibile con i contratti stagionali",
+      "limiti_orari": {
+        "min_settimanali": 16,
+        "max_settimanali": 30
+      },
+      "lavoro_supplementare": {
+        "consentito": true,
+        "limite_percentuale": 25,
+        "note": "Il lavoro supplementare segue le regole del modulo part_time_fipe"
+      }
+    },
+
+    "proroghe": {
+      "illimitate": true,
+      "senza_causale": true,
+      "descrizione": "Le proroghe non richiedono causale e non hanno limiti numerici"
+    },
+
+    "trasformazione": {
+      "a_tempo_indeterminato": {
+        "automatica": false,
+        "note": "La stagionalità non concorre al limite dei 24 mesi"
+      }
+    },
+
+    "preavviso": {
+      "necessario": false,
+      "descrizione": "Il contratto stagionale non richiede preavviso alla scadenza"
+    },
+
+    "diritti_lavoratore": {
+      "priorita_riassunzione": true,
+      "descrizione": "Il lavoratore stagionale ha diritto di precedenza per la stagione successiva"
+    }
+  }
+}

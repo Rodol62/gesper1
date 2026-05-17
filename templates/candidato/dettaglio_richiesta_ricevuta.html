@@ -1,0 +1,83 @@
+{% extends 'base_candidato.html' %}
+{% block title %}Richiesta ricevuta — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:920px">
+
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <a href="{% url 'candidato_mie_richieste' %}" class="btn btn-sm btn-outline-secondary" style="font-size:.75rem">
+      <i class="bi bi-arrow-left"></i> Richieste
+    </a>
+    <h6 class="mb-0" style="color:#1b3a5f;font-weight:700">
+      <i class="bi bi-megaphone"></i> Richiesta ricevuta dal datore / HR
+    </h6>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center" style="background:#eef6ff;font-size:.8rem;font-weight:700;color:#1b3a5f">
+      <span>{{ richiesta.titolo }}</span>
+      {% if richiesta.stato == 'inviata' %}
+        <span class="badge bg-warning text-dark">Azione richiesta</span>
+      {% elif richiesta.stato == 'completata_candidato' %}
+        <span class="badge bg-info text-dark">In revisione HR</span>
+      {% else %}
+        <span class="badge bg-success">Approvata HR</span>
+      {% endif %}
+    </div>
+    <div class="card-body py-3" style="font-size:.83rem">
+      <div class="row g-2 mb-2">
+        <div class="col-md-4">
+          <div class="text-muted" style="font-size:.72rem">Data invio</div>
+          <div>{{ richiesta.data_invio|date:"d/m/Y H:i" }}</div>
+        </div>
+        <div class="col-md-4">
+          <div class="text-muted" style="font-size:.72rem">Ruolo richiesto</div>
+          <div>{{ richiesta.ruolo_richiesto|default:"—" }}</div>
+        </div>
+        <div class="col-md-4">
+          <div class="text-muted" style="font-size:.72rem">Conferma candidato</div>
+          <div>{% if richiesta.conferma_candidato %}Sì{% else %}No{% endif %}</div>
+        </div>
+      </div>
+
+      {% if richiesta.messaggio %}
+      <div class="alert alert-light border py-2 mb-2" style="font-size:.8rem">
+        <strong>Istruzioni HR:</strong><br>
+        {{ richiesta.messaggio|linebreaksbr }}
+      </div>
+      {% endif %}
+
+      {% if checklist.items %}
+      <div class="mb-2">
+        <div class="fw-semibold mb-1">Checklist richiesta</div>
+        <div class="d-flex flex-wrap gap-2">
+          {% for item in checklist.items %}
+            <span class="badge {% if item.ok %}bg-success{% else %}bg-danger{% endif %}">
+              <i class="bi {% if item.ok %}bi-check2{% else %}bi-x-lg{% endif %}"></i> {{ item.label }}
+            </span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if richiesta.note_candidato %}
+      <div class="alert alert-info py-2 mb-2" style="font-size:.8rem">
+        <strong>Le tue note:</strong><br>
+        {{ richiesta.note_candidato|linebreaksbr }}
+      </div>
+      {% endif %}
+
+      {% if richiesta.note_hr %}
+      <div class="alert alert-success py-2 mb-0" style="font-size:.8rem">
+        <strong>Note HR finali:</strong><br>
+        {{ richiesta.note_hr|linebreaksbr }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <a href="{% url 'candidato_completa_profilo' %}" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-pencil-square"></i> Vai al profilo per completare/aggiornare
+  </a>
+</div>
+{% endblock %}

@@ -1,0 +1,165 @@
+{% load ruoli_tags guida_tags l10n format_it_tags %}
+<div class="cons-dash">
+
+  <div class="cons-dash-toolbar mb-3" role="navigation" aria-label="Collegamenti rapidi">
+    <span class="text-muted fw-semibold me-1">Panoramica</span>
+    <span class="sep">·</span>
+    <span class="small">Dati sull’azienda del profilo.</span>
+    <span class="sep d-none d-sm-inline">|</span>
+    <a href="{% url 'guida_modulo' 'modulo-consulente' %}">Guida</a>
+    <span class="sep">·</span>
+    <a href="{% url 'modifica_azienda' azienda.pk %}">Anagrafica azienda</a>
+    <span class="sep">·</span>
+    <a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo">Recesso (lettera)</a>
+    <span class="sep">·</span>
+    <a href="{% url 'consulente_carica_documento' %}">Carica paghe</a>
+    <span class="sep">·</span>
+    <a href="{% url 'libro_paga_lista' %}">Libro paga</a>
+    <span class="sep">·</span>
+    <a href="{% url 'consulente_import_pdf_unico' %}">Import PDF</a>
+    <span class="sep">·</span>
+    <a href="#gesper-griglia-moduli-consulente">Griglia moduli</a>
+  </div>
+
+  {% if recesso_prova_in_verifica_count %}
+  <div class="cons-dash-panel mb-3" id="cons-recesso-prova">
+    <div class="ph">
+      <span><i class="bi bi-envelope-paper me-1"></i> Recesso in periodo di prova — da verificare</span>
+      <a href="{% url 'centro_rapporti_lavoro' %}#recesso-prova-periodo" class="text-muted small text-decoration-none">Storico centro rapporti →</a>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle" style="font-size:.84rem">
+        <thead>
+          <tr>
+            <th class="px-3">Dipendente</th>
+            <th>Contratto</th>
+            <th class="text-end pe-3">Azione</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in recesso_prova_in_verifica %}
+          <tr>
+            <td class="px-3 py-2">
+              <strong>{{ c.dipendente.cognome }} {{ c.dipendente.nome }}</strong>
+              <div class="text-muted" style="font-size:.72rem">Aggiornato {{ c.data_modifica|date:"d/m/Y H:i" }}</div>
+            </td>
+            <td class="py-2 text-nowrap">{{ c.rapporto.numero_contratto|default:"—" }}</td>
+            <td class="py-2 text-end pe-3">
+              <a href="{% url 'workflow_recesso_prova' c.dipendente_id c.rapporto_id %}" class="btn btn-sm btn-warning text-dark">Apri workflow</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="cons-dash-section-title" id="cons-addenda"><i class="bi bi-arrow-repeat"></i> Modifiche contrattuali (addendum)</div>
+  <div class="row g-3 mb-4">
+    <div class="col-12">
+      <div class="cons-dash-panel h-100">
+        <div class="ph">
+          <span><i class="bi bi-arrow-repeat me-1"></i> Modifiche contrattuali (addendum)</span>
+          <span class="text-muted small">{{ addendum_anno_count }} nell’anno</span>
+        </div>
+        {% if addenda_recenti %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Contratto / dipendente</th>
+                <th>Decorrenza</th>
+                <th class="text-nowrap">Allegato</th>
+                <th class="text-end">Registrato</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in addenda_recenti %}
+              <tr>
+                <td style="max-width:11rem">
+                  <span class="d-block fw-semibold" style="font-size:.78rem;color:#4a3560">{{ a.get_tipo_display }}</span>
+                  {% if a.riferimento_atto %}<span class="text-muted" style="font-size:.68rem">{{ a.riferimento_atto|truncatechars:28 }}</span>{% endif %}
+                </td>
+                <td>
+                  <a href="{% url 'dettaglio_contratto' a.rapporto_id %}" class="fw-semibold text-decoration-none" style="color:var(--cd-accent)">{{ a.rapporto.numero_contratto }}</a>
+                  {% if a.rapporto.dipendente %}
+                    <div class="text-muted" style="font-size:.72rem">{{ a.rapporto.dipendente.cognome }} {{ a.rapporto.dipendente.nome }}</div>
+                  {% endif %}
+                </td>
+                <td class="text-nowrap">{{ a.data_decorrenza|date:"d/m/Y" }}</td>
+                <td class="text-nowrap" style="font-size:.72rem">
+                  {% if a.file_allegato %}
+                    <a href="{% url 'addendum_allegato_file' a.id %}?ui=1&amp;next={{ request.path|urlencode }}%23cons-addenda"><i class="bi bi-file-earmark-pdf text-danger"></i> PDF</a>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end text-muted" style="font-size:.74rem;white-space:nowrap">{{ a.data_creazione|date:"d/m/Y H:i" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="p-4 text-center text-muted small">Nessun addendum registrato. Le variazioni retributive o di tipo contratto possono essere inserite da HR dalla scheda contratto.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="cons-dash-panel mb-4" id="candidati-dashboard">
+    <div class="ph">
+      <span><i class="bi bi-person-badge me-1"></i> Candidati recenti</span>
+      <a href="{% url 'consulente_candidati' %}" class="text-muted small text-decoration-none">Vedi tutti →</a>
+    </div>
+    {% if candidati_recenti %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle" style="font-size:.84rem">
+        <thead>
+          <tr>
+            <th class="px-3">Candidato</th>
+            <th>Ruolo</th>
+            <th>Contatti</th>
+            <th class="text-end pe-3">Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for dip in candidati_recenti %}
+          <tr>
+            <td class="px-3 py-2">
+              <div style="font-weight:600">{{ dip.cognome }} {{ dip.nome }}</div>
+              {% if dip.codice_fiscale %}
+                <div class="text-muted" style="font-size:.75rem;font-family:monospace">{{ dip.codice_fiscale }}</div>
+              {% endif %}
+            </td>
+            <td class="py-2">
+              {% with info=candidati_posizione|get_item:dip.id %}
+                {% if info.posizione %}
+                  <div style="font-weight:500">{{ info.posizione }}</div>
+                  {% if info.livello %}<div class="text-muted" style="font-size:.76rem">Liv. {{ info.livello }}</div>{% endif %}
+                {% else %}
+                  <span class="text-muted">&mdash;</span>
+                {% endif %}
+              {% endwith %}
+            </td>
+            <td class="py-2">
+              {% if dip.email %}<div>{{ dip.email }}</div>{% endif %}
+              {% if dip.telefono %}<div class="text-muted">{{ dip.telefono }}</div>{% endif %}
+              {% if not dip.email and not dip.telefono %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="py-2 text-end pe-3">
+              <span class="badge" style="background:#e7f1ff;color:#0b4ea2">{{ dip.get_stato_display }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="p-4 text-center text-muted small">Nessun candidato presente per questa azienda.</div>
+    {% endif %}
+  </div>
+
+</div>

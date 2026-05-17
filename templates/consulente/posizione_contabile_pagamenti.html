@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+{% load format_it_tags %}
+{% load l10n %}
+{% block title %}Posizione contabile — {{ azienda.nome }}{% endblock %}
+
+{% block extra_head %}
+{% include "consulente/_posizione_elenco_head_styles.html" %}
+<script>
+(function () {
+  function parseIt(s) {
+    if (!s) return 0;
+    s = String(s).trim().replace(/\u00a0/g, " ").replace(/\s/g, "");
+    if (!s) return 0;
+    s = s.replace(/\./g, "").replace(",", ".");
+    var n = parseFloat(s);
+    return isFinite(n) ? n : 0;
+  }
+  function fmtIt(n) {
+    return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function updateOne(form) {
+    var avere = parseFloat(form.getAttribute("data-avere")) || 0;
+    var sum = 0;
+    form.querySelectorAll(".gesper-agg-row").forEach(function (row) {
+      var cb = row.querySelector('input[type="checkbox"][name="doc_agg"]');
+      var inp = row.querySelector('input[name^="imp_doc_"]');
+      if (cb && cb.checked && inp) sum += parseIt(inp.value);
+    });
+    var el = form.querySelector(".gesper-agg-live-sum");
+    if (!el) return;
+    var pipeBloccata = form.getAttribute("data-pipe-bloccata") === "1";
+    if (pipeBloccata && sum < 0.02) {
+      el.textContent =
+        "Il riferimento salvato non risulta collegato in quadratura (vedi l’avviso sopra). " +
+        "Seleziona le parcelle/proforma corrette e importi che sommano all’avere per sostituire il riferimento.";
+      return;
+    }
+    var delta = avere - sum;
+    var txt = "Somma importi selezionati: € " + fmtIt(sum) + " — ";
+    if (Math.abs(delta) < 0.02) txt += "coincide con l’avere del bonifico.";
+    else if (delta > 0) txt += "mancano ancora € " + fmtIt(delta) + " rispetto all’avere.";
+    else txt += "eccedono € " + fmtIt(-delta) + " rispetto all’avere.";
+    el.textContent = txt;
+  }
+  function bindForm(form) {
+    form.addEventListener("change", function () { updateOne(form); });
+    form.addEventListener("input", function () { updateOne(form); });
+    updateOne(form);
+  }
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("form.gesper-aggancia-bon-form").forEach(bindForm);
+  });
+})();
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3 gesper-libro-page gesper-libro-wrap">
+  <nav aria-label="breadcrumb" class="small mb-2">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url partitario_back.url_name %}">{{ partitario_back.label }}</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_posizione_contabile' %}">Posizione contabile</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Pagamenti</li>
+    </ol>
+  </nav>
+
+  <header class="gesper-libro-hero">
+    <h1><i class="bi bi-calculator me-2"></i>Posizione contabile</h1>
+    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — bonifici in avere (distinte PDF, registrazione manuale)</p>
+    <p class="gesper-libro-lead">Le proforma in dare restano in <a class="text-white fw-semibold text-decoration-underline" href="{% url 'consulente_posizione_proforma' %}">Proforma / parcelle</a>. Dettagli operativi in <strong>Aiuto</strong> nei riquadri sotto.</p>
+  </header>
+
+  {% include "consulente/posizione_contabile_subnav.html" %}
+
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small" role="alert">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+
+  <div class="gesper-libro-filter-card">
+    <form method="get" class="row g-2 align-items-end small">
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Anno</label>
+        <select name="anno" class="form-select form-select-sm">
+          <option value="">Tutti</option>
+          {% for y in anni_disponibili %}
+          <option value="{{ y|anno_it }}"{% if libro_filter.anno|anno_it == y|anno_it %} selected{% endif %}>{{ y|anno_it }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Da data</label>
+        <input type="date" name="data_da" class="form-control form-control-sm" value="{{ libro_filter.data_da }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">A data</label>
+        <input type="date" name="data_a" class="form-control form-control-sm" value="{{ libro_filter.data_a }}">
+      </div>
+      <div class="col-6 col-md-3 d-flex gap-1">
+        <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Applica filtri</button>
+        <a href="{% url 'consulente_posizione_pagamenti' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
+      </div>
+      <div class="col-12 col-md-3 text-muted small align-self-center pt-md-0 pt-1">
+        Filtro su <strong>data valuta</strong> (data documento del bonifico). Elenco ordinato dal più recente.
+      </div>
+    </form>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4 border-start border-4 border-secondary">
+    <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Pregresso: aggancia distinte PDF a bonifici già in libro (senza allegato)</div>
+    <div class="card-body py-3">
+      <details class="gesper-help mb-2">
+        {% include "consulente/_posizione_help_summary.html" with hint="aggancio distinte PDF a bonifici esistenti" %}
+        <div class="gesper-help-body">
+          <p class="small text-muted mb-0">
+            Cerca un movimento <strong>bonifico</strong> senza file con lo stesso <strong>CRO/TRN</strong> (o stessa data+importo), poi salva il PDF come allegato. Utile per bonifici registrati senza distinta.
+            In alternativa, nella <strong>tabella in basso</strong> ogni riga senza PDF ha <strong>Allega PDF</strong> sulla stessa riga (stessa logica della distinta).
+          </p>
+        </div>
+      </details>
+      <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end gesper-multipart-upload">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="aggancia_pdf_bonifici">
+        <div class="col-12 col-md-8">
+          <label class="form-label small text-muted mb-1">PDF distinte (multiplo)</label>
+          <input type="file" name="pdf_aggancia_bonifici" class="form-control form-control-sm" accept="application/pdf,.pdf" multiple required>
+        </div>
+        <div class="col-12 col-md-4">
+          <button type="submit" class="btn btn-outline-secondary btn-sm w-100">Aggancia PDF a bonifici esistenti</button>
+        </div>
+      </form>
+      {% if report_aggancia_csv_bonifici %}
+      <details class="gesper-help gesper-help-compact border-top pt-2 mt-2 mb-0">
+        {% include "consulente/_posizione_help_summary.html" with hint="report CSV ultimo aggancio distinte" %}
+        <div class="gesper-help-body">
+          <p class="small text-muted mb-0">
+            <a href="{% url 'consulente_report_aggancia_csv' %}?tipo=bonifici" class="fw-semibold">Scarica report CSV</a>
+            dell’ultimo aggancio distinte (per file: esito, movimento id, riferimento/importo/data estratti, messaggio).
+          </p>
+        </div>
+      </details>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6 d-flex flex-column gap-3">
+      <div class="card border-0 shadow-sm border-start border-4 border-primary">
+        <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Solo distinta PDF (nuovo bonifico)</div>
+        <div class="card-body py-3">
+          <details class="gesper-help mb-2">
+            {% include "consulente/_posizione_help_summary.html" with hint="registrazione da sola distinta PDF" %}
+            <div class="gesper-help-body">
+              <p class="small text-muted mb-0">Crea una riga in avere e allega il file: servono <strong>importo</strong> e <strong>riferimento</strong> (CRO / TRN) leggibili nel testo del PDF. Se il file è solo immagine, usa il modulo sotto.</p>
+            </div>
+          </details>
+          <form method="post" enctype="multipart/form-data" class="row g-2 small gesper-multipart-upload">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="solo_pdf_bonifico">
+            <div class="col-12">
+              <label class="form-label text-muted mb-0">PDF distinta</label>
+              <input type="file" name="pdf_bonifico_solo" class="form-control form-control-sm" accept="application/pdf,.pdf" required>
+            </div>
+            <div class="col-12 pt-1">
+              <button type="submit" class="btn btn-primary btn-sm">Registra da PDF</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Bonifico manuale + PDF opzionale</div>
+        <div class="card-body py-3">
+          <form method="post" enctype="multipart/form-data" class="row g-2 small gesper-multipart-upload">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="aggiungi_bonifico">
+            <div class="col-md-6">
+              <label class="form-label text-muted mb-0">Data valuta</label>
+              <input type="date" name="data_valuta" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted mb-0">Importo (€)</label>
+              <input type="text" name="importo_avere" class="form-control form-control-sm" placeholder="es. 1.234,56" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted mb-0">Riferimento pagamento</label>
+              <input type="text" name="riferimento_pagamento" class="form-control form-control-sm" placeholder="CRO, TRN, ordinativo…" required maxlength="160">
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted mb-0">Causale (opzionale)</label>
+              <input type="text" name="causale_pagamento" class="form-control form-control-sm" maxlength="220">
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted mb-0">Allega PDF distinta (opzionale)</label>
+              <input type="file" name="pdf_bonifico" class="form-control form-control-sm" accept="application/pdf,.pdf">
+            </div>
+            <div class="col-12 pt-1">
+              <button type="submit" class="btn btn-success btn-sm">Registra bonifico</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
+        <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">Upload multiplo PDF distinte</div>
+        <div class="card-body py-3">
+          <details class="gesper-help mb-2">
+            {% include "consulente/_posizione_help_summary.html" with hint="upload multiplo distinte PDF" %}
+            <div class="gesper-help-body">
+              <p class="small text-muted mb-0">Per ogni file viene tentata l’estrazione automatica di importo e riferimento dal testo del PDF. Se non riesce, usare il modulo a sinistra.</p>
+            </div>
+          </details>
+          <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end gesper-multipart-upload">
+            {% csrf_token %}
+            <div class="col-12">
+              <input type="file" name="pdf" class="form-control form-control-sm" accept="application/pdf,.pdf" multiple required>
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-outline-success btn-sm">Importa PDF bonifici</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="gesper-pos-section-title"><i class="bi bi-bank me-1"></i>Bonifici registrati</h2>
+  <p class="small text-muted mb-2">La colonna <strong>Quadratura</strong> indica se il bonifico risulta già imputato in quadratura (riferimento da «Salva aggancio» in <strong>A documento…</strong>): <span class="badge bg-success gesper-bon-pag-badge-saldato">Saldato</span> = documenti collegati con incasso saldato; <span class="badge bg-primary gesper-bon-pag-badge-attivo">Aggancio</span> = collegato ma con residuo aperto/parziale o eccedenza su almeno un documento — apri «A documento…» per il riquadro con dare, quota di <em>questo</em> bonifico, attribuito totale e residuo; <span class="badge bg-warning text-dark gesper-bon-pag-badge-warn">Rif. non risolto</span> = pipe non collegabile in quadratura (numero documento errato o somma ≠ avere) — tooltip sul badge e stesso riquadro.</p>
+  <p class="small text-muted mb-2">Su ogni riga, <strong>A documento…</strong> elenca le proforma/parcelle con <strong>residuo da incassare</strong> (le fatture già saldate <strong>non</strong> compaiono, salvo se già collegate a <em>quel</em> bonifico per modificarne la ripartizione). Per ogni voce è indicato il massimo imputabile (residuo + eventuale quota già da questo bonifico). La <strong>somma</strong> degli importi selezionati deve coincidere con l’<strong>avere del bonifico</strong>; sotto il modulo compare l’anteprima in tempo reale. È visibile anche quanto è già citato nel riferimento e il <strong>residuo del bonifico</strong> ancora non ripartito nel riferimento. Con più documenti il riferimento salvato usa <code>num|data|importo;num2|…</code>. <strong>Allega PDF</strong> sulla riga bonifico: la distinta deve contenere almeno l’importo o il CRO coerente con la riga. <strong>Elimina bonifico</strong> (sotto) rimuove la riga dal libro.</p>
+  <p class="small text-muted mb-2">Per <strong>più bonifici</strong>, ripetere l’aggancio su ciascuna riga bonifico (ogni bonifico ha il proprio «A documento…»).</p>
+  <div class="table-responsive border rounded-3 shadow-sm overflow-hidden">
+    <table class="table table-hover mb-0 align-middle table-gesper-libro">
+      <thead>
+        <tr>
+          <th class="text-nowrap" style="width:1%">Quadratura</th>
+          <th>Data</th>
+          <th>Riferimento</th>
+          <th>Causale</th>
+          <th class="text-end">Avere</th>
+          <th>PDF bonifico</th>
+          <th class="text-nowrap" style="min-width:11rem">Aggancio</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in righe %}
+        <tr class="gesper-libro-row-bon {{ r.pagamenti_row_meta.classe }}" title="{{ r.pagamenti_row_meta.title|escape }}">
+          <td class="text-nowrap align-middle">
+            {% if r.pagamenti_row_meta.badge == "Saldato" %}
+            <span class="badge bg-success gesper-bon-pag-badge-saldato">Saldato</span>
+            {% elif r.pagamenti_row_meta.badge == "Aggancio" %}
+            <span class="badge bg-primary gesper-bon-pag-badge-attivo">Aggancio</span>
+            {% elif r.pagamenti_row_meta.badge == "Rif. non risolto" %}
+            <span class="badge bg-warning text-dark gesper-bon-pag-badge-warn">Rif. non risolto</span>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap text-secondary">{% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+          <td class="font-monospace small fw-medium">{{ r.riferimento_pagamento|default:"—" }}{% if r.id in bonifico_duplicato_ids %}<span class="badge bg-warning text-dark ms-1 align-middle" style="font-size:.65rem" title="Stessa data valuta, importo in avere e riferimento (o causale se riferimento vuoto) su più righe: controllare doppio import; elimina la riga in eccesso da Admin.">Doppio</span>{% endif %}</td>
+          <td class="small text-muted">{{ r.causale_pagamento|truncatechars:48|default:"—" }}</td>
+          <td class="text-end font-monospace gesper-libro-amt text-success fw-semibold">€ {{ r.avere|num_it:2 }}</td>
+          <td class="align-top" style="min-width:12rem">
+            {% if r.file %}
+            <div class="d-flex flex-column gap-1">
+              <a href="{{ r.file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary py-0">Apri PDF</a>
+              <form method="post" action="{% url 'consulente_pagamenti_allega_pdf_movimento' r.pk %}" enctype="multipart/form-data" class="d-flex flex-column gap-1 gesper-multipart-upload"
+                    onsubmit="return confirm('Sostituire il PDF del bonifico del {% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %} (€ {{ r.avere|num_it:2 }})?');">
+                {% csrf_token %}
+                {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+                <input type="file" name="pdf" class="form-control form-control-sm py-0" accept="application/pdf,.pdf" required title="Nuova distinta (stesso importo/data della riga)">
+                <button type="submit" class="btn btn-sm btn-outline-secondary py-0">Sostituisci PDF</button>
+              </form>
+              <form method="post" action="{% url 'consulente_pagamenti_rimuovi_pdf_movimento' r.pk %}" class="d-inline" data-no-upload-progress="1"
+                    onsubmit="return confirm('Rimuovere il PDF da questo bonifico? La riga resta in elenco senza allegato.');">
+                {% csrf_token %}
+                {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+                <button type="submit" class="btn btn-sm btn-outline-danger py-0 w-100">Rimuovi PDF</button>
+              </form>
+              <form method="post" action="{% url 'consulente_pagamenti_elimina_movimento' r.pk %}" class="d-inline" data-no-upload-progress="1"
+                    onsubmit="return confirm('Eliminare DEFINITIVAMENTE dal libro questo bonifico? Movimento id {{ r.pk }}, importo € {{ r.avere|num_it:2 }}.');">
+                {% csrf_token %}
+                {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+                <button type="submit" class="btn btn-sm btn-danger py-0 w-100 mt-1">Elimina bonifico</button>
+              </form>
+            </div>
+            {% else %}
+            <form method="post" action="{% url 'consulente_pagamenti_allega_pdf_movimento' r.pk %}" enctype="multipart/form-data" class="d-flex flex-column gap-1 gesper-multipart-upload"
+                  onsubmit="return confirm('Allegare questo PDF al bonifico del {% if r.data_documento %}{{ r.data_documento|date:"d/m/Y" }}{% else %}—{% endif %} (€ {{ r.avere|num_it:2 }})?');">
+              {% csrf_token %}
+              {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+              <input type="file" name="pdf" class="form-control form-control-sm py-0" accept="application/pdf,.pdf" required title="Distinta coerente con importo/data della riga">
+              <button type="submit" class="btn btn-sm btn-primary py-0">Allega PDF</button>
+            </form>
+            <form method="post" action="{% url 'consulente_pagamenti_elimina_movimento' r.pk %}" class="d-inline" data-no-upload-progress="1"
+                  onsubmit="return confirm('Eliminare DEFINITIVAMENTE dal libro questo bonifico? Movimento id {{ r.pk }}, importo € {{ r.avere|num_it:2 }}.');">
+              {% csrf_token %}
+              {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+              <button type="submit" class="btn btn-sm btn-danger py-0 w-100 mt-1">Elimina bonifico</button>
+            </form>
+            {% endif %}
+          </td>
+          <td class="align-top small">
+            <details class="border rounded px-2 py-1 bg-light">
+              <summary class="text-muted" style="cursor:pointer">A documento…</summary>
+              {% if r.pagamenti_pipe_riepilogo %}
+              <p class="small text-secondary mb-1 mt-2 border-bottom pb-1"><span class="text-muted">Già nel riferimento:</span> {{ r.pagamenti_pipe_riepilogo }}</p>
+              {% endif %}
+              <p class="small mb-1">Avere bonifico: <strong>€ {{ r.avere|num_it:2 }}</strong>
+                {% if r.pagamenti_gi_in_pipe %}
+                <span class="text-muted"> · Già citato nel riferimento (testo pipe): <strong>€ {{ r.pagamenti_gi_in_pipe|num_it:2 }}</strong></span>
+                {% endif %}
+                <span class="text-muted"> · Ancora non citato nel riferimento: <strong class="text-dark">€ {{ r.pagamenti_residuo_bon|num_it:2 }}</strong></span>
+                <span class="d-block text-muted mt-1" style="font-size:.72rem">«Residuo bonifico» = avere − somma importi nel riferimento; se il pipe non è collegato in quadratura, la somma può coincidere con l’avere ma il badge resta «Rif. non risolto».</span>
+              </p>
+              {% if r.pagamenti_pipe_diagnosi.documenti_quadratura or r.pagamenti_pipe_diagnosi.segmenti_non_risolti or r.pagamenti_pipe_diagnosi.segmenti_risolti or not r.pagamenti_pipe_diagnosi.coerenza_somma_avere %}
+              <div class="border border-warning rounded px-2 py-2 mb-2 small bg-white">
+                <div class="fw-semibold text-warning mb-1">Quadratura e riferimento</div>
+                {% if r.pagamenti_pipe_diagnosi.documenti_quadratura %}
+                <div class="fw-semibold text-secondary mb-1" style="font-size:.8rem">Documenti collegati a questo bonifico</div>
+                {% for dq in r.pagamenti_pipe_diagnosi.documenti_quadratura %}
+                <p class="mb-1">
+                  <strong>{{ dq.etichetta }}</strong> ({{ dq.stato }}) —
+                  dare € {{ dq.dare|num_it:2 }};
+                  quota <strong>questo</strong> bonifico € {{ dq.quota_questo_bonifico|num_it:2 }};
+                  attribuito totale (tutti i bonifici) € {{ dq.attribuito_tot|num_it:2 }};
+                  residuo documento € {{ dq.residuo|num_it:2 }}
+                  {% if dq.quota_questo_bon_maggiore_dare %}<span class="text-danger fw-semibold"> · quota bonifico &gt; dare</span>{% endif %}
+                  {% if dq.attribuito_maggior_dare %}<span class="text-danger fw-semibold"> · attribuito tot. &gt; dare</span>{% endif %}
+                </p>
+                {% endfor %}
+                {% endif %}
+                {% if not r.pagamenti_pipe_diagnosi.coerenza_somma_avere %}
+                <p class="mb-1 text-danger">Somma importi nel riferimento (€ {{ r.pagamenti_pipe_diagnosi.somma_pipe|num_it:2 }}) diversa dall’avere del bonifico (€ {{ r.pagamenti_pipe_diagnosi.avere|num_it:2 }}).</p>
+                {% endif %}
+                {% for linea in r.pagamenti_pipe_diagnosi.segmenti_non_risolti %}
+                <p class="mb-1 text-danger">{{ linea }}</p>
+                {% endfor %}
+                {% for seg in r.pagamenti_pipe_diagnosi.segmenti_risolti %}
+                <p class="mb-1">
+                  <strong>{{ seg.etichetta }}</strong> (riferimento pipe) — importo nel segmento € {{ seg.quota_pipe|num_it:2 }};
+                  dare € {{ seg.dare|num_it:2 }};
+                  attribuito in quadratura (tutti i bonifici) € {{ seg.attribuito_tot|num_it:2 }};
+                  residuo documento € {{ seg.residuo|num_it:2 }} ({{ seg.stato }})
+                  {% if seg.quota_supera_dare %}<span class="text-danger fw-semibold"> · importo nel segmento &gt; dare</span>{% endif %}
+                  {% if seg.documento_in_eccedenza %}<span class="text-danger fw-semibold"> · documento in eccedenza</span>{% endif %}
+                </p>
+                {% endfor %}
+              </div>
+              {% endif %}
+              {% if r.documenti_aggancio_opts %}
+              <form method="post" class="mt-2 gesper-aggancia-bon-form" data-no-upload-progress="1" data-avere="{% localize off %}{{ r.avere|default:0 }}{% endlocalize %}" data-pipe-bloccata="{% if r.pagamenti_pipe_diagnosi.bloccata %}1{% else %}0{% endif %}" onsubmit="return confirm('Aggiornare il riferimento pagamento del bonifico id {{ r.pk }} con gli importi indicati? (La somma deve coincidere con l’avere € {{ r.avere|num_it:2 }}.)');">
+                {% csrf_token %}
+                {% include "consulente/_posizione_hidden_filtri_tabella.html" %}
+                <input type="hidden" name="action" value="aggancia_bonifico_a_documento">
+                <input type="hidden" name="bonifico_id" value="{{ r.pk }}">
+                <p class="small font-monospace text-secondary mb-1 gesper-agg-live-sum" aria-live="polite"></p>
+                <div class="border rounded px-2 py-1 mb-2" style="max-height:14rem;overflow-y:auto;background:#fff">
+                  {% for opt in r.documenti_aggancio_opts %}
+                  <div class="d-flex flex-wrap align-items-center gap-2 py-1 border-bottom gesper-agg-row" data-doc-id="{{ opt.id }}">
+                    <div class="form-check mb-0">
+                      <input class="form-check-input" type="checkbox" name="doc_agg" value="{{ opt.id }}" id="docagg-{{ r.pk }}-{{ opt.id }}"{% if opt.quota_esistente > 0 %} checked{% endif %}>
+                      <label class="form-check-label small" for="docagg-{{ r.pk }}-{{ opt.id }}">{{ opt.label }}</label>
+                    </div>
+                    <input type="text" class="form-control form-control-sm font-monospace text-end ms-auto" name="imp_doc_{{ opt.id }}" value="{{ opt.prefill_it }}" placeholder="0,00" inputmode="decimal" autocomplete="off" style="max-width:5.5rem" title="Importo su questo documento (max € {{ opt.residuo_cap|num_it:2 }})">
+                  </div>
+                  {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-sm btn-outline-primary py-0">Salva aggancio</button>
+              </form>
+              {% else %}
+              {% if r.pagamenti_pipe_diagnosi.bloccata and r.pagamenti_pipe_diagnosi.segmenti_non_risolti %}
+              <p class="small text-secondary mb-1 mt-2">Non ci sono documenti selezionabili finché il riferimento non collega numeri esistenti in libro: correggere da Admin il movimento bonifico oppure caricare la proforma/parcella mancante.</p>
+              {% endif %}
+              <p class="small text-warning mb-0 mt-2">Nessun documento in elenco: non c’è residuo da incassare e non risulta un aggancio già salvato su questo bonifico da modificare.</p>
+              {% endif %}
+            </details>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center text-muted py-5">Nessun bonifico in questo intervallo. Modifica i filtri o registra un pagamento sopra.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Ruoli e permessi</h2>
+<table>
+    <tr>
+        <th>Nome ruolo</th>
+        <th>Azioni</th>
+    </tr>
+    {% for ruolo in ruoli %}
+    <tr>
+        <td>{{ ruolo.name }}</td>
+        <td>
+            <a href="{% url 'modifica_ruolo' ruolo.id %}">Modifica</a> |
+            <a href="{% url 'elimina_ruolo' ruolo.id %}">Elimina</a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+<a href="{% url 'crea_ruolo' %}">Crea nuovo ruolo</a>
+{% endblock %}

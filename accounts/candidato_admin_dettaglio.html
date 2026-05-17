@@ -1,0 +1,825 @@
+{% extends 'base.html' %}
+{% block title %}Candidato {{ candidato.first_name }} {{ candidato.last_name }} — GESPER{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Timeline iter ────────────────────────────── */
+  .iter-timeline { display:flex; flex-wrap:wrap; gap:.35rem; align-items:flex-start; }
+  .iter-step {
+    display:flex; flex-direction:column; align-items:center;
+    min-width:78px; max-width:90px; text-align:center; position:relative;
+  }
+  .iter-step:not(:last-child)::after {
+    content:''; position:absolute; top:19px; left:calc(50% + 22px);
+    width:calc(100% - 16px); height:2px; background:#dde4ec; z-index:0;
+  }
+  .iter-step.step-done:not(:last-child)::after { background:#1a7a42; }
+
+  .iter-icon {
+    width:40px; height:40px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1rem; z-index:1; position:relative;
+  }
+  .iter-icon.done    { background:#1a7a42; color:#fff; box-shadow:0 2px 8px rgba(26,122,66,.35); }
+  .iter-icon.active  { background:#0d6efd; color:#fff; box-shadow:0 2px 8px rgba(13,110,253,.35);
+                       animation:iter-pulse 1.8s infinite; }
+  .iter-icon.pending { background:#e9ecef; color:#9aa3ae; border:2px dashed #c8cfd8; }
+  @keyframes iter-pulse {
+    0%,100%{ box-shadow:0 2px 8px rgba(13,110,253,.35); }
+    50%    { box-shadow:0 2px 18px rgba(13,110,253,.65); }
+  }
+
+  /* Icone iter cliccabili (force) */
+  .iter-icon-btn {
+    width:40px; height:40px; border-radius:50%; border:none;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1rem; z-index:1; position:relative; cursor:pointer;
+    transition:transform .15s, box-shadow .15s; text-decoration:none;
+  }
+  .iter-icon-btn:hover { transform:scale(1.18); }
+  .iter-icon-btn.fe  { background:#fd7e14; color:#fff; box-shadow:0 2px 8px rgba(253,126,20,.45); }
+  .iter-icon-btn.fp  { background:#6610f2; color:#fff; box-shadow:0 2px 8px rgba(102,16,242,.45); }
+  .iter-icon-btn.fc  { background:#dc3545; color:#fff; box-shadow:0 2px 8px rgba(220,53,69,.45); }
+  .iter-icon-btn.fok { background:#198754; color:#fff; box-shadow:0 2px 8px rgba(25,135,84,.45); }
+  .iter-icon-btn.gp  { background:#0dcaf0; color:#fff; box-shadow:0 2px 8px rgba(13,202,240,.45); }
+  .iter-icon-btn.ga  { background:#198754; color:#fff; box-shadow:0 2px 8px rgba(25,135,84,.45); }
+
+  .iter-label { font-size:.61rem; margin-top:4px; color:#444; line-height:1.2; font-weight:600; }
+  .iter-data  { font-size:.57rem; color:#9aa3ae; margin-top:1px; }
+
+  /* ── Status chips ─────────────────────────────── */
+  .status-chip {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:5px 13px; border-radius:20px; font-size:.78rem; font-weight:600;
+    border:2px solid transparent; cursor:pointer; transition:transform .12s, box-shadow .12s;
+    background:none; line-height:1.2; white-space:nowrap;
+  }
+  .status-chip:hover  { transform:scale(1.04); box-shadow:0 3px 10px rgba(0,0,0,.15); }
+  .status-chip.done   { background:#d1fae5; border-color:#1a7a42; color:#145a30; }
+  .status-chip.danger { background:#fde8e8; border-color:#dc3545; color:#842029; }
+  .status-chip.warn   { background:#fff3cd; border-color:#fd7e14; color:#7a3800; }
+  .status-chip.info   { background:#dbeafe; border-color:#0d6efd; color:#0a3799; }
+  .status-chip.muted  { background:#f0f2f5; border-color:#adb5bd; color:#5a6268; }
+  .status-chip.violet { background:#ede9fe; border-color:#6610f2; color:#4a0a9e; }
+  a.status-chip       { text-decoration:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:6px;
+              padding:.6rem 1rem;margin-bottom:.8rem;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <h5 style="margin:0;font-size:.92rem;font-weight:800">
+        <i class="bi bi-person-badge-fill"></i>
+        {{ candidato.first_name }} {{ candidato.last_name }}
+        <span style="font-size:.72rem;opacity:.8;font-weight:400;margin-left:8px">{{ candidato.email }}</span>
+      </h5>
+      <div style="font-size:.7rem;opacity:.85;margin-top:2px">
+        Candidatura ricevuta il <strong>{{ candidato.date_joined|date:"d/m/Y \a\l\l\e H:i" }}</strong>
+      </div>
+    </div>
+    <a href="{% url 'lista_candidati' %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">
+      ← Lista candidati
+    </a>
+  </div>
+  <div class="alert alert-secondary py-2 small mb-3">
+    <strong>Fonte territori:</strong> ISTAT ufficiale (Italia + stati esteri).
+  </div>
+
+  <!-- ── TIMELINE ITER ────────────────────────────────────────── -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header py-2 d-flex align-items-center justify-content-between"
+         style="background:linear-gradient(135deg,#1b3a5f,#2d6199);font-size:.8rem;font-weight:700;color:#fff">
+      <span><i class="bi bi-diagram-3"></i> Iter di assunzione — clicca le icone per forzare i passaggi</span>
+      {# ── Sblocca tutto ── #}
+      {% if not candidato.email_verificata or not profilo.profilo_completato or not candidato.convalidato %}
+      <form method="post" action="{% url 'forza_tutto_candidato' candidato.id %}" style="margin:0"
+            onsubmit="return confirm('⚠️ Sbloccare TUTTI i passaggi in sospeso e forzare la convalida?\n\nQuesta azione bypassa tutte le verifiche automatiche. Continuare?')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-warning btn-sm" style="font-size:.73rem;font-weight:700">
+          <i class="bi bi-lightning-charge-fill"></i> Sblocca tutto
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    <div class="card-body py-3 px-3">
+      <div class="iter-timeline">
+        {% for step in iter_steps %}
+        <div class="iter-step {% if step.done %}step-done{% endif %}">
+
+          {# ── Icona: cliccabile per step forzabili ── #}
+          {% if not step.done and step.step_key == 'email' %}
+          <form method="post" action="{% url 'forza_verifica_email_candidato' candidato.id %}" style="margin:0">
+            {% csrf_token %}
+            <button type="submit" class="iter-icon-btn fe"
+                    onclick="return confirm('Forzare la verifica e-mail di {{ candidato.first_name }}?')"
+                    title="E-mail non verificata — clicca per sbloccare">
+              <i class="bi {{ step.icon }}"></i>
+            </button>
+          </form>
+
+          {% elif not step.done and step.step_key == 'profilo' %}
+          <form method="post" action="{% url 'forza_profilo_completato_candidato' candidato.id %}" style="margin:0">
+            {% csrf_token %}
+            <button type="submit" class="iter-icon-btn fp"
+                    onclick="return confirm('Forzare il completamento del profilo di {{ candidato.first_name }}?')"
+                    title="Profilo incompleto — clicca per sbloccare">
+              <i class="bi {{ step.icon }}"></i>
+            </button>
+          </form>
+
+          {% elif not step.done and step.step_key == 'integrazione' and step.richiesta_id %}
+          <form method="post" action="{% url 'chiudi_richiesta_integrazione_candidato' candidato.id step.richiesta_id %}" style="margin:0">
+            {% csrf_token %}
+            <button type="submit" class="iter-icon-btn fc"
+                    onclick="return confirm('Chiudere forzatamente questa richiesta di integrazione?')"
+                    title="Integrazione in attesa — clicca per chiudere/forzare">
+              <i class="bi {{ step.icon }}"></i>
+            </button>
+          </form>
+
+          {% elif not step.done and step.step_key == 'convalida' %}
+          {% if puo_convalidare %}
+          <form method="post" action="{% url 'convalida_candidato' candidato.id %}" style="margin:0">
+            {% csrf_token %}
+            <button type="submit" class="iter-icon-btn fok"
+                    title="Candidato pronto — clicca per convalidare">
+              <i class="bi {{ step.icon }}"></i>
+            </button>
+          </form>
+          {% else %}
+          <form method="post" action="{% url 'forza_convalida_candidato' candidato.id %}" style="margin:0">
+            {% csrf_token %}
+            <button type="submit" class="iter-icon-btn fc"
+                    onclick="return confirm('Forzare la convalida bypassa le verifiche. Continuare?')"
+                    title="Convalida bloccata — clicca per forzare">
+              <i class="bi {{ step.icon }}"></i>
+            </button>
+          </form>
+          {% endif %}
+
+          {% elif not step.done and step.step_key == 'proposta' and candidato.convalidato %}
+          <a href="{% url 'crea_proposta_da_candidato' candidato.id %}"
+             class="iter-icon-btn gp" title="Clicca per creare la proposta di assunzione">
+            <i class="bi {{ step.icon }}"></i>
+          </a>
+
+          {% elif step.step_key == 'contratto' and step.proposta_id and not step.done %}
+          <a href="{% url 'firma_definitiva_admin' step.proposta_id %}"
+             class="iter-icon-btn ga"
+             onclick="return confirm('Confermi la firma definitiva? Il contratto sarà emesso.')"
+             title="Proposta firmata dal candidato — clicca per firma definitiva">
+            <i class="bi {{ step.icon }}"></i>
+          </a>
+
+          {% else %}
+          <div class="iter-icon {% if step.done %}done{% elif step.active %}active{% else %}pending{% endif %}">
+            <i class="bi {{ step.icon }}"></i>
+          </div>
+          {% endif %}
+
+          <div class="iter-label">{{ step.label }}</div>
+          {% if step.data %}<div class="iter-data">{{ step.data|date:"d/m/Y" }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STATUS CHIPS + AZIONI ──────────────────────────────────── -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+
+        {# ── Chip E-mail (toggle) ── #}
+        {% if candidato.email_verificata %}
+        <form method="post" action="{% url 'reset_email_verifica_candidato' candidato.id %}" style="margin:0"
+              onsubmit="return confirm('Rimuovere la verifica e-mail?')">
+          {% csrf_token %}
+          <button type="submit" class="status-chip done" title="E-mail verificata — clicca per revocare">
+            <i class="bi bi-envelope-check-fill"></i> E-mail verificata
+          </button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'forza_verifica_email_candidato' candidato.id %}" style="margin:0"
+              onsubmit="return confirm('Forzare la verifica e-mail?')">
+          {% csrf_token %}
+          <button type="submit" class="status-chip danger" title="E-mail NON verificata — clicca per sbloccare">
+            <i class="bi bi-envelope-x-fill"></i> E-mail non verif.
+          </button>
+        </form>
+        {% endif %}
+
+        {# ── Chip Profilo (toggle) ── #}
+        {% if profilo and profilo.profilo_completato %}
+        <form method="post" action="{% url 'annulla_profilo_candidato' candidato.id %}" style="margin:0"
+              onsubmit="return confirm('Annullare il profilo? Verrà reimpostato come incompleto e la convalida revocata.')">
+          {% csrf_token %}
+          <button type="submit" class="status-chip done" title="Profilo completato — clicca per annullare">
+            <i class="bi bi-person-check-fill"></i> Profilo completato
+          </button>
+        </form>
+        {% elif profilo %}
+        <form method="post" action="{% url 'forza_profilo_completato_candidato' candidato.id %}" style="margin:0"
+              onsubmit="return confirm('Forzare il completamento del profilo?')">
+          {% csrf_token %}
+          <button type="submit" class="status-chip warn" title="Profilo incompleto — clicca per forzare">
+            <i class="bi bi-person-dash-fill"></i> Profilo incompleto
+          </button>
+        </form>
+        {% else %}
+        <span class="status-chip muted"><i class="bi bi-person-x-fill"></i> Senza profilo</span>
+        {% endif %}
+
+        {# ── Chip Convalida (toggle) ── #}
+        {% if candidato.convalidato %}
+        <form method="post" action="{% url 'revoca_convalida_candidato' candidato.id %}" style="margin:0"
+              onsubmit="return confirm('Revocare la convalida HR?')">
+          {% csrf_token %}
+          <button type="submit" class="status-chip done" title="Convalidato — clicca per revocare">
+            <i class="bi bi-patch-check-fill"></i> Convalidato HR
+          </button>
+        </form>
+        {% elif puo_convalidare %}
+        <form method="post" action="{% url 'convalida_candidato' candidato.id %}" style="margin:0">
+          {% csrf_token %}
+          <button type="submit" class="status-chip info" title="Pronto per convalida — clicca per convalidare">
+            <i class="bi bi-check2-circle"></i> Convalida HR
+          </button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'forza_convalida_candidato' candidato.id %}" style="margin:0"
+              onsubmit="return confirm('Forzare la convalida bypassa le verifiche. Continuare?')">
+          {% csrf_token %}
+          <button type="submit" class="status-chip warn" title="Convalida bloccata — clicca per forzare">
+            <i class="bi bi-shield-exclamation"></i> Convalida bloccata
+          </button>
+        </form>
+        {% endif %}
+
+        {# ── Chip Proposta ── #}
+        {% if ha_proposta_attiva %}
+        <span class="status-chip done"><i class="bi bi-file-earmark-check-fill"></i> Proposta attiva</span>
+        {% elif candidato.convalidato and profilo and profilo.profilo_completato %}
+        <a href="{% url 'crea_proposta_da_candidato' candidato.id %}" class="status-chip info"
+           title="Crea nuova proposta di assunzione">
+          <i class="bi bi-file-earmark-plus-fill"></i> Crea proposta
+        </a>
+        <a href="{% url 'assegna_proposta_candidato' candidato.id %}" class="status-chip violet"
+           title="Assegna proposta esistente">
+          <i class="bi bi-link-45deg"></i> Assegna proposta
+        </a>
+        {% else %}
+        <span class="status-chip muted"><i class="bi bi-file-earmark-x"></i> Proposta non attiva</span>
+        {% endif %}
+
+        {# ── Azioni secondarie (destra) ── #}
+        <div class="ms-auto d-flex gap-2 flex-wrap align-items-center">
+          {% if profilo %}
+          <a href="{% url 'modifica_profilo_candidato' candidato.id %}" class="btn btn-outline-secondary btn-sm" style="font-size:.75rem">
+            <i class="bi bi-pencil-square"></i> Modifica profilo
+          </a>
+          <form method="post" action="{% url 'invia_certificazione_firma_candidato' candidato.id %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary btn-sm" style="font-size:.75rem"
+                    title="Invia e-mail con link per la certificazione di firma">
+              <i class="bi bi-patch-check"></i> Certificazione firma
+            </button>
+          </form>
+          {% endif %}
+          <a href="{% url 'lista_richieste_integrazione_candidato' candidato.id %}"
+             class="btn btn-outline-info btn-sm" style="font-size:.75rem">
+            <i class="bi bi-clipboard2-check"></i> Richieste integrazione
+            {% if richieste_aperte.count %}<span class="badge bg-danger ms-1" style="font-size:.65rem">{{ richieste_aperte.count }}</span>{% endif %}
+          </a>
+          {% if not ha_proposta_attiva %}
+          <form method="post" action="{% url 'annulla_profilo_candidato' candidato.id %}" style="margin:0"
+                onsubmit="return confirm('Annullare il profilo di {{ candidato.first_name }} {{ candidato.last_name }}?\n\nIl profilo verrà reimpostato come incompleto e la convalida verrà revocata.')">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm" style="font-size:.75rem">
+              <i class="bi bi-trash3"></i> Annulla profilo
+            </button>
+          </form>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  {# ── Pannello completezza profilo ── #}
+  {% if completezza %}
+  <div class="mb-3">
+    {# Barra progresso #}
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span style="font-size:.72rem;color:#555;white-space:nowrap">Completezza profilo:</span>
+      <div class="flex-grow-1" style="height:8px;background:#e9ecef;border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:{{ completezza.percentuale }}%;background:{% if completezza.percentuale >= 100 %}#198754{% elif completezza.percentuale >= 70 %}#ffc107{% else %}#dc3545{% endif %};transition:width .4s"></div>
+      </div>
+      <span style="font-size:.72rem;font-weight:700;color:{% if completezza.percentuale >= 100 %}#198754{% elif completezza.percentuale >= 70 %}#856404{% else %}#dc3545{% endif %}">{{ completezza.percentuale }}%</span>
+    </div>
+
+    {# Campi obbligatori mancanti #}
+    {% if completezza.mancanti %}
+    <div class="alert alert-danger py-2 mb-2" style="font-size:.75rem">
+      <strong><i class="bi bi-x-circle"></i> Dati obbligatori mancanti</strong>
+      (necessari per creare la proposta):
+      <ul class="mb-0 mt-1" style="padding-left:1.2rem">
+        {% for campo, label in completezza.mancanti %}
+        <li>{{ label }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# Campi consigliati mancanti #}
+    {% if completezza.consigliati %}
+    <div class="alert alert-warning py-2 mb-2" style="font-size:.75rem">
+      <strong><i class="bi bi-exclamation-triangle"></i> Dati consigliati mancanti:</strong>
+      <ul class="mb-0 mt-1" style="padding-left:1.2rem">
+        {% for campo, label in completezza.consigliati %}
+        <li>{{ label }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# Documento scaduto #}
+    {% if completezza.doc_scaduto %}
+    <div class="alert alert-danger py-2 mb-2" style="font-size:.75rem">
+      <i class="bi bi-shield-exclamation"></i>
+      <strong>Documento di identità scaduto.</strong>
+      Chiedere al candidato di aggiornare il documento prima di procedere.
+    </div>
+    {% endif %}
+
+    {% if completezza.completo and not completezza.doc_scaduto %}
+    <div class="alert alert-success py-2 mb-0" style="font-size:.75rem">
+      <i class="bi bi-check-circle"></i>
+      <strong>Profilo completo.</strong> Tutti i dati necessari per la proposta sono presenti.
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+
+
+  <!-- ── Gestione richieste integrazione ─────────────────────────── -->
+  {% if richieste_aperte %}
+  <div class="card border-0 shadow-sm mb-3" style="border-left:4px solid #fd7e14 !important">
+    <div class="card-header py-2 d-flex align-items-center justify-content-between"
+         style="background:#fff8f0;font-size:.8rem;font-weight:700;color:#7a3800">
+      <span><i class="bi bi-clipboard2-pulse"></i> Richieste integrazione in attesa ({{ richieste_aperte.count }})</span>
+      <a href="{% url 'lista_richieste_integrazione_candidato' candidato.id %}"
+         class="btn btn-xs btn-outline-secondary" style="font-size:.7rem;padding:1px 8px">
+        <i class="bi bi-clock-history"></i> Storico completo
+      </a>
+    </div>
+    <div class="card-body py-2">
+      {% for ric in richieste_aperte %}
+      <div class="border rounded mb-2 p-2" style="font-size:.8rem;background:{% if ric.stato == 'completata_candidato' %}#f0fff4{% else %}#fffdf0{% endif %}">
+        <div class="d-flex align-items-center justify-content-between mb-1">
+          <div>
+            <strong>{{ ric.titolo }}</strong>
+            <span class="ms-2">
+              {% if ric.stato == 'inviata' %}
+                <span class="badge bg-warning text-dark" style="font-size:.68rem">In attesa candidato</span>
+              {% elif ric.stato == 'completata_candidato' %}
+                <span class="badge bg-info text-dark" style="font-size:.68rem"><i class="bi bi-check2"></i> Completata — da approvare</span>
+              {% endif %}
+            </span>
+            <span class="text-muted ms-2" style="font-size:.7rem">{{ ric.data_invio|date:"d/m/Y H:i" }}</span>
+          </div>
+          <div class="d-flex gap-1">
+            {# Approva (solo se completata dal candidato) #}
+            {% if ric.stato == 'completata_candidato' %}
+            <form method="post" action="{% url 'approva_richiesta_integrazione_candidato' candidato.id ric.id %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-xs btn-success" style="font-size:.68rem;padding:1px 8px"
+                      title="Approva integrazione — sblocca convalida">
+                <i class="bi bi-check2-circle"></i> Approva
+              </button>
+            </form>
+            {% endif %}
+
+            {# Chiudi forzato — modale inline #}
+            <button type="button" class="btn btn-xs btn-outline-warning" style="font-size:.68rem;padding:1px 8px"
+                    data-bs-toggle="collapse" data-bs-target="#chiudi-{{ ric.id }}"
+                    title="Chiudi questa richiesta senza attendere il candidato">
+              <i class="bi bi-x-octagon"></i> Chiudi
+            </button>
+
+            {# Modifica — modale inline #}
+            <button type="button" class="btn btn-xs btn-outline-primary" style="font-size:.68rem;padding:1px 8px"
+                    data-bs-toggle="collapse" data-bs-target="#modifica-{{ ric.id }}"
+                    title="Modifica testo richiesta">
+              <i class="bi bi-pencil"></i> Modifica
+            </button>
+
+            {# Elimina #}
+            <form method="post" action="{% url 'elimina_richiesta_integrazione_candidato' candidato.id ric.id %}"
+                  onsubmit="return confirm('Eliminare questa richiesta di integrazione?')">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-xs btn-outline-danger" style="font-size:.68rem;padding:1px 8px"
+                      title="Elimina richiesta">
+                <i class="bi bi-trash3"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {# Testo richiesta HR #}
+        {% if ric.messaggio %}
+        <div class="text-muted mb-1" style="font-size:.75rem;white-space:pre-line;background:#f8f9fa;border-radius:4px;padding:5px 8px">{{ ric.messaggio }}</div>
+        {% endif %}
+
+        {# Note candidato (se ha completato) #}
+        {% if ric.stato == 'completata_candidato' and ric.note_candidato %}
+        <div class="mt-1 p-2 rounded" style="font-size:.75rem;background:#d1ecf1;border:1px solid #bee5eb">
+          <strong><i class="bi bi-person-lines-fill"></i> Note candidato:</strong>
+          {{ ric.note_candidato|linebreaksbr }}
+        </div>
+        {% endif %}
+
+        {# Form chiudi forzato (collassabile) #}
+        <div class="collapse mt-2" id="chiudi-{{ ric.id }}">
+          <form method="post" action="{% url 'chiudi_richiesta_integrazione_candidato' candidato.id ric.id %}">
+            {% csrf_token %}
+            <div class="input-group input-group-sm">
+              <input type="text" name="note_hr" class="form-control" placeholder="Note HR opzionali (es. candidato non raggiungibile)…" style="font-size:.75rem">
+              <button type="submit" class="btn btn-warning btn-sm" style="font-size:.75rem"
+                      onclick="return confirm('Chiudere forzatamente questa richiesta? Il candidato non dovrà più completarla.')">
+                <i class="bi bi-x-octagon"></i> Conferma chiusura
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {# Form modifica (collassabile) #}
+        <div class="collapse mt-2" id="modifica-{{ ric.id }}">
+          <form method="post" action="{% url 'modifica_richiesta_integrazione_candidato' candidato.id ric.id %}">
+            {% csrf_token %}
+            <input type="text" name="titolo" class="form-control form-control-sm mb-1"
+                   value="{{ ric.titolo }}" placeholder="Titolo richiesta" style="font-size:.75rem">
+            <textarea name="messaggio" class="form-control form-control-sm mb-1" rows="4"
+                      style="font-size:.75rem">{{ ric.messaggio }}</textarea>
+            <button type="submit" class="btn btn-primary btn-sm" style="font-size:.75rem">
+              <i class="bi bi-floppy"></i> Salva modifiche
+            </button>
+          </form>
+        </div>
+
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="row g-3">
+
+    <!-- ── Dati anagrafici ────────────────────────────────── -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+          <i class="bi bi-person"></i> Dati anagrafici
+        </div>
+        <div class="card-body py-2" style="font-size:.8rem">
+          <table class="w-100" style="border-collapse:collapse">
+            <tr><td style="color:#666;width:45%;padding:2px 0">Nome e cognome</td>
+                <td><strong>{{ candidato.first_name }} {{ candidato.last_name }}</strong></td></tr>
+            <tr><td style="color:#666;padding:2px 0">E-mail</td><td>{{ candidato.email }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Registrato il</td><td>{{ candidato.date_joined|date:"d/m/Y H:i" }}</td></tr>
+            {% if profilo %}
+            <tr><td colspan="2"><hr style="margin:4px 0;border-color:#e0e0e0"></td></tr>
+            <tr><td style="color:#666;padding:2px 0">Codice Fiscale</td><td><strong>{{ profilo.codice_fiscale|default:"—" }}</strong></td></tr>
+            <tr><td style="color:#666;padding:2px 0">Data di nascita</td><td>{{ profilo.data_nascita|date:"d/m/Y"|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Luogo di nascita</td><td>{{ profilo.luogo_nascita|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Sesso</td><td>{{ profilo.get_sesso_display|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Nazionalità</td><td>{{ profilo.nazionalita|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Telefono</td><td>{{ profilo.telefono|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Indirizzo</td><td>{{ profilo.indirizzo|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Regione residenza</td><td>{{ profilo.regione_residenza|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">CAP / Città</td>
+                <td>{{ profilo.cap }} {{ profilo.citta }} {% if profilo.provincia %}({{ profilo.provincia }}){% endif %}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Tipologia residenza</td>
+                <td>{% if profilo.regione_residenza|upper == 'ESTERO' %}<span class="badge bg-info text-dark">Estero</span>{% else %}<span class="badge bg-light text-dark border">Italia</span>{% endif %}</td></tr>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Documento + IBAN + Familiari ──────────────────── -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+          <i class="bi bi-card-text"></i> Documento di identità
+        </div>
+        <div class="card-body py-2" style="font-size:.8rem">
+          {% if profilo %}
+          <table class="w-100" style="border-collapse:collapse">
+            <tr><td style="color:#666;width:50%;padding:2px 0">Tipo</td>
+                <td>{{ profilo.get_tipo_documento_display|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Numero</td>
+                <td>{{ profilo.numero_documento|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Data emissione</td>
+                <td>{{ profilo.data_emissione_documento|date:"d/m/Y"|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Scadenza</td>
+                <td>{{ profilo.scadenza_documento|date:"d/m/Y"|default:"—" }}</td></tr>
+          </table>
+          <div class="mt-2 d-flex gap-2 flex-wrap">
+            {% if profilo.file_documento %}
+            <a href="{{ profilo.file_documento.url }}" target="_blank"
+               class="btn btn-xs btn-outline-secondary" style="font-size:.7rem">
+              <i class="bi bi-file-earmark-arrow-down"></i> Documento identità
+            </a>
+            {% else %}
+            <span class="text-muted" style="font-size:.72rem"><i class="bi bi-paperclip"></i> Nessun allegato documento</span>
+            {% endif %}
+            {% if profilo.file_codice_fiscale %}
+            <a href="{{ profilo.file_codice_fiscale.url }}" target="_blank"
+               class="btn btn-xs btn-outline-secondary" style="font-size:.7rem">
+              <i class="bi bi-file-earmark-arrow-down"></i> Tessera / CF
+            </a>
+            {% else %}
+            <span class="text-muted" style="font-size:.72rem"><i class="bi bi-paperclip"></i> Nessun allegato CF</span>
+            {% endif %}
+          </div>
+          {% else %}<p class="text-muted small">—</p>{% endif %}
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+          <i class="bi bi-bank"></i> Dati bancari &amp; Familiari
+        </div>
+        <div class="card-body py-2" style="font-size:.8rem">
+          {% if profilo %}
+          <table class="w-100" style="border-collapse:collapse">
+            <tr><td style="color:#666;width:50%;padding:2px 0">IBAN</td>
+                <td><strong>{{ profilo.iban|default:"—" }}</strong></td></tr>
+            <tr><td style="color:#666;padding:2px 0">Familiari a carico</td>
+                <td>{{ profilo.num_familiari_a_carico }}</td></tr>
+            {% if profilo.dettaglio_familiari %}
+            <tr><td style="color:#666;padding:2px 0">Dettaglio</td>
+                <td>{{ profilo.dettaglio_familiari }}</td></tr>
+            {% endif %}
+          </table>
+          {% else %}<p class="text-muted small">—</p>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Competenze + Dichiarazioni ────────────────────── -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+          <i class="bi bi-award"></i> Competenze e mansione
+        </div>
+        <div class="card-body py-2" style="font-size:.8rem">
+          {% if profilo %}
+          <table class="w-100" style="border-collapse:collapse">
+            <tr><td style="color:#666;width:50%;padding:2px 0">Mansione aspirata</td>
+                <td>{{ profilo.mansione_aspirata|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Livello aspirato</td>
+                <td>{{ profilo.livello_aspirato|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Tipo rapporto</td>
+                <td>{{ profilo.get_tipo_rapporto_preferito_display|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Ore/settimana</td>
+                <td>{{ profilo.ore_settimanali_preferite|default:"—" }}</td></tr>
+            <tr><td style="color:#666;padding:2px 0">Disponibile dal</td>
+                <td>{{ profilo.data_disponibilita|date:"d/m/Y"|default:"—" }}</td></tr>
+          </table>
+          {% if profilo.competenze %}
+          <div class="mt-2" style="background:#f8fafc;border:1px solid #c5d0dc;border-radius:4px;padding:8px;font-size:.78rem">
+            <strong>Competenze:</strong><br>{{ profilo.competenze|linebreaksbr }}
+          </div>
+          {% endif %}
+          {% if profilo.note_candidatura %}
+          <div class="mt-2" style="background:#f8fafc;border:1px solid #c5d0dc;border-radius:4px;padding:8px;font-size:.78rem">
+            <strong>Lettera presentazione:</strong><br>{{ profilo.note_candidatura|linebreaksbr }}
+          </div>
+          {% endif %}
+          {% else %}<p class="text-muted small">—</p>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Dichiarazione penale + Consensi GDPR ──────────── -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header py-2" style="background:#fff8e7;font-size:.8rem;font-weight:700;color:#8a5700">
+          <i class="bi bi-shield-check"></i> Dichiarazione sostitutiva
+        </div>
+        <div class="card-body py-2" style="font-size:.8rem">
+          {% if profilo and profilo.dichiarazione_no_condanne %}
+          <span class="badge bg-success"><i class="bi bi-check2-circle"></i> Dichiarazione firmata</span>
+          <div class="text-muted mt-1" style="font-size:.72rem">
+            Il candidato ha dichiarato di non aver riportato condanne penali e di non essere
+            interessato da procedimenti giudiziari.
+          </div>
+          {% else %}
+          <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Dichiarazione NON firmata</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+          <i class="bi bi-file-earmark-lock2"></i> Consensi GDPR
+        </div>
+        <div class="card-body py-2 d-flex gap-2 flex-wrap" style="font-size:.78rem">
+          <span class="badge bg-success"><i class="bi bi-check2"></i> Trattamento selezione</span>
+          <small class="text-muted align-self-center">{{ candidato.privacy_data|date:"d/m/Y"|default:"—" }}</small>
+          {% if profilo and profilo.consenso_conservazione %}
+            <span class="badge bg-success"><i class="bi bi-check2"></i> Conservazione 12 mesi</span>
+          {% else %}
+            <span class="badge bg-light text-muted border">Conservazione non autorizzata</span>
+          {% endif %}
+          {% if profilo and profilo.consenso_comunicazione %}
+            <span class="badge bg-success"><i class="bi bi-check2"></i> Comunicazione a terzi</span>
+          {% else %}
+            <span class="badge bg-light text-muted border">Comunicazione non autorizzata</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Proposte di assunzione ─────────────────────────── -->
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f;display:flex;justify-content:space-between;align-items:center">
+          <span><i class="bi bi-file-earmark-person"></i> Proposte di assunzione</span>
+          <span class="text-muted fw-normal" style="font-size:.72rem">{{ proposte.count }} proposta/e</span>
+        </div>
+        {% if proposte %}
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" style="font-size:.78rem">
+            <thead style="background:#f4f7fa">
+              <tr>
+                <th>N° proposta</th>
+                <th>Azienda</th>
+                <th>Posizione / Livello</th>
+                <th>Lordo mensile</th>
+                <th>Data inizio</th>
+                <th>Data fine</th>
+                <th>Stato</th>
+                <th>Creata il</th>
+                <th class="text-center">Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for prop in proposte %}
+              <tr>
+                <td>{{ prop.numero_proposta }}</td>
+                <td>{{ prop.azienda.nome }}</td>
+                <td>{{ prop.posizione }}<br><span class="text-muted">Liv. {{ prop.livello_ccnl }}</span></td>
+                <td>€ {{ prop.stipendio_lordo_mensile }}</td>
+                <td>{{ prop.data_inizio_rapporto|date:"d/m/Y" }}</td>
+                <td>
+                  {% if prop.data_fine_rapporto %}
+                    {{ prop.data_fine_rapporto|date:"d/m/Y" }}
+                  {% else %}
+                    <span class="text-muted">Indeterminato</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if prop.stato == 'bozza' %}
+                    <span class="badge bg-secondary">Bozza</span>
+                  {% elif prop.stato_canonico == 'inviata_candidato' %}
+                    <span class="badge bg-primary">Inviata</span>
+                  {% elif prop.stato == 'firmata_candidato' %}
+                    <span class="badge bg-info text-dark">Firmata — da approvare</span>
+                  {% elif prop.stato == 'contratto_attivo' %}
+                    <span class="badge bg-success"><i class="bi bi-patch-check-fill"></i> Contratto attivo</span>
+                  {% elif prop.stato == 'rifiutata_candidato' or prop.stato == 'rifiutata_dipendente' %}
+                    <span class="badge bg-danger">Rifiutata candidato</span>
+                  {% elif prop.stato == 'rifiutata_admin' %}
+                    <span class="badge bg-warning text-dark">Rifiutata admin</span>
+                  {% elif prop.stato_canonico == 'contratto_attivo' %}
+                    <span class="badge bg-dark">→ Contratto (legacy)</span>
+                  {% else %}
+                    <span class="badge bg-secondary">{{ prop.get_stato_display }}</span>
+                  {% endif %}
+                </td>
+                <td style="white-space:nowrap">{{ prop.data_creazione|date:"d/m/Y H:i" }}</td>
+                <td class="text-center" style="white-space:nowrap">
+                  <a href="{% url 'dettaglio_proposta' prop.id %}" class="btn btn-xs btn-outline-primary" style="font-size:.68rem;padding:1px 7px">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  {# Firma definitiva admin: se firmata dal candidato #}
+                  {% if prop.stato == 'firmata_candidato' %}
+                  <a href="{% url 'firma_definitiva_admin' prop.id %}"
+                     class="btn btn-xs btn-success ms-1" style="font-size:.68rem;padding:1px 7px"
+                     title="Firma definitiva — emetti contratto"
+                     onclick="return confirm('Confermi la firma definitiva? Il contratto sarà emesso e il candidato promosso a dipendente.')">
+                    <i class="bi bi-patch-check-fill"></i>
+                  </a>
+                  {% endif %}
+                  {# Annulla: bozza o inviata #}
+                  {% if prop.stato == 'bozza' or prop.stato_canonico == 'inviata_candidato' %}
+                  <a href="{% url 'respingi_proposta_candidato' candidato.id prop.id %}"
+                     class="btn btn-xs btn-outline-warning ms-1" style="font-size:.68rem;padding:1px 7px"
+                     title="Annulla proposta">
+                    <i class="bi bi-x-circle"></i>
+                  </a>
+                  {# Respingi: firmata candidato #}
+                  {% elif prop.stato == 'firmata_candidato' %}
+                  <a href="{% url 'respingi_proposta_candidato' candidato.id prop.id %}"
+                     class="btn btn-xs btn-outline-danger ms-1" style="font-size:.68rem;padding:1px 7px"
+                     title="Respingi proposta">
+                    <i class="bi bi-hand-thumbs-down"></i>
+                  </a>
+                  {# Riapri: se rifiutata #}
+                  {% elif prop.stato in 'rifiutata_admin,rifiutata_candidato,rifiutata_dipendente' %}
+                  <a href="{% url 'riapri_proposta_candidato' candidato.id prop.id %}"
+                     class="btn btn-xs btn-outline-success ms-1" style="font-size:.68rem;padding:1px 7px"
+                     title="Riapri proposta">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                  </a>
+                  {% endif %}
+                  {# Elimina: non in stato avanzato #}
+                  {% if prop.stato_canonico != 'contratto_attivo' and prop.stato_canonico != 'firmata_candidato' %}
+                  <a href="{% url 'elimina_proposta_candidato' candidato.id prop.id %}"
+                     class="btn btn-xs btn-outline-danger ms-1" style="font-size:.68rem;padding:1px 7px"
+                     title="Elimina proposta">
+                    <i class="bi bi-trash3"></i>
+                  </a>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="card-body py-2 text-muted" style="font-size:.8rem">
+          Nessuna proposta ancora associata a questo candidato.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Contratto attivo ───────────────────────────────── -->
+    {% if contratto %}
+    <div class="col-12">
+      <div class="card border-0 shadow-sm" style="border-left:4px solid #1a7a42 !important">
+        <div class="card-header py-2" style="background:#e8f5e9;font-size:.8rem;font-weight:700;color:#1b5e20">
+          <i class="bi bi-file-earmark-check-fill"></i> Contratto di assunzione — {{ contratto.numero_contratto }}
+        </div>
+        <div class="card-body py-2" style="font-size:.8rem">
+          <div class="row g-2">
+            <div class="col-sm-3">
+              <span class="text-muted d-block" style="font-size:.7rem">Data assunzione</span>
+              <strong>{{ contratto.data_inizio_rapporto|date:"d/m/Y" }}</strong>
+            </div>
+            {% if contratto.data_fine_rapporto %}
+            <div class="col-sm-3">
+              <span class="text-muted d-block" style="font-size:.7rem">Scadenza contratto</span>
+              <strong class="text-danger">{{ contratto.data_fine_rapporto|date:"d/m/Y" }}</strong>
+            </div>
+            {% endif %}
+            <div class="col-sm-3">
+              <span class="text-muted d-block" style="font-size:.7rem">Posizione</span>
+              {{ contratto.posizione }} — Liv. {{ contratto.livello_ccnl }}
+            </div>
+            <div class="col-sm-3">
+              <span class="text-muted d-block" style="font-size:.7rem">Stato</span>
+              {% if contratto.stato == 'sottoscritto' %}
+                <span class="badge bg-success">Sottoscritto</span>
+              {% elif contratto.stato == 'proposta' %}
+                <span class="badge bg-warning text-dark">In attesa di firma candidato</span>
+              {% else %}
+                <span class="badge bg-secondary">{{ contratto.get_stato_display }}</span>
+              {% endif %}
+            </div>
+          </div>
+          {% if contratto.stato == 'proposta' %}
+          <div class="mt-2 pt-2" style="border-top:1px solid #c8e6c9">
+            <a href="{% url 'modifica_contratto' contratto.id %}"
+               class="btn btn-sm btn-outline-success" style="font-size:.78rem">
+              <i class="bi bi-pencil-square"></i> Modifica bozza contratto
+            </a>
+            <a href="{% url 'contratto_pdf' contratto.id %}"
+               class="btn btn-sm btn-outline-secondary ms-1" style="font-size:.78rem">
+              <i class="bi bi-file-earmark-pdf"></i> Anteprima PDF
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>{# /row #}
+</div>
+{% endblock %}

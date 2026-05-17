@@ -1,0 +1,927 @@
+{% extends "admin/base_site.html" %}
+{% load i18n format_it_tags %}
+
+{% block title %}Simulatore Motore Paga — GESPER{% endblock %}
+{% block content_title %}<h1 style="margin-bottom:.3rem">⚙ Simulatore Motore Paga Mensile</h1>{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a> ›
+  <a href="{% url 'admin:app_list' app_label='rapporto_di_lavoro' %}">Rapporto Di Lavoro</a> ›
+  <a href="{% url 'admin:rapporto_di_lavoro_testmotorepaga_changelist' %}">Test Motore Paga</a> ›
+  Simulatore
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+/* ── Layout generale ─────────────────────────────────────────────────── */
+.sim-wrap { display: grid; grid-template-columns: 340px 1fr; gap: 1.2rem; align-items: start; }
+@media (max-width: 960px){ .sim-wrap { grid-template-columns: 1fr; } }
+
+/* ── Pannello form ───────────────────────────────────────────────────── */
+.sim-panel { background:#fff; border:1px solid #ddd; border-radius:6px; overflow:hidden; position:sticky; top:1rem; }
+.sim-panel-head { background:#1b3a5f; color:#fff; padding:.6rem 1rem; font-weight:700; font-size:.85rem; }
+.sim-panel-body { padding:.8rem 1rem; }
+.sim-group { margin-bottom:.7rem; }
+.sim-group label { display:block; font-size:.72rem; font-weight:700; color:#555; text-transform:uppercase; letter-spacing:.03em; margin-bottom:.2rem; }
+.sim-group input, .sim-group select { width:100%; padding:.35rem .5rem; border:1px solid #ccc; border-radius:3px; font-size:.85rem; box-sizing:border-box; }
+.sim-group small { color:#999; font-size:.68rem; display:block; margin-top:.1rem; }
+.sim-row2 { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; }
+.sim-row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.4rem; }
+.sim-section-title { font-size:.75rem; font-weight:700; color:#0a6640; text-transform:uppercase; letter-spacing:.05em; padding:.4rem 0 .2rem; border-bottom:1px solid #e0e0e0; margin:.5rem 0 .4rem; }
+.sim-btn { background:#0a6640; color:#fff; border:none; padding:.55rem 1rem; border-radius:4px; font-size:.9rem; font-weight:700; cursor:pointer; width:100%; margin-top:.5rem; }
+.sim-btn:hover { background:#085230; }
+
+/* ── Risultati ───────────────────────────────────────────────────────── */
+.res-section { margin-bottom:1rem; }
+.res-box { background:#fff; border:1px solid #ddd; border-radius:6px; overflow:hidden; }
+.res-box-head { padding:.5rem 1rem; font-weight:700; font-size:.82rem; text-transform:uppercase; letter-spacing:.04em; }
+.res-box-body { padding:.7rem 1rem; }
+.bh-green  { background:#0a6640; color:#fff; }
+.bh-blue   { background:#1b3a5f; color:#fff; }
+.bh-red    { background:#c0392b; color:#fff; }
+.bh-orange { background:#d35400; color:#fff; }
+.bh-gray   { background:#555; color:#fff; }
+.bh-teal   { background:#16a085; color:#fff; }
+.bh-purple { background:#6c3483; color:#fff; }
+
+/* ── Tabella voci ────────────────────────────────────────────────────── */
+.voce-table { width:100%; border-collapse:collapse; font-size:.78rem; }
+.voce-table th { background:#f0f0f0; padding:.3rem .5rem; text-align:left; font-weight:700; color:#333; border-bottom:2px solid #ddd; }
+.voce-table td { padding:.3rem .5rem; border-bottom:1px solid #eee; }
+.voce-table tr:hover td { background:#f9f9f9; }
+.voce-table tr.voce-neg td { color:#c0392b; }
+.voce-table tr.voce-zero td { color:#bbb; }
+.voce-table .amt { text-align:right; font-weight:700; font-family:monospace; }
+.voce-table .badge { display:inline-block; font-size:.62rem; padding:.05rem .3rem; border-radius:3px; font-weight:700; margin-left:.2rem; }
+.badge-si  { background:#d4edda; color:#155724; }
+.badge-no  { background:#f8d7da; color:#721c24; }
+.voce-table tfoot td { font-weight:900; background:#f5f5f5; border-top:2px solid #ccc; }
+.voce-table tfoot .amt { color:#1b3a5f; font-size:.9rem; }
+
+/* ── Grid 2/3/4 col ─────────────────────────────────────────────────── */
+.res-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:.8rem; }
+.res-grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.8rem; }
+.res-grid4 { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:.6rem; }
+@media(max-width:700px){ .res-grid2,.res-grid3,.res-grid4{ grid-template-columns:1fr; } }
+
+/* ── Micro cards ─────────────────────────────────────────────────────── */
+.mcard { border-radius:4px; padding:.5rem .7rem; border:1px solid #ddd; }
+.mcard .lbl { font-size:.68rem; font-weight:700; text-transform:uppercase; color:#777; margin-bottom:.2rem; }
+.mcard .val { font-size:1rem; font-weight:900; }
+.mcard .sub { font-size:.72rem; color:#888; margin-top:.15rem; }
+.mc-green { background:#e8f5ee; border-color:#0a6640; }
+.mc-green .val { color:#0a6640; }
+.mc-blue  { background:#e8edf5; border-color:#1b3a5f; }
+.mc-blue  .val { color:#1b3a5f; }
+.mc-red   { background:#fdf0f0; border-color:#e88; }
+.mc-red   .val { color:#c0392b; }
+.mc-gray  { background:#f5f5f5; border-color:#ccc; }
+.mc-gray  .val { color:#333; }
+
+/* ── Riepilogo line ──────────────────────────────────────────────────── */
+.rline { display:flex; justify-content:space-between; align-items:center; padding:.3rem 0; border-bottom:1px solid #eee; font-size:.82rem; }
+.rline:last-child { border-bottom:none; }
+.rline .r-lbl { color:#555; }
+.rline .r-val { font-weight:700; font-family:monospace; }
+.rline.total  { font-weight:900; font-size:.95rem; padding-top:.5rem; border-top:2px solid #ccc; border-bottom:none; }
+.rline.total .r-val { font-size:1.1rem; }
+.rline.neg    .r-val { color:#c0392b; }
+.rline.pos    .r-val { color:#1a7a1a; }
+.rline.hilite { background:#f0f7f0; padding:.35rem .5rem; border-radius:3px; border-bottom:none; margin-bottom:.25rem; }
+
+.errore-box { background:#fff3f3; border:2px solid #c0392b; border-radius:6px; padding:1rem 1.2rem; color:#c0392b; }
+.empty-box  { background:#f8f9fa; border:2px dashed #ccc; border-radius:6px; padding:2.5rem; text-align:center; color:#aaa; font-size:.9rem; }
+.empty-ico  { font-size:3rem; margin-bottom:.5rem; }
+.periodo-bar { background:#1b3a5f; color:#fff; border-radius:5px 5px 0 0; padding:.5rem 1rem; font-size:.82rem; font-weight:600; margin-bottom:.8rem; }
+</style>
+
+<div class="sim-wrap">
+
+<!-- ════════════════════════════════════════════════════════════════════
+     PANNELLO SINISTRO — FORM PARAMETRI
+═════════════════════════════════════════════════════════════════════ -->
+<div>
+<div class="sim-panel">
+  <div class="sim-panel-head">📋 Parametri scenario</div>
+  <div class="sim-panel-body">
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="sim-section-title">Identificazione</div>
+
+    <div class="sim-group">
+      <label>Nome scenario (memo)</label>
+      <input type="text" name="nome_test" placeholder="es. Cuoco 4L FT marzo 2026"
+             value="{{ form_data.nome_test|default:'' }}">
+    </div>
+
+    <div class="sim-group">
+      <label>Mese / Anno *</label>
+      <input type="month" name="mese_riferimento" required
+             value="{{ form_data.mese_riferimento|default:'' }}">
+    </div>
+
+    <div class="sim-group">
+      <label>Azienda (per calendario)</label>
+      <select name="azienda">
+        <option value="">— Solo festività nazionali —</option>
+        {% for az in aziende %}
+        <option value="{{ az.pk }}"
+          {% if form_data.azienda == az.pk|stringformat:"s" %}selected{% endif %}>
+          {{ az.nome }}
+        </option>
+        {% endfor %}
+      </select>
+      <small>Legge chiusure settimanali, festività aziendali e chiusure extra</small>
+    </div>
+
+    <div class="sim-section-title">Contratto</div>
+
+    <div class="sim-group">
+      <label>Livello CCNL *</label>
+      <select name="parametro_ccnl" required>
+        <option value="">— Seleziona —</option>
+        {% for p in parametri_ccnl %}
+        <option value="{{ p.pk }}"
+          {% if form_data.parametro_ccnl == p.pk|stringformat:"s" %}selected{% endif %}>
+          {{ p.ccnl }} Lv.{{ p.livello }} — {{ p.qualifica }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="sim-group">
+      <label>Tipo contratto *</label>
+      <select name="tipo_contratto" required>
+        <option value="">— Seleziona —</option>
+        {% for t in tipi_contratto %}
+        <option value="{{ t.pk }}"
+          {% if form_data.tipo_contratto == t.pk|stringformat:"s" %}selected{% endif %}>
+          {{ t.nome }}{% if t.coefficiente_ore != 1 %} ({{ t.coefficiente_ore|num_it:0 }}%){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="sim-row2">
+      <div class="sim-group">
+        <label>Data inizio</label>
+        <input type="date" name="data_inizio_rapporto"
+               value="{{ form_data.data_inizio_rapporto|default:'' }}">
+        <small>Pro-rata: &lt;15 gg = prop.</small>
+      </div>
+      <div class="sim-group">
+        <label>Data fine</label>
+        <input type="date" name="data_fine_rapporto"
+               value="{{ form_data.data_fine_rapporto|default:'' }}">
+        <small>Solo se termina a metà mese</small>
+      </div>
+    </div>
+
+    <div class="sim-section-title">Parametri orari</div>
+
+    <div class="sim-row3">
+      <div class="sim-group">
+        <label>Divisore</label>
+        <input type="number" name="divisore" min="1" max="30"
+               value="{{ form_data.divisore|default:'26' }}">
+        <small>26 = FIPE</small>
+      </div>
+      <div class="sim-group">
+        <label>Gg/sett.</label>
+        <input type="number" name="giorni_lavorativi_settimana" min="1" max="7"
+               value="{{ form_data.giorni_lavorativi_settimana|default:'6' }}">
+      </div>
+      <div class="sim-group">
+        <label>Gg chiusura</label>
+        <input type="number" name="giorni_chiusura_mese" min="0" max="31"
+               value="{{ form_data.giorni_chiusura_mese|default:'0' }}">
+        <small>Nel mese</small>
+      </div>
+    </div>
+
+    <div class="sim-section-title">Voci retributive aggiuntive</div>
+
+    <div class="sim-row2">
+      <div class="sim-group">
+        <label>Superminimo €</label>
+        <input type="number" name="superminimo" min="0" step="0.01"
+               value="{{ form_data.superminimo|default:'0' }}">
+      </div>
+      <div class="sim-group">
+        <label>Ind. turno €</label>
+        <input type="number" name="indennita_turno" min="0" step="0.01"
+               value="{{ form_data.indennita_turno|default:'0' }}">
+      </div>
+    </div>
+
+    <div class="sim-section-title">Straordinari (ore)</div>
+
+    <div class="sim-row2">
+      <div class="sim-group">
+        <label>Diurno (+15%)</label>
+        <input type="number" name="ore_straord_diurno" min="0" step="0.5"
+               value="{{ form_data.ore_straord_diurno|default:'0' }}">
+      </div>
+      <div class="sim-group">
+        <label>Notturno (+30%)</label>
+        <input type="number" name="ore_straord_notturno" min="0" step="0.5"
+               value="{{ form_data.ore_straord_notturno|default:'0' }}">
+      </div>
+      <div class="sim-group">
+        <label>Festivo (+30%)</label>
+        <input type="number" name="ore_straord_festivo" min="0" step="0.5"
+               value="{{ form_data.ore_straord_festivo|default:'0' }}">
+      </div>
+      <div class="sim-group">
+        <label>Nott.-festivo (+60%)</label>
+        <input type="number" name="ore_straord_nott_fest" min="0" step="0.5"
+               value="{{ form_data.ore_straord_nott_fest|default:'0' }}">
+      </div>
+    </div>
+
+    <div class="sim-section-title">Presenze / assenze nel mese</div>
+
+    <div class="sim-row3">
+      <div class="sim-group">
+        <label>Ass. ingius. (gg)</label>
+        <input type="number" name="giorni_assenza_ingiust" min="0" step="0.5"
+               value="{{ form_data.giorni_assenza_ingiust|default:'0' }}">
+        <small>Decurtano il lordo</small>
+      </div>
+      <div class="sim-group">
+        <label>Ferie godute (gg)</label>
+        <input type="number" name="giorni_ferie_godute" min="0" step="0.5"
+               value="{{ form_data.giorni_ferie_godute|default:'0' }}">
+        <small>Informativo</small>
+      </div>
+      <div class="sim-group">
+        <label>Permessi (ore)</label>
+        <input type="number" name="ore_permessi_goduti" min="0" step="0.5"
+               value="{{ form_data.ore_permessi_goduti|default:'0' }}">
+        <small>Informativo</small>
+      </div>
+    </div>
+
+    <button type="submit" class="sim-btn">▶ Calcola</button>
+  </form>
+  </div>
+</div>
+</div><!-- fine colonna sinistra -->
+
+
+<!-- ════════════════════════════════════════════════════════════════════
+     PANNELLO DESTRO — RISULTATI
+═════════════════════════════════════════════════════════════════════ -->
+<div>
+
+{% if errore %}
+  <div class="errore-box"><strong>Errore nel calcolo:</strong> {{ errore|safe }}</div>
+
+{% elif risultato %}
+
+  <div class="periodo-bar">
+    ⚙ {{ risultato.ccnl_nome }} &nbsp;|&nbsp; Liv. {{ risultato.ccnl_livello }} — {{ risultato.ccnl_qualifica }}
+    &nbsp;|&nbsp; {{ risultato.tipo_contratto }}
+    &nbsp;|&nbsp; {{ risultato.mese_str }}
+    {% if risultato.prorata %}
+    &nbsp;|&nbsp; ⚠ pro-rata {{ risultato.giorni_lavorati }}/{{ risultato.giorni_nel_mese }} gg
+    {% endif %}
+  </div>
+
+  <!-- ── BOX 0: Calendario lavorativo ───────────────────────────── -->
+  <div class="res-section">
+  <div class="res-box">
+    <div class="res-box-head bh-gray">📅 Box 0 — Calendario lavorativo del mese</div>
+    <div class="res-box-body">
+
+      <!-- Riepilogo giorni -->
+      <div class="res-grid4" style="margin-bottom:.8rem">
+        <div class="mcard mc-blue">
+          <div class="lbl">Giorni totali</div>
+          <div class="val">{{ risultato.giorni_nel_mese }}</div>
+        </div>
+        <div class="mcard mc-gray">
+          <div class="lbl">Chiusure sett.</div>
+          <div class="val">{{ risultato.cal_chiusure_settimanali }}</div>
+          <div class="sub">Dom. / riposi fissi</div>
+        </div>
+        <div class="mcard mc-gray">
+          <div class="lbl">Festività</div>
+          <div class="val">{{ risultato.cal_festivi }}</div>
+          <div class="sub">Naz. + aziendali</div>
+        </div>
+        <div class="mcard mc-gray">
+          <div class="lbl">Chiusure extra</div>
+          <div class="val">{{ risultato.cal_chiusure_extra }}</div>
+          <div class="sub">ChiusuraAziendale</div>
+        </div>
+        <div class="mcard mc-green">
+          <div class="lbl">Gg lavorativi eff.</div>
+          <div class="val">{{ risultato.cal_giorni_lavorativi }}</div>
+        </div>
+        <div class="mcard mc-blue">
+          <div class="lbl">Gg conv. base 26</div>
+          <div class="val">{{ risultato.cal_giorni_conv_26 }}</div>
+          <div class="sub">Per calcolo paga</div>
+        </div>
+        {% if risultato.prorata %}
+        <div class="mcard mc-red">
+          <div class="lbl">Gg lav. dipendente</div>
+          <div class="val">{{ risultato.giorni_lavorati }}</div>
+          <div class="sub">Pro-rata: {{ risultato.frazione }}</div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Mini calendario -->
+      <div style="overflow-x:auto">
+      <table style="border-collapse:collapse;font-size:.75rem;min-width:400px">
+        <thead>
+          <tr>
+            {% for g in "LUNMARMERGIOVES" %}{% endfor %}
+            <th style="padding:.2rem .4rem;text-align:center;color:#555;font-weight:700;border-bottom:1px solid #ddd;width:14.28%">Lun</th>
+            <th style="padding:.2rem .4rem;text-align:center;color:#555;font-weight:700;border-bottom:1px solid #ddd;width:14.28%">Mar</th>
+            <th style="padding:.2rem .4rem;text-align:center;color:#555;font-weight:700;border-bottom:1px solid #ddd;width:14.28%">Mer</th>
+            <th style="padding:.2rem .4rem;text-align:center;color:#555;font-weight:700;border-bottom:1px solid #ddd;width:14.28%">Gio</th>
+            <th style="padding:.2rem .4rem;text-align:center;color:#555;font-weight:700;border-bottom:1px solid #ddd;width:14.28%">Ven</th>
+            <th style="padding:.2rem .4rem;text-align:center;color:#888;font-weight:700;border-bottom:1px solid #ddd;width:14.28%">Sab</th>
+            <th style="padding:.2rem .4rem;text-align:center;color:#c0392b;font-weight:700;border-bottom:1px solid #ddd;width:14.28%">Dom</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for settimana in risultato.cal_griglia %}
+          <tr>
+            {% for giorno in settimana %}
+            {% if giorno %}
+              {% if giorno.is_chiusura_sett %}
+                <td style="text-align:center;padding:.25rem .3rem;background:#f5f5f5;color:#bbb;border:1px solid #eee">
+                  {{ giorno.giorno }}
+                </td>
+              {% elif giorno.is_festivo %}
+                <td style="text-align:center;padding:.25rem .3rem;background:#fff3cd;color:#856404;border:1px solid #eee;font-weight:700"
+                    title="{{ giorno.festivo_nome }}">
+                  {{ giorno.giorno }}<span style="font-size:.6rem;display:block;line-height:1">🎉</span>
+                </td>
+              {% elif giorno.is_chiusura_extra %}
+                <td style="text-align:center;padding:.25rem .3rem;background:#fdf0f0;color:#c0392b;border:1px solid #eee;font-weight:700"
+                    title="Chiusura aziendale">
+                  {{ giorno.giorno }}<span style="font-size:.6rem;display:block;line-height:1">🔒</span>
+                </td>
+              {% else %}
+                <td style="text-align:center;padding:.25rem .3rem;background:#e8f5ee;color:#0a6640;border:1px solid #eee;font-weight:700">
+                  {{ giorno.giorno }}
+                </td>
+              {% endif %}
+            {% else %}
+              <td style="background:#fafafa;border:1px solid #eee"></td>
+            {% endif %}
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+
+      <!-- Legenda e festività del mese -->
+      <div style="margin-top:.6rem;display:flex;gap:1rem;flex-wrap:wrap;font-size:.72rem">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#e8f5ee;border:1px solid #0a6640;margin-right:.2rem"></span>Lavorativo</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#f5f5f5;border:1px solid #ccc;margin-right:.2rem"></span>Chiusura sett.</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#fff3cd;border:1px solid #856404;margin-right:.2rem"></span>Festività 🎉</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#fdf0f0;border:1px solid #e88;margin-right:.2rem"></span>Chiusura extra 🔒</span>
+      </div>
+
+      {% if risultato.cal_festivita %}
+      <div style="margin-top:.5rem;font-size:.72rem;color:#856404;background:#fff3cd;padding:.4rem .6rem;border-radius:3px">
+        🎉 Festività del mese:
+        {% for d in risultato.cal_festivita %}{{ d|date:"j N" }}{% if not forloop.last %}, {% endif %}{% endfor %}
+      </div>
+      {% endif %}
+
+      {% if risultato.cal_chiusure_extra_dates %}
+      <div style="margin-top:.3rem;font-size:.72rem;color:#c0392b;background:#fdf0f0;padding:.4rem .6rem;border-radius:3px">
+        🔒 Chiusure extra:
+        {% for d in risultato.cal_chiusure_extra_dates %}{{ d|date:"j N" }}{% if not forloop.last %}, {% endif %}{% endfor %}
+      </div>
+      {% endif %}
+
+      <div style="margin-top:.4rem;font-size:.72rem;color:#555">
+        📋 Azienda: <strong>{{ risultato.azienda_nome }}</strong>
+        — Pro-rata applicato: <strong>{% if risultato.prorata %}Sì ({{ risultato.giorni_lavorati }} gg lav. / {{ risultato.cal_giorni_lavorativi }} tot.){% else %}No (mese intero){% endif %}</strong>
+      </div>
+
+    </div>
+  </div>
+  </div>
+
+  <!-- ── BOX 1: Voci retributive ──────────────────────────────────── -->
+  <div class="res-section">
+  <div class="res-box">
+    <div class="res-box-head bh-gray">📊 Box 1 — Voci retributive e imponibilità</div>
+    <div class="res-box-body" style="padding:.5rem">
+      <table class="voce-table">
+        <thead>
+          <tr>
+            <th>Voce</th>
+            <th>Ore/Gg</th>
+            <th>Magg.</th>
+            <th class="amt">Importo €</th>
+            <th>Impon. INPS</th>
+            <th>Impon. IRPEF</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in risultato.voci %}
+          <tr class="{% if v.negativo %}voce-neg{% elif v.importo == 0 %}voce-zero{% endif %}">
+            <td>{{ v.nome }}</td>
+            <td>
+              {% if v.ore %}{{ v.ore }}h{% endif %}
+              {% if v.gg %}{{ v.gg }}gg{% endif %}
+            </td>
+            <td>{% if v.magg %}{{ v.magg }}%{% endif %}</td>
+            <td class="amt">
+              {% if v.negativo %}− {% endif %}€ {{ v.importo|euro_it }}
+            </td>
+            <td>
+              <span class="badge {% if v.inps %}badge-si{% else %}badge-no{% endif %}">
+                {% if v.inps %}SÌ{% else %}NO{% endif %}
+              </span>
+            </td>
+            <td>
+              <span class="badge {% if v.irpef %}badge-si{% else %}badge-no{% endif %}">
+                {% if v.irpef %}SÌ{% else %}NO{% endif %}
+              </span>
+            </td>
+            <td style="color:#888;font-size:.72rem">{{ v.note }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3"><strong>Lordo imponibile mensile</strong></td>
+            <td class="amt">€ {{ risultato.lordo_mensile|euro_it }}</td>
+            <td colspan="3" style="font-size:.72rem;color:#555">
+              Base: € {{ risultato.lordo_base|euro_it }} &nbsp;+&nbsp; Straord.: € {{ risultato.tot_straord|euro_it }}
+              {% if risultato.decurt_assenze %} &nbsp;−&nbsp; Assenze: € {{ risultato.decurt_assenze|euro_it }}{% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td colspan="3" style="font-size:.72rem;color:#888">Paga oraria</td>
+            <td class="amt" style="color:#555;font-size:.78rem">€ {{ risultato.paga_oraria|num_it:4 }}</td>
+            <td colspan="3" style="font-size:.72rem;color:#888">
+              Paga giornaliera (÷{{ risultato.divisore }}): € {{ risultato.paga_giornaliera|num_it:4 }}
+              &nbsp;|&nbsp; Ore mensili: {{ risultato.ore_mensili }}h
+            </td>
+          </tr>
+          {% if risultato.gg_ferie_godute or risultato.ore_perm_goduti %}
+          <tr>
+            <td colspan="7" style="font-size:.72rem;color:#888;font-weight:normal;background:#fffbe6;padding:.3rem .5rem">
+              ℹ Informativo: Ferie godute {{ risultato.gg_ferie_godute }} gg
+              — Permessi goduti {{ risultato.ore_perm_goduti }} ore
+              (già inclusi nel lordo mensile)
+            </td>
+          </tr>
+          {% endif %}
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  </div>
+
+  <!-- ── BOX 2: Contributi ────────────────────────────────────────── -->
+  <div class="res-section">
+  <div class="res-box">
+    <div class="res-box-head bh-red">🔴 Box 2 — Contributi previdenziali e assistenziali</div>
+    <div class="res-box-body">
+      <div class="res-grid3">
+
+        <div>
+          <div style="font-weight:700;font-size:.78rem;color:#c0392b;margin-bottom:.4rem;text-transform:uppercase">
+            c/Dipendente
+          </div>
+          <div class="rline">
+            <span class="r-lbl">Base imponibile INPS</span>
+            <span class="r-val">€ {{ risultato.lordo_mensile|euro_it }}</span>
+          </div>
+          <div class="rline neg">
+            <span class="r-lbl">INPS dip. ({{ risultato.inps_dip_perc }}%)</span>
+            <span class="r-val">− € {{ risultato.inps_dip|abs_num|euro_it }}</span>
+          </div>
+          <div class="rline total neg">
+            <span class="r-lbl">Totale c/dip.</span>
+            <span class="r-val">− € {{ risultato.tot_contrib_dip|abs_num|euro_it }}</span>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight:700;font-size:.78rem;color:#c0392b;margin-bottom:.4rem;text-transform:uppercase">
+            c/Azienda
+          </div>
+          <div class="rline">
+            <span class="r-lbl">Base imponibile</span>
+            <span class="r-val">€ {{ risultato.lordo_mensile|euro_it }}</span>
+          </div>
+          <div class="rline neg">
+            <span class="r-lbl">INPS az. ({{ risultato.inps_az_perc }}%)</span>
+            <span class="r-val">€ {{ risultato.inps_az|euro_it }}</span>
+          </div>
+          <div class="rline neg">
+            <span class="r-lbl">INAIL ({{ risultato.inail_perc }}%)</span>
+            <span class="r-val">€ {{ risultato.inail_az|euro_it }}</span>
+          </div>
+          <div class="rline total neg">
+            <span class="r-lbl">Totale c/azienda</span>
+            <span class="r-val">€ {{ risultato.tot_contrib_az|euro_it }}</span>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight:700;font-size:.78rem;color:#555;margin-bottom:.4rem;text-transform:uppercase">
+            Riepilogo contributi
+          </div>
+          <div class="rline">
+            <span class="r-lbl">INPS totale (dip.+az.)</span>
+            <span class="r-val">€ {{ risultato.inps_dip|add:risultato.inps_az|euro_it }}</span>
+          </div>
+          <div class="rline">
+            <span class="r-lbl">INAIL azienda</span>
+            <span class="r-val">€ {{ risultato.inail_az|euro_it }}</span>
+          </div>
+          <div class="rline" style="font-size:.72rem;color:#888">
+            <span class="r-lbl">Aliq. globale</span>
+            <span class="r-val">{{ risultato.inps_dip_perc }}% + {{ risultato.inps_az_perc }}% + {{ risultato.inail_perc }}%</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ── BOX 3: IRPEF e imposte ───────────────────────────────────── -->
+  <div class="res-section">
+  <div class="res-box">
+    <div class="res-box-head bh-orange">🟠 Box 3 — IRPEF, detrazioni e bonus fiscali</div>
+    <div class="res-box-body">
+      <div class="res-grid2">
+
+        <div>
+          <div style="font-weight:700;font-size:.78rem;color:#d35400;margin-bottom:.4rem;text-transform:uppercase">
+            Calcolo IRPEF (art. 11 TUIR — scaglioni 2024-2026)
+          </div>
+          <div class="rline">
+            <span class="r-lbl">Imponibile mensile</span>
+            <span class="r-val">€ {{ risultato.imponibile_m|euro_it }}</span>
+          </div>
+          <div class="rline">
+            <span class="r-lbl">Imponibile annuo (×12)</span>
+            <span class="r-val">€ {{ risultato.imponibile_ann|euro_it }}</span>
+          </div>
+          <div class="rline neg">
+            <span class="r-lbl">IRPEF lorda mensile</span>
+            <span class="r-val">€ {{ risultato.irpef_lorda|euro_it }}</span>
+          </div>
+          <div class="rline pos">
+            <span class="r-lbl">Detrazioni lavoro dip. (art. 13)</span>
+            <span class="r-val">+ € {{ risultato.detrazioni|abs_num|euro_it }}</span>
+          </div>
+          <div class="rline total neg">
+            <span class="r-lbl">IRPEF netta mensile</span>
+            <span class="r-val">− € {{ risultato.irpef_netta|abs_num|euro_it }}</span>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight:700;font-size:.78rem;color:#16a085;margin-bottom:.4rem;text-transform:uppercase">
+            Bonus e crediti d'imposta
+          </div>
+          <div class="rline pos">
+            <span class="r-lbl">TI DL 3/2020 (≤ €28.000/anno)</span>
+            <span class="r-val">+ € {{ risultato.ti|abs_num|euro_it }}</span>
+          </div>
+          <div class="rline pos">
+            <span class="r-lbl">Bonus L.207/2024 (€8.500–€20.000)</span>
+            <span class="r-val">+ € {{ risultato.l207|abs_num|euro_it }}</span>
+          </div>
+          <div class="rline total pos">
+            <span class="r-lbl">Totale crediti d'imposta</span>
+            <span class="r-val">+ € {{ risultato.crediti_imposta|abs_num|euro_it }}</span>
+          </div>
+          <div style="margin-top:.8rem;border-top:1px solid #ddd;padding-top:.5rem">
+            <div style="font-weight:700;font-size:.78rem;color:#888;margin-bottom:.3rem;text-transform:uppercase">
+              Addizionali (stima — anno successivo)
+            </div>
+            <div class="rline">
+              <span class="r-lbl">Addiz. reg. Sicilia /mese</span>
+              <span class="r-val">€ {{ risultato.add_reg_m|euro_it }}</span>
+            </div>
+            <div class="rline">
+              <span class="r-lbl">Addiz. comunale /mese</span>
+              <span class="r-val">€ {{ risultato.add_com_m|euro_it }}</span>
+            </div>
+            <div class="rline" style="color:#888;font-size:.75rem">
+              <span class="r-lbl">Totale addiz. annuo</span>
+              <span class="r-val">€ {{ risultato.add_tot_ann|euro_it }}</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ── BOX 4: Ratei e TFR ───────────────────────────────────────── -->
+  <div class="res-section">
+  <div class="res-box">
+    <div class="res-box-head bh-teal">🟢 Box 4 — Ratei e TFR (lordi e netti — su base ora/giorno/mese)</div>
+    <div class="res-box-body">
+      <table class="voce-table">
+        <thead>
+          <tr>
+            <th>Voce</th>
+            <th>Coefficiente</th>
+            <th class="amt">Lordo/mese</th>
+            <th class="amt">Lordo/giorno</th>
+            <th class="amt">Lordo/ora</th>
+            <th class="amt">Netto/mese</th>
+            <th style="font-size:.7rem;color:#888">Base calcolo</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>TFR</strong></td>
+            <td>{{ risultato.c_tfr }}</td>
+            <td class="amt">€ {{ risultato.tfr_m|euro_it }}</td>
+            <td class="amt" style="color:#888">€ {{ risultato.tfr_gg|euro_it }}</td>
+            <td class="amt" style="color:#888">€ {{ risultato.tfr_ora|num_it:4 }}</td>
+            <td class="amt" style="color:#1a7a1a">€ {{ risultato.tfr_n|euro_it }}</td>
+            <td style="font-size:.72rem;color:#888">Lordo mensile × c</td>
+          </tr>
+          <tr>
+            <td><strong>Rateo 13ª mensilità</strong></td>
+            <td>{{ risultato.c_13 }}</td>
+            <td class="amt">€ {{ risultato.rat13_m|euro_it }}</td>
+            <td class="amt" style="color:#888">€ {{ risultato.rat13_gg|euro_it }}</td>
+            <td class="amt" style="color:#888">€ {{ risultato.rat13_ora|num_it:4 }}</td>
+            <td class="amt" style="color:#1a7a1a">€ {{ risultato.rat13_n|euro_it }}</td>
+            <td style="font-size:.72rem;color:#888">Lordo/12 — pagata dic.</td>
+          </tr>
+          <tr>
+            <td><strong>Rateo 14ª mensilità</strong></td>
+            <td>{{ risultato.c_14 }}</td>
+            <td class="amt">€ {{ risultato.rat14_m|euro_it }}</td>
+            <td class="amt" style="color:#888">—</td>
+            <td class="amt" style="color:#888">—</td>
+            <td class="amt" style="color:#1a7a1a">€ {{ risultato.rat14_n|euro_it }}</td>
+            <td style="font-size:.72rem;color:#888">Lordo/12 — pagata lug.</td>
+          </tr>
+          <tr>
+            <td><strong>Rateo ferie maturate</strong></td>
+            <td>{{ risultato.c_fer }}</td>
+            <td class="amt">€ {{ risultato.rat_fer_m|euro_it }}</td>
+            <td class="amt" style="color:#888">—</td>
+            <td class="amt" style="color:#888">—</td>
+            <td class="amt" style="color:#1a7a1a">€ {{ risultato.rat_fer_n|euro_it }}</td>
+            <td style="font-size:.72rem;color:#888">26 gg / 225 gg lav.</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2"><strong>Totali ratei</strong></td>
+            <td class="amt">€ {{ risultato.tot_ratei_lordi|euro_it }}</td>
+            <td colspan="2"></td>
+            <td class="amt" style="color:#1a7a1a">€ {{ risultato.tot_ratei_netti|euro_it }}</td>
+            <td style="font-size:.72rem;color:#888">
+              Ratio netto/lordo: {{ risultato.ratio }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+      <div style="margin-top:.5rem;font-size:.72rem;color:#888">
+        ℹ I ratei netti applicano il ratio netto/lordo ({{ risultato.netto_base }}/{{ risultato.lordo_mensile }}) escludendo TI e Bonus L207
+        che non si applicano a 13ª, 14ª e TFR.
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ── BOX 5: Riepilogo busta paga ─────────────────────────────── -->
+  <div class="res-section">
+  <div class="res-box">
+    <div class="res-box-head bh-green">💚 Box 5 — Riepilogo busta paga dipendente</div>
+    <div class="res-box-body">
+      <div class="res-grid2">
+
+        <div>
+          <div style="font-weight:700;font-size:.78rem;color:#0a6640;margin-bottom:.5rem;text-transform:uppercase">
+            Senza ratei — competenza mensile
+          </div>
+          <div class="rline">
+            <span class="r-lbl">Lordo mensile</span>
+            <span class="r-val">€ {{ risultato.lordo_mensile|euro_it }}</span>
+          </div>
+          <div class="rline neg">
+            <span class="r-lbl">INPS c/dipendente</span>
+            <span class="r-val">− € {{ risultato.inps_dip|abs_num|euro_it }}</span>
+          </div>
+          <div class="rline neg">
+            <span class="r-lbl">IRPEF netta</span>
+            <span class="r-val">− € {{ risultato.irpef_netta|abs_num|euro_it }}</span>
+          </div>
+          <div class="rline hilite">
+            <span class="r-lbl">= Netto base</span>
+            <span class="r-val" style="color:#333">€ {{ risultato.netto_base|euro_it }}</span>
+          </div>
+          {% if risultato.ti %}
+          <div class="rline pos">
+            <span class="r-lbl">+ TI DL 3/2020</span>
+            <span class="r-val">+ € {{ risultato.ti|abs_num|euro_it }}</span>
+          </div>
+          {% endif %}
+          {% if risultato.l207 %}
+          <div class="rline pos">
+            <span class="r-lbl">+ Bonus L.207/2024</span>
+            <span class="r-val">+ € {{ risultato.l207|abs_num|euro_it }}</span>
+          </div>
+          {% endif %}
+          <div class="rline total" style="color:#0a6640">
+            <span class="r-lbl">✓ NETTO IN BUSTA</span>
+            <span class="r-val">€ {{ risultato.netto_totale|euro_it }}</span>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight:700;font-size:.78rem;color:#1b3a5f;margin-bottom:.5rem;text-transform:uppercase">
+            Con ratei — costo e valore globale
+          </div>
+          <div class="rline">
+            <span class="r-lbl">Lordo mensile</span>
+            <span class="r-val">€ {{ risultato.lordo_mensile|euro_it }}</span>
+          </div>
+          <div class="rline pos">
+            <span class="r-lbl">+ Ratei lordi (TFR+13ª+14ª+ferie)</span>
+            <span class="r-val">+ € {{ risultato.tot_ratei_lordi|abs_num|euro_it }}</span>
+          </div>
+          <div class="rline total">
+            <span class="r-lbl">= Lordo globale mensile</span>
+            <span class="r-val">€ {{ risultato.lordo_con_ratei|euro_it }}</span>
+          </div>
+          <div style="height:.5rem"></div>
+          <div class="rline">
+            <span class="r-lbl">Netto in busta</span>
+            <span class="r-val">€ {{ risultato.netto_totale|euro_it }}</span>
+          </div>
+          <div class="rline pos">
+            <span class="r-lbl">+ Ratei netti</span>
+            <span class="r-val">+ € {{ risultato.tot_ratei_netti|abs_num|euro_it }}</span>
+          </div>
+          <div class="rline total" style="color:#1b3a5f">
+            <span class="r-lbl">= Netto globale mensile</span>
+            <span class="r-val">€ {{ risultato.netto_con_ratei|euro_it }}</span>
+          </div>
+          <div style="margin-top:.6rem;font-size:.72rem;color:#888">
+            ℹ Addiz. stima /mese: − € {{ risultato.add_reg_m|abs_num|euro_it }} (reg.) − € {{ risultato.add_com_m|abs_num|euro_it }} (com.)
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- ── BOX 6: Costo azienda e F24 ──────────────────────────────── -->
+  <div class="res-section">
+  <div class="res-box">
+    <div class="res-box-head bh-blue">🔵 Box 6 — Costo azienda e sviluppo F24</div>
+    <div class="res-box-body">
+      <div class="res-grid3">
+
+        <!-- Costo corrente -->
+        <div>
+          <div style="font-weight:700;font-size:.78rem;color:#1b3a5f;margin-bottom:.5rem;text-transform:uppercase">
+            Costo diretto mensile
+          </div>
+          <div class="rline">
+            <span class="r-lbl">Lordo mensile</span>
+            <span class="r-val">€ {{ risultato.lordo_mensile|euro_it }}</span>
+          </div>
+          <div class="rline">
+            <span class="r-lbl">INPS c/azienda ({{ risultato.inps_az_perc }}%)</span>
+            <span class="r-val">€ {{ risultato.inps_az|euro_it }}</span>
+          </div>
+          <div class="rline">
+            <span class="r-lbl">INAIL ({{ risultato.inail_perc }}%)</span>
+            <span class="r-val">€ {{ risultato.inail_az|euro_it }}</span>
+          </div>
+          <div class="rline total">
+            <span class="r-lbl">Costo corrente</span>
+            <span class="r-val">€ {{ risultato.costo_corrente|euro_it }}</span>
+          </div>
+          <div style="height:.4rem"></div>
+          <div class="rline">
+            <span class="r-lbl">+ Ratei differiti</span>
+            <span class="r-val">€ {{ risultato.costo_differito|euro_it }}</span>
+          </div>
+          <div class="rline total" style="color:#1b3a5f">
+            <span class="r-lbl">Costo totale /mese</span>
+            <span class="r-val">€ {{ risultato.costo_mensile|euro_it }}</span>
+          </div>
+          <div class="rline" style="color:#888;font-size:.78rem">
+            <span class="r-lbl">Costo stimato /anno</span>
+            <span class="r-val">€ {{ risultato.costo_annuo|euro_it }}</span>
+          </div>
+        </div>
+
+        <!-- Dettaglio carichi dipendente -->
+        <div>
+          <div style="font-weight:700;font-size:.78rem;color:#c0392b;margin-bottom:.5rem;text-transform:uppercase">
+            Dettaglio c/dipendente
+          </div>
+          <div class="rline">
+            <span class="r-lbl">Lordo</span>
+            <span class="r-val">€ {{ risultato.lordo_mensile|euro_it }}</span>
+          </div>
+          <div class="rline neg">
+            <span class="r-lbl">− INPS dip.</span>
+            <span class="r-val">€ {{ risultato.inps_dip|euro_it }}</span>
+          </div>
+          <div class="rline neg">
+            <span class="r-lbl">− IRPEF netta</span>
+            <span class="r-val">€ {{ risultato.irpef_netta|euro_it }}</span>
+          </div>
+          <div class="rline pos">
+            <span class="r-lbl">+ TI + Bonus L207</span>
+            <span class="r-val">€ {{ risultato.crediti_imposta|euro_it }}</span>
+          </div>
+          <div class="rline total pos" style="color:#0a6640">
+            <span class="r-lbl">= Netto in busta</span>
+            <span class="r-val">€ {{ risultato.netto_totale|euro_it }}</span>
+          </div>
+          <div style="margin-top:.5rem;border-top:1px solid #eee;padding-top:.4rem;font-size:.72rem;color:#888">
+            Addiz. future /mese:
+            reg. € {{ risultato.add_reg_m|euro_it }} + com. € {{ risultato.add_com_m|euro_it }}
+          </div>
+        </div>
+
+        <!-- Sviluppo F24 -->
+        <div>
+          <div style="font-weight:700;font-size:.78rem;color:#6c3483;margin-bottom:.5rem;text-transform:uppercase">
+            Sviluppo F24 mensile
+          </div>
+          <div style="font-size:.72rem;font-weight:700;color:#888;margin-bottom:.2rem">SEZIONE INPS</div>
+          <div class="rline">
+            <span class="r-lbl">INPS c/dipendente</span>
+            <span class="r-val">€ {{ risultato.inps_dip|euro_it }}</span>
+          </div>
+          <div class="rline">
+            <span class="r-lbl">INPS c/azienda</span>
+            <span class="r-val">€ {{ risultato.inps_az|euro_it }}</span>
+          </div>
+          <div class="rline total" style="color:#6c3483">
+            <span class="r-lbl">F24 INPS da versare</span>
+            <span class="r-val">€ {{ risultato.f24_inps|euro_it }}</span>
+          </div>
+          <div style="height:.4rem"></div>
+          <div style="font-size:.72rem;font-weight:700;color:#888;margin-bottom:.2rem">SEZIONE ERARIO</div>
+          <div class="rline">
+            <span class="r-lbl">IRPEF netta (debito)</span>
+            <span class="r-val">€ {{ risultato.f24_erario_lord|euro_it }}</span>
+          </div>
+          <div class="rline pos">
+            <span class="r-lbl">− Crediti d'imposta (TI + L207)</span>
+            <span class="r-val">− € {{ risultato.crediti_imposta|abs_num|euro_it }}</span>
+          </div>
+          <div class="rline total" style="color:#6c3483">
+            <span class="r-lbl">F24 Erario netto</span>
+            <span class="r-val">€ {{ risultato.f24_erario|euro_it }}</span>
+          </div>
+          <div class="rline" style="margin-top:.3rem;padding-top:.3rem;border-top:2px solid #6c3483;font-size:.88rem">
+            <span class="r-lbl" style="font-weight:900">TOTALE F24</span>
+            <span class="r-val" style="font-size:1.05rem;color:#6c3483;font-weight:900">€ {{ risultato.f24_totale|euro_it }}</span>
+          </div>
+          <div style="font-size:.68rem;color:#888;margin-top:.3rem">
+            ℹ I crediti TI e L207 sono anticipati dall'azienda al dipendente
+            e compensati nel versamento F24 Erario.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  </div>
+
+{% else %}
+  <div class="empty-box">
+    <div class="empty-ico">⚙</div>
+    <div>Compila i parametri a sinistra e clicca <strong>▶ Calcola</strong><br>
+    per ottenere il prospetto paga completo con tutti i box.</div>
+  </div>
+{% endif %}
+
+</div><!-- fine colonna destra -->
+</div><!-- fine sim-wrap -->
+{% endblock %}

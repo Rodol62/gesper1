@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% load l10n %}
+{% block title %}Modifica pagamento netto — {{ azienda.nome }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gesper-pay-form .section-title { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #5c6f82; margin-bottom: .5rem; }
+  .gesper-pay-form .card-section { border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem 1.1rem; margin-bottom: 1rem; background: #fafbfd; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container px-3 mt-3 gesper-pay-form" style="max-width:36rem">
+  <nav aria-label="Percorso" class="mb-2">
+    <ol class="breadcrumb mb-0 small">
+      <li class="breadcrumb-item"><a href="{% url 'partitario_netti_situazione' %}">Partitario netti</a></li>
+      <li class="breadcrumb-item active">Modifica pagamento</li>
+    </ol>
+  </nav>
+  <h1 class="h5 mb-2" style="color:#1b3a5f;font-weight:700"><i class="bi bi-pencil-square me-1"></i> Modifica pagamento (DARE in estratto)</h1>
+  <p class="small text-muted mb-3">Movimento n. <strong>{% localize off %}{{ movimento.pk }}{% endlocalize %}</strong> · {{ movimento.dipendente.cognome }} {{ movimento.dipendente.nome }}</p>
+
+  <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm">
+    {% csrf_token %}
+    <div class="card-body p-3 p-md-4">
+
+      <div class="card-section">
+        <div class="section-title">Chi e quando</div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold small mb-1" for="{{ form.dipendente.id_for_label }}">{{ form.dipendente.label }}</label>
+          {{ form.dipendente }}
+          {% for e in form.dipendente.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          <div class="form-text">In carico (attivi) in cima all’elenco; gli altri stati sono indicati tra parentesi.</div>
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-semibold small mb-1" for="{{ form.data_pagamento.id_for_label }}">{{ form.data_pagamento.label }}</label>
+          {{ form.data_pagamento }}
+          {% for e in form.data_pagamento.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+      </div>
+
+      <div class="card-section">
+        <div class="section-title">Importo e modalità</div>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold small mb-1" for="{{ form.importo.id_for_label }}">{{ form.importo.label }}</label>
+            {{ form.importo }}
+            {% for e in form.importo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold small mb-1" for="{{ form.metodo_pagamento.id_for_label }}">{{ form.metodo_pagamento.label }}</label>
+            {{ form.metodo_pagamento }}
+            {% for e in form.metodo_pagamento.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card-section">
+        <div class="section-title">Periodo di competenza (busta / riepilogo)</div>
+        <div class="row g-2 align-items-end">
+          <div class="col-7 col-md-8">
+            <label class="form-label fw-semibold small mb-1" for="{{ form.mese_competenza.id_for_label }}">{{ form.mese_competenza.label }}</label>
+            {{ form.mese_competenza }}
+            {% for e in form.mese_competenza.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="col-5 col-md-4">
+            <label class="form-label fw-semibold small mb-1" for="{{ form.anno_competenza.id_for_label }}">{{ form.anno_competenza.label }}</label>
+            {{ form.anno_competenza }}
+            {% for e in form.anno_competenza.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+        </div>
+        {% if form.anno_competenza.help_text %}<div class="form-text mt-1">{{ form.anno_competenza.help_text }}</div>{% endif %}
+      </div>
+
+      <div class="card-section">
+        <div class="section-title">Causale</div>
+        <div class="mb-0">
+          <label class="form-label fw-semibold small mb-1" for="{{ form.causale.id_for_label }}">{{ form.causale.label }}</label>
+          {{ form.causale }}
+          {% if form.causale.help_text %}<div class="form-text">{{ form.causale.help_text }}</div>{% endif %}
+          {% for e in form.causale.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+      </div>
+
+      <div class="card-section border-primary border-opacity-25" style="background:#fff">
+        <div class="section-title">Documentazione</div>
+        {% if movimento.documento_ricevuta_id %}
+        <p class="small mb-2">Allegato attuale: <a href="{% url 'download_documento' movimento.documento_ricevuta_id %}" class="fw-semibold">Scarica PDF</a></p>
+        {% else %}
+        <p class="small text-muted mb-2">Nessun PDF allegato.</p>
+        {% endif %}
+        <label class="form-label fw-semibold small mb-1" for="{{ form.allegato_pdf.id_for_label }}">{{ form.allegato_pdf.label }}</label>
+        {{ form.allegato_pdf }}
+        {% if form.allegato_pdf.help_text %}<div class="form-text">{{ form.allegato_pdf.help_text }}</div>{% endif %}
+        {% for e in form.allegato_pdf.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        <div id="gesper-pdf-filename" class="small text-muted mt-2 fst-italic"></div>
+      </div>
+
+      {% if movimento.metodo_pagamento == 'contanti' %}
+      <div class="card-section border-info border-opacity-25" style="background:#f8fcff">
+        <div class="section-title">Ricevuta acconto (contanti)</div>
+        <p class="small text-muted mb-2">
+          Il canale principale per la firma è il portale dipendente: dopo <strong>Pubblica</strong>, il PDF compare in
+          <a href="{% url 'candidato_miei_documenti' %}?tab=altri" target="_blank" rel="noopener">I miei documenti</a>
+          (scheda «Altri»). L'invio email è facoltativo e va usato solo se serve una copia aggiuntiva.
+          {% if movimento.documento_ricevuta_firma_id %}
+          <span class="badge text-bg-success ms-1">Attualmente pubblicata in area dipendente</span>
+          {% endif %}
+        </p>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <a href="{% url 'partitario_netti_ricevuta_contanti_pdf' movimento.id %}" class="btn btn-sm btn-outline-dark"><i class="bi bi-file-earmark-pdf me-1"></i> Scarica ricevuta PDF</a>
+          <form method="post" action="{% url 'partitario_netti_ricevuta_contanti_pubblica' movimento.id %}" class="d-inline" onsubmit="return confirm('Pubblicare la ricevuta nell\'area documenti del dipendente?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-person-check me-1"></i> Pubblica in area dipendente</button>
+          </form>
+          <form method="post" action="{% url 'partitario_netti_ricevuta_contanti_revoca' movimento.id %}" class="d-inline" onsubmit="return confirm('Rimuovere la ricevuta dall\'area dipendente?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-warning" {% if not movimento.documento_ricevuta_firma_id %}disabled{% endif %}><i class="bi bi-person-x me-1"></i> Revoca da area dipendente</button>
+          </form>
+          <form method="post" action="{% url 'partitario_netti_ricevuta_contanti_invia' movimento.id %}" class="d-inline" onsubmit="return confirm('Inviare una copia PDF per email (opzionale)?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-secondary" {% if not movimento.dipendente.email %}disabled title="Email dipendente assente in anagrafica"{% endif %}><i class="bi bi-envelope me-1"></i> Email opzionale</button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger small py-2">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div class="d-flex flex-wrap gap-2 pt-1">
+        <button type="submit" class="btn btn-primary px-4"><i class="bi bi-check2-circle me-1"></i> Salva modifiche</button>
+        <a href="{% url 'partitario_netti_situazione' %}" class="btn btn-outline-secondary">Annulla</a>
+      </div>
+    </div>
+  </form>
+</div>
+<script>
+(function(){
+  var inp = document.getElementById('{{ form.allegato_pdf.id_for_label }}');
+  var out = document.getElementById('gesper-pdf-filename');
+  if (inp && out) {
+    inp.addEventListener('change', function() {
+      var f = inp.files && inp.files[0];
+      out.textContent = f ? ('Nuovo file selezionato: ' + f.name) : '';
+    });
+  }
+})();
+</script>
+{% endblock %}

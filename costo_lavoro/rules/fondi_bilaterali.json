@@ -1,0 +1,18 @@
+[
+    {
+        "name": "Fondo bilaterale Turismo",
+        "ccnl": "turismo",
+        "priority": 10,
+        "values": {
+            "fondo_bilaterale": 0.01
+        }
+    },
+    {
+        "name": "Fondo bilaterale Commercio",
+        "ccnl": "commercio",
+        "priority": 10,
+        "values": {
+            "fondo_bilaterale": 0.01
+        }
+    }
+]

@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h2>{{ titolo_storico|default:'Storico Attività' }}{% if azienda %} - {{ azienda.nome }}{% endif %}{% if dipendente %} - {{ dipendente.nome }} {{ dipendente.cognome }}{% endif %}</h2>
+  {% if mostra_filtro_dipendente %}
+  <form method="get" class="row g-2 align-items-end mb-2">
+    <div class="col-12 col-md-5">
+      <label class="form-label mb-1">Filtro dipendente</label>
+      <select name="dipendente_id" class="form-select form-select-sm">
+        <option value="">Tutti i dipendenti</option>
+        {% for d in dipendenti_filtro %}
+        <option value="{{ d.id }}" {% if filtro_dipendente_id == d.id|stringformat:"s" %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-sm btn-outline-primary">Applica filtro</button>
+    </div>
+    <div class="col-auto">
+      <a href="{% url 'storico_home' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+    </div>
+  </form>
+  {% endif %}
+  <a href="?export=csv{% if filtro_dipendente_id %}&dipendente_id={{ filtro_dipendente_id }}{% endif %}" class="btn btn-primary mb-2">Esporta CSV</a>
+  <a href="?export=excel{% if filtro_dipendente_id %}&dipendente_id={{ filtro_dipendente_id }}{% endif %}" class="btn btn-success mb-2">Esporta Excel</a>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Utente</th>
+        <th>Data/Ora</th>
+        <th>Categoria</th>
+        <th>Azione</th>
+        <th>Descrizione / Riferimenti</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in attivita %}
+      <tr>
+        <td>{{ r.utente }}</td>
+        <td>{{ r.quando|date:'d/m/Y H:i' }}</td>
+        <td>{{ r.categoria }}</td>
+        <td>{{ r.azione }}</td>
+        <td>{{ r.descrizione }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">Nessun dato disponibile.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

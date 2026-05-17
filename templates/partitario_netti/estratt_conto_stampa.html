@@ -1,0 +1,323 @@
+{% load l10n %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>Estratto conto netti — {{ dipendente.cognome }} {{ dipendente.nome }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --ink: #0f172a;
+      --brand: #1b3a5f;
+      --muted: #475569;
+      --line: #94a3b8;
+      --head-bg: #e8eef5;
+      --row-alt: #f1f5f9;
+      --danger: #991b1b;
+      --success: #166534;
+    }
+    * { box-sizing: border-box; }
+    html { font-size: 11pt; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: var(--ink);
+      line-height: 1.4;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .no-print { }
+    .toolbar {
+      margin: 0 auto 1rem;
+      max-width: 210mm;
+      padding: .65rem .85rem;
+      background: #e8f0f8;
+      border: 1px solid #c5d4e0;
+      border-radius: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      align-items: center;
+    }
+    .toolbar button {
+      padding: .4rem .9rem;
+      font-size: .88rem;
+      cursor: pointer;
+      border-radius: 5px;
+      border: 1px solid var(--brand);
+      background: var(--brand);
+      color: #fff;
+    }
+    .toolbar a { font-size: .85rem; color: var(--brand); }
+
+    /* Anteprima a video: foglio A4 */
+    @media screen {
+      body { background: #cbd5e1; padding: 1rem 0.5rem 2rem; }
+      .print-sheet {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0 auto;
+        background: #fff;
+        box-shadow: 0 8px 32px rgba(15, 23, 42, 0.18);
+        border: 1px solid #94a3b8;
+        padding: 14mm 12mm 16mm;
+      }
+    }
+
+    @page {
+      size: A4;
+      margin: 12mm 11mm 16mm 11mm;
+    }
+
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff; padding: 0; }
+      .print-sheet {
+        width: 100%;
+        max-width: none;
+        min-height: auto;
+        margin: 0;
+        padding: 0;
+        border: none;
+        box-shadow: none;
+      }
+      a[href] { color: inherit; text-decoration: none; }
+    }
+
+    .sheet-run-header {
+      border-bottom: 3px solid var(--brand);
+      padding-bottom: .35rem;
+      margin-bottom: .75rem;
+    }
+    .sheet-run-header h1 {
+      margin: 0 0 .2rem;
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--brand);
+      letter-spacing: -0.02em;
+    }
+    .sheet-run-header .sub {
+      font-size: .8rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .riporto-box {
+      padding: .5rem .55rem;
+      margin: 0 0 .65rem;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      font-size: .86rem;
+      page-break-inside: avoid;
+      border-radius: 4px;
+    }
+
+    .tot-bar {
+      font-size: .84rem;
+      margin: 0 0 .85rem;
+      padding: .4rem .5rem;
+      background: #f1f5f9;
+      border-left: 4px solid var(--brand);
+    }
+
+    .anno-wrap { margin: 1rem 0 .5rem; page-break-inside: avoid; }
+    .anno-title {
+      font-weight: 800;
+      font-size: .92rem;
+      color: var(--brand);
+      margin-bottom: .35rem;
+    }
+    .anno-riep {
+      font-size: .8rem;
+      margin-bottom: .45rem;
+      padding: .35rem .45rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-left: 3px solid var(--brand);
+    }
+    .anno-riep .lbl { color: var(--muted); }
+
+    table.print-main {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .84rem;
+      margin-bottom: 1rem;
+    }
+    table.print-main th, table.print-main td {
+      border: 1.5px solid var(--line);
+      padding: .38rem .45rem;
+      vertical-align: top;
+    }
+    table.print-main thead th {
+      background: var(--head-bg) !important;
+      font-weight: 700;
+      color: var(--brand);
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+    table.print-main tbody tr:nth-child(even) { background: var(--row-alt) !important; }
+    table.print-main tbody tr:nth-child(odd) { background: #fff !important; }
+    table.print-main .text-end { text-align: right; }
+    .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; }
+    .text-danger { color: var(--danger) !important; font-weight: 700; }
+    .text-success { color: var(--success) !important; font-weight: 700; }
+    .badge {
+      display: inline-block;
+      padding: .06rem .32rem;
+      border-radius: 3px;
+      background: #64748b;
+      color: #fff;
+      font-size: .68rem;
+      font-weight: 600;
+    }
+    .mese-blocco { page-break-inside: avoid; }
+
+    .sheet-run-footer {
+      margin-top: 1.25rem;
+      padding-top: .45rem;
+      border-top: 1.5px solid var(--line);
+      font-size: .78rem;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: .35rem;
+    }
+
+    @media print {
+      .sheet-run-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        padding: 3mm 11mm 2mm;
+        margin: 0;
+        background: #fff;
+        z-index: 50;
+        border-bottom: 2pt solid var(--brand);
+      }
+      .sheet-run-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin: 0;
+        padding: 2mm 11mm 3mm;
+        background: #fff;
+        border-top: 1pt solid #64748b;
+        z-index: 50;
+        font-size: 8pt;
+      }
+      .print-sheet-inner {
+        padding-top: 22mm;
+        padding-bottom: 14mm;
+      }
+    }
+    @media screen {
+      .sheet-run-header { position: relative; }
+      .sheet-run-footer { position: relative; margin-top: 2rem; }
+      .print-sheet-inner { padding-top: 0; padding-bottom: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print toolbar">
+    <button type="button" onclick="window.print()">Stampa / Salva PDF</button>
+    <a href="{% url 'partitario_netti_situazione' %}">Torna al partitario netti</a>
+    <span class="small text-muted ms-auto">L'anteprima riproduce margini e intestazioni come in stampa.</span>
+  </div>
+
+  {% for p in pannelli_estratto %}
+  <div class="print-sheet">
+    <div class="print-sheet-inner">
+      <header class="sheet-run-header">
+        <h1>Estratto conto</h1>
+        <div class="sub">
+          <div><strong>{{ azienda.nome }}</strong></div>
+          <div>Dipendente: <strong>{{ p.dipendente.cognome }} {{ p.dipendente.nome }}</strong></div>
+          <div>Competenza: <strong>{{ periodo_etichetta }}</strong></div>
+        </div>
+      </header>
+
+      <div class="riporto-box">
+        <strong>Riporto</strong> inizio periodo (DARE pagamenti − AVERE buste, prima della prima competenza nel periodo):
+        <span class="font-mono {% if p.riporto_inizio_periodo < 0 %}text-danger{% elif p.riporto_inizio_periodo > 0 %}text-success{% endif %}">{% localize off %}{{ p.riporto_inizio_periodo|floatformat:2 }}{% endlocalize %} €</span>
+      </div>
+
+      <div class="tot-bar">
+        <strong>Totali nel periodo</strong> —
+        DARE (pagamenti) <span class="font-mono">{% localize off %}{{ p.tot_dare|floatformat:2 }}{% endlocalize %} €</span> ·
+        AVERE (da riconoscere) <span class="font-mono">{% localize off %}{{ p.tot_avere|floatformat:2 }}{% endlocalize %} €</span> ·
+        Saldo <span class="font-mono {% if p.saldo < 0 %}text-danger{% elif p.saldo > 0 %}text-success{% endif %}">{% localize off %}{{ p.saldo|floatformat:2 }}{% endlocalize %} €</span>
+      </div>
+
+      {% for a in p.anni %}
+      <div class="anno-wrap">
+        <div class="anno-title">Anno {% localize off %}{{ a.anno|stringformat:"d" }}{% endlocalize %}</div>
+        <div class="anno-riep">
+          <div style="margin-bottom:.2rem"><span class="lbl">Nel periodo filtrato — DARE</span> {% localize off %}{{ a.tot_dare|floatformat:2 }}{% endlocalize %} € · <span class="lbl">AVERE</span> {% localize off %}{{ a.tot_avere|floatformat:2 }}{% endlocalize %} € · <span class="lbl">Saldo</span> <span class="font-mono {% if a.saldo < 0 %}text-danger{% elif a.saldo > 0 %}text-success{% endif %}">{% localize off %}{{ a.saldo|floatformat:2 }}{% endlocalize %} €</span></div>
+          <div><span class="lbl">Riporto da anno precedente (inizio {{ a.anno }}):</span> <span class="font-mono {% if a.riporto_inizio_anno < 0 %}text-danger{% elif a.riporto_inizio_anno > 0 %}text-success{% endif %}">{% localize off %}{{ a.riporto_inizio_anno|floatformat:2 }}{% endlocalize %} €</span></div>
+          <div><span class="lbl">Saldo progressivo fine anno {{ a.anno }}:</span> <span class="font-mono {% if a.saldo_progressivo_fine_anno < 0 %}text-danger{% elif a.saldo_progressivo_fine_anno > 0 %}text-success{% endif %}">{% localize off %}{{ a.saldo_progressivo_fine_anno|floatformat:2 }}{% endlocalize %} €</span></div>
+        </div>
+
+        <table class="print-main">
+          <thead>
+            <tr>
+              <th>Periodo</th>
+              <th class="text-end">DARE (pag.)</th>
+              <th class="text-end">AVERE (buste)</th>
+              <th class="text-end">Saldo mese</th>
+              <th class="text-end">Saldo prog.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for mx in a.mesi %}
+            <tr class="mese-blocco">
+              <td class="fw-medium">{{ mx.mese_nome }} {% localize off %}{{ a.anno|stringformat:"d" }}{% endlocalize %}</td>
+              <td class="text-end" style="font-size:.8rem">
+                {% for pg in mx.pagamenti %}
+                <div style="margin-bottom:.28rem">
+                  {% if pg.documento_ricevuta_id %}
+                  <a href="{% url 'download_documento' pg.documento_ricevuta_id %}" class="font-mono">{% localize off %}{{ pg.importo|floatformat:2 }}{% endlocalize %} € · PDF</a>
+                  {% else %}<span class="font-mono">{% localize off %}{{ pg.importo|floatformat:2 }}{% endlocalize %} €</span>{% endif %}
+                  <div style="font-size:.7rem;color:#64748b;font-weight:500">{{ pg.data_contabile|date:"d/m/Y" }} · {{ pg.get_metodo_pagamento_display }}</div>
+                </div>
+                {% empty %}<span style="color:#94a3b8">—</span>{% endfor %}
+              </td>
+              <td class="text-end" style="font-size:.8rem">
+                {% for b in mx.buste %}
+                <div style="margin-bottom:.28rem">
+                  {% if b.documento_busta_id %}
+                  <a href="{% url 'download_documento' b.documento_busta_id %}" class="font-mono">{% localize off %}{{ b.importo|floatformat:2 }}{% endlocalize %} € · PDF</a>
+                  {% elif b.cedolino_motore_v4 and b.cedolino_motore_v4.documento_id %}
+                  <a href="{% url 'download_documento' b.cedolino_motore_v4.documento_id %}" class="font-mono">{% localize off %}{{ b.importo|floatformat:2 }}{% endlocalize %} € · PDF</a>
+                  {% else %}<span class="font-mono">{% localize off %}{{ b.importo|floatformat:2 }}{% endlocalize %} €</span>{% endif %}
+                  <div style="font-size:.7rem;color:#64748b"><span class="badge">{{ b.natura_busta }}</span></div>
+                </div>
+                {% empty %}<span style="color:#94a3b8">—</span>{% endfor %}
+              </td>
+              <td class="text-end font-mono {% if mx.saldo < 0 %}text-danger{% elif mx.saldo > 0 %}text-success{% endif %}">{% localize off %}{{ mx.saldo|floatformat:2 }}{% endlocalize %}</td>
+              <td class="text-end font-mono {% if mx.saldo_progressivo_fine is not None %}{% if mx.saldo_progressivo_fine < 0 %}text-danger{% elif mx.saldo_progressivo_fine > 0 %}text-success{% endif %}{% endif %}">
+                {% if mx.saldo_progressivo_fine is not None %}{% localize off %}{{ mx.saldo_progressivo_fine|floatformat:2 }}{% endlocalize %}{% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% empty %}
+      <p class="meta" style="color:var(--muted)">Nessun movimento nel periodo selezionato.</p>
+      {% endfor %}
+
+      <footer class="sheet-run-footer">
+        <span>Elaborato il {{ ora_stampa|date:"d/m/Y H:i" }}</span>
+        <span>Estratto conto netti · {{ p.dipendente.cognome }} {{ p.dipendente.nome }} · {{ periodo_etichetta }}</span>
+        <span>Pagine: indicazione nel dialogo Stampa / PDF del browser</span>
+      </footer>
+    </div>
+  </div>
+  {% endfor %}
+</body>
+</html>

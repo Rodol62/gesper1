@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Storico Generale{% endblock %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="mb-4">Storico Generale</h2>
+  <table class="table table-bordered table-striped">
+    <thead class="table-primary">
+      <tr>
+        <th>ID</th>
+        <th>Dipendente</th>
+        <th>Tipo</th>
+        <th>Data e ora</th>
+        <th>Descrizione / riferimenti</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in storici %}
+      <tr>
+        <td>{{ s.id }}</td>
+        <td>{{ s.dipendente }}</td>
+        <td>{{ s.get_tipo_display }}</td>
+        <td>{{ s.data_evento|date:'d/m/Y H:i' }}</td>
+        <td>{{ s.descrizione }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="text-center">Nessun evento storico presente</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,109 @@
+{
+  "pdf": "/private/var/folders/nw/sr7j6wzn5vddsg2xt35mfvgh0000gn/T/tmpg_r3smtg.pdf",
+  "source_name": "14 QUATTORDICESIMA LUGLIO 2024.pdf",
+  "natura_busta_file": "QUATTORDICESIMA",
+  "azienda": {
+    "id": 1,
+    "nome": "Punto Zero SRLS"
+  },
+  "f24_pages": [],
+  "summary": {
+    "pages_total": 13,
+    "buste_pages": 12,
+    "f24_pages": 0,
+    "f24_importo_stimato": null,
+    "buste_uniche": 6,
+    "buste_duplicate_pages": [
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "matched": 6,
+    "to_create": 0,
+    "ambiguous": 0,
+    "already_present": 6
+  },
+  "rows": [
+    {
+      "page": 1,
+      "periodo": "07/2024",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massmo",
+      "birth_date": "10/03/74",
+      "lordo_busta": null,
+      "netto_busta": null,
+      "natura_busta": "QUATTORDICESIMA",
+      "action": "already_present",
+      "dipendente_id": 18,
+      "dipendente_nome": "Cardella Massimo"
+    },
+    {
+      "page": 2,
+      "periodo": "07/2024",
+      "cf": "GMSJSC92A42Z307O",
+      "full_name": "Ferrera Jesscane",
+      "birth_date": "02/01/92",
+      "lordo_busta": null,
+      "netto_busta": null,
+      "natura_busta": "QUATTORDICESIMA",
+      "action": "already_present",
+      "dipendente_id": 19,
+      "dipendente_nome": "Gomes Ferreira Jessica Aline"
+    },
+    {
+      "page": 3,
+      "periodo": "07/2024",
+      "cf": "BBSSWR98A47Z352H",
+      "full_name": "Abbass War",
+      "birth_date": "07/01/98",
+      "lordo_busta": null,
+      "netto_busta": null,
+      "natura_busta": "QUATTORDICESIMA",
+      "action": "already_present",
+      "dipendente_id": 21,
+      "dipendente_nome": "Abbass War"
+    },
+    {
+      "page": 4,
+      "periodo": "07/2024",
+      "cf": "PCHRCC85H07G273Z",
+      "full_name": "Poch Rocco",
+      "birth_date": "07/06/85",
+      "lordo_busta": null,
+      "netto_busta": null,
+      "natura_busta": "QUATTORDICESIMA",
+      "action": "already_present",
+      "dipendente_id": 22,
+      "dipendente_nome": "Pochì Rocco"
+    },
+    {
+      "page": 5,
+      "periodo": "07/2024",
+      "cf": "MDNSRN02M60G273D",
+      "full_name": "Md Nam Sabrna",
+      "birth_date": "20/08/02",
+      "lordo_busta": null,
+      "netto_busta": null,
+      "natura_busta": "QUATTORDICESIMA",
+      "action": "already_present",
+      "dipendente_id": 23,
+      "dipendente_nome": "Md Nam Sabrna"
+    },
+    {
+      "page": 6,
+      "periodo": "07/2024",
+      "cf": "LVNMRA86L15G273D",
+      "full_name": "La Ven Mar",
+      "birth_date": "15/07/86",
+      "lordo_busta": null,
+      "netto_busta": null,
+      "natura_busta": "QUATTORDICESIMA",
+      "action": "already_present",
+      "dipendente_id": 25,
+      "dipendente_nome": "La Venia Mario"
+    }
+  ]
+}

@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% load format_it_tags pagination_tags %}
+{% block title %}Presenze dipendenti — GESPER{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <div class="mb-1"><strong>Vista elenco (compatibilità).</strong> La vista predefinita è la <strong>griglia mensile</strong> con tutti i dipendenti. Da qui puoi aprire il <strong>calendario orari</strong> per singolo dipendente. Export e chiusura verso cedolino restano nel menu Presenze.</div>
+    <div class="mb-0 text-muted" style="font-size:.9em;">
+      <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:'d' }}{% if q_filter %}&amp;q={{ q_filter|urlencode }}{% endif %}">Torna alla griglia mese</a>
+      · <a href="{% url 'guida_modulo' 'presenze-turni' %}">Guida: presenze e calendario</a>
+      · <a href="{% url 'riepilogo_mensile_motore' %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:'d' }}">Riepilogo motore</a>
+    </div>
+  </div>
+
+  {# ── Header + navigazione mese ───────────────────────────────── #}
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:8px;
+              padding:.7rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;
+              justify-content:space-between;flex-wrap:wrap;gap:.6rem">
+    <div>
+      <div style="font-size:.7rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em">Gestione presenze</div>
+      <h5 style="margin:0;font-size:.97rem;font-weight:800">
+        <i class="bi bi-calendar2-check-fill"></i> {{ azienda.nome }}
+      </h5>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <a href="?anno={{ anno_prev|anno_it }}&mese={{ mese_prev|stringformat:"d" }}{% if q_filter %}&amp;q={{ q_filter|urlencode }}{% endif %}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;font-size:.78rem">
+        <i class="bi bi-chevron-left"></i>
+      </a>
+      <span style="font-weight:700;font-size:.9rem;min-width:130px;text-align:center">
+        {{ mese_nome }} {{ anno|anno_it }}
+      </span>
+      <a href="?anno={{ anno_next|anno_it }}&mese={{ mese_next|stringformat:"d" }}{% if q_filter %}&amp;q={{ q_filter|urlencode }}{% endif %}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;font-size:.78rem">
+        <i class="bi bi-chevron-right"></i>
+      </a>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:"d" }}{% if q_filter %}&amp;q={{ q_filter|urlencode }}{% endif %}"
+         class="btn btn-sm" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.3);font-size:.78rem">
+        <i class="bi bi-table"></i> Riepilogo mese
+      </a>
+      <a href="{% url 'export_presenze_excel' %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:"d" }}"
+         class="btn btn-sm" style="background:#1a7a42;color:#fff;font-size:.78rem">
+        <i class="bi bi-file-earmark-excel-fill"></i> Esporta Excel
+      </a>
+      <a href="{% url 'export_presenze_excel' %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:"d" }}&formato=csv"
+         class="btn btn-sm" style="background:#0b7285;color:#fff;font-size:.78rem">
+        <i class="bi bi-filetype-csv"></i> Esporta CSV
+      </a>
+    </div>
+  </div>
+
+  {# ── Ricerca rapida ─────────────────────────────────────────── #}
+  <div class="card mb-3 border-0 shadow-sm">
+    <div class="card-body py-2">
+      <form method="get" class="row g-2 align-items-end">
+        <input type="hidden" name="anno" value="{{ anno|anno_it }}">
+        <input type="hidden" name="mese" value="{{ mese|stringformat:'d' }}">
+        <div class="col-auto flex-grow-1" style="min-width:200px">
+          <label class="form-label mb-1 small fw-semibold text-muted">Cerca dipendente</label>
+          <input type="text" name="q" class="form-control form-control-sm" placeholder="Cognome, nome, CF o matricola…"
+                 value="{{ q_filter|default:'' }}">
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-search"></i> Cerca</button>
+          {% if q_filter %}
+          <a href="?anno={{ anno|anno_it }}&amp;mese={{ mese|stringformat:'d' }}" class="btn btn-sm btn-outline-secondary">Pulisci</a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# ── Tabella dipendenti ──────────────────────────────────────── #}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      {% if page_obj.paginator.count %}
+      {% gesper_pagination page_obj "Paginazione elenco presenze dipendenti" %}
+      <div class="gesper-list-scroll">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" style="font-size:.83rem">
+          <thead style="background:#f4f7fa">
+            <tr>
+              <th style="font-size:.72rem;color:#666;font-weight:700;padding:.6rem .9rem">Dipendente</th>
+              <th style="font-size:.72rem;color:#666;font-weight:700">Registrate</th>
+              <th style="font-size:.72rem;color:#666;font-weight:700">Distribuzione</th>
+              <th style="font-size:.72rem;color:#666;font-weight:700">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for info in dip_info %}
+            <tr>
+              <td style="padding:.6rem .9rem">
+                <div style="font-weight:700;color:#1b3a5f">
+                  {{ info.dip.cognome }} {{ info.dip.nome }}
+                </div>
+                <div style="font-size:.72rem;color:#888">
+                  {{ info.dip.ruolo }}{% if info.dip.livello %} · Liv. {{ info.dip.livello }}{% endif %}
+                </div>
+                <div style="font-size:.68rem;color:#6c757d">
+                  {% if info.periodo_start and info.periodo_end %}
+                    Valido nel mese: {{ info.periodo_start|date:"d/m/Y" }} - {{ info.periodo_end|date:"d/m/Y" }}
+                  {% else %}
+                    Fuori validità contrattuale nel mese selezionato
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <div style="font-weight:700;font-size:.88rem;color:{% if info.mancanti > 0 %}#b85a00{% else %}#0a6640{% endif %}">
+                  {{ info.registrate }}/{{ info.giorni_lavorativi }}
+                </div>
+                {% if info.fuori_periodo_mese %}
+                <div style="font-size:.7rem;color:#6c757d">N/A (fuori contratto)</div>
+                {% elif info.mancanti > 0 %}
+                <div style="font-size:.7rem;color:#b85a00">
+                  {{ info.mancanti }} da registrare
+                </div>
+                {% else %}
+                <div style="font-size:.7rem;color:#0a6640">Completo</div>
+                {% endif %}
+              </td>
+              <td style="min-width:180px">
+                {# Mini bar causali #}
+                {% if info.conteggi %}
+                <div style="display:flex;gap:2px;flex-wrap:wrap">
+                  {% for cau, label in causale_choices %}
+                    {% if info.conteggi|dictsort:cau %}
+                      {# questo approccio non funziona direttamente — usiamo solo il dict direttamente #}
+                    {% endif %}
+                  {% endfor %}
+                  {% for cau, cnt in info.conteggi.items %}
+                  <span style="background:
+                    {% if cau == 'P' %}#0a6640
+                    {% elif cau == 'F' %}#1b3a8f
+                    {% elif cau == 'PE' %}#b85a00
+                    {% elif cau == 'M' %}#c0392b
+                    {% elif cau == 'ST' %}#1a4a20
+                    {% elif cau == 'R' %}#888
+                    {% else %}#555{% endif %};
+                    color:#fff;font-size:.62rem;padding:1px 5px;border-radius:10px;font-weight:700">
+                    {{ cau }}:{{ cnt }}
+                  </span>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <span style="color:#aaa;font-size:.75rem">Nessuna registrazione</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{% url 'calendario_presenze' info.dip.id %}?anno={{ anno|anno_it }}&mese={{ mese|stringformat:"d" }}"
+                   class="btn btn-sm" style="background:#1b3a5f;color:#fff;font-size:.75rem">
+                  <i class="bi bi-calendar3"></i> Calendario
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      </div>
+      {% gesper_pagination page_obj "Paginazione elenco presenze dipendenti" %}
+      <div class="text-muted small px-3 py-2 border-top">
+        {{ page_obj.paginator.count }} dipendente/i{% if q_filter %} (filtro ricerca){% endif %}
+        {% if page_obj.paginator.num_pages > 1 %} — pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}{% endif %}.
+      </div>
+      {% else %}
+      <div class="text-muted p-4 text-center" style="font-size:.85rem">
+        <i class="bi bi-people" style="font-size:2rem;opacity:.4"></i>
+        <div class="mt-2">
+          {% if q_filter %}
+            Nessun dipendente corrisponde a «{{ q_filter }}».
+            <a href="?anno={{ anno|anno_it }}&amp;mese={{ mese|stringformat:'d' }}">Rimuovi ricerca</a>
+          {% else %}
+            Nessun dipendente attivo trovato per questa azienda.
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Legenda causali ─────────────────────────────────────────── #}
+  <div class="mt-3 p-3" style="background:#f4f7fa;border-radius:7px;border:1px solid #dde4ec">
+    <div style="font-size:.72rem;font-weight:700;color:#666;margin-bottom:.4rem;text-transform:uppercase">
+      Causali
+    </div>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+      {% for cau, label in causale_choices %}
+      <span style="font-size:.72rem;background:#e8edf2;border-radius:4px;padding:2px 7px">
+        <strong>{{ cau }}</strong> = {{ label }}
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

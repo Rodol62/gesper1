@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% load ruoli_tags guida_tags %}
+{% load l10n format_it_tags %}
+{% block title %}Contratti dipendenti — {{ azienda.nome }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.cons-dash {
+  --cd-admin-bg: #205067;
+  --cd-admin-border: #417690;
+  --cd-admin-link: #79aec8;
+  --cd-admin-muted: #c4dce8;
+  --cd-primary: #205067;
+  --cd-accent: #417690;
+  --cd-muted: #4b5563;
+  --cd-border: #c7d7e4;
+  --cd-surface: #e8eef3;
+  --cd-success: #0a6640;
+  --cd-warning: #9a7b0a;
+  --cd-danger: #a8232d;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2rem;
+}
+.cons-dash-hero {
+  background: linear-gradient(135deg, var(--cd-admin-bg) 0%, #2a5f7c 52%, var(--cd-admin-border) 100%);
+  color: #fff;
+  border-radius: 12px;
+  padding: 1.35rem 1.4rem 1.15rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--cd-admin-border);
+  box-shadow: 0 8px 26px rgba(32, 80, 103, 0.22);
+}
+.cons-dash-hero h1 { font-size: 1.38rem; font-weight: 700; margin: 0 0 .4rem; letter-spacing: -.02em; }
+.cons-dash-hero .sub { color: var(--cd-admin-muted); font-size: .9rem; font-weight: 500; }
+.cons-dash-panel { border-radius: 10px; border: 1px solid var(--cd-border); overflow: hidden; background: #fff; box-shadow: 0 2px 10px rgba(27,58,95,.06); }
+.cons-dash-panel .ph { padding: .65rem 1rem; background: var(--cd-surface); border-bottom: 1px solid var(--cd-border); font-size: .82rem; font-weight: 700; color: var(--cd-primary); display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+.cons-dash-panel .table { font-size: .82rem; margin-bottom: 0; }
+.cons-dash-panel .table thead th { background: var(--cd-surface); color: var(--cd-primary); font-weight: 700; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; border-color: var(--cd-border); white-space: nowrap; }
+.cons-dash-toolbar {
+  border: 1px solid var(--cd-border);
+  border-radius: 10px;
+  background: #fafcfd;
+  padding: .55rem .85rem;
+  font-size: .84rem;
+  color: #374151;
+}
+.cons-dash-toolbar a { color: #205067; font-weight: 600; text-decoration: none; }
+.cons-dash-toolbar a:hover { text-decoration: underline; color: var(--cd-admin-border); }
+.cons-dash-toolbar .sep { color: #94a3b8; margin: 0 .35rem; }
+.cons-dash-panel .table td { border-color: #e8edf3; vertical-align: middle; }
+.cons-dash-badge { font-size: .68rem; font-weight: 600; padding: .2rem .45rem; border-radius: 4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cons-dash">
+  <div class="cons-dash-hero">
+    <h1><i class="bi bi-journal-text me-2"></i>Contratti dipendenti{% guida_link "modulo-consulente" %}</h1>
+    <div class="sub">{{ azienda.nome }} · {{ mese_corrente }} {{ anno_corrente|anno_it }} · tutti i rapporti (bozza digitale, sottoscritti anche con conferma cartacea)</div>
+  </div>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert" style="font-size:.88rem">
+        {{ msg }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="cons-dash-toolbar mb-3" role="navigation">
+    <a href="{% url 'centro_moduli' %}">← Portale</a>
+    <span class="sep">|</span>
+    <a href="{% url 'lista_contratti_scadenza' %}">Scadenze contratti a termine</a>
+    <span class="sep">|</span>
+    <a href="{% url 'centro_moduli' %}#cons-addenda">Addendum recenti</a>
+  </div>
+
+  <p class="small text-muted mb-2" style="max-width:52rem">
+    In questa colonna si privilegiano la <strong>scansione del contratto firmato cartaceo</strong>, il <strong>PDF caricato in archivio</strong>,
+    la <strong>proposta di assunzione</strong> (PDF dell’atto, anche dopo firma digitale del candidato) e la <strong>copia digitale archiviata</strong> in documenti.
+    Il link «Solo anteprima generata» è il testo ricostruito dal sistema (non sostituisce un file firmato o scannerizzato).
+  </p>
+
+  <form method="get" class="row g-2 align-items-end mb-3" role="search">
+    <div class="col-md-8 col-lg-6">
+      <label for="id-q" class="form-label small text-muted mb-0">Cerca per numero contratto, dipendente o posizione</label>
+      <input type="search" name="q" id="id-q" class="form-control form-control-sm" value="{{ q }}" maxlength="120" placeholder="Es. cognome, numero contratto…">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-sm btn-primary">Cerca</button>
+      {% if q %}<a href="{% url 'consulente_contratti' %}" class="btn btn-sm btn-outline-secondary ms-1">Azzera</a>{% endif %}
+    </div>
+  </form>
+
+  <div class="cons-dash-panel mb-3">
+    <div class="ph">
+      <span><i class="bi bi-file-earmark-ruled me-1"></i> Elenco rapporti di lavoro</span>
+      <span class="text-muted small">{{ page_obj.paginator.count }} totali</span>
+    </div>
+    {% if page_obj.object_list %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th>Contratto</th>
+            <th>Dipendente</th>
+            <th>Stato</th>
+            <th style="min-width:11rem">Documenti</th>
+            <th class="text-end">Aggiornato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in page_obj %}
+          <tr>
+            <td>
+              <a href="{% url 'dettaglio_contratto' c.id %}" class="fw-semibold text-decoration-none" style="color:var(--cd-accent)">{{ c.numero_contratto }}</a>
+              <div class="text-muted" style="font-size:.72rem">{{ c.posizione|truncatechars:42 }}</div>
+            </td>
+            <td>
+              {% if c.dipendente %}
+                <a href="{% url 'dettaglio_dipendente' c.dipendente.pk %}" class="text-decoration-none">{{ c.dipendente.cognome }} {{ c.dipendente.nome }}</a>
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td>
+              {% if c.stato == 'proposta' %}
+                <span class="cons-dash-badge" style="background:#f3f0fa;color:#5a3e9b">{{ c.get_stato_display }}</span>
+              {% elif c.stato == 'sottoscritto' %}
+                <span class="cons-dash-badge" style="background:#e8f5e9;color:var(--cd-success)">{{ c.get_stato_display }}</span>
+              {% elif c.stato == 'sospeso' %}
+                <span class="cons-dash-badge" style="background:#fff8e6;color:var(--cd-warning)">{{ c.get_stato_display }}</span>
+              {% elif c.stato == 'cessato' %}
+                <span class="cons-dash-badge" style="background:#fdeaea;color:var(--cd-danger)">{{ c.get_stato_display }}</span>
+              {% else %}
+                <span class="cons-dash-badge" style="background:#eef3f9;color:var(--cd-primary)">{{ c.get_stato_display }}</span>
+              {% endif %}
+            </td>
+            <td style="font-size:.72rem;max-width:15rem;vertical-align:middle">
+              {% with m=c.pdf_meta %}
+              {% if m.id_doc_cartaceo %}
+              <div class="mb-1">
+                <a href="{% url 'visualizza_documento' m.id_doc_cartaceo %}?ui=1&amp;next={{ request.get_full_path|urlencode }}" class="text-decoration-none"><i class="bi bi-file-earmark-pdf text-danger"></i> Scansione firmata</a>
+                <span class="text-muted">·</span>
+                <a href="{% url 'download_documento' m.id_doc_cartaceo %}" class="text-decoration-none text-muted" title="Scarica">↓</a>
+              </div>
+              {% endif %}
+              {% if m.ha_file_su_rapporto %}
+              <div class="mb-1">
+                <a href="{% url 'contratto_pdf' c.id %}?ui=1&amp;next={{ request.get_full_path|urlencode }}" class="text-decoration-none"><i class="bi bi-file-earmark-pdf text-danger"></i> PDF archiviato</a>
+                <span class="text-muted">·</span>
+                <a href="{% url 'contratto_pdf' c.id %}?download=1" class="text-decoration-none text-muted" title="Scarica">↓</a>
+              </div>
+              {% endif %}
+              {% if m.proposta_id %}
+              <div class="mb-1">
+                <a href="{% url 'consulente_proposta_pdf' m.proposta_id %}?ui=1&amp;next={{ request.get_full_path|urlencode }}" class="text-decoration-none"><i class="bi bi-file-earmark-pdf text-danger"></i> {% if m.proposta_firmata %}Proposta firmata{% else %}Proposta (PDF){% endif %}</a>
+              </div>
+              {% endif %}
+              {% if m.id_doc_definitivo and not m.ha_file_su_rapporto %}
+              <div class="mb-1">
+                <a href="{% url 'visualizza_documento' m.id_doc_definitivo %}?ui=1&amp;next={{ request.get_full_path|urlencode }}" class="text-decoration-none"><i class="bi bi-file-earmark-pdf text-danger"></i> Copia digitale archivio</a>
+                <span class="text-muted">·</span>
+                <a href="{% url 'download_documento' m.id_doc_definitivo %}" class="text-decoration-none text-muted" title="Scarica">↓</a>
+              </div>
+              {% endif %}
+              {% if not m.id_doc_cartaceo and not m.ha_file_su_rapporto and not m.id_doc_definitivo and not m.proposta_id %}
+              <div class="text-muted mb-1">Nessun file in archivio né proposta collegata.</div>
+              <div>
+                <a href="{% url 'contratto_pdf' c.id %}?ui=1&amp;next={{ request.get_full_path|urlencode }}" class="text-decoration-none text-muted"><i class="bi bi-file-earmark-text"></i> Anteprima PDF generata</a>
+                <span class="text-muted">·</span>
+                <a href="{% url 'contratto_pdf' c.id %}?download=1" class="text-decoration-none text-muted" title="Scarica anteprima">↓</a>
+              </div>
+              {% endif %}
+              {% endwith %}
+            </td>
+            <td class="text-end text-muted" style="font-size:.76rem;white-space:nowrap">{{ c.data_modifica|date:"d/m/Y H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="p-4 text-center text-muted small">Nessun contratto trovato{% if q %} per la ricerca indicata{% endif %}.</div>
+    {% endif %}
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <nav aria-label="Paginazione contratti">
+    <ul class="pagination pagination-sm justify-content-center flex-wrap">
+      {% if page_obj.has_previous %}
+      <li class="page-item"><a class="page-link" href="?{% if q %}q={{ q|urlencode }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Precedente</a></li>
+      {% endif %}
+      <li class="page-item disabled"><span class="page-link">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span></li>
+      {% if page_obj.has_next %}
+      <li class="page-item"><a class="page-link" href="?{% if q %}q={{ q|urlencode }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Successiva</a></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

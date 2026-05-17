@@ -1,0 +1,415 @@
+{% extends 'base.html' %}
+{% block title %}Modifica profilo — {{ candidato.first_name }} {{ candidato.last_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3" style="max-width:860px">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:6px;
+              padding:.6rem 1rem;margin-bottom:.8rem;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <h5 style="margin:0;font-size:.92rem;font-weight:800">
+        <i class="bi bi-pencil-square"></i>
+        Modifica profilo — {{ candidato.first_name }} {{ candidato.last_name }}
+        <span style="font-size:.72rem;opacity:.8;font-weight:400;margin-left:8px">{{ candidato.email }}</span>
+      </h5>
+      <div style="font-size:.7rem;opacity:.85;margin-top:2px">
+        Correzione dati effettuata da operatore HR/Admin
+      </div>
+    </div>
+    <a href="{% url 'candidato_admin_dettaglio' candidato.id %}" class="btn btn-sm btn-outline-light" style="font-size:.7rem">
+      ← Torna al candidato
+    </a>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" autocomplete="off">
+    {% csrf_token %}
+    <div class="alert alert-secondary py-2 small mb-3">
+      <strong>Fonte territori:</strong> ISTAT ufficiale (Italia + stati esteri).
+    </div>
+
+    <!-- DATI ANAGRAFICI -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-person-vcard"></i> Dati anagrafici
+      </div>
+      <div class="card-body pb-2">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">Codice Fiscale</label>
+            <div class="form-text text-muted small mb-1" style="font-size:.7rem;line-height:1.35">
+              <i class="bi bi-info-circle"></i>
+              Con un CF valido a <strong>16 caratteri</strong>, uscendo dal campo si propongono data di nascita,
+              sesso e luogo di nascita (controllo formale MEF). Controlla sempre i dati prima di salvare.
+            </div>
+            {{ form.codice_fiscale }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Data di nascita</label>
+            {{ form.data_nascita }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Nazionalità</label>
+            {{ form.nazionalita }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Regione nascita</label>
+            {{ form.regione_nascita }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Provincia nascita</label>
+            {{ form.provincia_nascita }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Comune nascita</label>
+            {{ form.comune_nascita }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Citta estera nascita</label>
+            {{ form.comune_nascita_estero }}
+            {{ form.luogo_nascita.as_hidden }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">Sesso</label>
+            {{ form.sesso }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">Telefono</label>
+            {{ form.telefono }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Regione residenza</label>
+            {{ form.regione_residenza }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">Prov.</label>
+            {{ form.provincia }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Città</label>
+            {{ form.citta }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">CAP</label>
+            {{ form.cap }}
+          </div>
+          <div class="col-md-12">
+            <label class="form-label form-label-sm">Indirizzo</label>
+            {{ form.indirizzo }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">Città estera</label>
+            {{ form.citta_residenza_estero }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOCUMENTO DI IDENTITÀ -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-credit-card-2-front"></i> Documento di identità
+      </div>
+      <div class="card-body pb-2">
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Tipo</label>
+            {{ form.tipo_documento }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Numero</label>
+            {{ form.numero_documento }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Data emissione</label>
+            {{ form.data_emissione_documento }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Scadenza</label>
+            {{ form.scadenza_documento }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label form-label-sm">Copia documento identità</label>
+            {% if profilo.file_documento %}
+              <div style="font-size:.75rem;margin-bottom:4px">
+                <i class="bi bi-file-earmark-check text-success"></i>
+                File presente: <a href="{{ profilo.file_documento.url }}" target="_blank">visualizza</a>
+              </div>
+            {% endif %}
+            {{ form.file_documento }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label form-label-sm">Copia tessera sanitaria / CF</label>
+            {% if profilo.file_codice_fiscale %}
+              <div style="font-size:.75rem;margin-bottom:4px">
+                <i class="bi bi-file-earmark-check text-success"></i>
+                File presente: <a href="{{ profilo.file_codice_fiscale.url }}" target="_blank">visualizza</a>
+              </div>
+            {% endif %}
+            {{ form.file_codice_fiscale }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DATI BANCARI E FAMILIARI -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-bank"></i> Dati bancari e familiari
+      </div>
+      <div class="card-body pb-2">
+        <div class="row g-2">
+          <div class="col-md-5">
+            <label class="form-label form-label-sm">IBAN</label>
+            {{ form.iban }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">N. familiari a carico</label>
+            {{ form.num_familiari_a_carico }}
+          </div>
+          <div class="col-md-5">
+            <label class="form-label form-label-sm">Dettaglio familiari</label>
+            {{ form.dettaglio_familiari }}
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              {{ form.dichiarazione_no_condanne }}
+              <label class="form-check-label" style="font-size:.8rem">
+                Dichiarazione assenza condanne penali
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CANDIDATURA -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-briefcase"></i> Candidatura e disponibilità
+      </div>
+      <div class="card-body pb-2">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label form-label-sm">Mansione aspirata</label>
+            {{ form.mansione_aspirata }}
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">Livello CCNL</label>
+            {{ form.livello_aspirato }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Disponibile dal</label>
+            {{ form.data_disponibilita }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Tipo rapporto preferito</label>
+            {{ form.tipo_rapporto_preferito }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Ore settimanali preferite</label>
+            {{ form.ore_settimanali_preferite }}
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Paga giornaliera attesa (€ netti)</label>
+            {{ form.paga_giornaliera_attesa }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label form-label-sm">Competenze</label>
+            {{ form.competenze }}
+          </div>
+          <div class="col-12">
+            <label class="form-label form-label-sm">Note / lettera di presentazione</label>
+            {{ form.note_candidatura }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Errori form -->
+    {% if form.errors %}
+    <div class="alert alert-danger py-2 small mb-3">
+      <strong>Correggere i seguenti errori:</strong>
+      <ul class="mb-0 mt-1">
+        {% for field in form %}{% for err in field.errors %}
+        <li>{{ field.label }}: {{ err }}</li>
+        {% endfor %}{% endfor %}
+        {% for err in form.non_field_errors %}
+        <li>{{ err }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="d-flex gap-2 mb-4">
+      <button type="submit" class="btn btn-success btn-sm">
+        <i class="bi bi-check2-circle"></i> Salva modifiche
+      </button>
+      <a href="{% url 'candidato_admin_dettaglio' candidato.id %}" class="btn btn-outline-secondary btn-sm">
+        Annulla
+      </a>
+    </div>
+  </form>
+
+</div>
+<script>
+(function () {
+  function fillSelect(sel, items, valueKey, labelFn, placeholder) {
+    if (!sel) return;
+    var old = sel.value || '';
+    sel.innerHTML = '';
+    var opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = placeholder || '— Seleziona —';
+    sel.appendChild(opt0);
+    (items || []).forEach(function (it) {
+      var o = document.createElement('option');
+      o.value = it[valueKey] || '';
+      o.textContent = labelFn ? labelFn(it) : (it[valueKey] || '');
+      sel.appendChild(o);
+    });
+    if (old) sel.value = old;
+  }
+  async function getJson(url) {
+    var r = await fetch(url, {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+    if (!r.ok) return {items: []};
+    return await r.json();
+  }
+  function bindGeo(regId, provId, comId, capId) {
+    var reg = document.getElementById(regId);
+    var prov = document.getElementById(provId);
+    var com = document.getElementById(comId);
+    var cap = capId ? document.getElementById(capId) : null;
+    if (!reg || !prov || !com) return;
+    reg.addEventListener('change', async function () {
+      fillSelect(com, [], 'nome', function (x) { return x.nome; }, '— Seleziona provincia —');
+      if (reg.value === 'ESTERO') {
+        fillSelect(prov, [], 'sigla', function (x) { return x.nome; }, '— Non prevista per estero —');
+        fillSelect(com, [], 'nome', function (x) { return x.nome; }, '— Inserisci citta estera —');
+        return;
+      }
+      if (!reg.value) {
+        fillSelect(prov, [], 'sigla', function (x) { return x.nome; }, '— Seleziona regione —');
+        return;
+      }
+      var data = await getJson("{% url 'api_province_italia' %}?regione=" + encodeURIComponent(reg.value));
+      fillSelect(prov, data.items, 'sigla', function (x) { return x.nome + (x.sigla ? " (" + x.sigla + ")" : ""); }, '— Seleziona —');
+    });
+    prov.addEventListener('change', async function () {
+      if (!reg.value || !prov.value) {
+        fillSelect(com, [], 'nome', function (x) { return x.nome; }, '— Seleziona provincia —');
+        return;
+      }
+      var data = await getJson("{% url 'api_comuni_italia' %}?regione=" + encodeURIComponent(reg.value) + "&provincia=" + encodeURIComponent(prov.value));
+      fillSelect(com, data.items, 'nome', function (x) {
+        var n = x.nome || '';
+        var cc = x.codice_catastale || '';
+        return cc ? (n + ' (' + cc + ')') : n;
+      }, '— Seleziona —');
+      com._capMap = {};
+      (data.items || []).forEach(function (it) { com._capMap[it.nome] = it.cap || ''; });
+    });
+    com.addEventListener('change', function () {
+      if (cap && !cap.value && com._capMap && com.value) cap.value = com._capMap[com.value] || '';
+    });
+  }
+  function toggleEstero(regId, inputId, selectIds) {
+    var reg = document.getElementById(regId);
+    var txt = document.getElementById(inputId);
+    if (!reg || !txt) return;
+    function run() {
+      var estero = reg.value === 'ESTERO';
+      var wrap = txt.closest('.col-md-4, .col-md-3, .col-md-2, .mb-3');
+      if (wrap) wrap.style.display = estero ? '' : 'none';
+      txt.disabled = !estero;
+      (selectIds || []).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.disabled = estero;
+      });
+    }
+    reg.addEventListener('change', run);
+    run();
+  }
+  function setCfStatus(kind, text) {
+    var cfEl = document.getElementById('id_codice_fiscale');
+    if (!cfEl) return;
+    var box = document.getElementById('cf-feedback');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'cf-feedback';
+      box.className = 'small mt-1';
+      cfEl.insertAdjacentElement('afterend', box);
+    }
+    box.textContent = text || '';
+    box.style.display = text ? '' : 'none';
+    box.className = 'small mt-1 ' + (kind === 'ok' ? 'text-success' : (kind === 'warn' ? 'text-warning' : 'text-danger'));
+  }
+  async function prefillaAnagraficaDaCodiceFiscale() {
+    var cfEl = document.getElementById('id_codice_fiscale');
+    if (!cfEl) return;
+    var cf = (cfEl.value || '').trim().toUpperCase();
+    if (cf.length !== 16) {
+      setCfStatus('', '');
+      return;
+    }
+    var r = await fetch(
+      "{% url 'api_decodifica_cf' %}?cf=" + encodeURIComponent(cf),
+      {headers: {'X-Requested-With': 'XMLHttpRequest'}, credentials: 'same-origin'}
+    );
+    var data = await r.json();
+    if (!data.ok) {
+      setCfStatus('warn', data.error || 'Codice fiscale non decodificabile automaticamente.');
+      return;
+    }
+    var dn = document.getElementById('id_data_nascita');
+    if (dn && !dn.value && data.data_nascita) dn.value = data.data_nascita;
+    var se = document.getElementById('id_sesso');
+    if (se && !se.value && data.sesso) se.value = data.sesso;
+    var reg = document.getElementById('id_regione_nascita');
+    var prov = document.getElementById('id_provincia_nascita');
+    var com = document.getElementById('id_comune_nascita');
+    var ln = document.querySelector('input[name="luogo_nascita"]');
+    if (data.nascita && data.nascita.italia && reg && prov && com) {
+      reg.value = data.nascita.regione || '';
+      var pdata = await getJson("{% url 'api_province_italia' %}?regione=" + encodeURIComponent(reg.value));
+      fillSelect(prov, pdata.items, 'sigla', function (x) { return x.nome + (x.sigla ? " (" + x.sigla + ")" : ""); }, '— Seleziona —');
+      if (data.nascita.provincia) prov.value = data.nascita.provincia;
+      var cdata = await getJson(
+        "{% url 'api_comuni_italia' %}?regione=" + encodeURIComponent(reg.value) +
+        "&provincia=" + encodeURIComponent(prov.value)
+      );
+      fillSelect(com, cdata.items, 'nome', function (x) {
+        var n = x.nome || '';
+        var cc = x.codice_catastale || '';
+        return cc ? (n + ' (' + cc + ')') : n;
+      }, '— Seleziona —');
+      if (data.nascita.comune) com.value = data.nascita.comune;
+      if (ln && data.nascita.comune) ln.value = data.nascita.comune;
+      var naz = document.getElementById('id_nazionalita');
+      if (naz && !naz.value && data.nazionalita_suggerita) naz.value = data.nazionalita_suggerita;
+    } else if (data.nascita && !data.nascita.italia && reg) {
+      reg.value = 'ESTERO';
+      reg.dispatchEvent(new Event('change', {bubbles: true}));
+      var ce = document.getElementById('id_comune_nascita_estero');
+      if (ce && data.nascita.stato_estero) ce.value = data.nascita.stato_estero;
+      var naz2 = document.getElementById('id_nazionalita');
+      if (naz2 && !naz2.value && data.nazionalita_suggerita) naz2.value = data.nazionalita_suggerita;
+    }
+    setCfStatus('ok', 'Dati anagrafici precompilati dal codice fiscale.');
+  }
+  var cfInput = document.getElementById('id_codice_fiscale');
+  if (cfInput) cfInput.addEventListener('blur', function () { prefillaAnagraficaDaCodiceFiscale().catch(function () { setCfStatus('warn', 'Errore durante la decodifica del codice fiscale.'); }); });
+  bindGeo('id_regione_nascita', 'id_provincia_nascita', 'id_comune_nascita', null);
+  bindGeo('id_regione_residenza', 'id_provincia', 'id_citta', 'id_cap');
+  toggleEstero('id_regione_nascita', 'id_comune_nascita_estero', ['id_provincia_nascita', 'id_comune_nascita']);
+  toggleEstero('id_regione_residenza', 'id_citta_residenza_estero', ['id_provincia', 'id_citta']);
+})();
+</script>
+{% endblock %}

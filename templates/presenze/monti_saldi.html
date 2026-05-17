@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% load format_it_tags %}
+{% block title %}Monti ferie / ROL — {{ anno|anno_it }} — GESPER{% endblock %}
+
+{% block content %}
+<style>
+  .monti-table th, .monti-table td {
+    font-size: .72rem;
+    padding: .28rem .4rem;
+    border: 1px solid #dde4ec;
+    vertical-align: middle;
+  }
+  .monti-table th { background: #f4f7fa; font-weight: 700; color: #1b3a5f; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .grp { background: #fafbfc; border-left: 2px solid #2d6199 !important; }
+</style>
+
+<div class="container-fluid px-3 mt-3">
+
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <div class="mb-1"><strong>Libro monti.</strong> Saldo attuale = saldo iniziale + somma movimenti (chiusure mensili approvate, rettifiche, ecc.).</div>
+    <div class="mb-1 text-muted" style="font-size:.9em;">
+      <strong>Elenco dipendenti</strong> (tabella e saldo iniziale): solo dipendenti <em>attivi</em> con almeno un <strong>rapporto di lavoro</strong> non in <em>Proposta</em> il cui periodo (inizio / fine) <strong>interseca</strong> il mese di riferimento <strong>{{ mese_busta_nome }} {{ anno|anno_it }}</strong> (parametro «mese busta» in URL).
+      <strong>Fine rapporto</strong> assente nel contratto = <strong>tempo indeterminato</strong>.
+    </div>
+    <div class="mb-0 text-muted" style="font-size:.9em;">
+      <a href="{% url 'riepilogo_mensile_motore' %}?anno={{ anno|anno_it }}&mese={{ mese_busta }}">Riepilogo motore (mese {{ mese_busta }})</a>
+      · <a href="{% url 'riepilogo_presenze_mese' %}?anno={{ anno|anno_it }}&mese={{ mese_busta }}">Griglia presenze</a>
+    </div>
+  </div>
+
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:8px;
+              padding:.7rem 1.1rem;margin-bottom:1rem;display:flex;align-items:center;
+              justify-content:space-between;flex-wrap:wrap;gap:.6rem">
+    <div>
+      <div style="font-size:.7rem;opacity:.8;text-transform:uppercase;letter-spacing:.08em">Saldi monti</div>
+      <div style="font-size:1.1rem;font-weight:700">Anno competenza {{ anno|anno_it }} — {{ azienda.nome }}</div>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+      <a href="?anno={{ anno_prev|anno_it }}&mese_busta={{ mese_busta }}" class="btn btn-sm" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.3)">&laquo; {{ anno_prev|anno_it }}</a>
+      <a href="?anno={{ anno_next|anno_it }}&mese_busta={{ mese_busta }}" class="btn btn-sm" style="background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.3)">{{ anno_next|anno_it }} &raquo;</a>
+    </div>
+  </div>
+
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2" role="alert">
+      {{ m }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}
+
+  <div class="card mb-3">
+    <div class="card-header py-2 small fw-bold">Riconciliazione con cedolino (export CSV)</div>
+    <div class="card-body py-2 small">
+      <p class="mb-2 text-muted">Confronta il saldo gestionale con i residui su <strong>CedolinoMotoreV4</strong> (ferie → <code>ferie_res</code>, ROL → <code>rol_res</code>, riposi → <code>fest_res</code>) per il mese busta selezionato.</p>
+      <form method="get" class="row g-2 align-items-end flex-wrap">
+        <input type="hidden" name="anno" value="{{ anno|anno_it }}">
+        <div class="col-auto">
+          <label class="form-label mb-0 text-muted small">Mese busta</label>
+          <select name="mese_busta" class="form-select form-select-sm" onchange="this.form.submit()">
+            {% for nome in mesi_nomi %}
+              {% if nome %}
+              <option value="{{ forloop.counter0 }}" {% if forloop.counter0 == mese_busta %}selected{% endif %}>{{ nome }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <a class="btn btn-sm btn-outline-secondary"
+             href="{% url 'export_monti_riconciliazione_csv' %}?anno={{ anno|anno_it }}&mese={{ mese_busta }}">
+            Scarica CSV riconciliazione
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header py-2 small fw-bold">Imposta / aggiorna saldo iniziale</div>
+    <div class="card-body py-3">
+      <form method="post" class="row g-2 align-items-end flex-wrap">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="salva_saldo_iniziale">
+        <input type="hidden" name="anno" value="{{ anno|anno_it }}">
+        <input type="hidden" name="mese_busta" value="{{ mese_busta }}">
+        <div class="col-md-3">{{ form.dipendente.label_tag }}{{ form.dipendente }}</div>
+        <div class="col-md-2">{{ form.tipo_monte.label_tag }}{{ form.tipo_monte }}</div>
+        <div class="col-md-1">{{ form.anno_competenza.label_tag }}{{ form.anno_competenza }}</div>
+        <div class="col-md-2">{{ form.saldo_iniziale.label_tag }}{{ form.saldo_iniziale }}</div>
+        <div class="col-md-2">{{ form.data_saldo_iniziale.label_tag }}{{ form.data_saldo_iniziale }}</div>
+        <div class="col-md-12">{{ form.note.label_tag }}{{ form.note }}</div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-sm btn-primary">Salva saldo iniziale</button>
+        </div>
+        {% if form.non_field_errors %}
+          <div class="col-12 text-danger small">{{ form.non_field_errors }}</div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table monti-table table-hover mb-4">
+      <thead>
+        <tr>
+          <th rowspan="2">Dipendente</th>
+          {% for th in tipi_headers %}
+          <th colspan="3" class="text-center grp">{{ th.label }}</th>
+          {% endfor %}
+        </tr>
+        <tr>
+          {% for th in tipi_headers %}
+          <th class="num grp small">Ini. ({{ th.unita }})</th>
+          <th class="num grp small">Mov.</th>
+          <th class="num grp small">Saldo</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for riga in righe %}
+        <tr>
+          <td style="font-weight:600">{{ riga.dip.cognome }} {{ riga.dip.nome }}</td>
+          {% for cell in riga.cells %}
+            <td class="num">{% if cell %}{{ cell.saldo.saldo_iniziale }}{% else %}—{% endif %}</td>
+            <td class="num">{% if cell %}{{ cell.mov_sum }}{% else %}—{% endif %}</td>
+            <td class="num">{% if cell %}{{ cell.tot }}{% else %}—{% endif %}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

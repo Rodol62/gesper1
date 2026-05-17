@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block title %}Prova lettura busta paga{% endblock %}
+
+{% block extra_head %}
+<style>
+:root {
+  --c-primary: #1b3a5f;
+  --c-accent: #2d6199;
+  --c-border: #c5d0dc;
+  --c-muted: #5c6b7d;
+  --c-alt: #f4f7fa;
+}
+.ced-section {
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  margin-bottom: .75rem;
+  overflow: hidden;
+  background: #fff;
+}
+.ced-section h2 {
+  background: var(--c-primary);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin: 0;
+  padding: .4rem .75rem;
+}
+.ced-kv { margin: 0; font-size: .82rem; }
+.ced-kv dt {
+  color: var(--c-muted);
+  font-weight: 600;
+  font-size: .74rem;
+  padding: .35rem .75rem 0;
+}
+.ced-kv dd {
+  margin: 0;
+  padding: .1rem .75rem .4rem;
+  border-bottom: 1px solid #e8edf2;
+  font-variant-numeric: tabular-nums;
+}
+.ced-kv dd:last-of-type { border-bottom: none; }
+.ced-note {
+  font-size: .78rem;
+  color: var(--c-muted);
+  border-left: 3px solid var(--c-accent);
+  padding: .4rem .65rem;
+  background: var(--c-alt);
+  border-radius: 0 4px 4px 0;
+  margin-bottom: .85rem;
+}
+.ced-table-wrap { padding: 0 .5rem .5rem; }
+.ced-table-wrap .table { font-size: .78rem; margin-bottom: 0; }
+.ced-table-wrap .table th { font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; color: var(--c-muted); }
+.text-euro { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav aria-label="Percorso" class="mb-2">
+  <ol class="breadcrumb mb-0" style="font-size:.8rem">
+    <li class="breadcrumb-item"><a href="{% url 'lista_documenti' %}">Documenti</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Prova lettura busta</li>
+  </ol>
+</nav>
+
+<h2 class="h5 mb-3" style="color:#1b3a5f;font-weight:700">
+  <i class="bi bi-file-earmark-richtext me-1"></i> Prova lettura busta paga — imponibile INPS (provvisorio)
+</h2>
+
+<p class="ced-note">
+  Carica un PDF: lettura in memoria (<strong>nessun salvataggio</strong> nel gestionale).
+  Il sistema usa per primo il <strong>motore posizionale v4</strong> (coordinate <code>pdfplumber</code> + controlli aritmetici F1–F9); se non basta, ricade sulla lettura per testo/regex precedente.
+  <strong>Questa pagina è provvisoria:</strong> qui sotto vedi <em>solo</em> il confronto imponibile INPS (voci vs campo in busta). Altri esiti del motore v4 sono in <code>?format=json</code> sotto <code>motore_validazione</code>.
+</p>
+
+<div class="card border mb-4 shadow-sm" style="max-width:640px">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" class="mb-0">
+      {% csrf_token %}
+      <label class="form-label small fw-semibold text-muted">File PDF</label>
+      <input type="file" name="pdf" accept="application/pdf,.pdf" class="form-control form-control-sm mb-2" required>
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="bi bi-search me-1"></i> Leggi e confronta imponibile INPS
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="card border mb-4 shadow-sm" style="max-width:720px">
+  <div class="card-header py-2" style="background:#f4f7fa;font-size:.8rem;font-weight:700">
+    Tutte le buste paga di un anno (da archivio Gesper)
+  </div>
+  <div class="card-body">
+    <p class="small text-muted mb-3">
+      Genera uno <strong>ZIP</strong> con il file indice e una pagina HTML per ogni busta dell&rsquo;anno scelto.
+      Usa lo stesso motore della prova singola (cedolino Claude: dipendente, azienda, voci, totali).
+      L&rsquo;anno coincide con la dashboard buste: movimenti import <strong>BUSTA</strong> e, in più, documenti la cui descrizione/data indica quel anno.
+    </p>
+    <form method="post" action="{% url 'prova_scarica_buste_anno_cedolino_zip' %}">
+      {% csrf_token %}
+      <div class="row g-2 align-items-end flex-wrap">
+        <div class="col-auto">
+          <label class="form-label small fw-semibold text-muted mb-0">Anno</label>
+          <input type="number" name="anno" class="form-control form-control-sm" value="2025" min="2000" max="2100" required style="width:7rem">
+        </div>
+        {% if aziende_scelta %}
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold text-muted mb-0">Azienda</label>
+          <select name="azienda_id" class="form-select form-select-sm" required>
+            {% for a in aziende_scelta %}
+            <option value="{{ a.id }}" {% if azienda_default_id == a.id %}selected{% endif %}>{{ a.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% else %}
+          {% if azienda_default_id %}
+          <input type="hidden" name="azienda_id" value="{{ azienda_default_id }}">
+          {% endif %}
+        {% endif %}
+        <div class="col-auto">
+          {% if aziende_scelta or azienda_default_id %}
+          <button type="submit" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-file-zip me-1"></i> Scarica ZIP
+          </button>
+          {% else %}
+          <span class="text-danger small">Nessuna azienda associata al profilo.</span>
+          {% endif %}
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if pdf_name %}
+<p class="small text-muted mb-2">File analizzato: <strong>{{ pdf_name }}</strong></p>
+{% endif %}
+
+{% if report and report.motore %}
+<p class="ced-note small mb-2">Motore attivo: <code>{{ report.motore }}</code></p>
+{% endif %}
+
+{% include "documenti/_prova_confronto_imponibile_inps.html" with extraction_error=extraction_error confronto_imponibile_inps=confronto_imponibile_inps %}
+
+{% endblock %}

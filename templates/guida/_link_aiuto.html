@@ -1,0 +1,7 @@
+{# Icona link alla guida (stessa finestra). #}
+<a href="{{ url }}"
+   class="text-decoration-none ms-1 align-middle guida-help-link"
+   title="{% if ha_voce %}Apri la scheda di aiuto{% else %}Guida modulo{% endif %}"
+   aria-label="Aiuto">
+  <i class="bi bi-question-circle{% if ha_voce %}-fill text-primary{% else %} text-secondary opacity-50{% endif %}"></i>
+</a>

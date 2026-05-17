@@ -1,0 +1,69 @@
+{
+  "contratti_a_termine_fipe": {
+    "durata": {
+      "massima_mesi": 24,
+      "primo_contratto_senza_causale_mesi": 12,
+      "descrizione": "Durata massima complessiva dei contratti a termine secondo normativa vigente"
+    },
+
+    "proroghe": {
+      "numero_massimo": 4,
+      "limite_temporale_mesi": 24,
+      "note": "Le proroghe sono consentite entro il limite massimo di durata complessiva"
+    },
+
+    "rinnovi": {
+      "consentiti": true,
+      "richiede_causale": true,
+      "stop_and_go": {
+        "contratto_fino_6_mesi": 10,
+        "contratto_oltre_6_mesi": 20,
+        "descrizione": "Giorni di pausa obbligatoria tra un contratto e il successivo"
+      }
+    },
+
+    "causali": {
+      "richieste_oltre_12_mesi": true,
+      "tipologie": [
+        "esigenze temporanee e oggettive estranee all'ordinaria attività",
+        "sostituzione di altri lavoratori",
+        "incrementi temporanei significativi e non programmabili"
+      ]
+    },
+
+    "limiti_percentuali": {
+      "percentuale_massima": 0.20,
+      "base_calcolo": "numero lavoratori a tempo indeterminato",
+      "esclusioni": [
+        "sostituzioni",
+        "stagionali",
+        "over 50"
+      ]
+    },
+
+    "stagionali": {
+      "deroghe": true,
+      "no_stop_and_go": true,
+      "no_limiti_percentuali": true,
+      "descrizione": "Per attività stagionali si applicano deroghe specifiche"
+    },
+
+    "contributo_aggiuntivo_inps": {
+      "aliquota": 0.014,
+      "incremento_per_rinnovo": 0.005,
+      "descrizione": "Addizionale contributiva per contratti a termine"
+    },
+
+    "trasformazione": {
+      "a_tempo_indeterminato": {
+        "automatica_se_superati_24_mesi": true,
+        "automatica_se_superati_limiti_proroghe": true
+      }
+    },
+
+    "preavviso": {
+      "necessario": false,
+      "descrizione": "Il contratto a termine non richiede preavviso alla scadenza naturale"
+    }
+  }
+}

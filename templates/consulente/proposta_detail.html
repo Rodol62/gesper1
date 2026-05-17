@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% load format_it_tags %}
+{% block title %}Proposta {{ proposta.numero_proposta }} — Consulente{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:960px;margin:0 auto;padding:1.5rem 1rem">
+
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" style="font-size:.82rem;margin-bottom:1rem">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'centro_moduli' %}">Consulente</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'consulente_candidati' %}">Anagrafiche</a></li>
+      <li class="breadcrumb-item active">Proposta {{ proposta.numero_proposta }}</li>
+    </ol>
+  </nav>
+
+  <!-- Titolo + azioni -->
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="mb-0" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-file-earmark-text me-2"></i>{{ proposta.numero_proposta }}
+      </h2>
+      <div class="text-muted" style="font-size:.83rem">{{ proposta.dipendente.cognome }} {{ proposta.dipendente.nome }}</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'consulente_proposta_pdf' proposta.id %}"
+         class="btn btn-danger btn-sm">
+        <i class="bi bi-file-earmark-pdf me-1"></i>Scarica PDF
+      </a>
+      {% if proposta.stato_canonico == 'firmata_candidato' %}
+      <a href="{% url 'consulente_approva_proposta' proposta.id %}"
+         class="btn btn-warning btn-sm">
+        <i class="bi bi-check-lg me-1"></i>Approva proposta
+      </a>
+      {% endif %}
+      <a href="{% url 'consulente_candidati' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Torna alla lista
+      </a>
+    </div>
+  </div>
+
+  <!-- Badge stato -->
+  <div class="mb-3">
+    {% if proposta.stato_canonico == 'inviata_candidato' %}
+      <span class="badge" style="background:#cff4fc;color:#055160;border:1px solid #9eeaf9;font-size:.84rem;padding:.4rem .8rem">
+        <i class="bi bi-send me-1"></i>Inviata al candidato
+      </span>
+    {% elif proposta.stato_canonico == 'firmata_candidato' %}
+      <span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;font-size:.84rem;padding:.4rem .8rem">
+        <i class="bi bi-pen me-1"></i>Firmata dal candidato
+      </span>
+    {% elif proposta.stato_canonico == 'contratto_attivo' %}
+      <span class="badge" style="background:#d1e7dd;color:#0a3622;border:1px solid #a3cfbb;font-size:.84rem;padding:.4rem .8rem">
+        <i class="bi bi-check-circle me-1"></i>Contratto attivo
+      </span>
+    {% else %}
+      <span class="badge bg-secondary" style="font-size:.84rem;padding:.4rem .8rem">{{ proposta.get_stato_display }}</span>
+    {% endif %}
+  </div>
+
+  <div class="row g-3">
+
+    <!-- Dati dipendente -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header" style="background:#1b3a5f;color:#fff;font-size:.88rem;font-weight:600;padding:.6rem 1rem">
+          <i class="bi bi-person me-2"></i>Dati dipendente
+        </div>
+        <div class="card-body" style="font-size:.87rem">
+          <dl class="row mb-0">
+            <dt class="col-5 text-muted fw-normal">Cognome e nome</dt>
+            <dd class="col-7 fw-semibold">{{ proposta.dipendente.cognome }} {{ proposta.dipendente.nome }}</dd>
+
+            {% if proposta.dipendente.codice_fiscale %}
+            <dt class="col-5 text-muted fw-normal">Codice fiscale</dt>
+            <dd class="col-7" style="font-family:monospace">{{ proposta.dipendente.codice_fiscale }}</dd>
+            {% endif %}
+
+            {% if proposta.dipendente.data_nascita %}
+            <dt class="col-5 text-muted fw-normal">Data di nascita</dt>
+            <dd class="col-7">{{ proposta.dipendente.data_nascita|date:"d/m/Y" }}</dd>
+            {% endif %}
+
+            {% if proposta.dipendente.email %}
+            <dt class="col-5 text-muted fw-normal">E-mail</dt>
+            <dd class="col-7"><a href="mailto:{{ proposta.dipendente.email }}">{{ proposta.dipendente.email }}</a></dd>
+            {% endif %}
+
+            {% if proposta.dipendente.telefono %}
+            <dt class="col-5 text-muted fw-normal">Telefono</dt>
+            <dd class="col-7">{{ proposta.dipendente.telefono }}</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dati contratto -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header" style="background:#1b3a5f;color:#fff;font-size:.88rem;font-weight:600;padding:.6rem 1rem">
+          <i class="bi bi-briefcase me-2"></i>Inquadramento
+        </div>
+        <div class="card-body" style="font-size:.87rem">
+          <dl class="row mb-0">
+            <dt class="col-5 text-muted fw-normal">Posizione</dt>
+            <dd class="col-7 fw-semibold">{{ proposta.posizione|default:"—" }}</dd>
+
+            <dt class="col-5 text-muted fw-normal">Livello CCNL</dt>
+            <dd class="col-7">{{ proposta.livello_ccnl|default:"—" }}</dd>
+
+            {% if proposta.qualifica %}
+            <dt class="col-5 text-muted fw-normal">Qualifica</dt>
+            <dd class="col-7">{{ proposta.qualifica }}</dd>
+            {% endif %}
+
+            <dt class="col-5 text-muted fw-normal">Tipo contratto</dt>
+            <dd class="col-7">{{ proposta.tipo_contratto.nome|default:"—" }}</dd>
+
+            <dt class="col-5 text-muted fw-normal">Data inizio</dt>
+            <dd class="col-7">{{ proposta.data_inizio_rapporto|date:"d/m/Y"|default:"—" }}</dd>
+
+            {% if proposta.data_fine_rapporto %}
+            <dt class="col-5 text-muted fw-normal">Data fine</dt>
+            <dd class="col-7">{{ proposta.data_fine_rapporto|date:"d/m/Y" }}</dd>
+            {% endif %}
+
+            <dt class="col-5 text-muted fw-normal">Ore settimanali</dt>
+            <dd class="col-7">{{ proposta.ore_settimanali|default:"—" }}</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dati economici -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header" style="background:#1b3a5f;color:#fff;font-size:.88rem;font-weight:600;padding:.6rem 1rem">
+          <i class="bi bi-cash-coin me-2"></i>Trattamento economico
+        </div>
+        <div class="card-body" style="font-size:.87rem">
+          <dl class="row mb-0">
+            <dt class="col-6 text-muted fw-normal">Stipendio lordo mensile</dt>
+            <dd class="col-6 fw-semibold">{% if proposta.stipendio_lordo_mensile is not None %}€ {{ proposta.stipendio_lordo_mensile|euro_it }}{% else %}—{% endif %}</dd>
+
+            {% if proposta.paga_base_mensile %}
+            <dt class="col-6 text-muted fw-normal">Paga base mensile</dt>
+            <dd class="col-6">€ {{ proposta.paga_base_mensile|euro_it }}</dd>
+            {% endif %}
+
+            {% if proposta.tredicesima %}
+            <dt class="col-6 text-muted fw-normal">13ª mensilità</dt>
+            <dd class="col-6">{{ proposta.tredicesima }}</dd>
+            {% endif %}
+
+            {% if proposta.quattordicesima %}
+            <dt class="col-6 text-muted fw-normal">14ª mensilità</dt>
+            <dd class="col-6">{{ proposta.quattordicesima }}</dd>
+            {% endif %}
+
+            {% if proposta.giorni_ferie_annuali %}
+            <dt class="col-6 text-muted fw-normal">Ferie annuali</dt>
+            <dd class="col-6">{{ proposta.giorni_ferie_annuali }} giorni</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <!-- Firme e date -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header" style="background:#1b3a5f;color:#fff;font-size:.88rem;font-weight:600;padding:.6rem 1rem">
+          <i class="bi bi-pen me-2"></i>Stato firme
+        </div>
+        <div class="card-body" style="font-size:.87rem">
+          <dl class="row mb-0">
+            <dt class="col-6 text-muted fw-normal">Firma candidato</dt>
+            <dd class="col-6">
+              {% if proposta.data_firma_candidato %}
+                <span class="text-success"><i class="bi bi-check2 me-1"></i>{{ proposta.data_firma_candidato|date:"d/m/Y H:i" }}</span>
+                {% if proposta.luogo_firma_candidato %}<div class="text-muted" style="font-size:.76rem">{{ proposta.luogo_firma_candidato }}</div>{% endif %}
+              {% else %}
+                <span class="text-muted">In attesa</span>
+              {% endif %}
+            </dd>
+
+            <dt class="col-6 text-muted fw-normal">Firma datore</dt>
+            <dd class="col-6">
+              {% if proposta.data_firma_datore %}
+                <span class="text-success"><i class="bi bi-check2 me-1"></i>{{ proposta.data_firma_datore|date:"d/m/Y H:i" }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </dd>
+
+            <dt class="col-6 text-muted fw-normal">Creata il</dt>
+            <dd class="col-6">{{ proposta.data_creazione|date:"d/m/Y" }}</dd>
+
+            <dt class="col-6 text-muted fw-normal">Ultima modifica</dt>
+            <dd class="col-6">{{ proposta.data_modifica|date:"d/m/Y H:i" }}</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <!-- Note (se presenti) -->
+    {% if proposta.note %}
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header" style="background:#1b3a5f;color:#fff;font-size:.88rem;font-weight:600;padding:.6rem 1rem">
+          <i class="bi bi-sticky me-2"></i>Note
+        </div>
+        <div class="card-body" style="font-size:.87rem;white-space:pre-line">{{ proposta.note }}</div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Bottone PDF bottom -->
+  <div class="mt-4 d-flex gap-2">
+    <a href="{% url 'consulente_proposta_pdf' proposta.id %}"
+       class="btn btn-danger">
+      <i class="bi bi-file-earmark-pdf me-2"></i>Scarica PDF proposta
+    </a>
+    <a href="{% url 'consulente_candidati' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i>Torna alla lista
+    </a>
+  </div>
+
+</div>
+{% endblock %}

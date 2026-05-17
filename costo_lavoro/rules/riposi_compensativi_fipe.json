@@ -1,0 +1,49 @@
+{
+  "riposi_compensativi_fipe": {
+    "riposo_settimanale": {
+      "ore": 24,
+      "descrizione": "Riposo settimanale minimo previsto dal CCNL Turismo",
+      "deroghe": {
+        "attivita_sette_giorni": true,
+        "recupero_entra_settimana_successiva": true
+      }
+    },
+
+    "riposo_giornaliero": {
+      "ore": 11,
+      "descrizione": "Riposo minimo tra un turno e l'altro"
+    },
+
+    "domeniche_lavorate": {
+      "riposo_compensativo": true,
+      "modalita": {
+        "entro_giorni": 7,
+        "alternativa": "maggiorazione_domenicale"
+      }
+    },
+
+    "festivi_lavorati": {
+      "riposo_compensativo": true,
+      "modalita": {
+        "entro_giorni": 30,
+        "alternativa": "maggiorazione_festiva"
+      }
+    },
+
+    "turnazioni": {
+      "turno_spezzato": {
+        "consentito": true,
+        "numero_massimo_spezzature": 2,
+        "pausa_minima_minuti": 30
+      },
+      "turno_notturno": {
+        "richiede_riposo_compensativo": true,
+        "riposo_aggiuntivo_ore": 1
+      }
+    },
+
+    "part_time": {
+      "riposi_proporzionati": true
+    }
+  }
+}

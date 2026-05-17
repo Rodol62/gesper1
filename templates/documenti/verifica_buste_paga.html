@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load ruoli_tags %}
+{% block title %}Verifica buste paghe — Gesper{% endblock %}
+
+{% block extra_head %}
+<style>
+.vb-section {
+  border: 1px solid var(--c-border, #dee2e6);
+  border-radius: 6px;
+  padding: .75rem 1rem;
+  margin-bottom: .85rem;
+  background: #fff;
+}
+.vb-section h2 {
+  font-size: .72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--c-muted, #6c757d);
+  margin: 0 0 .5rem;
+}
+.vb-links { display: flex; flex-direction: column; gap: .35rem; }
+.vb-links a {
+  font-size: var(--sz-sm, .875rem);
+  text-decoration: none;
+  color: var(--c-primary, #0d6efd);
+}
+.vb-links a:hover { text-decoration: underline; }
+.vb-desc { font-size: var(--sz-xs, .75rem); color: var(--c-muted, #6c757d); margin: 0 0 .35rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-1 py-0 small">
+      <li class="breadcrumb-item"><a href="{% url 'lista_documenti' %}">Documenti</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Verifica buste paghe</li>
+    </ol>
+  </nav>
+  <h1 class="h4 mb-1"><i class="bi bi-shield-check me-1"></i> Verifica buste paghe</h1>
+  <p class="text-muted small mb-0">
+    Lettura cedolino da PDF, memorizzazione motore posizionale v4, conciliazione con i dati salvati,
+    confronti con presenze / motore paghe e export collegati.
+  </p>
+</div>
+
+<div class="vb-section">
+  <h2>Archivio e caricamento</h2>
+  <p class="vb-desc">Accesso alle buste in archivio e import massivo (solo chi gestisce i documenti aziendali).</p>
+  <div class="vb-links">
+    <a href="{% url 'lista_buste_paga_documenti' %}"><i class="bi bi-receipt-cutoff me-1"></i> Archivio buste PDF (filtri anno / dipendente)</a>
+    {% if show_upload_massivo %}
+    <a href="{% url 'upload_buste_paga_massivo' %}"><i class="bi bi-cloud-arrow-up me-1"></i> Importa buste PDF (massivo)</a>
+    {% endif %}
+    {% if user|has_ruolo:'consulente' %}
+    <a href="{% url 'consulente_carica_documento' %}"><i class="bi bi-file-earmark-arrow-up me-1"></i> Carica documenti paghe (hub consulente)</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="vb-section">
+  <h2>Motore cedolino v4 (PDF → DB)</h2>
+  <p class="vb-desc">Estrazione strutturata, salvataggio in <code>CedolinoMotoreV4</code> e controllo rispetto alla lettura odierna del PDF.</p>
+  <div class="vb-links">
+    <a href="{% url 'buste_paga_estrazione_motore_v4' %}"><i class="bi bi-database-down me-1"></i> Memorizza estrazione v4 (DB)</a>
+    <a href="{% url 'buste_paga_conciliazione_cedolino' %}"><i class="bi bi-check2-square me-1"></i> Conciliazione — lettura PDF vs dati salvati</a>
+    <a href="{% url 'buste_paga_lettura_cedolino' %}"><i class="bi bi-list-columns-reverse me-1"></i> Dettaglio lettura cedolino (voci, totali, progressivi)</a>
+    <a href="{% url 'prova_lettura_busta_paga' %}"><i class="bi bi-bug me-1"></i> Prova lettura busta (diagnostica)</a>
+  </div>
+</div>
+
+<div class="vb-section">
+  <h2>Presenze e motore vs cedolino</h2>
+  <p class="vb-desc">Confronto ore da calendario/presenze con il cedolino estratto; confronto fiscale (motore busta canonico vs cedolino).</p>
+  <div class="vb-links">
+    <a href="{% url 'riepilogo_mensile_motore' %}"><i class="bi bi-calculator me-1"></i> Riepilogo motore mese (cedolino da riepilogo presenze)</a>
+    <a href="{% url 'riepilogo_scostamento_cedolino' %}"><i class="bi bi-clipboard-data me-1"></i> Scostamento ore — calendario vs cedolino</a>
+    <a href="{% url 'riepilogo_scostamento_fiscale_cedolino' %}"><i class="bi bi-calculator me-1"></i> Scostamento fiscale — motore paghe vs cedolino</a>
+    <a href="{% url 'export_scostamento_cedolino_excel' %}"><i class="bi bi-file-earmark-excel me-1"></i> Export Excel scostamento ore</a>
+    <a href="{% url 'export_scostamento_cedolino_pdf' %}"><i class="bi bi-file-earmark-pdf me-1"></i> Export PDF scostamento ore</a>
+  </div>
+</div>
+
+<div class="vb-section">
+  <h2>Monti e libro paga</h2>
+  <p class="vb-desc">Riconciliazione saldi con dati busta; registro libro unico.</p>
+  <div class="vb-links">
+    <a href="{% url 'monti_saldi' %}"><i class="bi bi-journal-bookmark me-1"></i> Monti (ferie / ROL) — saldi e movimenti</a>
+    <a href="{% url 'export_monti_riconciliazione_csv' %}"><i class="bi bi-filetype-csv me-1"></i> Export CSV riconciliazione monti vs busta</a>
+    <a href="{% url 'libro_paga_lista' %}"><i class="bi bi-journal-richtext me-1"></i> Libro paga (storico)</a>
+  </div>
+</div>
+
+{% if show_estrazione_storico or show_admin_voci_cedolino %}
+<div class="vb-section">
+  <h2>Strumenti amministratore</h2>
+  <p class="vb-desc">Diagnostica sui PDF e tabella tecnica voci cedolino.</p>
+  <div class="vb-links">
+    {% if show_estrazione_storico %}
+    <a href="{% url 'estrazione_dati_buste_paga' %}"><i class="bi bi-file-earmark-pdf me-1"></i> Estrazione etichette campi da PDF buste (storico)</a>
+    {% endif %}
+    {% if show_admin_voci_cedolino %}
+    <a href="{% url 'admin_voci_cedolino_motore_v4' %}"><i class="bi bi-list-columns-reverse me-1"></i> Voci cedolino motore v4 (sintesi)</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<p class="small text-muted mb-0">
+  In <strong>Django Admin</strong> restano disponibili i record <code>CedolinoMotoreV4</code> e il confronto con il motore paghe canonico sul singolo cedolino salvato.
+</p>
+{% endblock %}

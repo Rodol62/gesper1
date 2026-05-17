@@ -1,0 +1,92 @@
+{
+  "welfare_fipe": {
+    "abilitazione": {
+      "consentito": true,
+      "richiede_accordo_aziendale": true,
+      "descrizione": "Il welfare aziendale è attivabile tramite accordo aziendale o regolamento interno"
+    },
+
+    "categorie_prestazioni": {
+      "educazione_istruzione": {
+        "esente": true,
+        "esempi": [
+          "rette scolastiche",
+          "libri di testo",
+          "corsi di formazione"
+        ]
+      },
+      "assistenza_famiglia": {
+        "esente": true,
+        "esempi": [
+          "assistenza anziani",
+          "assistenza non autosufficienti",
+          "baby-sitting"
+        ]
+      },
+      "trasporto_pubblico": {
+        "esente": true,
+        "esempi": [
+          "abbonamenti autobus",
+          "abbonamenti metro"
+        ]
+      },
+      "ricreazione_benessere": {
+        "esente": true,
+        "esempi": [
+          "palestre",
+          "centri sportivi",
+          "attività culturali"
+        ]
+      },
+      "previdenza_complementare": {
+        "esente_fino": 5164.57,
+        "descrizione": "Contributi a fondi pensione complementari"
+      },
+      "assistenza_sanitaria_integrativa": {
+        "esente_fino": 3615.20,
+        "descrizione": "Fondi sanitari integrativi"
+      }
+    },
+
+    "conversione_premi": {
+      "consentita": true,
+      "descrizione": "I premi di risultato possono essere convertiti in welfare aziendale",
+      "benefici": {
+        "esenzione_irpef": true,
+        "esenzione_inps": true
+      }
+    },
+
+    "modalita_erogazione": {
+      "voucher": true,
+      "piattaforme_welfare": true,
+      "rimborso_spese": true,
+      "descrizione": "Il welfare può essere erogato tramite voucher, piattaforme o rimborsi"
+    },
+
+    "base_imponibile": {
+      "incluso": [],
+      "escluso": [
+        "tutte le prestazioni welfare previste dalla normativa"
+      ],
+      "descrizione": "Il welfare aziendale non concorre a IRPEF né INPS"
+    },
+
+    "regole_speciali": {
+      "part_time": {
+        "proporzionalita": false,
+        "descrizione": "Il welfare non si riduce in base al part-time"
+      },
+      "stagionali": {
+        "consentito": true,
+        "note": "Applicabile anche ai contratti stagionali"
+      }
+    },
+
+    "validazioni": {
+      "richiede_documentazione": true,
+      "benefici_non_monetizzabili": true,
+      "descrizione": "Il welfare deve essere documentato e non può essere convertito in denaro"
+    }
+  }
+}

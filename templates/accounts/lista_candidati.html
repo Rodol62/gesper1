@@ -1,0 +1,333 @@
+{% extends 'base.html' %}
+{% load pagination_tags %}
+{% block title %}Candidati — GESPER{% endblock %}
+
+{% block extra_head %}
+<style>
+.profilo-expand-row td { background: #f8fafc; border-top: none; padding: .6rem 1rem; }
+.profilo-panel { font-size: .78rem; }
+.campo-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 12px; font-size: .72rem; margin: 2px;
+}
+.chip-mancante { background: #fde8e8; color: #b91c1c; border: 1px solid #fca5a5; }
+.chip-consigliato { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.chip-ok { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.mini-form-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: .5rem; }
+.mini-form-row .form-group-inline {
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 140px; max-width: 200px;
+}
+.mini-form-row label { font-size: .68rem; font-weight: 600; color: #374151; margin: 0; }
+.mini-form-row input, .mini-form-row select {
+  font-size: .72rem; padding: 2px 6px; height: 26px;
+  border: 1px solid #d1d5db; border-radius: 4px;
+}
+.mini-form-row input[type="checkbox"] { width: 14px; height: 14px; margin-top: 6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div class="alert alert-{{ msg.tags|default:'info' }} py-2 small mb-2">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div style="background:linear-gradient(135deg,#1b3a5f,#2d6199);color:#fff;border-radius:6px;
+              padding:.6rem 1rem;margin-bottom:.8rem;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <h5 style="margin:0;font-size:.92rem;font-weight:800">
+        <i class="bi bi-person-lines-fill"></i> Candidati registrati
+      </h5>
+      <div style="font-size:.7rem;opacity:.85;margin-top:2px">{{ totale }} candidat{{ totale|pluralize:"o,i" }} totali</div>
+    </div>
+  </div>
+
+  <!-- Filtri rapidi -->
+  <div class="mb-3 d-flex gap-2 flex-wrap">
+    <a href="?{% if mostra_storico_assunti %}storico_assunti=1{% endif %}" class="btn btn-sm {% if not stato_filtro %}btn-primary{% else %}btn-outline-secondary{% endif %}" style="font-size:.75rem">Tutti</a>
+    <a href="?stato=da_verificare{% if mostra_storico_assunti %}&storico_assunti=1{% endif %}" class="btn btn-sm {% if stato_filtro == 'da_verificare' %}btn-danger{% else %}btn-outline-danger{% endif %}" style="font-size:.75rem">
+      <i class="bi bi-envelope-exclamation"></i> E-mail non verificata
+    </a>
+    <a href="?stato=verificati{% if mostra_storico_assunti %}&storico_assunti=1{% endif %}" class="btn btn-sm {% if stato_filtro == 'verificati' %}btn-warning{% else %}btn-outline-warning{% endif %}" style="font-size:.75rem">
+      <i class="bi bi-envelope-check"></i> Da convalidare
+    </a>
+    <a href="?stato=profilo_ok{% if mostra_storico_assunti %}&storico_assunti=1{% endif %}" class="btn btn-sm {% if stato_filtro == 'profilo_ok' %}btn-info{% else %}btn-outline-info{% endif %}" style="font-size:.75rem">
+      <i class="bi bi-person-check"></i> Profilo completato
+    </a>
+    <a href="?stato=convalidati{% if mostra_storico_assunti %}&storico_assunti=1{% endif %}" class="btn btn-sm {% if stato_filtro == 'convalidati' %}btn-success{% else %}btn-outline-success{% endif %}" style="font-size:.75rem">
+      <i class="bi bi-check2-all"></i> Convalidati
+    </a>
+    <a href="?stato=in_corso{% if mostra_storico_assunti %}&storico_assunti=1{% endif %}" class="btn btn-sm {% if stato_filtro == 'in_corso' %}btn-primary{% else %}btn-outline-primary{% endif %}" style="font-size:.75rem">
+      <i class="bi bi-hourglass-split"></i> Iter in corso
+    </a>
+    <a href="?stato=anomalie{% if mostra_storico_assunti %}&storico_assunti=1{% endif %}" class="btn btn-sm {% if stato_filtro == 'anomalie' %}btn-danger{% else %}btn-outline-danger{% endif %}" style="font-size:.75rem">
+      <i class="bi bi-exclamation-triangle"></i> Anomalie anagrafiche
+    </a>
+    {% if mostra_storico_assunti %}
+    <a href="?stato={{ stato_filtro }}" class="btn btn-sm btn-warning" style="font-size:.75rem">
+      <i class="bi bi-funnel"></i> Nascondi storico assunti
+    </a>
+    {% else %}
+    <a href="?stato={{ stato_filtro }}&storico_assunti=1" class="btn btn-sm btn-outline-warning" style="font-size:.75rem">
+      <i class="bi bi-clock-history"></i> Mostra storico assunti
+    </a>
+    {% endif %}
+  </div>
+
+  {% gesper_pagination page_obj "Paginazione elenco candidati" %}
+  <div class="gesper-list-scroll">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle" style="font-size:.8rem">
+      <thead style="background:#e8eef5;color:#1b3a5f">
+        <tr>
+          <th>Nome</th>
+          <th>E-mail</th>
+          <th>Data arrivo candidatura</th>
+          <th class="text-center">E-mail</th>
+          <th class="text-center">Profilo</th>
+          <th class="text-center">Convalidato</th>
+          <th>Azienda int.</th>
+          <th class="text-center">Anomalie</th>
+          <th>Step iter</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in candidati %}
+        {% with cand=row.user p=row.profilo comp=row.completamento %}
+        <tr>
+          <td>
+            <strong>{{ cand.first_name }} {{ cand.last_name }}</strong>
+            {% if not cand.first_name %}<span class="text-muted">{{ cand.username }}</span>{% endif %}
+            {% if row.storico_assunto %}
+            <span class="badge bg-dark ms-1" style="font-size:.65rem">Storico assunto</span>
+            {% endif %}
+          </td>
+          <td style="font-size:.75rem">{{ cand.email }}</td>
+          <td style="white-space:nowrap">
+            {{ cand.date_joined|date:"d/m/Y" }}
+            <div style="font-size:.68rem;color:#888">{{ cand.date_joined|date:"H:i" }}</div>
+          </td>
+          <td class="text-center">
+            {% if cand.email_verificata %}
+              <span class="badge bg-success">Verificata</span>
+            {% else %}
+              <span class="badge bg-danger">In attesa</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if p and p.profilo_completato %}
+              <span class="badge bg-success">Completo</span>
+            {% elif p %}
+              {# Badge cliccabile che espande il pannello campi mancanti #}
+              <button class="badge bg-secondary border-0" style="cursor:pointer;font-size:.72rem"
+                      data-bs-toggle="collapse" data-bs-target="#profilo-panel-{{ cand.id }}"
+                      title="Clicca per vedere i campi mancanti">
+                Parziale {{ comp.percentuale }}%
+                <i class="bi bi-chevron-down" style="font-size:.6rem"></i>
+              </button>
+            {% else %}
+              <span class="badge bg-light text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if cand.convalidato %}
+              <span class="badge bg-success"><i class="bi bi-check2"></i></span>
+            {% else %}
+              <span class="badge bg-secondary">No</span>
+            {% endif %}
+          </td>
+          <td style="font-size:.75rem">{{ p.azienda_interesse.nome|default:"—" }}</td>
+          <td class="text-center">
+            {% if row.anomalie_count > 0 %}
+              <span class="badge bg-danger" title="{{ row.anomalie.0.titolo }}">{{ row.anomalie_count }}</span>
+            {% else %}
+              <span class="badge bg-success">0</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge bg-{{ row.step_class }}" style="font-size:.7rem;white-space:normal;text-align:left">
+              {{ row.step_label }}
+            </span>
+          </td>
+          <td>
+            <a href="{% url 'candidato_admin_dettaglio' cand.id %}"
+               class="btn btn-xs btn-outline-primary" style="font-size:.7rem;padding:2px 8px">
+              <i class="bi bi-eye"></i> Dettaglio
+            </a>
+            {% if row.anomalie_count > 0 %}
+            <form method="post" action="{% url 'riallinea_anagrafica_candidato' cand.id %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-xs btn-outline-danger ms-1" style="font-size:.7rem;padding:2px 8px"
+                      title="Riallinea anagrafica candidato">
+                <i class="bi bi-arrow-repeat"></i> Riallinea
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+
+        {# ── Riga espandibile: completamento profilo ───────────────────────── #}
+        {% if p and not p.profilo_completato %}
+        <tr class="profilo-expand-row collapse" id="profilo-panel-{{ cand.id }}">
+          <td colspan="10">
+            <div class="profilo-panel">
+
+              {# Barra progresso #}
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <span style="font-weight:700;color:#1b3a5f;white-space:nowrap">
+                  <i class="bi bi-person-fill-gear"></i>
+                  {{ cand.first_name }} {{ cand.last_name }} — Completamento profilo
+                </span>
+                <div class="flex-grow-1" style="max-width:200px">
+                  <div class="progress" style="height:10px">
+                    <div class="progress-bar {% if comp.percentuale >= 80 %}bg-success{% elif comp.percentuale >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                         style="width:{{ comp.percentuale }}%"></div>
+                  </div>
+                </div>
+                <span style="font-size:.72rem;color:#555">{{ comp.percentuale }}%</span>
+              </div>
+
+              {# Campi mancanti obbligatori #}
+              {% if comp.mancanti %}
+              <div class="mb-1">
+                <span style="font-size:.7rem;font-weight:700;color:#b91c1c">
+                  <i class="bi bi-exclamation-triangle-fill"></i> Obbligatori mancanti:
+                </span>
+                {% for campo, label in comp.mancanti %}
+                  <span class="campo-chip chip-mancante">{{ label }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+
+              {# Campi consigliati mancanti #}
+              {% if comp.consigliati %}
+              <div class="mb-2">
+                <span style="font-size:.7rem;font-weight:700;color:#92400e">
+                  <i class="bi bi-info-circle-fill"></i> Consigliati mancanti:
+                </span>
+                {% for campo, label in comp.consigliati %}
+                  <span class="campo-chip chip-consigliato">{{ label }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+
+              {# Mini-form per compilare i campi mancanti #}
+              {% if comp.mancanti or comp.consigliati %}
+              <form method="post" action="{% url 'aggiorna_campo_profilo_candidato' cand.id %}">
+                {% csrf_token %}
+                <div class="mini-form-row">
+
+                  {# Campi obbligatori mancanti #}
+                  {% for campo, label in comp.mancanti %}
+                    <div class="form-group-inline">
+                      <label for="f_{{ cand.id }}_{{ campo }}">{{ label }}</label>
+                      {% if campo == 'data_nascita' or campo == 'scadenza_documento' or campo == 'data_emissione_documento' or campo == 'data_disponibilita' %}
+                        <input type="date" id="f_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
+                               value="" style="max-width:160px">
+                      {% elif campo == 'sesso' %}
+                        <select id="f_{{ cand.id }}_{{ campo }}" name="{{ campo }}">
+                          <option value="">—</option>
+                          <option value="M" {% if p.sesso == 'M' %}selected{% endif %}>Maschile</option>
+                          <option value="F" {% if p.sesso == 'F' %}selected{% endif %}>Femminile</option>
+                          <option value="A" {% if p.sesso == 'A' %}selected{% endif %}>Preferisco non specificare</option>
+                        </select>
+                      {% elif campo == 'tipo_documento' %}
+                        <select id="f_{{ cand.id }}_{{ campo }}" name="{{ campo }}">
+                          <option value="">—</option>
+                          <option value="ci" {% if p.tipo_documento == 'ci' %}selected{% endif %}>Carta d'identità</option>
+                          <option value="passaporto" {% if p.tipo_documento == 'passaporto' %}selected{% endif %}>Passaporto</option>
+                          <option value="patente" {% if p.tipo_documento == 'patente' %}selected{% endif %}>Patente</option>
+                          <option value="ps" {% if p.tipo_documento == 'ps' %}selected{% endif %}>Permesso soggiorno</option>
+                        </select>
+                      {% elif campo == 'codice_fiscale' %}
+                        <input type="text" id="f_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
+                               value="{{ p.codice_fiscale }}" maxlength="16" placeholder="RSSMRA80A01H501T"
+                               style="text-transform:uppercase;max-width:160px">
+                      {% elif campo == 'cap' %}
+                        <input type="text" id="f_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
+                               value="{{ p.cap }}" maxlength="5" placeholder="90100" style="max-width:80px">
+                      {% elif campo == 'provincia' %}
+                        <input type="text" id="f_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
+                               value="{{ p.provincia }}" maxlength="2" placeholder="PA" style="max-width:60px;text-transform:uppercase">
+                      {% else %}
+                        <input type="text" id="f_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
+                               value="" placeholder="{{ label }}" style="max-width:180px">
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+
+                  {# Campi consigliati mancanti #}
+                  {% for campo, label in comp.consigliati %}
+                    <div class="form-group-inline">
+                      <label for="fc_{{ cand.id }}_{{ campo }}">{{ label }}</label>
+                      {% if campo == 'dichiarazione_no_condanne' %}
+                        <div class="d-flex align-items-center gap-1 mt-1">
+                          <input type="checkbox" id="fc_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
+                                 value="on" {% if p.dichiarazione_no_condanne %}checked{% endif %}>
+                          <label for="fc_{{ cand.id }}_{{ campo }}" style="font-size:.68rem;margin:0">Confermata</label>
+                        </div>
+                      {% elif campo == 'iban' %}
+                        <input type="text" id="fc_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
+                               value="{{ p.iban }}" maxlength="34" placeholder="IT60X0542811101000000123456"
+                               style="max-width:200px">
+                      {% else %}
+                        <input type="text" id="fc_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
+                               value="" placeholder="{{ label }}" style="max-width:180px">
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+
+                </div>{# fine mini-form-row #}
+
+                <div class="d-flex gap-2 mt-2 align-items-center">
+                  <button type="submit" class="btn btn-sm btn-primary" style="font-size:.72rem;padding:3px 10px">
+                    <i class="bi bi-save"></i> Salva campi
+                  </button>
+                  <a href="{% url 'modifica_profilo_candidato' cand.id %}"
+                     class="btn btn-sm btn-outline-secondary" style="font-size:.72rem;padding:3px 10px">
+                    <i class="bi bi-pencil"></i> Modifica profilo completo
+                  </a>
+                  <form method="post" action="{% url 'forza_profilo_completato_candidato' cand.id %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-warning" style="font-size:.72rem;padding:3px 10px"
+                            >
+                      <i class="bi bi-unlock"></i> Forza completamento
+                    </button>
+                  </form>
+                </div>
+              </form>
+              {% else %}
+              {# Profilo ha tutti i campi ma profilo_completato=False #}
+              <div class="d-flex align-items-center gap-2">
+                <span class="text-success"><i class="bi bi-check-circle"></i> Tutti i campi sono presenti.</span>
+                <form method="post" action="{% url 'forza_profilo_completato_candidato' cand.id %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-success" style="font-size:.72rem;padding:3px 10px">
+                    <i class="bi bi-unlock-fill"></i> Segna come completato
+                  </button>
+                </form>
+              </div>
+              {% endif %}
+
+            </div>
+          </td>
+        </tr>
+        {% endif %}
+        {# ── Fine riga espandibile ─────────────────────────────────────────── #}
+
+        {% endwith %}
+        {% empty %}
+        <tr><td colspan="10" class="text-center text-muted py-3">Nessun candidato trovato.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  </div>
+  {% gesper_pagination page_obj "Paginazione elenco candidati" %}
+</div>
+{% endblock %}

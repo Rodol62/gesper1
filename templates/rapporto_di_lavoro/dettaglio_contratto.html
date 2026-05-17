@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}Contratto {{ contratto.numero_contratto }}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h2 class="mb-0">Contratto {{ contratto.numero_contratto }}</h2>
+      <small class="text-muted">{{ contratto.dipendente.cognome }} {{ contratto.dipendente.nome }} · Stato: {{ contratto.get_stato_display }}</small>
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <div class="btn-group" role="group" aria-label="PDF contratto">
+        <a href="{% url 'contratto_pdf' contratto.id %}?ui=1&amp;next={{ request.path|urlencode }}"
+           class="btn btn-outline-dark btn-sm">
+          <i class="bi bi-eye"></i> Anteprima PDF
+        </a>
+        <a href="{% url 'contratto_pdf' contratto.id %}?download=1"
+           class="btn btn-outline-dark btn-sm" title="Scarica il file PDF">
+          <i class="bi bi-download"></i> Scarica
+        </a>
+        <a href="{% url 'contratto_stampa' contratto.id %}" class="btn btn-outline-dark btn-sm" title="Testo per stampa / salvataggio da browser">
+          <i class="bi bi-printer"></i> Stampa
+        </a>
+      </div>
+      {% if contratto.stato == 'proposta' %}
+        <a href="{% url 'modifica_contratto' contratto.id %}" class="btn btn-outline-primary btn-sm">Modifica bozza</a>
+      {% endif %}
+      {% if puo_gestire_addendum %}
+        <a href="{% url 'addendum_contratto_nuovo' contratto.id %}" class="btn btn-primary btn-sm">Registra addendum</a>
+      {% endif %}
+      <div class="btn-group" role="group" aria-label="Proposta collegata">
+        {% if proposta %}
+          <a href="{% url 'dettaglio_proposta' proposta.id %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-link-45deg"></i> Proposta {{ proposta.numero_proposta }}
+          </a>
+          <a href="{% url 'proposta_pdf' proposta.id %}?ui=1&amp;next={{ request.path|urlencode }}"
+             class="btn btn-outline-secondary btn-sm" title="PDF della proposta di origine">
+            <i class="bi bi-file-earmark-pdf"></i> PDF proposta
+          </a>
+        {% else %}
+          <span class="btn btn-sm btn-outline-secondary disabled" tabindex="-1"
+                title="Nessuna proposta collegata: contratto creato fuori dal flusso standard o dati legacy.">
+            <i class="bi bi-dash-circle"></i> Nessuna proposta
+          </span>
+        {% endif %}
+      </div>
+      <a href="{% url 'lista_proposte_assunzione' %}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-collection"></i> Proposte di assunzione
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header py-2">Dati principali</div>
+        <div class="card-body small">
+          <dl class="row mb-0">
+            <dt class="col-sm-5">Decorrenza</dt><dd class="col-sm-7">{{ contratto.data_inizio_rapporto|date:"d/m/Y" }}</dd>
+            <dt class="col-sm-5">Fine rapporto</dt><dd class="col-sm-7">{% if contratto.data_fine_rapporto %}{{ contratto.data_fine_rapporto|date:"d/m/Y" }}{% else %}—{% endif %}</dd>
+            <dt class="col-sm-5">Tipo contratto</dt><dd class="col-sm-7">{{ contratto.tipo_contratto }}</dd>
+            <dt class="col-sm-5">Lordo mensile</dt><dd class="col-sm-7">€ {{ contratto.stipendio_lordo_mensile }}</dd>
+            <dt class="col-sm-5">Ore sett.</dt><dd class="col-sm-7">{{ contratto.ore_settimanali }}</dd>
+            <dt class="col-sm-5">Livello / qualifica</dt><dd class="col-sm-7">{{ contratto.livello_ccnl }} — {{ contratto.qualifica }}</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="alert alert-light border mb-0 small">
+        <strong>Addendum e variazioni</strong> registrano rinnovi, proroghe o aggiornamenti retributivi
+        <em>senza sostituire</em> il numero contratto: costituiscono uno storico legale e, se scegli l’opzione di sincronizzazione,
+        aggiornano anche i campi operativi sul rapporto (solo HR, contratti sottoscritti o sospesi).
+      </div>
+    </div>
+  </div>
+
+  <h5 class="mt-4 mb-2">Storico addendum</h5>
+  {% if addenda %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead><tr><th>Decorrenza</th><th>Tipo</th><th>Riferimento</th><th>Lordo</th><th>Allegato</th><th>Registrato</th></tr></thead>
+      <tbody>
+        {% for a in addenda %}
+        <tr>
+          <td>{{ a.data_decorrenza|date:"d/m/Y" }}</td>
+          <td>{{ a.get_tipo_display }}</td>
+          <td>{{ a.riferimento_atto|default:"—" }}</td>
+          <td>{% if a.stipendio_lordo_mensile %}€ {{ a.stipendio_lordo_mensile }}{% else %}—{% endif %}</td>
+          <td>{% if a.file_allegato %}<a href="{% url 'addendum_allegato_file' a.id %}">file</a>{% else %}—{% endif %}</td>
+          <td class="small text-muted">{{ a.data_creazione|date:"d/m/Y H:i" }}{% if a.creato_da %} · {{ a.creato_da }}{% endif %}</td>
+        </tr>
+        {% if a.note %}
+        <tr class="border-0"><td colspan="6" class="pt-0 small text-muted">{{ a.note|linebreaksbr }}</td></tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted small">Nessun addendum registrato.</p>
+  {% endif %}
+</div>
+{% endblock %}

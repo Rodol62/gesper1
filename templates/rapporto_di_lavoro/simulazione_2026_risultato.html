@@ -1,0 +1,794 @@
+{% extends 'base.html' %}
+{% load currency_filters format_it_tags %}
+
+{% block title %}Simulazione annua — Risultato{% endblock %}
+
+{% block extra_head %}
+<style>
+:root {
+  --c-primary:  #1b3a5f;
+  --c-accent:   #2d6199;
+  --c-green:    #0a6640;
+  --c-red:      #8b1c1c;
+  --c-amber:    #7a4e00;
+  --c-border:   #c5d0dc;
+  --c-muted:    #5c6b7d;
+  --c-alt:      #f4f7fa;
+  --sz-xs:      0.66rem;
+  --sz-sm:      0.72rem;
+  --sz-base:    0.78rem;
+}
+body { font-size: var(--sz-base); }
+
+/* ── Topbar ─────────────────────────────────────────────── */
+.res-topbar {
+  background: var(--c-primary);
+  color: #fff;
+  padding: .45rem 1rem;
+  border-radius: 6px;
+  margin-bottom: .7rem;
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+}
+.res-topbar h5 { font-size: .92rem; font-weight: 700; margin: 0; }
+.res-topbar .meta { font-size: var(--sz-xs); opacity: .8; }
+
+/* ── KPI bar ────────────────────────────────────────────── */
+.kpi-bar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .7rem; }
+.kpi-box {
+  flex: 1 1 160px;
+  background: var(--c-alt);
+  border: 1px solid var(--c-border);
+  border-top: 3px solid var(--c-accent);
+  border-radius: 5px;
+  padding: .4rem .7rem;
+}
+.kpi-box.kpi-cost  { border-top-color: #c0392b; }
+.kpi-box.kpi-netto { border-top-color: var(--c-green); }
+.kpi-box.kpi-f24   { border-top-color: #b8770d; }
+.kpi-label { font-size: var(--sz-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted); font-weight: 600; display: block; margin-bottom: 1px; }
+.kpi-value { font-size: 1.05rem; font-weight: 700; color: var(--c-primary); display: block; }
+.kpi-box.kpi-cost  .kpi-value { color: #c0392b; }
+.kpi-box.kpi-netto .kpi-value { color: var(--c-green); }
+.kpi-box.kpi-f24   .kpi-value { color: #b8770d; }
+.kpi-sub  { font-size: .62rem; color: var(--c-muted); margin-top: 1px; }
+
+/* ── Summary card ───────────────────────────────────────── */
+.summary-card { border: 1px solid var(--c-border); border-radius: 5px; margin-bottom: .7rem; }
+.summary-card .sc-head {
+  background: var(--c-primary); color: #fff;
+  padding: .3rem .75rem; font-size: var(--sz-xs);
+  font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  border-radius: 4px 4px 0 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.summary-card .sc-group {
+  font-size: .6rem; text-transform: uppercase; letter-spacing: .05em;
+  padding: .25rem .4rem .1rem; color: var(--c-muted); border-bottom: 1px solid var(--c-border);
+  background: #edf1f5;
+}
+
+/* ── Tables ─────────────────────────────────────────────── */
+.rt { font-size: var(--sz-sm); }
+.rt th { font-size: .63rem; padding: .2rem .3rem; background: #e8eef5; color: var(--c-primary); font-weight: 700; white-space: nowrap; border-color: var(--c-border); }
+.rt td { padding: .2rem .3rem; border-color: var(--c-border); vertical-align: middle; white-space: nowrap; }
+.rt tr:nth-child(even) td { background: #f8fafc; }
+.rt .v-lordo { font-weight: 600; color: var(--c-primary); }
+.rt .v-netto { font-weight: 700; color: var(--c-green); }
+.rt .v-costo { font-weight: 700; color: #c0392b; }
+.rt .v-f24   { background: #fff6e0; font-weight: 700; color: #b8770d; }
+.rt .v-contrib { color: #555; }
+.rt .v-var  { color: #5a3e9b; font-style: italic; }
+.rt .v-miss { color: #999; font-style: italic; }
+.rt tfoot td { background: #dce6f0; font-weight: 700; border-top: 2px solid var(--c-accent); }
+
+/* ── Monthly accordion ──────────────────────────────────── */
+.month-item { border: 1px solid var(--c-border); border-radius: 5px; margin-bottom: .35rem; }
+.month-btn {
+  width: 100%; display: flex; align-items: center; gap: .5rem;
+  background: #f0f5fa; border: none; padding: .3rem .65rem;
+  cursor: pointer; border-radius: 4px; text-align: left;
+  transition: background .15s;
+}
+.month-btn:hover { background: #e2ebf5; }
+.month-btn.open  { background: var(--c-primary); color: #fff; }
+.month-name { font-size: var(--sz-sm); font-weight: 700; min-width: 80px; }
+.month-chips { display: flex; flex-wrap: wrap; gap: .3rem; flex: 1; }
+.mchip { font-size: .62rem; padding: .08rem .35rem; border-radius: 3px; font-weight: 600; }
+.mchip-lordo { background: #dce8f5; color: var(--c-primary); }
+.mchip-netto { background: #d4f0e3; color: var(--c-green); }
+.mchip-costo { background: #fce8e8; color: #b52020; }
+.mchip-f24   { background: #fef3cd; color: #8a5700; }
+.mchip-13    { background: #f0e0ff; color: #5b2d8e; }
+.mchip-tfrliq{ background: #fff3e0; color: #8a4000; }
+.month-btn.open .mchip-lordo,
+.month-btn.open .mchip-netto,
+.month-btn.open .mchip-costo,
+.month-btn.open .mchip-f24 { opacity: .9; }
+.month-arrow { font-size: .7rem; margin-left: auto; transition: transform .2s; }
+.month-btn.open .month-arrow { transform: rotate(180deg); }
+.month-body { display: none; padding: .4rem .4rem .3rem; }
+.month-body.show { display: block; }
+
+/* ── Variable detail ────────────────────────────────────── */
+.var-detail { font-size: .62rem; color: #5a3e9b; line-height: 1.4; }
+
+/* ── F24 footer ─────────────────────────────────────────── */
+.f24-bar {
+  background: #fff6e0;
+  border: 1px solid #f0d080;
+  border-radius: 5px;
+  padding: .45rem .9rem;
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  margin-top: .5rem;
+}
+.f24-bar .f24-label { font-size: var(--sz-xs); text-transform: uppercase; font-weight: 700; color: #8a5700; letter-spacing: .04em; }
+.f24-bar .f24-value { font-size: 1.1rem; font-weight: 800; color: #8a5700; }
+.f24-bar .f24-note  { font-size: .62rem; color: var(--c-muted); }
+
+/* ── F24 dettaglio mensile ──────────────────────────────── */
+.f24-detail {
+  background: #fffdf5;
+  border: 1px solid #f0d080;
+  border-radius: 5px;
+  padding: .4rem .7rem;
+  font-size: .68rem;
+  margin-top: .35rem;
+}
+.f24-detail .f24-section-title {
+  font-size: .6rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: #7a5000; margin-bottom: .1rem; margin-top: .3rem;
+}
+.f24-detail .f24-row { display: flex; justify-content: space-between; color: #333; padding: .05rem 0; }
+.f24-detail .f24-row.f24-subtotal { font-weight: 700; color: #5a3a00; border-top: 1px dashed #e0c060; padding-top: .1rem; margin-top: .05rem; }
+.f24-detail .f24-row.f24-comp { color: #1a7a1a; }
+.f24-detail .f24-row.f24-total { font-weight: 800; font-size: .78rem; color: #8a5700; border-top: 2px solid #d4a800; padding-top: .15rem; margin-top: .1rem; }
+.f24-detail .f24-row.f24-addiz { color: #6a6a6a; font-style: italic; }
+.f24-detail .f24-cod { font-size: .58rem; color: #aaa; margin-left: .3rem; }
+
+/* ── Debug ──────────────────────────────────────────────── */
+.debug-badge { font-size: .6rem; cursor: pointer; }
+
+/* ════════════════════════════════════════════════════════════
+   STAMPA PDF — A4 orizzontale, margini stretti
+   ════════════════════════════════════════════════════════════ */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm 10mm 8mm 10mm;
+  }
+
+  /* Nascondi elementi non necessari in stampa */
+  .res-topbar,
+  .no-print,
+  .debug-badge,
+  #debugSection,
+  .alert,
+  .month-btn .month-arrow,
+  .mchip { display: none !important; }
+
+  /* Ripristina colori e background per stampa */
+  body, .container-fluid {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 7.5pt !important;
+  }
+
+  /* Intestazione stampa */
+  .print-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 4mm;
+    border-bottom: 1.5pt solid #1b3a5f;
+    padding-bottom: 2mm;
+  }
+
+  /* KPI bar in stampa */
+  .kpi-bar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 3mm !important;
+    margin-bottom: 3mm;
+    page-break-after: avoid;
+  }
+  .kpi-box {
+    flex: 1 1 auto !important;
+    padding: 2mm 3mm !important;
+    border: 0.5pt solid #aaa !important;
+    border-radius: 2pt !important;
+    background: #f5f5f5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .kpi-label { font-size: 6pt !important; }
+  .kpi-value { font-size: 11pt !important; }
+  .kpi-sub   { font-size: 5.5pt !important; }
+
+  /* Tabella riepilogo annuo */
+  .table-responsive { overflow: visible !important; }
+  table { width: 100% !important; border-collapse: collapse !important; font-size: 6.5pt !important; page-break-inside: avoid; }
+  th, td { padding: 1mm 1.5mm !important; border: 0.3pt solid #bbb !important; }
+  thead th { background: #e8eef5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Accordion mesi — espansi tutti in stampa */
+  .month-body { display: block !important; }
+  .month-item { page-break-inside: avoid; margin-bottom: 3mm !important; }
+  .month-btn {
+    background: #1b3a5f !important;
+    color: #fff !important;
+    border-radius: 3pt !important;
+    padding: 1.5mm 3mm !important;
+    font-size: 7.5pt !important;
+    font-weight: 700;
+    page-break-after: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* F24 detail */
+  .f24-detail {
+    background: #fffce8 !important;
+    border: 0.5pt solid #c8a800 !important;
+    font-size: 6pt !important;
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .f24-bar {
+    background: #fff6e0 !important;
+    border: 0.5pt solid #d4a800 !important;
+    font-size: 6pt !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Salto pagina prima di ogni mese (dal 2° in poi) */
+  .month-item + .month-item { page-break-before: auto; }
+  .month-item:nth-child(4n+1) { page-break-before: always; }
+
+  /* Riepilogo pagamenti effettivi */
+  .paybar-print {
+    border: 0.5pt solid #9b72cf !important;
+    background: #f8f3ff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* Intestazione solo in stampa (nascosta a schermo) */
+.print-header { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-2">
+
+  <!-- Intestazione solo stampa -->
+  <div class="print-header">
+    <div style="font-size:13pt;font-weight:800;color:#1b3a5f">SIMULAZIONE ANNUA</div>
+    <div style="font-size:8pt;color:#444;margin-top:1mm">
+      {{ azienda_operativa.nome|default:"—" }}
+      &nbsp;|&nbsp; Periodo: {{ data_inizio|date:"d/m/Y" }} – {{ data_fine|date:"d/m/Y" }}
+      &nbsp;|&nbsp; Stampato il: {% now "d/m/Y H:i" %}
+      &nbsp;|&nbsp; CCNL FIPE — Divisore ore: {{ divisore_ore }}
+    </div>
+  </div>
+
+  <!-- Topbar -->
+  <div class="res-topbar">
+    <div>
+      <h5>Simulazione annua — Risultato</h5>
+      <span class="meta">
+        {{ data_inizio|date:"d/m/Y" }} – {{ data_fine|date:"d/m/Y" }}
+        &nbsp;|&nbsp; {{ azienda_operativa.nome|default:"—" }}
+        &nbsp;|&nbsp; Divisore: <strong>{{ divisore_ore }}</strong>
+        {% if dipendenti_attivi_count is not None %}
+        &nbsp;|&nbsp; Attivi: <strong>{{ dipendenti_attivi_count }}</strong>
+        &nbsp;|&nbsp; Scenario: <strong>{{ testate_scenario }}</strong> testate
+          {% if delta_organico is not None %}
+            ({% if delta_organico > 0 %}+{% endif %}{{ delta_organico }} vs oggi)
+          {% endif %}
+        {% endif %}
+        &nbsp;|&nbsp; Motore:
+        {% if usa_costo_lavoro %}<span style="color:#7dffa0;font-weight:600">costo_lavoro</span>
+        {% else %}<span style="color:#aac4e0">legacy</span>{% endif %}
+      </span>
+    </div>
+    <div class="d-flex gap-2">
+      <button onclick="stampaPDF()" class="btn btn-sm no-print" style="background:#c8a800;color:#fff;font-size:.72rem;padding:.2rem .7rem;border:none" title="Stampa / Salva PDF (A4 orizzontale)">
+        ⬇ PDF
+      </button>
+      <a href="{% url 'simulazione_2026_excel' %}" class="btn btn-sm no-print" style="background:#1e7e34;color:#fff;font-size:.72rem;padding:.2rem .7rem" title="Esporta in Excel (.xlsx)">
+        ⬇ Excel
+      </a>
+      <a href="{% url 'simulazione_2026_crea_proposte' %}" class="btn btn-sm no-print" style="background:#0a6640;color:#fff;font-size:.72rem;padding:.2rem .7rem" title="Crea proposte di assunzione dai ruoli simulati">
+        <i class="bi bi-briefcase-fill"></i> Conferma → Proposte
+      </a>
+      <a href="{% url 'simulazione_2026_config' %}" class="btn btn-sm btn-outline-light" style="font-size:.72rem;padding:.2rem .6rem" title="Modifica ruoli e quantità">← Scenario</a>
+    </div>
+  </div>
+
+  <div class="alert alert-light border py-2 small mb-2 no-print" role="status" style="font-size:.74rem">
+    <div class="mb-1"><strong>Risultato annuo.</strong> Totali e dettaglio per ruolo; usa Excel per analisi esterne. Da qui puoi tornare allo scenario o generare proposte di assunzione.</div>
+    <div class="mb-0 text-muted" style="font-size:.9em">
+      <a href="{% url 'guida_modulo' 'modulo-admin' %}">Guida: operazioni HR / admin</a>
+    </div>
+  </div>
+
+  {% if simulazione_salvata_id %}
+  <div class="alert alert-success py-1 small mb-2">Simulazione salvata (ID: {{ simulazione_salvata_id }})</div>
+  {% endif %}
+
+  {% if has_decontrib_sud %}
+  <div class="alert alert-warning py-2 small mb-2 no-print" style="border-left:4px solid #e0a800;font-size:.78rem">
+    <strong>⚠ Decontribuzione Sud attiva</strong> — Questa simulazione include la riduzione INPS azienda per Decontribuzione Sud (L. 178/2020).
+    L'incentivo è condizionato al <strong>DURC in regola</strong> (art. 1 c. 1175 L. 296/2006 + art. 4 DL 5/2021).
+    <strong>In caso di DURC irregolare l'agevolazione non è applicabile</strong> e l'INPS azienda deve essere calcolato alla piena aliquota contrattuale (29,31% CCNL FIPE).
+    Verificare la regolarità DURC prima di utilizzare questi importi come base per la pianificazione o per la compilazione del DM10.
+  </div>
+  {% endif %}
+
+  <!-- KPI Bar -->
+  <div class="kpi-bar">
+    <div class="kpi-box kpi-cost">
+      <span class="kpi-label">Costo azienda annuo</span>
+      <span class="kpi-value">{{ totali_annui.costo_azienda_totale|euro }}</span>
+      <span class="kpi-sub">lordo + contributi + ratei</span>
+    </div>
+    <div class="kpi-box kpi-f24">
+      <span class="kpi-label">F24 annuo da versare</span>
+      <span class="kpi-value">{{ totale_f24_annuo|euro }}</span>
+      <span class="kpi-sub">DM10 + INAIL + Erario (al netto bonus fiscali)</span>
+    </div>
+    <div class="kpi-box">
+      <span class="kpi-label">Costo medio mensile</span>
+      <span class="kpi-value">{{ costo_medio_mensile|euro }}</span>
+      <span class="kpi-sub">media 12 mesi</span>
+    </div>
+    <div class="kpi-box kpi-netto">
+      <span class="kpi-label">Netto dipendenti annuo</span>
+      <span class="kpi-value">{{ totali_annui.netto_mensile|euro }}</span>
+      <span class="kpi-sub">busta paga effettiva · incl. 13ª/14ª/TFR netti · TI e Bonus L.207</span>
+      <span class="kpi-sub" style="color:#27ae60;font-weight:600">≈ mensile econ.: {{ totali_annui.netto_con_ratei|euro }}</span>
+    </div>
+    <div class="kpi-box">
+      <span class="kpi-label">Lordo annuo</span>
+      <span class="kpi-value">{{ totali_annui.lordo_mensile|euro }}</span>
+      <span class="kpi-sub">incl. ratei 13ª/14ª e voci variabili</span>
+    </div>
+  </div>
+
+  <!-- Riepilogo annuale -->
+  <div class="summary-card">
+    <div class="sc-head">
+      <span>Riepilogo annuale aggregato</span>
+      <span style="font-size:.62rem;opacity:.75;font-weight:400">somma 12 mesi / tutti i ruoli</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-bordered rt mb-0">
+        <thead>
+          <tr>
+            <th colspan="3" class="text-center" style="background:#e0ecf8">Retribuzione dipendente</th>
+            <th colspan="2" class="text-center" style="background:#dde8f5;font-size:.7rem" title="Trattenute versate all'erario per conto del dipendente — già incluse nel lordo, non costo aggiuntivo">Trattenute dip. →F24</th>
+            <th colspan="3" class="text-center" style="background:#f0e8f8">Oneri azienda →F24</th>
+            <th colspan="3" class="text-center" style="background:#e8f4ec">Accantonamenti</th>
+            <th class="text-center" style="background:#fce8e8">Costo totale</th>
+          </tr>
+          <tr>
+            <th class="text-end">Lordo</th>
+            <th class="text-end" title="TI DL3/2020 + Bonus L.207">TI + Bonus</th>
+            <th class="text-end" title="Busta paga effettiva: incl. ratei 13ª/14ª mensili e TFR (scadenza). Sotto: media economica mensile con tutti i ratei.">Netto busta<br><span style="font-size:.58rem;font-weight:400;color:#555">/ ≈ mensile</span></th>
+            <th class="text-end">INPS dip.</th>
+            <th class="text-end">IRPEF</th>
+            <th class="text-end">INPS az.</th>
+            <th class="text-end">INAIL</th>
+            <th class="text-end">F24 annuo</th>
+            <th class="text-end">TFR</th>
+            <th class="text-end" title="Rateo ferie (26 gg/anno)">Ferie</th>
+            <th class="text-end" title="Rateo permessi/ROL">Perm.</th>
+            <th class="text-end v-costo">Costo az.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-end v-lordo">{{ totali_annui.lordo_mensile|euro }}</td>
+            <td class="text-end" style="color:var(--c-green)">+{{ totali_annui.trattamento_integrativo|euro }}<br><span style="font-size:.6rem">+{{ totali_annui.bonus_l207|euro }}</span></td>
+            <td class="text-end v-netto">{{ totali_annui.netto_mensile|euro }}<br><span style="font-size:.65rem;color:#27ae60;font-weight:600">{{ totali_annui.netto_con_ratei|euro }}</span></td>
+            <td class="text-end v-contrib">{{ totali_annui.inps_dipendente|euro }}</td>
+            <td class="text-end v-contrib">{{ totali_annui.irpef_dipendenti|euro }}</td>
+            <td class="text-end v-contrib">{{ totali_annui.inps_azienda|euro }}</td>
+            <td class="text-end v-contrib">{{ totali_annui.inail|euro }}</td>
+            <td class="text-end v-f24">{{ totale_f24_annuo|euro }}</td>
+            <td class="text-end v-contrib">{{ totali_annui.tfr|euro }}</td>
+            <td class="text-end v-contrib">{{ totali_annui.rateo_ferie|euro }}</td>
+            <td class="text-end v-contrib">{{ totali_annui.rateo_permessi|euro }}</td>
+            <td class="text-end v-costo">{{ totali_annui.costo_azienda_totale|euro }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Accordion mensile -->
+  <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--c-muted);margin-bottom:.4rem">
+    Dettaglio mensile
+  </div>
+
+  {% for mese_data in risultati_mensili %}
+  {% with totm=mese_data.totali %}
+  {% if mese_data.righe %}
+  <div class="month-item">
+    <button type="button" class="month-btn" onclick="toggleMese(this,'mese_{{ mese_data.mese }}')">
+      <span class="month-name">{% if mesi_nomi %}{{ mesi_nomi|slice:mese_data.mese|last }}{% else %}Mese {{ mese_data.mese }}{% endif %} <span style="font-weight:400;font-size:.65rem;opacity:.7">{{ mese_data.anno|anno_it }}</span></span>
+      <span class="month-chips">
+        <span class="mchip mchip-lordo">Lordo {{ totm.lordo_mensile|euro }}{% if totm.tfr_liquidazione %} <span style="opacity:.8;font-size:.6rem">+TFR {{ totm.tfr_liquidazione|euro }}</span>{% endif %}</span>
+        <span class="mchip mchip-netto">Netto {{ totm.netto_mensile|euro }} <span style="opacity:.75;font-size:.6rem">/ c.ratei {{ totm.netto_con_ratei|euro }}</span></span>
+        <span class="mchip mchip-costo">Costo az. {{ totm.costo_azienda_totale|euro }}</span>
+        <span class="mchip mchip-f24">F24 {{ totm.totale_f24_mese|euro }}</span>
+        {% if totm.pagamento_13_lordo %}<span class="mchip mchip-13">13ª {{ totm.pagamento_13_lordo|euro }}</span>{% endif %}
+        {% if totm.pagamento_14_lordo %}<span class="mchip mchip-13">14ª {{ totm.pagamento_14_lordo|euro }}</span>{% endif %}
+        {% if totm.tfr_liquidazione %}<span class="mchip mchip-tfrliq">TFR liq. {{ totm.tfr_liquidazione|euro }}</span>{% endif %}
+      </span>
+      <span class="month-arrow">&#9660;</span>
+    </button>
+    <div id="mese_{{ mese_data.mese }}" class="month-body">
+      {% if mese_data.righe %}
+      <div class="table-responsive">
+        <table class="table table-bordered rt mb-1">
+          <thead>
+            <tr>
+              <th>Ruolo</th>
+              <th class="text-center">Qtà</th>
+              <th>Livello</th>
+              <th>Contr.</th>
+              <th class="text-center" title="Giorni attivi nel mese">Gg.att.</th>
+              <th class="text-end" title="Paga oraria lorda base">€/h</th>
+              <th class="text-end">Lordo unit.</th>
+              <th class="text-end v-var" title="Voci variabili (scatto+supermin.+ind.turno+straord.+dom.+fest.)">Var. unit.</th>
+              <th class="text-end">Netto unit.</th>
+              <th class="text-end v-contrib" title="INPS azienda">INPS az.</th>
+              <th class="text-end v-contrib" title="INAIL azienda">INAIL</th>
+              <th class="text-end v-contrib">TFR</th>
+              <th class="text-end v-contrib" title="Rateo ferie">Fer.</th>
+              <th class="text-end v-contrib" title="Rateo permessi/ROL">Per.</th>
+              <th class="text-end v-costo">Costo az.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for riga in mese_data.righe %}
+            {% if riga.missing %}
+            <tr>
+              <td class="v-miss" colspan="15">{{ riga.nome }} — parametro CCNL non trovato per livello "{{ riga.livello }}"</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td>
+                <span style="font-weight:600">{{ riga.nome }}</span>
+                {% if riga.fonte_calcolo == 'costo_lavoro' %}<span class="mchip" style="background:#dff0d8;color:#3d7a3d;font-size:.58rem;margin-left:3px">CL</span>{% endif %}
+                {% if riga.decontrib_rule_name %}<br><span style="font-size:.6rem;color:#7a5000">decontrib: {{ riga.decontrib_tipo }} {{ riga.decontrib_valore|num_it:1 }}%</span>{% endif %}
+              </td>
+              <td class="text-center">{{ riga.quantita }}</td>
+              <td title="Vers. CCNL: {{ riga.versione_ccnl }}">L{{ riga.livello }}<br><span style="font-size:.6rem;color:var(--c-muted)">{{ riga.qualifica }}{% if riga.versione_ccnl %} <span style="color:#b8770d">{{ riga.versione_ccnl }}</span>{% endif %}</span></td>
+              <td style="font-size:.63rem">{% if riga.tipo_contratto %}{{ riga.tipo_contratto.nome }}{% else %}Full-time{% endif %}<br><span style="color:var(--c-muted)">×{{ riga.coefficiente_ore }}</span></td>
+              <td class="text-center">{{ riga.giorni_attivi_calendario }}/{{ mese_data.giorni_nel_mese }}</td>
+              <td class="text-end" style="font-size:.65rem">{{ riga.paga_oraria_lorda|num_it:4 }}</td>
+              <td class="text-end v-lordo">
+                {{ riga.lordo_con_1314_unit|euro }}
+                {% if riga.tfr_liquidazione_unit %}<br><span style="font-size:.6rem;color:#8a4000;font-style:italic">+ TFR {{ riga.tfr_liquidazione_unit|euro }}</span>{% endif %}
+              </td>
+              <td class="text-end v-var">
+                {% if riga.lordo_variabile_unit %}
+                  {{ riga.lordo_variabile_unit|euro }}
+                  <br><span class="var-detail">
+                    {% if riga.scatto_unit %}sc.{{ riga.scatto_unit|euro }} {% endif %}
+                    {% if riga.superminimo_unit %}sup.{{ riga.superminimo_unit|euro }} {% endif %}
+                    {% if riga.indennita_turno_unit %}it.{{ riga.indennita_turno_unit|euro }} {% endif %}
+                    {% if riga.indennita_extra_unit %}ex.{{ riga.indennita_extra_unit|euro }} {% endif %}
+                    {% if riga.straord_unit %}str.{{ riga.straord_unit|euro }} {% endif %}
+                    {% if riga.imp_dom_magg_unit %}dom.{{ riga.imp_dom_magg_unit|euro }} {% endif %}
+                    {% if riga.imp_fest_magg_unit %}fest.{{ riga.imp_fest_magg_unit|euro }}{% endif %}
+                  </span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-end v-netto">
+                {{ riga.netto_busta_unit|euro }}
+                {% if riga.trattamento_integrativo_unit or riga.bonus_l207_unit %}
+                <br><span style="font-size:.6rem;color:var(--c-green)">+TI {{ riga.trattamento_integrativo_unit|euro }}</span>
+                {% endif %}
+                {% if riga.pagamento_13_netto %}
+                <br><span style="font-size:.6rem;color:#5b2d8e" title="13ª netta: lordo {{ riga.pagamento_13_unit|euro }} − INPS dip. {{ riga.pagamento_13_inps_dip|euro }} − IRPEF {{ riga.pagamento_13_irpef|euro }} | INPS az. {{ riga.pagamento_13_inps_az|euro }} → F24">+13ª netta {{ riga.pagamento_13_netto|euro }}</span>
+                {% endif %}
+                {% if riga.pagamento_14_netto %}
+                <br><span style="font-size:.6rem;color:#5b2d8e" title="14ª netta: lordo {{ riga.pagamento_14_unit|euro }} − INPS dip. {{ riga.pagamento_14_inps_dip|euro }} − IRPEF {{ riga.pagamento_14_irpef|euro }} | INPS az. {{ riga.pagamento_14_inps_az|euro }} → F24">+14ª netta {{ riga.pagamento_14_netto|euro }}</span>
+                {% endif %}
+                {% if riga.tfr_liq_netto %}
+                <br><span style="font-size:.6rem;color:#8b5e00" title="TFR netto stimato (tassazione separata appross. con aliquota IRPEF effettiva)">+TFR netto {{ riga.tfr_liq_netto|euro }}</span>
+                {% endif %}
+                <br><span style="font-size:.6rem;color:#27ae60" title="Netto base + ratei netti 13ª/14ª distribuiti mensilmente (vista economica)">≈ men. {{ riga.netto_con_ratei_unit|euro }}</span>
+              </td>
+              <td class="text-end v-contrib">{{ riga.inps_azienda_tot|euro }}</td>
+              <td class="text-end v-contrib">{{ riga.inail_tot|euro }}</td>
+              <td class="text-end v-contrib">{{ riga.tfr_tot|euro }}</td>
+              <td class="text-end v-contrib">{{ riga.rateo_ferie_tot|euro }}</td>
+              <td class="text-end v-contrib">{{ riga.rateo_perm_tot|euro }}</td>
+              <td class="text-end v-costo">{{ riga.costo_azienda_tot|euro }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="6" class="text-end" style="font-size:.63rem">Totale mese →</td>
+              <td class="text-end v-lordo">{{ totm.lordo_mensile|euro }}</td>
+              <td class="text-end v-var">—</td>
+              <td class="text-end v-netto">{{ totm.netto_mensile|euro }}<br><span style="font-size:.65rem;color:#27ae60;font-weight:600" title="Netto + ratei netti 13ª/14ª">c/ratei {{ totm.netto_con_ratei|euro }}</span></td>
+              <td class="text-end">{{ totm.inps_azienda|euro }}</td>
+              <td class="text-end">{{ totm.inail|euro }}</td>
+              <td class="text-end">{{ totm.tfr|euro }}</td>
+              <td class="text-end">{{ totm.rateo_ferie|euro }}</td>
+              <td class="text-end">{{ totm.rateo_permessi|euro }}</td>
+              <td class="text-end v-costo">{{ totm.costo_azienda_totale|euro }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <!-- Pagamenti effettivi 13ª / 14ª / TFR liquidazione -->
+      {% if totm.pagamento_13_lordo or totm.pagamento_14_lordo or totm.tfr_liquidazione %}
+      <div style="margin-top:.4rem;border:1px solid #d8c4f0;border-radius:4px;background:#faf5ff;padding:.35rem .65rem">
+        <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#5b2d8e;margin-bottom:.25rem">
+          Pagamenti effettivi in busta paga
+        </div>
+        <table class="table table-sm mb-0 rt" style="font-size:.7rem">
+          <thead>
+            <tr style="background:#efe5ff">
+              <th>Ruolo</th>
+              <th>Voce</th>
+              <th class="text-end">Lordo</th>
+              <th class="text-end">INPS dip.</th>
+              <th class="text-end">INPS az.</th>
+              <th class="text-end">IRPEF est.</th>
+              <th class="text-end" style="color:var(--c-green)">Netto stimato</th>
+              <th class="text-end">Mesi serv.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for riga in mese_data.righe %}{% if not riga.missing %}
+            {% if riga.pagamento_13_unit %}
+            <tr>
+              <td>{{ riga.nome }}</td>
+              <td style="color:#5b2d8e;font-weight:600">Tredicesima (Dicembre)
+                <br><span style="font-size:.58rem;font-weight:400;color:#888">rif. 1 gen–31 dic; ≥15 gg/mese</span>
+              </td>
+              <td class="text-end v-lordo">{{ riga.pagamento_13_tot|euro }}</td>
+              <td class="text-end v-contrib">{{ riga.pagamento_13_inps_dip|euro }}</td>
+              <td class="text-end v-contrib">{{ riga.pagamento_13_inps_az|euro }}</td>
+              <td class="text-end v-contrib">{{ riga.pagamento_13_irpef|euro }}</td>
+              <td class="text-end v-netto">{{ riga.pagamento_13_net_tot|euro }}</td>
+              <td class="text-center" style="color:var(--c-muted)">{{ riga.mesi_13_attivi }}/12</td>
+            </tr>
+            {% endif %}
+            {% if riga.pagamento_14_unit %}
+            <tr>
+              <td>{{ riga.nome }}</td>
+              <td style="color:#5b2d8e;font-weight:600">Quattordicesima (Luglio)
+                <br><span style="font-size:.58rem;font-weight:400;color:#888">rif. 1 lug prec–30 giu; ≥15 gg/mese</span>
+              </td>
+              <td class="text-end v-lordo">{{ riga.pagamento_14_tot|euro }}</td>
+              <td class="text-end v-contrib">{{ riga.pagamento_14_inps_dip|euro }}</td>
+              <td class="text-end v-contrib">{{ riga.pagamento_14_inps_az|euro }}</td>
+              <td class="text-end v-contrib">{{ riga.pagamento_14_irpef|euro }}</td>
+              <td class="text-end v-netto">{{ riga.pagamento_14_net_tot|euro }}</td>
+              <td class="text-center" style="color:var(--c-muted)">{{ riga.mesi_14_attivi }}/12</td>
+            </tr>
+            {% endif %}
+            {% if riga.tfr_liquidazione_unit %}
+            <tr style="background:#fff8ee">
+              <td>{{ riga.nome }}</td>
+              <td style="color:#8a4000;font-weight:600">TFR liquidazione (fine contratto)</td>
+              <td class="text-end" style="color:#8a4000;font-weight:700">{{ riga.tfr_liq_tot|euro }}</td>
+              <td class="text-end v-contrib">—</td>
+              <td class="text-end v-contrib">—</td>
+              <td class="text-end v-contrib" title="Tassazione separata — aliquota IRPEF effettiva del mese">{{ riga.tfr_liq_tax_unit|euro }}</td>
+              <td class="text-end v-netto">{{ riga.tfr_liq_netto|euro }} <span style="font-size:.58rem;color:var(--c-muted)">stima</span></td>
+              <td class="text-center" style="color:var(--c-muted)">{{ riga.mesi_13_attivi }} mesi</td>
+            </tr>
+            {% endif %}
+            {% endif %}{% endfor %}
+          </tbody>
+          <tfoot>
+            <tr style="background:#efe5ff">
+              <td colspan="2" class="text-end" style="font-size:.63rem">Totale →</td>
+              <td class="text-end" style="font-weight:700">{{ totm.pagamento_13_lordo|add:totm.pagamento_14_lordo|euro }}</td>
+              <td colspan="3"></td>
+              <td class="text-end" style="font-weight:700;color:var(--c-green)">{{ totm.pagamento_13_netto|add:totm.pagamento_14_netto|euro }}{% if totm.tfr_liquidazione_netto %} +TFR {{ totm.tfr_liquidazione_netto|euro }}{% endif %}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+        <div style="font-size:.62rem;color:var(--c-muted);margin-top:.15rem">
+          I pagamenti straordinari sono già inclusi nel <strong>netto mensile</strong> della riga sopra (non duplicano il costo già contabilizzato nei ratei). IRPEF 13ª/14ª: metodo marginale mensile. TFR: tassazione separata stimata con aliquota IRPEF effettiva del mese.
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- F24 dettaglio mensile -->
+      <div class="f24-detail">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.15rem">
+          <span style="font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#7a5000">F24 Unificato — Modello di pagamento</span>
+          <span style="font-size:.75rem;font-weight:800;color:#8a5700">Netto da versare: {{ totm.f24_netto|euro }}</span>
+        </div>
+        <!-- Sezione INPS -->
+        <div class="f24-section-title">Sezione INPS — DM10 (causale 5500) — scad. 16 mese succ.</div>
+        <div class="f24-row" style="font-weight:600;color:#5a3a00"><span>INPS c/azienda <span class="f24-cod">(onere azienda — incluso nel costo az.)</span></span><span>{{ totm.inps_azienda|euro }}</span></div>
+        <div class="f24-row" style="color:#555"><span>INPS c/dipendente <span class="f24-cod">(trattenuta dal lordo — non costo agiuntivo)</span></span><span>{{ totm.inps_dipendente|euro }}</span></div>
+        <div class="f24-row f24-subtotal"><span>Totale DM10 versato <span class="f24-cod">(arrotondato all'€ intero)</span></span><span>{{ totm.f24_inps|euro }}</span></div>
+        <!-- Sezione Erario -->
+        <div class="f24-section-title">Sezione Erario</div>
+        <div class="f24-row" style="color:#555"><span>IRPEF trattenuta dipendenti <span class="f24-cod">cod. 1001 — trattenuta dal lordo — non costo aggiuntivo</span></span><span>{{ totm.irpef_dipendenti|euro }}</span></div>
+        {% if totm.f24_bonus_comp %}
+        {% if totm.trattamento_integrativo %}
+        <div class="f24-row f24-comp"><span>− Trattamento Integrativo (credito) <span class="f24-cod">cod. 1701</span></span><span>− {{ totm.trattamento_integrativo|euro }}</span></div>
+        {% endif %}
+        {% if totm.bonus_l207 %}
+        <div class="f24-row f24-comp"><span>− Bonus L.207/2024 (credito) <span class="f24-cod">cod. 1704</span></span><span>− {{ totm.bonus_l207|euro }}</span></div>
+        {% endif %}
+        <div class="f24-row f24-subtotal"><span>Erario netto (IRPEF − bonus compensabili)</span><span>{{ totm.f24_erario_netto|euro }}</span></div>
+        {% else %}
+        <div class="f24-row f24-subtotal"><span>Erario netto</span><span>{{ totm.f24_irpef|euro }}</span></div>
+        {% endif %}
+        {% if totm.f24_tfr_tax %}
+        <div class="f24-row" style="color:#8a4000"><span>Tassazione separata TFR <span class="f24-cod">cod. 1012 — versata nel mese di liquidazione</span></span><span>{{ totm.f24_tfr_tax|euro }}</span></div>
+        {% endif %}
+        <!-- Totale F24 mensile -->
+        <div class="f24-row f24-total"><span>TOTALE F24 MENSILE (INPS DM10 + Erario{% if totm.f24_tfr_tax %} + TFR{% endif %})</span><span>{{ totm.f24_netto|euro }}</span></div>
+        <div style="font-size:.6rem;color:#888;margin:.1rem 0 .2rem;line-height:1.3">
+          <strong>Costo aggiuntivo reale per l'azienda:</strong> solo INPS az. {{ totm.inps_azienda|euro }} + INAIL {{ totm.inail|euro }}{% if totm.f24_tfr_tax %} + tass. TFR {{ totm.f24_tfr_tax|euro }}{% endif %}.
+          INPS dip. e IRPEF sono trattenute sul lordo già contabilizzato nel costo — l'azienda le versa all'erario ma non sono un costo aggiuntivo.
+          {% if totm.f24_bonus_comp %}I bonus TI/L207 ({{ totm.f24_bonus_comp|euro }}) sono anticipati ai dipendenti e recuperati in compensazione F24 (credito Stato).{% endif %}
+        </div>
+        <!-- INAIL: non nell'F24 mensile -->
+        <div class="f24-section-title" style="color:#888;margin-top:.3rem">INAIL — autoliquidazione annuale (febbraio) — non nell'F24 mensile</div>
+        <div class="f24-row f24-addiz"><span>Accrual INAIL mensile <span class="f24-cod">(da versare in febbraio anno succ.)</span></span><span>{{ totm.inail|euro }}</span></div>
+        <!-- Addizionali stima (informativa) -->
+        {% if totm.f24_addiz_reg or totm.f24_addiz_com %}
+        <div class="f24-section-title" style="color:#888">Stima addizionali — saldo versato anno successivo (mese rif. = anno prec.)</div>
+        <div class="f24-row f24-addiz"><span>Add. reg. Sicilia <span class="f24-cod">cod. 3802 — scaglioni IRPEF regionali</span></span><span>~ {{ totm.f24_addiz_reg|euro }}/mese</span></div>
+        <div class="f24-row f24-addiz"><span>Add. com. Palermo (aliq. 0,80%) <span class="f24-cod">cod. 3848 — varia per comune</span></span><span>~ {{ totm.f24_addiz_com|euro }}/mese</span></div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% endwith %}
+  {% endfor %}
+
+  <!-- Riepilogo pagamenti effettivi annui (13ª/14ª/TFR) -->
+  {% if totali_annui.pagamento_13_lordo or totali_annui.pagamento_14_lordo or totali_annui.tfr_liquidazione %}
+  <div style="border:1px solid #d8c4f0;border-radius:5px;background:#faf5ff;padding:.45rem .9rem;margin-bottom:.7rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
+    <div style="font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#5b2d8e">Pagamenti effettivi annui</div>
+    {% if totali_annui.pagamento_13_lordo %}
+    <div>
+      <div style="font-size:.62rem;color:var(--c-muted)">Tredicesima (Dicembre)</div>
+      <div style="font-size:.95rem;font-weight:700;color:#5b2d8e">{{ totali_annui.pagamento_13_lordo|euro }}</div>
+      <div style="font-size:.62rem;color:var(--c-green)">netto: {{ totali_annui.pagamento_13_netto|euro }}</div>
+    </div>
+    {% endif %}
+    {% if totali_annui.pagamento_14_lordo %}
+    <div>
+      <div style="font-size:.62rem;color:var(--c-muted)">Quattordicesima (Luglio)</div>
+      <div style="font-size:.95rem;font-weight:700;color:#5b2d8e">{{ totali_annui.pagamento_14_lordo|euro }}</div>
+      <div style="font-size:.62rem;color:var(--c-green)">netto: {{ totali_annui.pagamento_14_netto|euro }}</div>
+    </div>
+    {% endif %}
+    {% if totali_annui.tfr_liquidazione %}
+    <div>
+      <div style="font-size:.62rem;color:var(--c-muted)">TFR liquidazione (contratti determinato)</div>
+      <div style="font-size:.95rem;font-weight:700;color:#8a4000">{{ totali_annui.tfr_liquidazione|euro }}</div>
+      <div style="font-size:.62rem;color:var(--c-muted)">tassazione separata</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- F24 annuo dettaglio -->
+  <div class="f24-bar mt-3" style="flex-direction:column;align-items:flex-start;gap:.4rem">
+    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;width:100%">
+      <div>
+        <span class="f24-label">F24 annuo (INPS DM10 + Erario + TFR tax)</span>
+        <span class="f24-value">{{ totale_f24_annuo|euro }}</span>
+        <span class="f24-note">12 versamenti mensili entro il 16 del mese successivo</span>
+      </div>
+      <div style="border-left:2px solid #f0d080;padding-left:1rem">
+        <span class="f24-label">INAIL autoliquidazione annua</span>
+        <span class="f24-value" style="font-size:.9rem">{{ totale_inail_annuo|euro }}</span>
+        <span class="f24-note">versamento unico in febbraio anno successivo</span>
+      </div>
+    </div>
+    <div style="width:100%;border-top:1px dashed #e0c060;padding-top:.3rem;display:flex;gap:2rem;flex-wrap:wrap">
+      <div style="font-size:.6rem;color:var(--c-muted);line-height:1.6">
+        <strong>F24 versato:</strong>
+        INPS DM10 {{ totali_annui.f24_inps|euro }}
+        (az. <span style="color:#5a3a00;font-weight:600">{{ totali_annui.inps_azienda|euro }}</span> — onere azienda
+        + dip. {{ totali_annui.inps_dipendente|euro }} — trattenuta lordo)
+        &nbsp;|&nbsp; Erario netto {{ totali_annui.f24_erario_netto|euro }}
+        (IRPEF {{ totali_annui.irpef_dipendenti|euro }} trattenuta − bonus comp. {{ totali_annui.f24_bonus_comp|euro }} credito Stato)
+        {% if totali_annui.f24_tfr_tax %}&nbsp;|&nbsp; Tass. TFR {{ totali_annui.f24_tfr_tax|euro }} (cod.1012){% endif %}
+        <br><strong>Costo reale azienda (F24):</strong>
+        INPS az. {{ totali_annui.inps_azienda|euro }} + INAIL {{ totali_annui.inail|euro }}{% if totali_annui.f24_tfr_tax %} + TFR tax {{ totali_annui.f24_tfr_tax|euro }}{% endif %}
+        — il resto è trattenute dipendenti o crediti Stato, non costo aziendale aggiuntivo.
+      </div>
+      {% if totali_annui.addiz_regionale or totali_annui.addiz_comunale %}
+      <div style="font-size:.6rem;color:#999;font-style:italic">
+        Stima add. reg. Sicilia (saldo anno succ., cod.3802): {{ totali_annui.addiz_regionale|euro }}
+        &nbsp;|&nbsp; Stima add. com. Palermo (cod.3848): {{ totali_annui.addiz_comunale|euro }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if show_debug_aliquote %}
+  <div class="mt-3">
+    <span class="badge bg-secondary debug-badge" data-bs-toggle="collapse" data-bs-target="#debugSection">Debug aliquote ▾</span>
+    <div id="debugSection" class="collapse mt-2">
+      <div class="card card-body p-2" style="font-size:.68rem;font-family:monospace;background:#1e2535;color:#a8d8a8">
+        {% for mese_data in risultati_mensili %}{% if forloop.first %}
+        {% for riga in mese_data.righe %}{% if not riga.missing %}
+        <div>{{ riga.nome }} (L{{ riga.livello }}) | fonte={{ riga.fonte_calcolo }} | inps_az={{ riga.inps_coeff_eff|num_it:4 }} | tfr={{ riga.aliquota_tfr_coeff|num_it:4 }} | 13a={{ riga.rateo_13_coeff|num_it:4 }} | 14a={{ riga.rateo_14_coeff|num_it:4 }}</div>
+        {% endif %}{% endfor %}
+        {% endif %}{% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* Nomi mesi per accordion header */
+const MESI_NOMI = ['','Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+
+/* Popola i month-name span (Django template slice su list è complicato — lo facciamo via JS) */
+document.querySelectorAll('.month-name').forEach(el => {
+  const mese = el.closest('.month-item')?.querySelector('.month-body')?.id?.replace('mese_','');
+  if (mese) {
+    const nome = MESI_NOMI[parseInt(mese)] || 'Mese ' + mese;
+    el.innerHTML = nome + ' <span style="font-weight:400;font-size:.65rem;opacity:.7">2026</span>';
+  }
+});
+
+function toggleMese(btn, id) {
+  const body = document.getElementById(id);
+  if (!body) return;
+  const isOpen = body.classList.contains('show');
+  body.classList.toggle('show', !isOpen);
+  btn.classList.toggle('open', !isOpen);
+}
+
+/* Apri automaticamente il primo mese con dati */
+const firstBtn = document.querySelector('.month-btn');
+if (firstBtn) {
+  const id = firstBtn.getAttribute('onclick').match(/'(mese_\d+)'/)?.[1];
+  if (id) { toggleMese(firstBtn, id); }
+}
+
+/* ── Stampa PDF ─────────────────────────────────────────── */
+function stampaPDF() {
+  /* Espande tutti i mesi prima di stampare */
+  document.querySelectorAll('.month-body').forEach(b => b.classList.add('show'));
+  document.querySelectorAll('.month-btn').forEach(b => b.classList.add('open'));
+  window.print();
+}
+
+/* Dopo la stampa ripristina solo il primo mese aperto */
+window.addEventListener('afterprint', () => {
+  document.querySelectorAll('.month-body').forEach((b, i) => {
+    if (i > 0) b.classList.remove('show');
+  });
+  document.querySelectorAll('.month-btn').forEach((b, i) => {
+    if (i > 0) b.classList.remove('open');
+  });
+});
+</script>
+{% endblock %}

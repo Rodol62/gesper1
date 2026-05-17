@@ -1,0 +1,78 @@
+{
+  "inail_fipe": {
+    "classificazione_generale": {
+      "settore": "turismo_ristorazione",
+      "descrizione": "Classificazione INAIL per aziende del settore FIPE"
+    },
+
+    "tassi_base_per_ateco": {
+      "561011": {
+        "descrizione": "Ristorazione con somministrazione",
+        "tasso_base": 0.0130
+      },
+      "561012": {
+        "descrizione": "Attività di ristorazione connesse alle aziende agricole",
+        "tasso_base": 0.0110
+      },
+      "563000": {
+        "descrizione": "Bar e altri esercizi simili senza cucina",
+        "tasso_base": 0.0120
+      },
+      "562100": {
+        "descrizione": "Catering per eventi",
+        "tasso_base": 0.0140
+      },
+      "562900": {
+        "descrizione": "Mense e catering continuativo",
+        "tasso_base": 0.0135
+      }
+    },
+
+    "oscillazione_tasso": {
+      "abilitata": true,
+      "range": {
+        "min": -0.30,
+        "max": 0.30
+      },
+      "descrizione": "Oscillazione del tasso INAIL in base all'andamento infortunistico aziendale"
+    },
+
+    "premio_assicurativo": {
+      "base_imponibile": "retribuzione_imponibile_inail",
+      "incluso": [
+        "paga base",
+        "contingenza",
+        "scatti anzianità",
+        "indennità continuative"
+      ],
+      "escluso": [
+        "straordinari",
+        "rimborsi spese",
+        "trasferte documentate"
+      ],
+      "formula": "premio = imponibile * tasso_applicato"
+    },
+
+    "regole_speciali": {
+      "apprendisti": {
+        "copertura_inail": true,
+        "descrizione": "Gli apprendisti sono assicurati INAIL come gli altri dipendenti"
+      },
+      "stagionali": {
+        "tasso_ridotto": true,
+        "descrizione": "Possibile riduzione del tasso per attività stagionali"
+      }
+    },
+
+    "adempimenti": {
+      "autoliquidazione": {
+        "scadenza": "16 febbraio",
+        "descrizione": "Versamento premio anticipato e conguaglio dell'anno precedente"
+      },
+      "denuncia_infortunio": {
+        "entro_48_ore": true,
+        "descrizione": "Obbligo di denuncia all'INAIL entro 48 ore dall'evento"
+      }
+    }
+  }
+}

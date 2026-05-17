@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Certificazione firma — GESPER{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:520px">
+  <h5 class="mb-3">Certificazione firma</h5>
+  <p class="small text-muted mb-3">
+    Ciao <strong>{{ nome }}</strong>. Confermando dichiari di aver ricevuto il link di certificazione relativo al processo
+    {% if kind == 'candidato' %}di candidatura{% else %}di rapporto di lavoro{% endif %}.
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary">Conferma ricezione</button>
+  </form>
+</div>
+{% endblock %}

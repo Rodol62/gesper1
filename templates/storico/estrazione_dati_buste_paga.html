@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Solo etichette buste paga — {{ anno_filtro }}{% endblock %}
+{% block content %}
+<style>
+  .estr-table-wrap { overflow-x: auto; }
+  .estr-pre { font-size: .72rem; white-space: pre-wrap; word-break: break-word; }
+</style>
+<div class="container-fluid" style="max-width:1200px;margin:0 auto;padding:1.5rem 1rem">
+
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h2 class="mb-0" style="font-size:1.35rem;font-weight:700;color:#1b3a5f">
+        <i class="bi bi-tag me-2"></i>Solo etichette (buste {{ anno_filtro }})
+      </h2>
+      <small class="text-muted">Scansione per layout: si raccolgono <strong>solo i testi etichetta</strong> (nomi voce / campi). Importi e valori numerici <strong>non</strong> sono inclusi nell’elenco.</small>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{% url 'centro_moduli' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-speedometer2"></i> Portale</a>
+      <a href="{% url 'lista_buste_paga_documenti' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-receipt-cutoff"></i> Buste paga</a>
+    </div>
+  </div>
+
+  <div class="alert alert-light border py-2 small mb-3">
+    <strong>Filtro anno {{ anno_filtro }}.</strong> Periodo da descrizione documento (es. <code>01/2026</code>) o data di caricamento.
+    Estrazione: <strong>pdfplumber</strong> (righe + colonne) con fallback <strong>pypdf</strong>; output solo stringhe etichetta.
+  </div>
+
+  <div class="row g-2 mb-3 small">
+    <div class="col-auto"><span class="badge bg-secondary">Archivio buste: {{ totale_buste_archivio }}</span></div>
+    <div class="col-auto"><span class="badge bg-primary">Anno {{ anno_filtro }}: {{ totale_anno }}</span></div>
+    <div class="col-auto"><span class="badge bg-info text-dark">Mostrate: {{ righe|length }}{% if limite_applicato %} (limite {{ limite_applicato }}){% endif %}</span></div>
+    <div class="col-auto"><span class="badge bg-light text-dark border">Non {{ anno_filtro }}: {{ stats.scartate_non_2026 }}</span></div>
+    <div class="col-auto"><span class="badge bg-success">PDF OK: {{ stats.pdf_ok }}</span></div>
+    <div class="col-auto"><span class="badge bg-danger">Errori: {{ stats.errori }}</span></div>
+    <div class="col-auto"><span class="badge bg-dark">Σ etichette: {{ stats.tot_voci }}</span></div>
+  </div>
+
+  <form method="get" class="row g-2 align-items-end mb-4">
+    <div class="col-auto">
+      <label class="form-label small mb-0">Max documenti (dopo filtro {{ anno_filtro }})</label>
+      <input type="number" name="limit" class="form-control form-control-sm" min="1" max="2000" placeholder="vuoto = tutte"{% if limite_applicato %} value="{{ limite_applicato }}"{% endif %}>
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-arrow-repeat"></i> Aggiorna</button>
+    </div>
+  </form>
+
+  {% if righe %}
+  <h3 class="h6 fw-bold text-secondary mb-2"><i class="bi bi-table me-1"></i>Riepilogo</h3>
+  <div class="estr-table-wrap mb-4">
+    <table class="table table-sm table-bordered table-hover align-middle" style="font-size:.78rem">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>ID</th>
+          <th>Periodo</th>
+          <th>Dipendente</th>
+          <th class="text-center">Etichette</th>
+          <th>Anteprima</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in righe %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td><a href="#busta-{{ row.doc.pk }}">{{ row.doc.pk }}</a></td>
+          <td class="text-nowrap">{% if row.mese and row.anno %}{{ row.mese|stringformat:"02d" }}/{{ row.anno }}{% else %}—{% endif %}</td>
+          <td>{% if row.doc.dipendente %}{{ row.doc.dipendente.cognome }} {{ row.doc.dipendente.nome }}{% else %}<span class="text-warning">—</span>{% endif %}</td>
+          <td class="text-center fw-semibold">{{ row.n_voci }}</td>
+          <td class="small text-muted">
+            {% for v in row.voci_breve %}
+              <span class="d-inline-block me-2 mb-1">{{ v.etichetta|default:v.descrizione|truncatechars:36 }}</span>{% if not forloop.last %}<span class="text-muted">·</span>{% endif %}
+            {% empty %}—{% endfor %}
+            {% if row.n_voci > 10 %}<span class="text-muted">(+{{ row.n_voci|add:-10 }})</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <h3 class="h6 fw-bold text-secondary mb-2"><i class="bi bi-list-columns-reverse me-1"></i>Dettaglio — elenco etichette</h3>
+
+  {% for row in righe %}
+  {% with doc=row.doc estr=row.estr %}
+  <div class="card mb-4 shadow-sm" id="busta-{{ doc.pk }}">
+    <div class="card-header py-2 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background:#1b3a5f;color:#fff">
+      <div>
+        <strong>#{{ doc.pk }}</strong>
+        {% if row.mese and row.anno %}<span class="badge bg-light text-dark ms-1">{{ row.mese|stringformat:"02d" }}/{{ row.anno }}</span>{% endif %}
+        {% if doc.dipendente %} — {{ doc.dipendente.cognome }} {{ doc.dipendente.nome }}{% endif %}
+      </div>
+      <div class="d-flex gap-2 align-items-center small">
+        <span class="badge bg-light text-dark">{{ estr.n_voci }} etichette</span>
+        {% if estr.metodo %}<span class="badge bg-secondary">{{ estr.metodo }}</span>{% endif %}
+        <a href="{% url 'visualizza_documento' doc.pk %}" class="btn btn-sm btn-light py-0">PDF #{{ doc.pk }}</a>
+      </div>
+    </div>
+    <div class="card-body py-2 small">
+      {% if estr.errore %}
+      <div class="alert alert-danger py-2 mb-2">{{ estr.errore }}</div>
+      {% endif %}
+
+      {% if estr.voci %}
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0" style="font-size:.82rem">
+          <thead class="table-light">
+            <tr>
+              <th style="width:2.5rem">#</th>
+              <th style="width:3rem" class="text-muted">Pag.</th>
+              <th>Etichetta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in estr.voci %}
+            <tr>
+              <td class="text-muted">{{ forloop.counter }}</td>
+              <td class="text-muted text-center">{{ v.pagina|default:"—" }}</td>
+              <td>{{ v.etichetta|default:v.descrizione }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted mb-0">Nessuna etichetta estratta (PDF vuoto o non leggibile).</p>
+      {% endif %}
+
+      <details class="mt-3 border rounded p-2 bg-light">
+        <summary class="small fw-semibold" style="cursor:pointer">Anteprima testo grezzo (opzionale)</summary>
+        <div class="mt-2 small text-muted">Pagine: {{ estr.num_pagine }} · Metodo: {{ estr.metodo|default:"—" }}</div>
+        {% if estr.anteprima_testo %}
+        <pre class="estr-pre p-2 rounded border bg-white mb-0 mt-2" style="max-height:220px;overflow:auto">{{ estr.anteprima_testo }}</pre>
+        {% else %}
+        <p class="small text-muted mb-0 mt-2">Nessuna anteprima disponibile.</p>
+        {% endif %}
+      </details>
+    </div>
+  </div>
+  {% endwith %}
+  {% empty %}
+  <p class="text-muted">Nessuna busta paga con periodo {{ anno_filtro }} in archivio.</p>
+  {% endfor %}
+
+</div>
+{% endblock %}

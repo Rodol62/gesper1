@@ -1,0 +1,447 @@
+{% extends 'base.html' %}
+{% load ruoli_tags %}
+{% block title %}Modifica Dipendente{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <h2>Modifica Dipendente: {{ dipendente.nome }} {{ dipendente.cognome }}</h2>
+            {% if azienda_operativa %}
+            <div class="alert alert-info">
+                <strong>Azienda operativa:</strong> {{ azienda_operativa.nome }}
+            </div>
+            {% endif %}
+            <div class="alert alert-light border py-2 small mb-3" role="note">
+              <div class="mb-1"><strong>Modifiche anagrafiche.</strong> Per regole su matricola, utenza e collegamento al portale vedi la guida al modulo registrazione.</div>
+              <div class="mb-0 text-muted" style="font-size:.9em">
+                <a href="{% url 'guida_modulo' 'reg-dipendente' %}">Guida: registrazione dipendente</a>
+              </div>
+            </div>
+            {% if territorio_dataset_info %}
+            <div class="alert alert-secondary py-2 small mb-3">
+              <strong>Fonte territori:</strong> ISTAT ufficiale.
+              Comuni/province/regioni aggiornati al {{ territorio_dataset_info.comuni_updated_at|default:'n.d.' }},
+              stati esteri al {{ territorio_dataset_info.stati_updated_at|default:'n.d.' }}.
+            </div>
+            {% endif %}
+
+            <div class="row g-2 mb-3">
+              {% include 'rapporto_di_lavoro/_profilo_posizione_contrattuale.html' %}
+            </div>
+
+            <form method="post" class="mt-4" id="form-modifica-dipendente">
+                {% csrf_token %}
+                {{ turno_formset.management_form }}
+                
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {{ form.non_field_errors }}
+                </div>
+                {% endif %}
+                
+                {% for field in form %}
+                    {% if field.is_hidden %}
+                        {{ field }}
+                    {% elif field.name != 'azienda' or not azienda_operativa %}
+                    <div class="mb-3">
+                        <label for="{{ field.id_for_label }}" class="form-label">
+                            {{ field.label }}
+                            {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+                        </label>
+                        {% if field.name == 'codice_fiscale' %}
+                        <div class="form-text text-muted small mb-1">
+                          <i class="bi bi-info-circle"></i>
+                          Con un CF valido a <strong>16 caratteri</strong>, uscendo dal campo si propongono data di nascita,
+                          sesso e luogo di nascita (controllo formale MEF). Controlla sempre i dati prima di salvare.
+                        </div>
+                        {% endif %}
+                        {{ field }}
+                        {% if field.help_text %}
+                        <small class="form-text text-muted">{{ field.help_text }}</small>
+                        {% endif %}
+                        {% if field.errors %}
+                        <div class="text-danger">
+                            {{ field.errors }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                        {{ field }}
+                    {% endif %}
+                {% endfor %}
+
+                {% if not is_dipendente %}
+                {# ── Agganci turni lavorativi ─────────────────────────────────── #}
+                <div class="card border-secondary mt-4 mb-3" id="gesper-turni-dipendente">
+                    <div class="card-header bg-secondary-subtle d-flex justify-content-between align-items-center">
+                        <strong><i class="bi bi-clock-history me-1"></i>Agganci turni lavorativi (max 4)</strong>
+                        {% if not turni_disponibili %}
+                        <span class="badge bg-warning text-dark">Nessun turno configurato per questa azienda</span>
+                        {% endif %}
+                    </div>
+                    <div class="card-body p-2">
+                        {% if turni_disponibili %}
+                        <p class="text-muted small mb-2">
+                            Assegna fino a 4 turni con il relativo periodo di validità. Alla scelta del turno,
+                            <strong>Dal</strong> e <strong>Al</strong> si compilano con l’anno della pianificazione oraria
+                            (1 gen – 31 dic), con <strong>Dal</strong> non prima della data di assunzione se utile.
+                            Svuota <strong>Al</strong> se vuoi validità illimitata. Gli orari del turno (inizio/fine)
+                            restano quelli definiti in Pianificazione orari. Lasciare il turno su «nessuno» per non assegnare.
+                        </p>
+                        <table class="table table-sm table-bordered align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:30%">Turno</th>
+                                    <th style="width:22%">Dal</th>
+                                    <th style="width:22%">Al <small class="text-muted">(vuoto=illimitato)</small></th>
+                                    <th style="width:10%" class="text-center">Attivo</th>
+                                    <th style="width:10%" class="text-center">Elimina</th>
+                                    <th style="width:6%"></th>{# hidden management #}
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for tf in turno_formset %}
+                                <tr class="js-turno-ass-row{% if tf.errors %} table-danger{% endif %}">
+                                    <td>{{ tf.id }}{{ tf.dipendente }}{{ tf.turno }}</td>
+                                    <td>{{ tf.data_inizio }}</td>
+                                    <td>{{ tf.data_fine }}</td>
+                                    <td class="text-center">{{ tf.attivo }}</td>
+                                    <td class="text-center">
+                                        {% if tf.instance.pk %}
+                                        <input type="checkbox" name="{{ tf.DELETE.html_name }}" class="form-check-input" title="Elimina questo aggancio">
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% if tf.errors %}
+                                <tr>
+                                    <td colspan="5">
+                                        <div class="text-danger small">
+                                        {% for field, errs in tf.errors.items %}
+                                            {% if field != '__all__' %}
+                                            {% for e in errs %}<div>{{ field }}: {{ e }}</div>{% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                        {% for e in tf.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                        <script type="application/json" id="gesper-turni-date-defaults">{{ turni_date_defaults_json }}</script>
+                        <script>
+                        (function () {
+                          var el = document.getElementById('gesper-turni-date-defaults');
+                          if (!el) return;
+                          var defs = {};
+                          try { defs = JSON.parse(el.textContent); } catch (e) { return; }
+                          document.querySelectorAll('tr.js-turno-ass-row').forEach(function (tr) {
+                            var sel = tr.querySelector('select[name$="-turno"]');
+                            var di = tr.querySelector('input[name$="-data_inizio"]');
+                            var df = tr.querySelector('input[name$="-data_fine"]');
+                            if (!sel || !di) return;
+                            sel.addEventListener('change', function () {
+                              var id = sel.value;
+                              if (!id || !defs[id]) return;
+                              if (!di.value) di.value = defs[id].dal;
+                              if (df && !df.value && defs[id].al) df.value = defs[id].al;
+                            });
+                          });
+                        })();
+                        </script>
+                        {% else %}
+                        <p class="text-muted small mb-0">
+                            Per configurare i turni vai in
+                            <a href="{% url 'pianificazione_orari_annuale' %}" target="_blank">Pianificazione Orari</a>.
+                        </p>
+                        {% endif %}
+                    </div>
+                    {% if turni_disponibili %}
+                    <div class="card-footer text-muted small">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Dopo aver salvato, ri-genera le presenze teoriche del mese per applicare gli orari del turno.
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">Salva Modifiche</button>
+                    <a href="{% url 'dettaglio_dipendente' dipendente.pk %}" class="btn btn-secondary">Annulla</a>
+                </div>
+            </form>
+
+            {% if is_dipendente and contratto_attivo %}
+            <div class="card border-warning mt-4">
+                <div class="card-header bg-warning-subtle">
+                    <strong>Integrazione contrattuale (dati bloccati)</strong>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        I dati presenti nel contratto definitivo <strong>{{ contratto_attivo.numero_contratto }}</strong>
+                        non sono modificabili direttamente.
+                    </p>
+                    <p class="mb-3">
+                        Se ci sono variazioni anagrafiche rispetto al contratto originario, invia una richiesta di integrazione:
+                        sarà registrata nei documenti e dovrà essere approvata dal datore di lavoro.
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="richiedi_integrazione" value="1">
+                        <div class="mb-3">
+                            <label class="form-label">Descrizione variazioni richieste</label>
+                            <textarea name="note_integrazione" class="form-control" rows="4" required
+                                      placeholder="Esempio: aggiornamento indirizzo di residenza, variazione recapito e-mail, ecc."></textarea>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="firmaDigitaleDipendente" name="firma_digitale_dipendente" required>
+                            <label class="form-check-label" for="firmaDigitaleDipendente">
+                                Confermo e sottoscrivo digitalmente la richiesta di integrazione.
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-outline-warning">Invia richiesta integrazione</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+  function fillSelect(sel, items, valueKey, labelFn, placeholder) {
+    if (!sel) return;
+    var old = sel.value || '';
+    sel.innerHTML = '';
+    var opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = placeholder || '— Seleziona —';
+    sel.appendChild(opt0);
+    (items || []).forEach(function (it) {
+      var o = document.createElement('option');
+      o.value = it[valueKey] || '';
+      o.textContent = labelFn ? labelFn(it) : (it[valueKey] || '');
+      sel.appendChild(o);
+    });
+    if (old) sel.value = old;
+  }
+  async function getJson(url) {
+    var r = await fetch(url, {
+      headers: {'X-Requested-With': 'XMLHttpRequest'},
+      credentials: 'same-origin',
+    });
+    if (!r.ok) return {items: []};
+    return await r.json();
+  }
+  function bindGeo(regId, provId, comId, capId) {
+    var reg = document.getElementById(regId);
+    var prov = document.getElementById(provId);
+    var com = document.getElementById(comId);
+    var cap = capId ? document.getElementById(capId) : null;
+    if (!reg || !prov || !com) return;
+    reg.addEventListener('change', async function () {
+      fillSelect(com, [], 'nome', function (x) { return x.nome; }, '— Seleziona provincia —');
+      if (reg.value === 'ESTERO') {
+        fillSelect(prov, [], 'sigla', function (x) { return x.nome; }, '— Non prevista per estero —');
+        fillSelect(com, [], 'nome', function (x) { return x.nome; }, '— Inserisci citta estera —');
+        return;
+      }
+      if (!reg.value) {
+        fillSelect(prov, [], 'sigla', function (x) { return x.nome; }, '— Seleziona regione —');
+        return;
+      }
+      var data = await getJson("{% url 'api_province_italia' %}?regione=" + encodeURIComponent(reg.value));
+      fillSelect(prov, data.items, 'sigla', function (x) { return x.nome + (x.sigla ? " (" + x.sigla + ")" : ""); }, '— Seleziona —');
+    });
+    prov.addEventListener('change', async function () {
+      if (!reg.value || !prov.value) {
+        fillSelect(com, [], 'nome', function (x) { return x.nome; }, '— Seleziona provincia —');
+        return;
+      }
+      var data = await getJson("{% url 'api_comuni_italia' %}?regione=" + encodeURIComponent(reg.value) + "&provincia=" + encodeURIComponent(prov.value));
+      fillSelect(com, data.items, 'nome', function (x) { return x.nome + (x.codice_catastale ? " (" + x.codice_catastale + ")" : ""); }, '— Seleziona —');
+      com._capMap = {};
+      (data.items || []).forEach(function (it) { com._capMap[it.nome] = it.cap || ''; });
+    });
+    com.addEventListener('change', function () {
+      if (cap && !cap.value && com._capMap && com.value) cap.value = com._capMap[com.value] || '';
+    });
+  }
+
+  function setCfStatus(kind, text) {
+    var cfEl = document.getElementById('id_codice_fiscale');
+    if (!cfEl) return;
+    var box = document.getElementById('cf-feedback');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'cf-feedback';
+      box.className = 'small mt-1';
+      cfEl.insertAdjacentElement('afterend', box);
+    }
+    box.textContent = text || '';
+    box.style.display = text ? '' : 'none';
+    box.className = 'small mt-1 ' + (kind === 'ok' ? 'text-success' : (kind === 'warn' ? 'text-warning' : 'text-danger'));
+  }
+
+  async function prefillaNascitaDaCodiceFiscale() {
+    var cfEl = document.getElementById('id_codice_fiscale');
+    if (!cfEl) return;
+    var cf = (cfEl.value || '').trim().toUpperCase();
+    if (cf.length !== 16) {
+      setCfStatus('', '');
+      return;
+    }
+    var r = await fetch(
+      "{% url 'api_decodifica_cf' %}?cf=" + encodeURIComponent(cf),
+      {headers: {'X-Requested-With': 'XMLHttpRequest'}, credentials: 'same-origin'}
+    );
+    var data = await r.json();
+    if (!data.ok) {
+      setCfStatus('warn', data.error || 'Codice fiscale non decodificabile automaticamente.');
+      return;
+    }
+    var dn = document.getElementById('id_data_nascita');
+    if (dn && !dn.value && data.data_nascita) dn.value = data.data_nascita;
+    var se = document.getElementById('id_sesso');
+    if (se && !se.value && data.sesso) se.value = data.sesso;
+    var reg = document.getElementById('id_regione_nascita');
+    var prov = document.getElementById('id_provincia_nascita');
+    var com = document.getElementById('id_comune_nascita');
+    var ln = document.getElementById('id_luogo_nascita');
+    if (data.nascita && data.nascita.italia && reg && prov && com) {
+      var pn = document.getElementById('id_paese_nascita');
+      if (pn && !pn.value) pn.value = 'ITALIA';
+      var cit = document.getElementById('id_cittadinanza');
+      if (cit && !cit.value) cit.value = 'ITALIANA';
+      var regNome = (data.nascita.regione || '').trim();
+      if (regNome) {
+        reg.value = regNome;
+        var pdata = await getJson("{% url 'api_province_italia' %}?regione=" + encodeURIComponent(reg.value));
+        fillSelect(prov, pdata.items, 'sigla', function (x) { return x.nome + (x.sigla ? " (" + x.sigla + ")" : ""); }, '— Seleziona —');
+        if (data.nascita.provincia) prov.value = data.nascita.provincia;
+        if (reg.value && prov.value) {
+          var cdata = await getJson(
+            "{% url 'api_comuni_italia' %}?regione=" + encodeURIComponent(reg.value) +
+            "&provincia=" + encodeURIComponent(prov.value)
+          );
+          fillSelect(com, cdata.items, 'nome', function (x) { return x.nome + (x.codice_catastale ? " (" + x.codice_catastale + ")" : ""); }, '— Seleziona —');
+          if (data.nascita.comune) {
+            com.value = data.nascita.comune;
+            if (ln) ln.value = (data.nascita.comune || '').trim().toUpperCase();
+          }
+        }
+      } else {
+        setCfStatus('warn', 'Luogo di nascita italiano non risolvibile dal codice catastale nel CF; completa regione, provincia e comune a mano.');
+        return;
+      }
+    } else if (data.nascita && !data.nascita.italia && reg) {
+      reg.value = 'ESTERO';
+      reg.dispatchEvent(new Event('change', {bubbles: true}));
+      var pn2 = document.getElementById('id_paese_nascita');
+      if (pn2 && data.nazionalita_suggerita) pn2.value = data.nazionalita_suggerita;
+      var ce = document.getElementById('id_comune_nascita_estero');
+      if (ce && data.nascita.stato_estero) ce.value = data.nascita.stato_estero;
+      if (ln && data.nascita.stato_estero) ln.value = (data.nascita.stato_estero || '').trim().toUpperCase();
+    }
+    setCfStatus('ok', 'Dati anagrafici precompilati dal codice fiscale.');
+  }
+  var cfInDip = document.getElementById('id_codice_fiscale');
+  if (cfInDip) cfInDip.addEventListener('blur', function () { prefillaNascitaDaCodiceFiscale().catch(function () { setCfStatus('warn', 'Errore durante la decodifica del codice fiscale.'); }); });
+
+  bindGeo('id_regione_nascita', 'id_provincia_nascita', 'id_comune_nascita', null);
+  bindGeo('id_regione_residenza', 'id_provincia', 'id_citta', 'id_cap');
+  bindGeo('id_domicilio_regione', 'id_domicilio_provincia', 'id_domicilio_comune', 'id_domicilio_cap');
+
+  /**
+   * Paese estero => Regione ESTERO (anche al primo paint).
+   * Se l'utente imposta Paese = ITALIA mentre la regione era ESTERO, si azzera la regione (solo su change del paese), così si riattivano province/comuni italiani.
+   */
+  function bindPaeseStatoConRegione(paeseId, regId) {
+    var paese = document.getElementById(paeseId);
+    var reg = document.getElementById(regId);
+    if (!paese || !reg) return null;
+    function harmonizeInitial() {
+      if (paese.disabled || reg.disabled) return;
+      var p = (paese.value || '').trim().toUpperCase();
+      var r = (reg.value || '').trim().toUpperCase();
+      if (p && p !== 'ITALIA' && r !== 'ESTERO') {
+        reg.value = 'ESTERO';
+        reg.dispatchEvent(new Event('change', {bubbles: true}));
+      }
+    }
+    function onPaeseChange() {
+      if (paese.disabled || reg.disabled) return;
+      var p = (paese.value || '').trim().toUpperCase();
+      var r = (reg.value || '').trim().toUpperCase();
+      var needDispatch = false;
+      if (p && p !== 'ITALIA') {
+        if (r !== 'ESTERO') {
+          reg.value = 'ESTERO';
+          needDispatch = true;
+        }
+      } else if (p === 'ITALIA' && r === 'ESTERO') {
+        reg.value = '';
+        needDispatch = true;
+      }
+      if (needDispatch) reg.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+    paese.addEventListener('change', onPaeseChange);
+    harmonizeInitial();
+    return onPaeseChange;
+  }
+
+  var chk = document.getElementById('id_domicilio_uguale_residenza');
+  var domIds = [
+    'id_domicilio_indirizzo', 'id_domicilio_cap', 'id_paese_domicilio',
+    'id_domicilio_regione', 'id_domicilio_provincia', 'id_domicilio_comune',
+  ];
+  function toggleDomicilio() {
+    if (!chk) return;
+    domIds.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.disabled = chk.checked;
+    });
+  }
+  if (chk) {
+    chk.addEventListener('change', function () {
+      toggleDomicilio();
+      if (syncPaeseDomicilioConRegione) syncPaeseDomicilioConRegione();
+    });
+    toggleDomicilio();
+  }
+
+  function toggleEstero(regId, inputId, selectIds) {
+    var reg = document.getElementById(regId);
+    var txt = inputId ? document.getElementById(inputId) : null;
+    if (!reg) return;
+    function run() {
+      var estero = reg.value === 'ESTERO';
+      if (txt) {
+        var wrap = txt.closest('.mb-3');
+        if (wrap) wrap.style.display = estero ? '' : 'none';
+        txt.disabled = !estero;
+      }
+      (selectIds || []).forEach(function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.disabled = estero;
+      });
+    }
+    reg.addEventListener('change', run);
+    run();
+  }
+  toggleEstero('id_regione_nascita', 'id_comune_nascita_estero', ['id_provincia_nascita', 'id_comune_nascita']);
+  toggleEstero('id_regione_residenza', 'id_citta_residenza_estero', ['id_provincia', 'id_citta']);
+  toggleEstero('id_domicilio_regione', 'id_domicilio_citta_estero', ['id_domicilio_provincia', 'id_domicilio_comune']);
+
+  bindPaeseStatoConRegione('id_paese_residenza', 'id_regione_residenza');
+  var syncPaeseDomicilioConRegione = bindPaeseStatoConRegione('id_paese_domicilio', 'id_domicilio_regione');
+
+  if (cfInDip && (cfInDip.value || '').trim().length === 16) {
+    prefillaNascitaDaCodiceFiscale().catch(function () { setCfStatus('warn', 'Errore durante la decodifica del codice fiscale.'); });
+  }
+})();
+</script>
+{% endblock %}

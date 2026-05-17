@@ -1,0 +1,100 @@
+{
+  "pdf": "/private/var/folders/nw/sr7j6wzn5vddsg2xt35mfvgh0000gn/T/tmp3s7_div1.pdf",
+  "source_name": "01  GENNAIO 2025.PDF",
+  "natura_busta_file": "ORDINARIA",
+  "azienda": {
+    "id": 1,
+    "nome": "Punto Zero SRLS"
+  },
+  "f24_pages": [
+    {
+      "page": 9,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 10,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    },
+    {
+      "page": 11,
+      "period_month": 6,
+      "period_year": null,
+      "f24_importo": null
+    }
+  ],
+  "summary": {
+    "pages_total": 12,
+    "buste_pages": 8,
+    "f24_pages": 3,
+    "f24_importo_stimato": null,
+    "buste_uniche": 4,
+    "buste_duplicate_pages": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "matched": 4,
+    "to_create": 0,
+    "ambiguous": 0,
+    "already_present": 0
+  },
+  "rows": [
+    {
+      "page": 1,
+      "periodo": "01/2025",
+      "cf": "CRDMSM74C10G273O",
+      "full_name": "Cardella Massimo",
+      "birth_date": "10/03/74",
+      "lordo_busta": "4.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 18,
+      "dipendente_nome": "Cardella Massimo"
+    },
+    {
+      "page": 2,
+      "periodo": "01/2025",
+      "cf": "GMSJSC92A42Z307O",
+      "full_name": "Gomes Ferreira Jessica Ailine",
+      "birth_date": "02/01/92",
+      "lordo_busta": "7.20",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 19,
+      "dipendente_nome": "Gomes Ferreira Jessica Aline"
+    },
+    {
+      "page": 3,
+      "periodo": "01/2025",
+      "cf": "LVNMRA86L15G273D",
+      "full_name": "La Venia Mario",
+      "birth_date": "15/07/86",
+      "lordo_busta": "8.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 25,
+      "dipendente_nome": "La Venia Mario"
+    },
+    {
+      "page": 4,
+      "periodo": "01/2025",
+      "cf": "WREPNC99P12Z335Q",
+      "full_name": "Ewer Prince",
+      "birth_date": "12/09/99",
+      "lordo_busta": "8.00",
+      "netto_busta": null,
+      "natura_busta": "ORDINARIA",
+      "action": "match_cf",
+      "dipendente_id": 24,
+      "dipendente_nome": "Ewerpr Nce"
+    }
+  ]
+}
