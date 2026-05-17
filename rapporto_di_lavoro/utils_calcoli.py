@@ -2,6 +2,10 @@
 Utility per calcoli economici CCNL - Costo azienda e netto dipendente
 Implementa calcoli INPS, IRPEF, TFR, ratei secondo normativa italiana
 
+ATTENZIONE: queste utility sono ora considerati fallback di compatibilità.
+Per il motore busta paga completo usare `rapporto_di_lavoro.motore_unico.MotoreRetributivo`
+associato a `rapporto_di_lavoro.openfisca_adapter.OpenFiscaAdapter`.
+
 Riferimenti normativi 2024-2026:
 - Scaglioni IRPEF: art. 11 TUIR modificato da L. 213/2023 (Legge Bilancio 2024),
   confermati per 2025 e 2026 da L. 207/2024 (LdB 2025):
@@ -220,6 +224,9 @@ def calcola_netto_dipendente(
     """
     Calcola il netto mensile per il dipendente (schema semplificato rispetto al motore busta completo).
 
+    DEPRECATO: usare `rapporto_di_lavoro.motore_unico.MotoreRetributivo`
+    per le elaborazioni ufficiali della busta paga.
+
     Args:
         lordo: stipendio lordo mensile imponibile INPS/IRPEF (stesso ordine di grandezza del motore).
         anno: anno fiscale di riferimento (scaglioni IRPEF e detrazioni da DB); default anno di sistema.
@@ -252,6 +259,9 @@ def calcola_netto_dipendente(
 def calcola_costo_azienda(lordo):
     """
     Calcola il costo totale mensile e annuo per l'azienda (schema semplificato, aliquote legacy in modulo).
+
+    DEPRECATO: usando il nuovo motore reale, preferire `MotoreRetributivo`
+    + `OpenFiscaAdapter` per il costo azienda completo.
 
     Non sostituisce ``calcola_busta_paga_mese``: mancano ParametroContributi da DB, decontribuzioni,
     part-time, maggiorazioni e voci del motore. Usare solo per stime rapide o proprietà di comodo su tabellare.
@@ -301,6 +311,9 @@ def calcola_costo_azienda(lordo):
 def calcola_completo(lordo):
     """
     Combina ``calcola_netto_dipendente`` e ``calcola_costo_azienda`` su un solo lordo tabellare.
+
+    DEPRECATO: non usare come sostituto del motore busta completa.
+    Per il calcolo ufficiale della busta paga usare `MotoreRetributivo`.
 
     Vietato usarlo come sostituto del motore busta per: buste ufficiali, simulazione annua,
     conciliazione cedolino, proposte HR — in quei flussi usare sempre

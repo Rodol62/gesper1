@@ -283,11 +283,11 @@ class OpenFiscaAdapter:
         ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
         addiz_reg_rate = self._normalize_rate(addizionale_reg)
-        if addiz_reg_rate == Decimal('0.00'):
+        if addizionale_reg is None:
             addiz_reg_rate = self._get_addizionale_regionale_rate()
 
         addiz_com_rate = self._normalize_rate(addizionale_com)
-        if addiz_com_rate == Decimal('0.00'):
+        if addizionale_com is None:
             addiz_com_rate = self._get_addizionale_comunale_rate()
 
         addizionale_reg_annua = (reddito * addiz_reg_rate).quantize(

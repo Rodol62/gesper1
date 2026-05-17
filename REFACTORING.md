@@ -45,11 +45,11 @@ Il progetto deve adottare un'architettura a tre strati separando i calcoli contr
 ## Piano delle fasi
 
 - [x] Fase 0 – Documentazione: `REFACTORING.md`
-- [ ] Fase 1 – Modelli CCNL
-- [ ] Fase 2 – Motore CCNL
-- [ ] Fase 3 – Adapter OpenFisca
-- [ ] Fase 4 – Motore unico orchestratore
-- [ ] Fase 5 – Test e pulizia
+- [x] Fase 1 – Modelli CCNL
+- [x] Fase 2 – Motore CCNL
+- [x] Fase 3 – Adapter OpenFisca
+- [x] Fase 4 – Motore unico orchestratore
+- [x] Fase 5 – Test e pulizia
 
 ## Note operative
 

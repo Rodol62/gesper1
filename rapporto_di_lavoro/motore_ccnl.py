@@ -282,8 +282,16 @@ class MotoreCCNL:
 
         nuovo_minimo = None
         if self.ccnl_obj:
-            nuovo_minimo = self.ccnl_obj.get_minimo_tabellare(nuovo_livello, evento.data_evento)
-        nuovo_minimo = Decimal(str(nuovo_minimo or evento.nuovo_stipendio_lordo_mensile or self.rapporto.stipendio_lordo_mensile)).quantize(Decimal('0.01'))
+            minimo_tabellare = self.ccnl_obj.get_minimo_tabellare(nuovo_livello, evento.data_evento)
+            if minimo_tabellare is not None:
+                nuovo_minimo = Decimal(str(minimo_tabellare))
+
+        if evento.nuovo_stipendio_lordo_mensile is not None:
+            nuova_retribuzione = Decimal(str(evento.nuovo_stipendio_lordo_mensile))
+            if nuovo_minimo is None or nuova_retribuzione > nuovo_minimo:
+                nuovo_minimo = nuova_retribuzione
+
+        nuovo_minimo = Decimal(str(nuovo_minimo or self.rapporto.stipendio_lordo_mensile)).quantize(Decimal('0.01'))
         logger.debug("Promozione: nuovo livello %s nuovo minimo %s", nuovo_livello, nuovo_minimo)
         return {
             'tipo_evento': evento.tipo,

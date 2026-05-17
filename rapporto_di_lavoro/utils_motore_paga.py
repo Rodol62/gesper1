@@ -2,6 +2,10 @@
 Motore paga mensile — calcolo busta paga completo.
 Condiviso tra Simulatore Paga e Simulazione annua.
 
+Questo modulo è a scopo legacy: le nuove integrazioni dovrebbero usare
+`rapporto_di_lavoro.motore_unico.MotoreRetributivo` e
+`rapporto_di_lavoro.openfisca_adapter.OpenFiscaAdapter`.
+
 Riferimento architetturale (motori canonici / cosa non duplicare):
 :mod:`rapporto_di_lavoro.motori_canonici`.
 """
@@ -321,6 +325,9 @@ def calcola_busta_paga_mese(
     """
     Calcola la busta paga mensile completa per un dipendente.
     Implementazione canonica — usata da Simulatore Paga e Simulazione annua.
+
+    DEPRECATO: preferire `rapporto_di_lavoro.motore_unico.MotoreRetributivo`
+    e `rapporto_di_lavoro.openfisca_adapter.OpenFiscaAdapter` per i nuovi flussi.
 
     L.207/2024 (art.1 c.4): fuori dal lordo contributivo; credito IRPEF (detrazione / netto)
     secondo i flag fiscali — non concorre all'imponibile INPS.
