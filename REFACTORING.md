@@ -1,6 +1,7 @@
 # Rifattorizzazione motore retributivo GESPER
 
 ## Obiettivo
+
 Rifattorizzare il motore di calcolo retributivo per renderlo modulare, multi-CCNL e conforme alle normative 2026.
 Il progetto deve adottare un'architettura a tre strati separando i calcoli contrattuali, i calcoli statali e l'orchestrazione.
 

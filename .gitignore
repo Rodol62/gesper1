@@ -1,1 +1,11 @@
 logs/
+.venv/
+
+# Python generated files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local SQLite databases
+documento/db.sqlite3
