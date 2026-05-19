@@ -49,3 +49,4 @@ GESPER_PROPOSTA_JS_VERSION=2026-04-16-1
 ```
 
 Quando aggiorni `static/js/proposta_form_dinamico.js`, incrementa la versione (es. `...-2`, `...-3`) e riavvia il server.
+# Deploy automatico configurato mar 19 mag 2026 20:16:34 CEST
