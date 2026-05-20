@@ -106,8 +106,20 @@
     </div>
   </form>
 
+  {% if errori_file %}
+  <div id="esito-import-errori" class="alert alert-danger border-danger mt-4 mb-0" role="alert">
+    <h6 class="alert-heading mb-2"><i class="bi bi-exclamation-octagon me-1"></i>{{ ko_n }} file non importati</h6>
+    {% for e in errori_file %}
+    <div class="mb-2 pb-2 {% if not forloop.last %}border-bottom border-danger-subtle{% endif %}">
+      <strong>{{ e.file }}</strong>
+      <pre class="mb-0 mt-1 small text-danger bg-white border rounded p-2" style="white-space:pre-wrap;word-break:break-word;max-height:12rem;overflow:auto">{{ e.errore }}</pre>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   {% if risultati %}
-  <div class="card border-0 shadow-sm mt-4">
+  <div id="esito-import-tabella" class="card border-0 shadow-sm mt-4">
     <div class="card-header" style="font-size:.88rem;font-weight:600;color:#1b3a5f;background:#f8f9fa;border-bottom:1px solid #e5e8ec">
       <i class="bi bi-list-check me-1"></i>Esito per file importato
     </div>
@@ -138,7 +150,7 @@
             <td class="py-2 text-center">{{ r.already_present|default:'-' }}</td>
             <td class="py-2 text-center">{{ r.f24_pages|default:'-' }}</td>
             <td class="py-2">
-              {% if r.ok %}<span class="text-muted" style="font-size:.78rem">Report: {{ r.report }}</span>{% else %}<span class="text-danger" style="font-size:.78rem">{{ r.errore }}</span>{% endif %}
+              {% if r.ok %}<span class="text-muted" style="font-size:.78rem">Report: {{ r.report }}</span>{% else %}<pre class="text-danger mb-0 small" style="white-space:pre-wrap;word-break:break-word;max-width:28rem">{{ r.errore }}</pre>{% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -293,6 +305,13 @@
         document.open();
         document.write(xhr.responseText);
         document.close();
+        var errBox = document.getElementById('esito-import-errori');
+        var tbl = document.getElementById('esito-import-tabella');
+        if (errBox) {
+          errBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (tbl) {
+          tbl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       } else {
         lbl.textContent = 'Errore durante importazione';
         hint.textContent = 'Si è verificato un errore. Riprova o contatta assistenza.';

@@ -3307,6 +3307,8 @@ def upload_buste_paga_massivo(request):
                 continue
 
             tmp_path = None
+            buff_prev_err = None
+            buff_imp_err = None
             try:
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
                     for chunk in up.chunks():
@@ -3317,22 +3319,26 @@ def upload_buste_paga_massivo(request):
                 preview_out = snapshots_dir / f'preview_admin_hr_{stamp}_{idx}.json'
 
                 buff_prev = io.StringIO()
+                buff_prev_err = io.StringIO()
                 prev_kw = dict(
                     azienda_id=azienda.id,
                     source_name=nome,
                     out=str(preview_out),
                     stdout=buff_prev,
+                    stderr=buff_prev_err,
                 )
                 if forza_reimport:
                     prev_kw['allow_replace'] = True
                 call_command('preview_import_paghe_pdf', tmp_path, **prev_kw)
 
                 buff_imp = io.StringIO()
+                buff_imp_err = io.StringIO()
                 imp_kw = dict(
                     azienda_id=azienda.id,
                     apply=True,
                     attach_docs=True,
                     stdout=buff_imp,
+                    stderr=buff_imp_err,
                 )
                 if forza_reimport:
                     imp_kw['allow_overwrite'] = True
@@ -3433,7 +3439,15 @@ def upload_buste_paga_massivo(request):
                         'documento_id': documento_id_safe,
                     })
             except Exception as exc:
-                risultati.append({'file': nome, 'ok': False, 'errore': str(exc)})
+                err_txt = str(exc).strip() or type(exc).__name__
+                for buf in (buff_prev_err, buff_imp_err):
+                    if buf is None:
+                        continue
+                    extra = (buf.getvalue() or "").strip()
+                    if extra and extra not in err_txt:
+                        err_txt = f"{err_txt}\n\n{extra[-1500:]}"
+                        break
+                risultati.append({'file': nome, 'ok': False, 'errore': err_txt})
             finally:
                 if tmp_path:
                     try:
@@ -3453,13 +3467,21 @@ def upload_buste_paga_massivo(request):
                 request=request,
             )
         if ko_n:
-            messages.warning(request, f'⚠️ {ko_n} file non elaborati. Controlla il dettaglio sotto.')
+            messages.error(
+                request,
+                f'{ko_n} file non elaborati: apri la tabella «Esito per file importato» sotto per il messaggio completo.',
+            )
+
+        errori_file = [r for r in risultati if not r.get('ok')]
 
         return render(request, 'documenti/upload_buste_massivo.html', {
             'azienda': azienda,
             'risultati': risultati,
             'import_results': import_results,
             'forza_reimport_applicata': forza_reimport,
+            'errori_file': errori_file,
+            'ok_n': ok_n,
+            'ko_n': ko_n,
         })
 
     return render(request, 'documenti/upload_buste_massivo.html', {
@@ -3467,6 +3489,9 @@ def upload_buste_paga_massivo(request):
         'risultati': [],
         'import_results': [],
         'forza_reimport_applicata': False,
+        'errori_file': [],
+        'ok_n': 0,
+        'ko_n': 0,
     })
 
 

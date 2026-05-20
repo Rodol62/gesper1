@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import re
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -57,6 +58,23 @@ def _infer_natura_busta_from_source(filename: str) -> str:
     return 'ORDINARIA'
 
 
+def _python_for_subprocess(project_root: Path) -> str:
+    """
+    Interprete Python per ``scripts/analizza_pdf_paghe.py``.
+    Usa il venv del processo Django (Hetzner: ``venv/``, locale spesso ``.venv/``).
+    """
+    candidates = [
+        sys.executable,
+        project_root / "venv" / "bin" / "python",
+        project_root / ".venv" / "bin" / "python",
+    ]
+    for c in candidates:
+        p = Path(c) if not isinstance(c, str) else Path(c)
+        if p.is_file() and p.exists():
+            return str(p.resolve())
+    return sys.executable
+
+
 class Command(BaseCommand):
     help = (
         "Anteprima import PDF paghe unico (buste + F24): "
@@ -102,8 +120,9 @@ class Command(BaseCommand):
             raise CommandError(f"Script analisi non trovato: {script_path}")
 
         tmp_out = Path("/tmp") / f"gesper_preview_{pdf_path.stem.replace(' ', '_')}.json"
+        py_bin = _python_for_subprocess(project_root)
         cmd = [
-            str(project_root / ".venv" / "bin" / "python"),
+            py_bin,
             str(script_path),
             str(pdf_path),
             "--out",
@@ -111,8 +130,16 @@ class Command(BaseCommand):
         ]
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True)
+        except FileNotFoundError as exc:
+            raise CommandError(
+                f"Interprete Python non trovato per analisi PDF (provato: {py_bin}). "
+                "Verificare venv sul server."
+            ) from exc
         except subprocess.CalledProcessError as exc:
-            raise CommandError(f"Errore analisi PDF: {exc.stderr or exc.stdout}") from exc
+            detail = (exc.stderr or exc.stdout or "").strip()
+            raise CommandError(
+                f"Errore analisi PDF ({script_path.name}): {detail[:2000] or exc}"
+            ) from exc
 
         report = json.loads(tmp_out.read_text(encoding="utf-8"))
         diagnostics = {
