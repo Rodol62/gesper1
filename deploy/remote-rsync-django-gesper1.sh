@@ -25,8 +25,9 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOCAL_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-HOST="${GESPER_DEPLOY_HOST:-root@gesper1.plazapretoria.it}"
-REMOTE="${GESPER_REMOTE_PROJECT_DIR:-/var/www/gesper}"
+HOST="${GESPER_DEPLOY_HOST:-root@178.105.161.77}"
+REMOTE="${GESPER_REMOTE_PROJECT_DIR:-/home/deploy/gesper1}"
+GESPER_SYSTEMD_UNIT="${GESPER_SYSTEMD_UNIT:-gesper1}"
 DJANGO_SETTINGS="${GESPER_COLLECTSTATIC_SETTINGS:-settings_production}"
 
 SSH_BASE=(ssh -o ConnectTimeout=30)
@@ -51,6 +52,7 @@ fi
 
 RSYNC_EXCL=(
   --exclude '.venv/'
+  --exclude 'venv/'
   --exclude '.git/'
   --exclude '__pycache__/'
   --exclude '*.pyc'
@@ -79,12 +81,23 @@ if [[ -n "${GESPER_RSYNC_DRY_RUN:-}" ]]; then
   exit 0
 fi
 
-REMOTE_PY="${REMOTE}/.venv/bin/python"
-REMOTE_PIP="${REMOTE}/.venv/bin/pip"
+_remote_venv() {
+  if [[ -x "${REMOTE}/venv/bin/python" ]]; then
+    echo "${REMOTE}/venv"
+  elif [[ -x "${REMOTE}/.venv/bin/python" ]]; then
+    echo "${REMOTE}/.venv"
+  else
+    echo "${REMOTE}/venv"
+  fi
+}
+REMOTE_VENV="$(_remote_venv)"
+REMOTE_PY="${REMOTE_VENV}/bin/python"
+REMOTE_PIP="${REMOTE_VENV}/bin/pip"
 
 REMOTE_SH="set -euo pipefail; cd '${REMOTE}'"
-# Stesso DB e cache di systemd (GESPER_DATA_ROOT, GESPER_REDIS_URL, …)
-REMOTE_SH+="; if [[ -f /etc/gesper.env ]]; then set -a; source /etc/gesper.env; set +a; fi"
+# Env: /etc/gesper.env (Aruba) oppure .env nel progetto (Hetzner)
+REMOTE_SH+="; if [[ -f /etc/gesper.env ]]; then set -a; source /etc/gesper.env; set +a"
+REMOTE_SH+="; elif [[ -f '${REMOTE}/.env' ]]; then set -a; source '${REMOTE}/.env'; set +a; fi"
 if [[ -z "${GESPER_SKIP_PIP:-}" ]]; then
   REMOTE_SH+="; '${REMOTE_PIP}' install -r requirements.txt"
 fi
@@ -94,9 +107,9 @@ fi
 if [[ -z "${GESPER_SKIP_COLLECTSTATIC:-}" ]]; then
   REMOTE_SH+="; DJANGO_SETTINGS_MODULE='${DJANGO_SETTINGS}' '${REMOTE_PY}' manage.py collectstatic --noinput"
 fi
-REMOTE_SH+="; systemctl restart gesper; systemctl is-active gesper"
+REMOTE_SH+="; systemctl restart ${GESPER_SYSTEMD_UNIT}; systemctl is-active ${GESPER_SYSTEMD_UNIT}"
 
-echo "== $HOST: pip / migrate / collectstatic / restart gesper =="
+echo "== $HOST: pip / migrate / collectstatic / restart ${GESPER_SYSTEMD_UNIT} =="
 # shellcheck disable=SC2029
 "${SSH_BASE[@]}" "bash -lc $(printf %q "$REMOTE_SH")"
 

@@ -7,8 +7,9 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
 # Default allineati a produzione Hetzner / gesper1
-export GESPER_DEPLOY_HOST="${GESPER_DEPLOY_HOST:-root@gesper1.plazapretoria.it}"
-export GESPER_REMOTE_PROJECT_DIR="${GESPER_REMOTE_PROJECT_DIR:-/var/www/gesper}"
+export GESPER_DEPLOY_HOST="${GESPER_DEPLOY_HOST:-root@178.105.161.77}"
+export GESPER_REMOTE_PROJECT_DIR="${GESPER_REMOTE_PROJECT_DIR:-/home/deploy/gesper1}"
+export GESPER_SYSTEMD_UNIT="${GESPER_SYSTEMD_UNIT:-gesper1}"
 export GESPER_DATA_ROOT="${GESPER_DATA_ROOT:-/var/www/gesper}"
 export REMOTE_HOST="${REMOTE_HOST:-$GESPER_DEPLOY_HOST}"
 export REMOTE_APP_DIR="${REMOTE_APP_DIR:-$GESPER_REMOTE_PROJECT_DIR}"
