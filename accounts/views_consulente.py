@@ -52,8 +52,6 @@ from operator import or_
 
 from urllib.parse import urlencode
 
-PDF_BUSTE_PASSWORD = 'DOLCEMASCOLO'
-
 
 # ── Helpers permessi ─────────────────────────────────────────────────────────
 
@@ -883,59 +881,29 @@ def consulente_upload_buste_paga(request):
                 return None
 
         def _extract_importi_from_pdf(uploaded_file):
-            try:
-                from pypdf import PdfReader
-            except Exception:
-                return None, None
+            """Stessa pipeline di documenti (v4 pdfplumber → legacy testo)."""
+            from documenti.busta_acquisizione import acquisisci_busta_pdf_bytes
+            from documenti.buste_pdf_passwords import passwords_for_busta_pdf_read
 
             try:
                 pos = uploaded_file.tell() if hasattr(uploaded_file, 'tell') else None
                 if hasattr(uploaded_file, 'seek'):
                     uploaded_file.seek(0)
-                reader = PdfReader(uploaded_file)
-                if getattr(reader, 'is_encrypted', False):
-                    reader.decrypt(PDF_BUSTE_PASSWORD)
-                pages_text = []
-                for p in reader.pages:
-                    try:
-                        pages_text.append(p.extract_text() or '')
-                    except Exception:
-                        pages_text.append('')
-                text = '\n'.join(pages_text)
+                raw = uploaded_file.read()
                 if hasattr(uploaded_file, 'seek') and pos is not None:
                     uploaded_file.seek(pos)
             except Exception:
                 return None, None
 
-            up = (text or '').upper()
-            amount_re = re.compile(r"([0-9]{1,3}(?:[\s\.]?[0-9]{3})*,\s*[0-9]{2}|[0-9]+,\s*[0-9]{2})")
+            if not raw or len(raw) < 5 or raw[:5] != b"%PDF-":
+                return None, None
 
-            def _extract_by_labels(label_patterns):
-                lines = [re.sub(r'\s+', ' ', ln).strip() for ln in up.splitlines()]
-                for ln in lines:
-                    if not ln:
-                        continue
-                    for pat in label_patterns:
-                        m_lbl = re.search(pat, ln, re.IGNORECASE)
-                        if not m_lbl:
-                            continue
-                        tail = ln[m_lbl.end():]
-                        m_amount = amount_re.search(tail)
-                        if m_amount:
-                            return _parse_decimal_text(m_amount.group(1))
-                for pat in label_patterns:
-                    m_lbl = re.search(pat + r"([\s\S]{0,120})", up, re.IGNORECASE)
-                    if not m_lbl:
-                        continue
-                    m_amount = amount_re.search(m_lbl.group(1))
-                    if m_amount:
-                        return _parse_decimal_text(m_amount.group(1))
-                return None
-
-            netto = _extract_by_labels([r"NETTO\s+BUSTA"])
-            lordo = _extract_by_labels([r"TOTALE\s+LORDO", r"TOT\.?\s*LORDO", r"RETRIBUZIONE\s+LORDA"])
-
-            return netto, lordo
+            label = getattr(uploaded_file, 'name', '') or 'busta.pdf'
+            for pw in passwords_for_busta_pdf_read():
+                res = acquisisci_busta_pdf_bytes(raw, password=pw, file_label=label)
+                if res.errore is None:
+                    return res.netto, res.lordo
+            return None, None
 
         caricati = 0
         for dip in dipendenti:

@@ -1,5 +1,7 @@
 # Procedura deploy: Hosting Linux Aruba + Cloud VPS + GESPER
 
+> **Flusso unico:** [`DEPLOY_STANDARD.md`](DEPLOY_STANDARD.md) · `./deploy/gesper.sh help` · script obsoleti: [`DEPRECATED.md`](DEPRECATED.md)
+
 Documento di riferimento per DNS, Nginx, Certbot e pubblicazione codice/PWA.
 
 <details>
@@ -122,7 +124,7 @@ Il secondo Gunicorn su **8001** e le `location` Nginx per `/gesper-test/` **non 
 <a id="sec-git-deploy"></a>
 ## 0.4 Checklist rapida — sviluppo → Git → deploy (~1 min)
 
-Flusso consigliato: **modifiche solo in locale** (o branch), **commit/push** su GitHub, **deploy** verso la VPS. Evitare patch persistenti solo in produzione senza riportarle nel repo.
+Flusso consigliato (**`DEPLOY_STANDARD.md`**): allinea dati da produzione (`gesper pull-data`), sviluppa in locale, **commit/push** GitHub, **`gesper push-code`** verso la VPS. Evitare patch solo in produzione senza repo.
 
 ### Pre-commit (Mac, root del repo)
 
@@ -140,7 +142,8 @@ Flusso consigliato: **modifiche solo in locale** (o branch), **commit/push** su 
 ### Pre-deploy (Mac)
 
 7. **Deploy completo (definito nel repo):** dalla root del repo eseguire  
-   `GESPER_DEPLOY_HOST=root@gesper1.plazapretoria.it ./deploy/deploy-gesper1-completo.sh`  
+   `./deploy/gesper.sh push-code`
+   (oppure `GESPER_DEPLOY_HOST=root@gesper1.plazapretoria.it ./deploy/deploy-gesper1-completo.sh`)  
    Lo script esegue in sequenza: `manage.py check` locale, **`manage.py test rapporto_di_lavoro.tests`** (salta con `GESPER_DEPLOY_SKIP_TESTS=1`), poi delega a `remote-rsync-django-gesper1.sh` (rsync, pip, migrate, collectstatic, restart `gesper`). Variabili opzionali: commenti in cima a `deploy/deploy-gesper1-completo.sh` e `deploy/remote-rsync-django-gesper1.sh`.
 
 8. **Solo sync verso server** (senza suite test locale, ma con `check` dentro `remote-rsync`):  
@@ -345,7 +348,7 @@ Codice: `accounts/management/commands/rimuovi_bonifici_import_excel_studio.py`.
 
 ### Radice dati (`GESPER_DATA_ROOT`)
 
-- **Produzione consigliata (gesper1, unificata con il codice in repo):** in `/etc/gesper.env` imposta `GESPER_DATA_ROOT=/var/www/gesper/documento` così **DB**, **`media/`** e **`archivio/`** stanno sotto un solo albero; `settings_production` usa `MEDIA_ROOT=$GESPER_DATA_ROOT/media`. **Nginx** in `deploy/nginx-gesper-vps-standalone.conf` (e split) ha `location /media/` → `alias /var/www/gesper/documento/media/;`.
+- **Produzione (Hetzner / gesper1):** in `/etc/gesper.env` imposta `GESPER_DATA_ROOT=/var/www/gesper` → **DB** `…/db.sqlite3`, **media** `…/media/`, **archivio** `…/archivio/`. **Nginx** (`nginx-gesper-vps-standalone.conf`): `alias /var/www/gesper/media/;`. Layout alternativo `…/gesper/documento/` solo se già in uso — vedi `DEPRECATED.md` (script unificazione one-shot).
 - **Migrazione da layout legacy** (`/var/www/media` + `db.sqlite3` sotto `/var/www/gesper/`) **senza fare tutto a mano:** da Mac, dopo backup mentale,  
   `GESPER_UNIFIED_CONFIRM=1 GESPER_SSH_NO_TTY=1 ./deploy/remote-apply-unified-gesper-data-root.sh`  
   (unisce i file, copia il DB, aggiorna `gesper.env`, adegua l’`alias` Nginx in `sites-enabled` e riavvia). Poi allinea il vhost con il file in repo e `remote-rsync` se serve.

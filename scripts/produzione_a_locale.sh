@@ -15,10 +15,8 @@ set -euo pipefail
 #   bash scripts/produzione_a_locale.sh --media-only
 #   bash scripts/produzione_a_locale.sh --data-only   # DB + media (senza codice/static)
 #
-# Se in produzione usi GESPER_DATA_ROOT (es. /var/www/gesper/documento o /var/www/documento),
-# imposta la stessa radice qui così DB e media coincidono con Django in produzione:
-#   REMOTE_DATA_ROOT=/var/www/gesper/documento bash scripts/produzione_a_locale.sh --db-only --yes
-# (su gesper1 verifica: grep GESPER_DATA_ROOT /etc/gesper.env)
+# Flusso consigliato: ./deploy/gesper.sh pull-data  (default REMOTE_DATA_ROOT=/var/www/gesper)
+# Verifica produzione: grep GESPER_DATA_ROOT /etc/gesper.env
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${ROOT_DIR}"
@@ -26,8 +24,8 @@ cd "${ROOT_DIR}"
 REMOTE_HOST="${REMOTE_HOST:-root@gesper1.plazapretoria.it}"
 REMOTE_APP_DIR="${REMOTE_APP_DIR:-/var/www/gesper}"
 REMOTE_MEDIA_DIR="${REMOTE_MEDIA_DIR:-/var/www/media}"
-# Se valorizzata (stesso path di GESPER_DATA_ROOT sulla VPS): DB = $REMOTE_DATA_ROOT/db.sqlite3, media = $REMOTE_DATA_ROOT/media/
-REMOTE_DATA_ROOT="${REMOTE_DATA_ROOT:-}"
+# Default = GESPER_DATA_ROOT in produzione (Hetzner). Override o usa: ./deploy/gesper.sh pull-data
+REMOTE_DATA_ROOT="${REMOTE_DATA_ROOT:-/var/www/gesper}"
 SSH_OPTS="${SSH_OPTS:-}"
 SSH_COMMON_OPTS="-o ConnectTimeout=10 -o ControlMaster=auto -o ControlPersist=15m -o ControlPath=$HOME/.ssh/cm-%r@%h:%p"
 
@@ -48,8 +46,9 @@ Variabili (opzionali):
   REMOTE_HOST              default: root@gesper1.plazapretoria.it
   REMOTE_APP_DIR           default: /var/www/gesper
   REMOTE_MEDIA_DIR         default: /var/www/media (solo se REMOTE_DATA_ROOT è vuota)
-  REMOTE_DATA_ROOT         es. /var/www/gesper/documento = GESPER_DATA_ROOT in /etc/gesper.env
-                             → DB e media da quella radice (consigliato se produzione unificata)
+  REMOTE_DATA_ROOT         default: /var/www/gesper (= GESPER_DATA_ROOT in /etc/gesper.env)
+
+Flusso consigliato: ./deploy/gesper.sh pull-data  (deploy/DEPLOY_STANDARD.md)
 EOF
       exit 0
       ;;

@@ -195,13 +195,9 @@ def _safe_filename_part(s: str, max_len: int = 40) -> str:
 
 
 def _documento_file_bytes(doc: Documento) -> bytes | None:
-    if not doc.file:
-        return None
-    try:
-        with doc.file.open("rb") as fh:
-            return fh.read()
-    except Exception:
-        return None
+    from documenti.busta_acquisizione import leggi_pdf_busta_documento
+
+    return leggi_pdf_busta_documento(doc)
 
 
 def estrai_report_per_documento(

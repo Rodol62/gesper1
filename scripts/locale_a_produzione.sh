@@ -13,8 +13,8 @@ set -euo pipefail
 #   bash scripts/locale_a_produzione.sh --db-only
 #   bash scripts/locale_a_produzione.sh --media-only
 #
-# Se in produzione Django usa GESPER_DATA_ROOT (vedi /etc/gesper.env sulla VPS), allinea DB + media:
-#   REMOTE_DATA_ROOT=/var/www/gesper/documento bash scripts/locale_a_produzione.sh --yes
+# Per dati verso produzione preferire: ./deploy/gesper.sh push-data --yes
+# REMOTE_DATA_ROOT default /var/www/gesper (= GESPER_DATA_ROOT in /etc/gesper.env)
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${ROOT_DIR}"
@@ -37,7 +37,7 @@ REMOTE_HOST="${REMOTE_HOST:-root@gesper1.plazapretoria.it}"
 REMOTE_APP_DIR="${REMOTE_APP_DIR:-/var/www/gesper}"
 REMOTE_MEDIA_DIR="${REMOTE_MEDIA_DIR:-/var/www/media}"
 # Se valorizzata (= GESPER_DATA_ROOT in produzione): DB → $REMOTE_DATA_ROOT/db.sqlite3, media → $REMOTE_DATA_ROOT/media/
-REMOTE_DATA_ROOT="${REMOTE_DATA_ROOT:-}"
+REMOTE_DATA_ROOT="${REMOTE_DATA_ROOT:-/var/www/gesper}"
 SSH_OPTS="${SSH_OPTS:-}"
 SSH_COMMON_OPTS="-o ConnectTimeout=10 -o ControlMaster=auto -o ControlPersist=15m -o ControlPath=$HOME/.ssh/cm-%r@%h:%p"
 
@@ -57,12 +57,17 @@ Variabili (opzionali):
   REMOTE_HOST        default: root@gesper1.plazapretoria.it
   REMOTE_APP_DIR     default: /var/www/gesper
   REMOTE_MEDIA_DIR   default: /var/www/media (solo se REMOTE_DATA_ROOT è vuota)
-  REMOTE_DATA_ROOT   es. /var/www/gesper/documento = GESPER_DATA_ROOT in produzione
+  REMOTE_DATA_ROOT   default: /var/www/gesper
+
+Per il codice: ./deploy/gesper.sh push-code
 EOF
       exit 0
       ;;
     --yes|-y) AUTO_YES=true ;;
-    --code-only) DO_CODE=true; DO_DB=false; DO_MEDIA=false ;;
+    --code-only)
+      echo "DEPRECATO: per il codice usa ./deploy/gesper.sh push-code (deploy/DEPRECATED.md)." >&2
+      exit 1
+      ;;
     --db-only) DO_CODE=false; DO_DB=true; DO_MEDIA=false ;;
     --media-only) DO_CODE=false; DO_DB=false; DO_MEDIA=true ;;
     *)

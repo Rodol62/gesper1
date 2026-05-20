@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# DEPRECATO (migrazione one-shot) — vedi deploy/DEPRECATED.md. Layout attuale: GESPER_DATA_ROOT=/var/www/gesper
+if [[ -z "${GESPER_ALLOW_DEPRECATED_SCRIPT:-}" ]]; then
+  echo "DEPRECATO: remote-apply-unified-gesper-data-root.sh" >&2
+  echo "  Imposta GESPER_DATA_ROOT=/var/www/gesper in /etc/gesper.env e ./deploy/gesper.sh nginx-apply" >&2
+  echo "  Per forzare: GESPER_ALLOW_DEPRECATED_SCRIPT=1 GESPER_UNIFIED_CONFIRM=1 …" >&2
+  exit 1
+fi
 # Applica su gesper1 la radice dati unificata (Django + Nginx allineati):
 #   GESPER_DATA_ROOT=/var/www/gesper/documento
 #   → DB:  .../db.sqlite3

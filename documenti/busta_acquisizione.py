@@ -28,10 +28,18 @@ if TYPE_CHECKING:
 
 
 def _leggi_bytes_documento(doc: Documento) -> bytes | None:
+    """Legge i byte del PDF; prova path alternativi sotto MEDIA_ROOT (come la UI archivio)."""
     if not getattr(doc, "file", None):
         return None
+    name = getattr(doc.file, "name", None) or ""
+    if not name:
+        return None
     try:
-        with doc.file.open("rb") as fh:
+        storage = doc.file.storage
+        from documenti.file_path_resolution import first_existing_relpath_for_stored_name
+
+        resolved = first_existing_relpath_for_stored_name(storage, name)
+        with storage.open(resolved or name, "rb") as fh:
             return fh.read()
     except Exception:
         return None

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
+# Implementazione di: ./deploy/gesper.sh push-code  (vedi deploy/DEPLOY_STANDARD.md)
 # Un solo comando: check + test (locale) → deploy su gesper1 (rsync + pip/migrate/collectstatic/restart).
-# Da eseguire dalla root del repo o da qualsiasi directory: ./deploy/deploy-gesper1-completo.sh
 #
 # Opzionali:
 #   GESPER_DEPLOY_SKIP_TESTS=1              # salta i test prima del deploy

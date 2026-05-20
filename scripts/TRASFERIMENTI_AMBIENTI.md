@@ -1,13 +1,21 @@
 # Trasferimenti ambienti (LOCALE ↔ PRODUZIONE)
 
-Questo progetto usa due script principali:
+**Flusso ufficiale:** `deploy/DEPLOY_STANDARD.md` e comando unico:
 
-- `scripts/locale_a_produzione.sh`
-- `scripts/produzione_a_locale.sh`
+```bash
+./deploy/gesper.sh pull-data    # produzione → locale (dati)
+./deploy/gesper.sh push-code    # locale → produzione (codice)
+./deploy/gesper.sh push-data    # locale → produzione (solo dati, eccezionale)
+```
 
-e un file stato ambiente:
+Script sottostanti (chiamati da `gesper.sh` o direttamente):
 
-- `.ambiente_operativo` (gestito da `scripts/segnala_ambiente.sh`)
+- `scripts/produzione_a_locale.sh` — pull dati/codice da VPS
+- `scripts/locale_a_produzione.sh` — push dati verso VPS (**non** usare `--code-only`; vedi `deploy/DEPRECATED.md`)
+
+Stato ambiente: `.ambiente_operativo` (`scripts/segnala_ambiente.sh`).
+
+**Radice dati produzione (default):** `REMOTE_DATA_ROOT=/var/www/gesper` (= `GESPER_DATA_ROOT` in `/etc/gesper.env`).
 
 ## 1) Da LOCALE a PRODUZIONE
 
@@ -27,7 +35,7 @@ bash scripts/locale_a_produzione.sh --media-only
 Se in produzione è impostato **`GESPER_DATA_ROOT`** (es. su gesper1: `grep GESPER_DATA_ROOT /etc/gesper.env`), passa la stessa radice così DB e media finiscono dove usa Django:
 
 ```bash
-REMOTE_DATA_ROOT=/var/www/gesper/documento bash scripts/locale_a_produzione.sh --yes
+./deploy/gesper.sh push-data --yes
 ```
 
 ## 2) Da PRODUZIONE a LOCALE
@@ -39,8 +47,7 @@ bash scripts/produzione_a_locale.sh
 Se sulla VPS il database **non** è in `/var/www/gesper/db.sqlite3` ma sotto **`GESPER_DATA_ROOT`** (es. `/var/www/gesper/documento` come in `deploy/PROCEDURA_DEPLOY.md`), allinea **DB + media** così:
 
 ```bash
-# Verifica sulla VPS: grep GESPER_DATA_ROOT /etc/gesper.env
-REMOTE_DATA_ROOT=/var/www/gesper/documento bash scripts/produzione_a_locale.sh --data-only --yes
+./deploy/gesper.sh pull-data --data-only --yes
 ```
 
 (`--db-only` e `--media-only` da soli si escludono a vicenda se passati insieme; usa **`--data-only`** per DB + media in un colpo.)

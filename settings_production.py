@@ -39,28 +39,51 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # === MEDIA + DATABASE (radice dati unificata opzionale) ===
 # Consigliato in produzione: stessa radice per SQLite e file caricati (allineato a Nginx /media).
-# Esempio in EnvironmentFile: GESPER_DATA_ROOT=/var/www/documento
-#   → DB: /var/www/documento/db.sqlite3, media: /var/www/documento/media/ (sottocartelle buste_paghe/, cud/, … sotto la radice media)
-#   → dump/SQL: /var/www/documento/archivio/ (creata all'avvio)
-# Nginx: alias per /media/ deve puntare a $GESPER_DATA_ROOT/media/ (vedi deploy/nginx-*.conf).
-# Senza variabile: layout legacy MEDIA_ROOT=/var/www/media e DB sotto il progetto.
+# Esempio in /etc/gesper.env (Hetzner / migrazione Aruba):
+#   GESPER_DATA_ROOT=/var/www/gesper
+#   → DB: /var/www/gesper/db.sqlite3, media: /var/www/gesper/media/
+# Alternativa documentata nel repo: GESPER_DATA_ROOT=/var/www/gesper/documento
+# Override puntuali (se DB e media non condividono la stessa radice):
+#   GESPER_SQLITE_PATH=/percorso/db.sqlite3
+#   GESPER_MEDIA_ROOT=/percorso/media
+# Nginx: alias per /media/ deve puntare allo stesso path di MEDIA_ROOT (vedi deploy/nginx-*.conf).
+# Senza GESPER_DATA_ROOT: MEDIA_ROOT=/var/www/media e DB sotto BASE_DIR (WorkingDirectory Gunicorn).
 _pd = os.environ.get("GESPER_DATA_ROOT", "").strip()
+_media_override = os.environ.get("GESPER_MEDIA_ROOT", "").strip()
+_sqlite_override = os.environ.get("GESPER_SQLITE_PATH", "").strip()
 if _pd:
     _root = Path(_pd).expanduser().resolve()
-    MEDIA_ROOT = str(_root / "media")
+    if _media_override:
+        MEDIA_ROOT = str(Path(_media_override).expanduser().resolve())
+    else:
+        MEDIA_ROOT = str(_root / "media")
+    _db_name = (
+        Path(_sqlite_override).expanduser().resolve()
+        if _sqlite_override
+        else _root / "db.sqlite3"
+    )
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": _root / "db.sqlite3",
+            "NAME": _db_name,
             "OPTIONS": {"timeout": 60},
         }
     }
+    GESPER_DATA_ROOT = _root
 else:
-    MEDIA_ROOT = "/var/www/media"
+    if _media_override:
+        MEDIA_ROOT = str(Path(_media_override).expanduser().resolve())
+    else:
+        MEDIA_ROOT = "/var/www/media"
+    _db_name = (
+        Path(_sqlite_override).expanduser().resolve()
+        if _sqlite_override
+        else BASE_DIR / "db.sqlite3"
+    )
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "NAME": _db_name,
             "OPTIONS": {"timeout": 60},
         }
     }

@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# DEPRECATO — vedi deploy/DEPRECATED.md. Usa: gesper pull-data + gesper push-code (deploy/DEPLOY_STANDARD.md).
+if [[ -z "${GESPER_ALLOW_DEPRECATED_SCRIPT:-}" ]]; then
+  echo "DEPRECATO: remote-full-sync-to-gesper1.sh" >&2
+  echo "  Usa ./deploy/gesper.sh pull-data e ./deploy/gesper.sh push-code" >&2
+  echo "  Per forzare: GESPER_ALLOW_DEPRECATED_SCRIPT=1 …" >&2
+  exit 1
+fi
 # Sincronizzazione "completa" locale → gesper1: codice (come deploy) + SQLite + albero media locale.
 #
 # ⚠️  Sovrascrive il DB e i file sotto la cartella media remota. Esegue backup su
