@@ -1,9 +1,10 @@
 # Deploy GESPER — flusso unico (riferimento definitivo)
 
-**Host produzione:** `https://gesper1.plazapretoria.it`  
+**Host produzione:** `https://gesper1.plazapretoria.it` (SSH: `root@178.105.161.77`)  
 **Radice dati VPS:** `/var/www/gesper` → `db.sqlite3`, `media/`, `archivio/`  
-**Codice in esecuzione:** `/var/www/gesper` (Gunicorn `gesper.service`)  
-**Env:** `/etc/gesper.env` con `GESPER_DATA_ROOT=/var/www/gesper`
+**Codice in esecuzione:** `/home/deploy/gesper1` (Gunicorn `gesper1.service`, socket locale)  
+**Env:** `/home/deploy/gesper1/.env` con `GESPER_DATA_ROOT=/var/www/gesper`  
+**Deploy automatico GitHub:** `/home/deploy/deploy_gesper1.sh` (copia da `deploy/deploy_gesper1.sh` nel repo: `git fetch` + `reset --hard origin/main` + migrate + restart)
 
 Dettagli Nginx, TLS, migrazioni storiche: `deploy/PROCEDURA_DEPLOY.md` (appendice operativa).  
 **Non usare** gli script elencati in `deploy/DEPRECATED.md`.
@@ -118,6 +119,8 @@ Il deploy invia il **tree locale** (non fa `git pull` sul server salvo strategia
 
 ```bash
 ./deploy/gesper.sh push-code
+# oppure, dopo git push, sul server (webhook) o via SSH:
+#   bash /home/deploy/deploy_gesper1.sh
 ```
 
 Esegue: check locale → test `rapporto_di_lavoro.tests` (saltabili) → `remote-rsync-django-gesper1.sh` (rsync **senza** DB/media).
