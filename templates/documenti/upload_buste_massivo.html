@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load l10n %}
 {% load format_it_tags %}
+{% load ruoli_tags %}
 {% block title %}Carica buste paga massivo{% endblock %}
 
 {% block content %}
@@ -9,9 +10,16 @@
     <i class="bi bi-file-earmark-zip me-2"></i>Import PDF unico (buste + F24)
   </h2>
   <p class="text-muted mb-3" style="font-size:.85rem">
-    Carica uno o più PDF unici. L'import massivo può contenere buste di mesi diversi nella stessa operazione.
+    Carica uno o più <strong>PDF unici</strong> (un file multi-pagina dall’ufficio paghe con tutte le buste del mese).
     Il sistema divide le singole buste, scarta le doppie copie e memorizza l'F24 separatamente.
   </p>
+  <div class="alert alert-warning border-warning py-2 mb-3" style="font-size:.82rem">
+    <strong>Non usare questa pagina</strong> se hai già <em>un PDF per dipendente</em> (file separati).
+    In quel caso usa <strong>un file per dipendente</strong>:
+    upload dalla scheda documenti del dipendente, oppure
+    {% if user|has_ruolo:'consulente' %}<a href="{% url 'consulente_upload_buste_paga' %}">Carica buste paga (griglia)</a>{% else %}<a href="{% url 'lista_documenti' %}?categoria=buste">Documenti → Buste paga</a> (upload per dipendente){% endif %}.
+    Qui serve solo il PDF «unico» da splittare.
+  </div>
   <div class="alert alert-light border py-2 small mb-3" role="status">
     <div class="mb-0 text-muted" style="font-size:.9em">
       <a href="{% url 'guida_modulo' 'documenti-compliance' %}">Guida: documenti e compliance</a>
