@@ -110,7 +110,7 @@
     <div class="card-body py-2 small">
       <div class="row g-2 mb-3">
         <div class="col-12 col-md-3"><div class="border rounded p-2"><strong>{{ quality_non_assoc_count }}</strong><br><span class="text-muted">Documenti personali non associati</span></div></div>
-        <div class="col-12 col-md-3"><div class="border rounded p-2"><strong>{{ quality_non_classificati_count }}</strong><br><span class="text-muted">Non classificati / tipo altro</span></div></div>
+        <div class="col-12 col-md-3"><div class="border rounded p-2"><strong>{{ quality_non_classificati_count }}</strong><br><span class="text-muted">Non classificati (esclusi F24 in <code>f24/</code>)</span></div></div>
         <div class="col-12 col-md-3"><div class="border rounded p-2"><strong>{{ quality_missing_file_count }}</strong><br><span class="text-muted">Record senza file disponibile</span></div></div>
         <div class="col-12 col-md-3"><div class="border rounded p-2"><strong>{{ quality_duplicate_filename_count }}</strong><br><span class="text-muted">Nomi file duplicati</span></div></div>
       </div>
@@ -141,7 +141,7 @@
           {% endif %}
         </div>
         <div class="col-12 col-lg-6">
-          <h6 class="small fw-semibold mb-1">Non classificati / altro (campione)</h6>
+          <h6 class="small fw-semibold mb-1">Non classificati (campione; gli F24 in <code>f24/</code> non compaiono qui)</h6>
           {% if quality_non_classificati_sample %}
           <ul class="mb-0">
             {% for d in quality_non_classificati_sample %}

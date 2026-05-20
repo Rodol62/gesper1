@@ -5259,11 +5259,20 @@ def admin_archivio_documenti_storage(request):
         tipo__in=tipi_tipicamente_personali,
         dipendente__isnull=True,
     )
+    # F24: tipo DB «altro» ma cartella «f24/» (vedi DOCUMENTO_TIPO_MEDIA_SUBDIRS) — non sono «non classificati».
+    from documenti.upload_paths import subdir_for_documento_tipo
+
+    _f24_sub = (subdir_for_documento_tipo("altro") or "f24").strip("/")
     docs_non_classificati_qs = quality_qs.filter(
         Q(file__startswith="documenti/non_classificati/")
         | Q(file__startswith="varie/non_classificati/")
         | Q(file__startswith="non_classificati/")
-        | Q(tipo="altro")
+        | (
+            Q(tipo="altro")
+            & ~Q(file__startswith=f"{_f24_sub}/")
+            & ~Q(file__startswith="F24/")
+            & ~Q(file__startswith="f24/")
+        )
     )
 
     quality_recent = list(quality_qs.select_related("dipendente")[:350])
