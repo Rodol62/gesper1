@@ -169,6 +169,7 @@ DOCUMENTI_MEDIA_SUBDIR = _DOC_SUB or 'varie'
 DOCUMENTO_TIPO_MEDIA_SUBDIRS = {
 	# Core payroll / fiscale
 	'busta_paga': 'buste_paghe',
+	'pagamento_dipendente': 'ricevute_pagamenti_netti',
 	'certificato': 'cud',
 	'altro': 'f24',
 	'unilav': 'unilav',

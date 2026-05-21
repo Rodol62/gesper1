@@ -169,6 +169,9 @@ def _redirect_documenti_fallback(request, documento: Documento | None = None):
     if documento is not None:
         if documento.tipo == 'busta_paga':
             return redirect(f"{base}?categoria=buste&tipo=busta_paga&anno=&dipendente=")
+        if documento.tipo in ('pagamento_dipendente', 'ricevuta_pagamento_netto'):
+            dip_q = f"&dipendente={documento.dipendente_id}" if documento.dipendente_id else ""
+            return redirect(f"{base}?tipo=pagamento_dipendente{dip_q}")
         if documento.tipo == 'altro':
             return redirect(f"{base}?tipo=altro&anno=&dipendente=")
         if documento.tipo == 'certificato':
@@ -2173,6 +2176,12 @@ def lista_documenti(request):
                 | Q(tipo__iexact='contratti')
                 | Q(file__startswith='contratti/')
                 | Q(file__startswith='documenti/contratti/')
+            )
+        elif tipo_filter == 'pagamento_dipendente':
+            documenti = documenti.filter(
+                Q(tipo__iexact='pagamento_dipendente')
+                | Q(tipo__iexact='ricevuta_pagamento_netto')
+                | Q(file__startswith='ricevute_pagamenti_netti/')
             )
         else:
             documenti = documenti.filter(tipo__iexact=tipo_filter)

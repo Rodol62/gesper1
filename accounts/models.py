@@ -916,6 +916,14 @@ class PagamentoPartitarioPaghe(models.Model):
         related_name='pagamenti_partitario',
         verbose_name='Busta collegata (opz.)',
     )
+    documento = models.ForeignKey(
+        'documenti.Documento',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagamento_partitario_collegato',
+        verbose_name='Documento ricevuta (opz.)',
+    )
     registrato_da = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

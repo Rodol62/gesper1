@@ -8,7 +8,7 @@ from decimal import Decimal
 
 from accounts.models import MovimentoImportPaghe
 from documenti.busta_acquisizione import acquisisci_busta_da_documento, leggi_pdf_busta_documento
-from documenti.buste_cedolino_batch import periodo_retributivo_effettivo
+from documenti.buste_cedolino_batch import parse_periodo_busta, periodo_retributivo_effettivo
 from documenti.cedolino_estrazione_v4_store import tenta_persistenza_cedolino_v4_dopo_lettura
 from documenti.models import Documento
 
@@ -73,7 +73,52 @@ def riallinea_documento_busta(
 
     raw = leggi_pdf_busta_documento(doc)
     if not raw or len(raw) < 5 or raw[:5] != b"%PDF-":
-        esito.errore = "PDF mancante o non valido"
+        # Fallback: descrizione / nome file (es. busta_01_2026) se storage.exists fallisce
+        # ma il file è leggibile con risoluzione path alternativa.
+        mese_fb, anno_fb = parse_periodo_busta(doc)
+        if not mese_fb or not anno_fb:
+            esito.errore = "PDF mancante o non valido"
+            return esito
+        mese, anno = mese_fb, anno_fb
+        esito.mese, esito.anno = mese, anno
+        if not doc.dipendente_id:
+            esito.errore = "Documento senza dipendente collegato"
+            return esito
+        if dry_run:
+            esito.ok = True
+            return esito
+        periodo_label = f"{int(mese):02d}/{int(anno)}"
+        dip = doc.dipendente
+        mov = MovimentoImportPaghe.objects.filter(documento=doc, tipo="BUSTA").first()
+        if mov is None:
+            mov = (
+                MovimentoImportPaghe.objects.filter(
+                    azienda=doc.azienda,
+                    dipendente=dip,
+                    tipo="BUSTA",
+                    anno=anno,
+                    mese=mese,
+                )
+                .order_by("-id")
+                .first()
+            )
+        if mov is None:
+            esito.errore = "PDF non leggibile e nessun movimento da aggiornare"
+            return esito
+        changed: list[str] = []
+        if forza or mov.mese != int(mese):
+            mov.mese = int(mese)
+            changed.append("mese")
+        if forza or mov.anno != int(anno):
+            mov.anno = int(anno)
+            changed.append("anno")
+        if forza or mov.periodo_label != periodo_label:
+            mov.periodo_label = periodo_label
+            changed.append("periodo_label")
+        if changed:
+            mov.save(update_fields=list(dict.fromkeys(changed + ["updated_at"])))
+            esito.aggiornato_movimento = True
+        esito.ok = True
         return esito
 
     res = acquisisci_busta_da_documento(doc, raw_pdf=raw)

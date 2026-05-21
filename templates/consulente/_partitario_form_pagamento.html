@@ -4,7 +4,7 @@
     <i class="bi bi-cash-coin me-1"></i> Registra pagamento al dipendente (Dare)
   </div>
   <div class="card-body py-3">
-    <form method="post" class="row g-2 small align-items-end">
+    <form method="post" enctype="multipart/form-data" class="row g-2 small align-items-end">
       {% csrf_token %}
       <input type="hidden" name="action" value="registra_pagamento">
       {% if anno_filtro %}<input type="hidden" name="anno" value="{{ anno_filtro|anno_it }}">{% endif %}
@@ -30,13 +30,25 @@
         <label class="form-label text-muted mb-0">Importo €</label>
         <input type="text" name="importo" class="form-control form-control-sm" placeholder="es. 1.500,00" required>
       </div>
-      <div class="col-12 col-md-4">
-        <label class="form-label text-muted mb-0">Descrizione / causale</label>
-        <input type="text" name="descrizione" class="form-control form-control-sm" placeholder="Bonifico stipendio …" maxlength="220">
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Metodo</label>
+        <select name="metodo_pagamento" class="form-select form-select-sm">
+          <option value="bonifico">Bonifico</option>
+          <option value="contanti">Contanti</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label text-muted mb-0">Causale (opz.)</label>
+        <input type="text" name="descrizione" class="form-control form-control-sm" placeholder="Acconto stipendio aprile …" maxlength="220">
       </div>
       <div class="col-12 col-md-3">
         <label class="form-label text-muted mb-0">Riferimento bancario</label>
         <input type="text" name="riferimento_bancario" class="form-control form-control-sm" placeholder="CRO, TRN…" maxlength="160">
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label text-muted mb-0">Ricevuta / distinta PDF (opz.)</label>
+        <input type="file" name="file_ricevuta" class="form-control form-control-sm" accept=".pdf,application/pdf">
+        <span class="text-muted" style="font-size:.75rem;">Archiviato come «Pagamento dipendente»</span>
       </div>
       {% if buste_collegamento %}
       <div class="col-12 col-md-4">

@@ -1077,6 +1077,8 @@ def _gestisci_post_pagamento_partitario_paghe(request, azienda):
     desc = (request.POST.get('descrizione') or '').strip()
     rif = (request.POST.get('riferimento_bancario') or '').strip()
     busta_raw = (request.POST.get('movimento_busta') or '').strip()
+    metodo_raw = (request.POST.get('metodo_pagamento') or 'bonifico').strip()
+    file_ricevuta = request.FILES.get('file_ricevuta')
 
     if not dip_raw.isdigit():
         messages.error(request, 'Selezionare il dipendente.')
@@ -1101,8 +1103,14 @@ def _gestisci_post_pagamento_partitario_paghe(request, azienda):
         riferimento_bancario=rif,
         movimento_busta_id=busta_id,
         utente=request.user,
+        metodo_pagamento=metodo_raw,
+        file_ricevuta=file_ricevuta,
     )
-    messages.success(request, f'Pagamento di € {imp} registrato per {dipendente.cognome} {dipendente.nome}.')
+    extra = ' con ricevuta in archivio documenti' if file_ricevuta else ''
+    messages.success(
+        request,
+        f'Pagamento di € {imp} registrato per {dipendente.cognome} {dipendente.nome}{extra}.',
+    )
     return _redirect_partitario_paghe(request, dipendente.pk)
 
 

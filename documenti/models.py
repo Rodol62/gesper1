@@ -16,6 +16,7 @@ class Documento(models.Model):
         ('contratto', 'Contratto di lavoro'),
         ('privacy', 'Autorizzazione privacy'),
         ('busta_paga', 'Busta paga'),
+        ('pagamento_dipendente', 'Pagamento dipendente'),
         ('certificato', 'CUD / Certificato fiscale'),
         ('unilav', 'UniLav'),
         ('riepilogo_mensile', 'Riepilogo mensile'),
@@ -34,7 +35,10 @@ class Documento(models.Model):
     ]
 
     # Gruppi per visualizzazione
-    TIPI_AZIENDALI = {'contratto', 'privacy', 'busta_paga', 'certificato', 'carichi_famiglia'}
+    TIPI_AZIENDALI = {
+        'contratto', 'privacy', 'busta_paga', 'pagamento_dipendente',
+        'certificato', 'carichi_famiglia',
+    }
     TIPI_PERSONALI = {
         'documento_identita', 'permesso_soggiorno', 'codice_fiscale_doc',
         'curriculum', 'attestato', 'abilitazione', 'titolo_studio',

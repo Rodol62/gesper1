@@ -16,6 +16,12 @@ from django.db.models import QuerySet, Sum
 
 from accounts.models import MovimentoImportPaghe, PagamentoPartitarioPaghe
 from anagrafiche.models import Azienda, Dipendente
+from documenti.pagamento_dipendente import (
+    crea_documento_pagamento_dipendente,
+    descrizione_documento_pagamento_dipendente,
+    descrizione_movimento_partitario,
+    periodo_competenza_da_mese_anno,
+)
 
 
 def importo_netto_busta(mov: MovimentoImportPaghe) -> Decimal:
@@ -264,6 +270,8 @@ def registra_pagamento_partitario(
     riferimento_bancario: str,
     movimento_busta_id: int | None,
     utente,
+    metodo_pagamento: str = 'bonifico',
+    file_ricevuta=None,
 ) -> PagamentoPartitarioPaghe:
     movimento_busta = None
     if movimento_busta_id:
@@ -273,14 +281,46 @@ def registra_pagamento_partitario(
             dipendente=dipendente,
             tipo='BUSTA',
         ).first()
+    metodo = (metodo_pagamento or 'bonifico').strip().lower()
+    metodo_label = 'Contanti' if metodo.startswith('contant') else 'Bonifico'
+    periodo_comp = ''
+    if movimento_busta:
+        periodo_comp = periodo_competenza_da_mese_anno(movimento_busta.mese, movimento_busta.anno)
+    causale = (descrizione or '').strip() or 'Pagamento stipendio'
+    desc_mov = descrizione_movimento_partitario(metodo=metodo_label, causale=causale)
+
+    documento = None
+    if file_ricevuta is not None:
+        documento = crea_documento_pagamento_dipendente(
+            azienda=azienda,
+            dipendente=dipendente,
+            data_pagamento=data_pagamento,
+            importo=importo,
+            metodo=metodo_label,
+            causale=causale,
+            periodo_competenza=periodo_comp,
+            file_obj=file_ricevuta,
+            utente=utente,
+        )
+    elif not (descrizione or '').strip():
+        # Descrizione partitario coerente anche senza allegato
+        desc_mov = descrizione_documento_pagamento_dipendente(
+            data_pagamento=data_pagamento,
+            importo=importo,
+            metodo=metodo_label,
+            causale=causale,
+            periodo_competenza=periodo_comp,
+        )[:220]
+
     return PagamentoPartitarioPaghe.objects.create(
         azienda=azienda,
         dipendente=dipendente,
         data_pagamento=data_pagamento,
-        descrizione=(descrizione or 'Bonifico stipendio')[:220],
+        descrizione=desc_mov,
         importo=importo.quantize(Decimal('0.01')),
         riferimento_bancario=(riferimento_bancario or '')[:160],
         movimento_busta=movimento_busta,
+        documento=documento,
         registrato_da=utente,
     )
 
