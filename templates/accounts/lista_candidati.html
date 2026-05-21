@@ -218,7 +218,7 @@
 
               {# Mini-form per compilare i campi mancanti #}
               {% if comp.mancanti or comp.consigliati %}
-              <form method="post" action="{% url 'aggiorna_campo_profilo_candidato' cand.id %}">
+              <form method="post" action="{% url 'aggiorna_campo_profilo_candidato' cand.id %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="mini-form-row">
 
@@ -248,6 +248,10 @@
                         <input type="text" id="f_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
                                value="{{ p.codice_fiscale }}" maxlength="16" placeholder="RSSMRA80A01H501T"
                                style="text-transform:uppercase;max-width:160px">
+                      {% elif campo == 'iban' %}
+                        <input type="text" id="f_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
+                               value="{{ p.iban }}" maxlength="34" placeholder="IT60X0542811101000000123456"
+                               style="max-width:200px">
                       {% elif campo == 'cap' %}
                         <input type="text" id="f_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
                                value="{{ p.cap }}" maxlength="5" placeholder="90100" style="max-width:80px">
@@ -275,6 +279,14 @@
                         <input type="text" id="fc_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
                                value="{{ p.iban }}" maxlength="34" placeholder="IT60X0542811101000000123456"
                                style="max-width:200px">
+                      {% elif campo == 'file_documento' %}
+                        <input type="file" id="fc_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
+                               accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" style="max-width:220px">
+                        {% if p.file_documento %}<span class="text-success" style="font-size:.65rem">già presente</span>{% endif %}
+                      {% elif campo == 'file_codice_fiscale' %}
+                        <input type="file" id="fc_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
+                               accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" style="max-width:220px">
+                        {% if p.file_codice_fiscale %}<span class="text-success" style="font-size:.65rem">già presente</span>{% endif %}
                       {% else %}
                         <input type="text" id="fc_{{ cand.id }}_{{ campo }}" name="{{ campo }}"
                                value="" placeholder="{{ label }}" style="max-width:180px">

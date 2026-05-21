@@ -1184,7 +1184,11 @@ def aggiorna_campo_profilo_candidato(request, user_id):
     controlla se ora il profilo è completo e aggiorna profilo_completato se necessario.
     Redirige a lista_candidati (o al dettaglio se ?next=dettaglio).
     """
-    from .utils import CAMPI_OBBLIGATORI_PROPOSTA, CAMPI_CONSIGLIATI_PROPOSTA
+    from .utils import (
+        CAMPI_ALLEGATI_PROPOSTA,
+        CAMPI_CONSIGLIATI_PROPOSTA,
+        CAMPI_OBBLIGATORI_PROPOSTA,
+    )
 
     if request.method != 'POST':
         return redirect('lista_candidati')
@@ -1200,7 +1204,12 @@ def aggiorna_campo_profilo_candidato(request, user_id):
         'scadenza_documento', 'data_disponibilita',
     }
     CAMPI_BOOLEANO = {'dichiarazione_no_condanne'}
-    CAMPI_CONSENTITI = {campo for campo, _ in CAMPI_OBBLIGATORI_PROPOSTA + CAMPI_CONSIGLIATI_PROPOSTA}
+    CAMPI_FILE = {campo for campo, _ in CAMPI_ALLEGATI_PROPOSTA}
+    CAMPI_CONSENTITI = {
+        campo for campo, _ in (
+            CAMPI_OBBLIGATORI_PROPOSTA + CAMPI_CONSIGLIATI_PROPOSTA + CAMPI_ALLEGATI_PROPOSTA
+        )
+    }
 
     aggiornati = []
     for campo, label in CAMPI_OBBLIGATORI_PROPOSTA + CAMPI_CONSIGLIATI_PROPOSTA:
@@ -1221,6 +1230,13 @@ def aggiorna_campo_profilo_candidato(request, user_id):
             aggiornati.append(label)
         except Exception:
             messages.warning(request, f'Valore non valido per il campo "{label}" — ignorato.')
+
+    for campo, label in CAMPI_ALLEGATI_PROPOSTA:
+        uploaded = request.FILES.get(campo)
+        if not uploaded:
+            continue
+        setattr(profilo, campo, uploaded)
+        aggiornati.append(label)
 
     if aggiornati:
         # Controlla se ora tutti i campi obbligatori sono presenti

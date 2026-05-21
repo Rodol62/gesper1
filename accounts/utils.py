@@ -31,6 +31,12 @@ CAMPI_CONSIGLIATI_PROPOSTA = [
     ('dichiarazione_no_condanne', 'Dichiarazione assenza precedenti penali'),
 ]
 
+# Allegati documentali (FileField sul profilo)
+CAMPI_ALLEGATI_PROPOSTA = [
+    ('file_documento', 'Documento di identità (PDF/JPG)'),
+    ('file_codice_fiscale', 'Codice fiscale / tessera sanitaria (PDF/JPG)'),
+]
+
 
 def controlla_completezza_profilo(profilo):
     """
@@ -50,7 +56,7 @@ def controlla_completezza_profilo(profilo):
         return {
             'completo': False,
             'mancanti': CAMPI_OBBLIGATORI_PROPOSTA[:],
-            'consigliati': CAMPI_CONSIGLIATI_PROPOSTA[:],
+            'consigliati': CAMPI_CONSIGLIATI_PROPOSTA[:] + CAMPI_ALLEGATI_PROPOSTA[:],
             'percentuale': 0,
             'doc_scaduto': False,
         }
@@ -71,7 +77,15 @@ def controlla_completezza_profilo(profilo):
         elif not valore and valore != 0:
             consigliati_mancanti.append((campo, label))
 
-    totale = len(CAMPI_OBBLIGATORI_PROPOSTA) + len(CAMPI_CONSIGLIATI_PROPOSTA)
+    for campo, label in CAMPI_ALLEGATI_PROPOSTA:
+        if not getattr(profilo, campo, None):
+            consigliati_mancanti.append((campo, label))
+
+    totale = (
+        len(CAMPI_OBBLIGATORI_PROPOSTA)
+        + len(CAMPI_CONSIGLIATI_PROPOSTA)
+        + len(CAMPI_ALLEGATI_PROPOSTA)
+    )
     presenti = totale - len(mancanti) - len(consigliati_mancanti)
     percentuale = round(presenti / totale * 100) if totale else 100
 

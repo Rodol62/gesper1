@@ -423,6 +423,15 @@ def crea_dipendente(request):
             dipendente = form.save(commit=False)
             dipendente.azienda = azienda_operativa
             dipendente.save()
+            if dipendente.stato == 'candidato':
+                from accounts.candidato_da_dipendente import (
+                    assicura_account_candidato_da_dipendente,
+                    notifica_credenziali_da_risultato,
+                )
+
+                notifica_credenziali_da_risultato(
+                    request, assicura_account_candidato_da_dipendente(dipendente)
+                )
             messages.success(request, f'Dipendente {dipendente.nome} {dipendente.cognome} creato con successo.')
             return redirect('lista_dipendenti')
     else:
@@ -744,6 +753,16 @@ def modifica_dipendente(request, pk):
         fs_ok = turno_formset.is_valid() if not is_dipendente else True
         if form_ok and fs_ok:
             form.save()
+            dipendente.refresh_from_db()
+            if not is_dipendente and dipendente.stato == 'candidato':
+                from accounts.candidato_da_dipendente import (
+                    assicura_account_candidato_da_dipendente,
+                    notifica_credenziali_da_risultato,
+                )
+
+                notifica_credenziali_da_risultato(
+                    request, assicura_account_candidato_da_dipendente(dipendente)
+                )
             if not is_dipendente:
                 # Salva solo righe con turno valorizzato (le vuote vengono saltate da Django)
                 instances = turno_formset.save(commit=False)
