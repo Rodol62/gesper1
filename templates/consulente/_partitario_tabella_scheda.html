@@ -49,18 +49,19 @@
         <td class="small">{% if r.desc_avere %}{{ r.desc_avere }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
         <td class="text-end font-monospace gesper-libro-amt text-success">{% if r.avere %}€ {{ r.avere|euro_it }}{% else %}—{% endif %}</td>
         <td class="text-end font-monospace gesper-libro-amt {% if r.saldo > 0 %}gesper-libro-saldo-pos{% elif r.saldo < 0 %}gesper-libro-saldo-neg{% else %}gesper-libro-saldo-zero{% endif %}">€ {{ r.saldo|euro_it }}</td>
-        <td class="text-center">
+        <td class="text-center text-nowrap">
           {% if r.documento_id %}
-            <a href="{% url 'visualizza_documento' r.documento_id %}" class="btn btn-sm btn-outline-primary py-0">PDF</a>
-          {% elif r.pagamento_id %}
-            <form method="post" class="d-inline" onsubmit="return confirm('Eliminare questo pagamento dal partitario?');">
+            <a href="{% url 'visualizza_documento' r.documento_id %}" class="btn btn-sm btn-outline-primary py-0" target="_blank" rel="noopener">PDF</a>
+          {% endif %}
+          {% if r.pagamento_id %}
+            <form method="post" class="d-inline{% if r.documento_id %} ms-1{% endif %}" onsubmit="return confirm('Eliminare questo pagamento dal partitario?');">
               {% csrf_token %}
               <input type="hidden" name="action" value="elimina_pagamento">
               <input type="hidden" name="pagamento_id" value="{{ r.pagamento_id }}">
               <input type="hidden" name="dipendente" value="{{ scheda.dipendente.id }}">
               <button type="submit" class="btn btn-sm btn-outline-danger py-0" title="Elimina pagamento">×</button>
             </form>
-          {% else %}—{% endif %}
+          {% elif not r.documento_id %}—{% endif %}
         </td>
       </tr>
       {% empty %}

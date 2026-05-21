@@ -16,6 +16,7 @@ from django.db.models import QuerySet, Sum
 
 from accounts.models import MovimentoImportPaghe, PagamentoPartitarioPaghe
 from anagrafiche.models import Azienda, Dipendente
+from documenti.models import Documento
 from documenti.pagamento_dipendente import (
     crea_documento_pagamento_dipendente,
     descrizione_documento_pagamento_dipendente,
@@ -94,7 +95,7 @@ def qs_pagamenti(
     anno: int | None = None,
 ) -> QuerySet[PagamentoPartitarioPaghe]:
     qs = PagamentoPartitarioPaghe.objects.filter(azienda=azienda).select_related(
-        'dipendente', 'movimento_busta'
+        'dipendente', 'movimento_busta', 'documento'
     )
     if dipendente_id:
         qs = qs.filter(dipendente_id=dipendente_id)
@@ -152,6 +153,19 @@ def righe_libro_partitario(
             desc = f'{desc} — {rif}' if desc else rif
         if not desc:
             desc = 'Bonifico stipendio'
+        doc_id = pag.documento_id
+        if doc_id is None:
+            doc_id = (
+                Documento.objects.filter(
+                    azienda=azienda,
+                    dipendente_id=dipendente.pk,
+                    tipo__in=('pagamento_dipendente', 'ricevuta_pagamento_netto'),
+                    descrizione__icontains=pag.data_pagamento.strftime('%d/%m/%Y'),
+                )
+                .order_by('-id')
+                .values_list('id', flat=True)
+                .first()
+            )
         righe_raw.append(
             RigaLibroPartitario(
                 data_ord=pag.data_pagamento,
@@ -160,6 +174,7 @@ def righe_libro_partitario(
                 dare=pag.importo or Decimal('0'),
                 desc_avere='',
                 avere=Decimal('0'),
+                documento_id=doc_id,
                 pagamento_id=pag.pk,
                 busta_movimento_id=pag.movimento_busta_id,
             )
