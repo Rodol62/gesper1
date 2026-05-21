@@ -634,6 +634,14 @@
 {% endif %}
 
 {% if show_buste_dashboard %}
+{% if buste_num_documenti %}
+<div class="alert alert-info py-2 mb-3" style="font-size:.85rem">
+  <strong>{{ buste_num_documenti }} buste paga</strong> in archivio per l’azienda operativa.
+  Espandi un <strong>anno</strong> nell’elenco sotto (es. «Anno 2025») per vedere i mesi e aprire i PDF.
+  Gli F24 del mese compaiono come importo «F24 da versare»; i PDF F24 si trovano anche in
+  <a href="{% url 'lista_documenti' %}?tipo=altro&amp;categoria=f24">Documenti → F24</a>.
+</div>
+{% endif %}
 <div class="mb-2 text-muted" style="font-size:.82rem">
     Buste organizzate per <strong>anno</strong> → <strong>mese</strong> → <strong>dipendente</strong>.
 </div>
@@ -667,7 +675,7 @@
     {% for y in buste_anni %}
     <div class="accordion-item mb-2 border rounded">
         <h2 class="accordion-header" id="head-year-{{ y.anno|anno_it }}">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#col-year-{{ y.anno|anno_it }}" aria-expanded="false" aria-controls="col-year-{{ y.anno|anno_it }}">
+            <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#col-year-{{ y.anno|anno_it }}" aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}" aria-controls="col-year-{{ y.anno|anno_it }}">
                 <div class="w-100 d-flex justify-content-between align-items-center flex-wrap gap-3 pe-2">
                     <span><strong>Anno {{ y.anno|anno_it }}</strong></span>
                     <span class="year-totals">
@@ -681,7 +689,7 @@
                 </div>
             </button>
         </h2>
-        <div id="col-year-{{ y.anno|anno_it }}" class="accordion-collapse collapse" aria-labelledby="head-year-{{ y.anno|anno_it }}" data-bs-parent="#accBusteAnni">
+        <div id="col-year-{{ y.anno|anno_it }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" aria-labelledby="head-year-{{ y.anno|anno_it }}" data-bs-parent="#accBusteAnni">
             <div class="accordion-body p-2">
                 <div>
                     {% for m in y.mesi %}

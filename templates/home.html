@@ -208,6 +208,16 @@
       <span class="mc-title">Dashboard Admin</span>
       <span class="mc-desc">Panoramica sistema e accesso rapido</span>
     </a>
+    <a href="{% url 'consulente_partitario_paghe' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-receipt-cutoff"></i></span>
+      <span class="mc-title">Partitario paghe</span>
+      <span class="mc-desc">Buste e bonifici per dipendente</span>
+    </a>
+    <a href="{% url 'consulente_partitario_consulente' %}" class="module-card">
+      <span class="mc-icon"><i class="bi bi-calculator"></i></span>
+      <span class="mc-title">Situazione contabile consulente</span>
+      <span class="mc-desc">Proforma, bonifici, libro movimenti</span>
+    </a>
   </div>
 
   {# ── Consulente del lavoro (solo consulente, non admin) ───── #}
@@ -283,7 +293,7 @@
     <a href="{% url 'consulente_partitario_paghe' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-journal-text"></i></span>
       <span class="mc-title">Partitario paghe</span>
-      <span class="mc-desc">Vista partitario</span>
+      <span class="mc-desc">Buste, bonifici e partitario singolo</span>
     </a>
     <a href="{% url 'consulente_riepilogo_f24_annuale' %}" class="module-card">
       <span class="mc-icon"><i class="bi bi-file-earmark-bar-graph"></i></span>

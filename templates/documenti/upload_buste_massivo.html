@@ -13,113 +13,85 @@
     Carica uno o più <strong>PDF unici</strong> (un file multi-pagina dall’ufficio paghe con tutte le buste del mese).
     Il sistema divide le singole buste, scarta le doppie copie e memorizza l'F24 separatamente.
   </p>
+  {% if not prereq_server.ok %}
+  <div class="alert alert-danger mb-3">
+    <strong>Import disabilitato sul server:</strong> mancano <code>pdftotext</code> e/o <code>tesseract</code>.
+    Senza questi tool il PDF risulta «vuoto» (0 buste) anche se il file è corretto.
+    <a href="{% url 'diagnostica_import_buste' %}" class="alert-link">Esegui la diagnostica 3 passi</a> prima di importare.
+  </div>
+  {% endif %}
+  <p class="mb-2">
+    <a href="{% url 'diagnostica_import_buste' %}" class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-clipboard2-pulse"></i> Diagnostica PDF (A→B→C) senza importare
+    </a>
+  </p>
+  <div class="alert alert-light border py-2 mb-3" style="font-size:.8rem">
+    <strong>Dove finiscono i file (produzione)</strong>
+    <ul class="mb-0 ps-3">
+      <li><strong>PDF singole buste:</strong> <code class="user-select-all">{{ storage_info.buste_dir }}/</code></li>
+      <li><strong>PDF F24:</strong> <code class="user-select-all">{{ storage_info.f24_dir }}/</code></li>
+      <li><strong>Database:</strong> record <code>Documento</code> (tipo <code>busta_paga</code>) + <code>MovimentoImportPaghe</code> — <code class="user-select-all">{{ storage_info.db_path }}</code></li>
+      <li><strong>Copia PDF unico + report anteprima:</strong> <code class="user-select-all">{{ storage_info.snapshots_dir }}/</code></li>
+    </ul>
+  </div>
   <div class="alert alert-warning border-warning py-2 mb-3" style="font-size:.82rem">
     <strong>Non usare questa pagina</strong> se hai già <em>un PDF per dipendente</em> (file separati).
-    In quel caso usa <strong>un file per dipendente</strong>:
-    upload dalla scheda documenti del dipendente, oppure
-    {% if user|has_ruolo:'consulente' %}<a href="{% url 'consulente_upload_buste_paga' %}">Carica buste paga (griglia)</a>{% else %}<a href="{% url 'lista_documenti' %}?categoria=buste">Documenti → Buste paga</a> (upload per dipendente){% endif %}.
+    In quel caso usa
+    {% if user|has_ruolo:'consulente' %}<a href="{% url 'consulente_upload_buste_paga' %}">Carica buste paga (griglia)</a>{% else %}<a href="{% url 'lista_documenti' %}?categoria=buste">Documenti → Buste paga</a>{% endif %}.
     Qui serve solo il PDF «unico» da splittare.
   </div>
-  <div class="alert alert-light border py-2 small mb-3" role="status">
-    <div class="mb-0 text-muted" style="font-size:.9em">
-      <a href="{% url 'guida_modulo' 'documenti-compliance' %}">Guida: documenti e compliance</a>
-      · <a href="{% url 'guida_modulo' 'paghe-controlli' %}">Guida: paghe e controlli</a>
-    </div>
-  </div>
 
-  {% if messages %}
-    {% for msg in messages %}
-      <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show" role="alert" style="font-size:.88rem">
-        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-      </div>
-    {% endfor %}
-  {% endif %}
-
-  {% if forza_reimport_applicata %}
-  <div class="alert alert-warning border-warning mb-3" role="status" style="font-size:.85rem">
-    <strong>Re-import forzato attivo in questa richiesta.</strong>
-    Le buste con la stessa periodicità sono state trattate come aggiornamento (PDF e movimenti), non come duplicati da scartare.
-  </div>
-  {% endif %}
-
-  <form method="post" enctype="multipart/form-data" id="massiveUploadForm" class="gesper-multipart-upload">
-    {% csrf_token %}
-
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header d-flex align-items-center justify-content-between" style="background:#f8f9fa;border-bottom:1px solid #e5e8ec">
-        <span style="font-size:.88rem;font-weight:600;color:#1b3a5f">
-          <i class="bi bi-file-earmark-pdf me-1"></i>PDF unici mensili — {{ azienda.nome }}
-        </span>
-        <span class="text-muted" style="font-size:.8rem">Sono accettati file PDF protetti</span>
-      </div>
-      <div class="card-body">
-        <div class="alert alert-info mb-3" role="alert" style="font-size:.82rem;">
-          <div class="fw-semibold mb-1"><i class="bi bi-info-circle me-1"></i>Regola nome file per mensilità aggiuntive</div>
-          <div>
-            Per riconoscere correttamente <strong>13ª</strong> e <strong>14ª</strong> nel motore unico, inserire nel nome file:
-            <ul class="mb-0 mt-1 ps-3">
-              <li><strong>TREDICESIMA</strong> (es. <em>TREDICESIMA DICEMBRE 2024.pdf</em>)</li>
-              <li><strong>QUATTORDICESIMA</strong> (es. <em>QUATTORDICESIMA LUGLIO 2024.pdf</em>)</li>
-            </ul>
-          </div>
-        </div>
-        <div class="row g-3">
-          <div class="col-12">
-            <label class="form-label" style="font-size:.82rem;font-weight:600">Seleziona uno o più PDF unici</label>
-            <input type="file" name="pdf_files" class="form-control form-control-sm" multiple accept="application/pdf,.pdf,.PDF" required>
-          </div>
-          <div class="col-12 text-muted" style="font-size:.8rem">
-            I PDF protetti da password sono supportati tramite configurazione sicura lato sistema. Le pagine duplicate vengono escluse e l'F24 viene gestito separatamente.
-          </div>
-          <div class="col-12">
-            <div class="form-check border rounded px-3 py-2 bg-light">
-              <input class="form-check-input" type="checkbox" name="forza_reimport" value="1" id="forzaReimport">
-              <label class="form-check-label small" for="forzaReimport">
-                <strong>Forza re-import</strong> — sovrascrive buste già registrate per lo stesso periodo (PDF su disco, movimenti import e importi). Usare se il sistema segnala «già presente» ma vuoi sostituire i file con questo caricamento.
-              </label>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="d-flex align-items-center gap-3 flex-wrap">
-      <button type="submit" class="btn btn-primary px-4" id="btnStartImport">
-        <i class="bi bi-cloud-upload me-1"></i>Importa PDF selezionati
-      </button>
-      <a href="{% url 'lista_documenti' %}?tipo=busta_paga" class="btn btn-outline-secondary">Torna a Buste paga</a>
-    </div>
-
-    <div id="uploadProgressWrap" class="card border-0 shadow-sm mt-3" style="display:none;">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-2" style="font-size:.84rem;">
-          <strong id="uploadProgressLabel" style="color:#1b3a5f">Caricamento file in corso…</strong>
-          <span id="uploadProgressPct" class="text-muted">0%</span>
-        </div>
-        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" style="height:12px;">
-          <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
-        </div>
-        <div id="uploadProgressHint" class="text-muted mt-2" style="font-size:.78rem;">
-          Dopo il caricamento il sistema elabora le buste/F24. Non chiudere questa pagina.
-        </div>
-      </div>
-    </div>
-  </form>
-
+  {# ── Esito import (subito sotto l’intestazione, prima del form) ── #}
   {% if errori_file %}
-  <div id="esito-import-errori" class="alert alert-danger border-danger mt-4 mb-0" role="alert">
-    <h6 class="alert-heading mb-2"><i class="bi bi-exclamation-octagon me-1"></i>{{ ko_n }} file non importati</h6>
-    {% for e in errori_file %}
-    <div class="mb-2 pb-2 {% if not forloop.last %}border-bottom border-danger-subtle{% endif %}">
-      <strong>{{ e.file }}</strong>
-      <pre class="mb-0 mt-1 small text-danger bg-white border rounded p-2" style="white-space:pre-wrap;word-break:break-word;max-height:12rem;overflow:auto">{{ e.errore }}</pre>
+  <div id="esito-import-errori" class="card border-danger shadow-sm mt-2 mb-4" style="border-width:2px !important">
+    <div class="card-header bg-danger text-white py-2">
+      <strong><i class="bi bi-exclamation-octagon me-1"></i>{{ ko_n }} file non importati — leggi il dettaglio qui</strong>
     </div>
-    {% endfor %}
+    <div class="card-body bg-danger-subtle">
+      {% for e in errori_file %}
+      <div class="mb-3 {% if not forloop.last %}pb-3 border-bottom border-danger{% endif %}">
+        <div class="fw-bold text-danger mb-1">{{ e.file }}</div>
+        <pre class="mb-0 small bg-white border border-danger rounded p-3" style="white-space:pre-wrap;word-break:break-word;max-height:20rem;overflow:auto">{{ e.errore }}</pre>
+      </div>
+      {% endfor %}
+      <p class="mb-0 small text-muted">Correggi il problema e ripeti l’import con il form sotto. Se il PDF è già in archivio, attiva <strong>Forza re-import</strong>.</p>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if risultati and not errori_file %}
+  {% if tot_already and not tot_docs_created and not forza_reimport_applicata %}
+  <div class="alert alert-warning border-warning mb-3" role="alert" style="border-width:2px">
+    <strong><i class="bi bi-info-circle me-1"></i>Import eseguito ma nessun PDF scritto</strong>
+    <p class="mb-2 mt-2">Anteprima: <strong>{{ tot_already }} buste già presenti</strong> per lo stesso periodo/dipendente
+      (es. <strong>01/2026</strong> letto dal cedolino, non «aprile» dal nome file).
+      Il sistema <strong>non sovrascrive</strong> i PDF esistenti senza <strong>Forza re-import</strong>.</p>
+    <p class="mb-2">Le buste possono già essere in archivio:
+      <a href="{% url 'lista_documenti' %}?categoria=buste&amp;tipo=busta_paga&amp;anno=2026">Apri archivio 2026</a>
+      → espandi <strong>Anno 2026</strong> → mese <strong>01</strong>.</p>
+    <p class="mb-0">Per aggiornare i PDF dal file che hai caricato: attiva <strong>Forza re-import</strong> sotto e ripeti l’upload.</p>
+  </div>
+  {% endif %}
+  <div id="esito-import-ok" class="alert {% if tot_docs_created or tot_to_create %}alert-success border-success{% else %}alert-warning border-warning{% endif %} mb-3" role="status">
+    {% if tot_docs_created %}
+    <strong>{{ tot_docs_created }} PDF buste scritti/aggiornati</strong> su {{ ok_n }} file elaborati.
+    {% elif tot_to_create %}
+    <strong>{{ tot_to_create }} buste da creare</strong> su {{ ok_n }} PDF elaborati.
+    {% elif tot_already %}
+    <strong>{{ tot_already }} buste già in archivio</strong>{% if forza_reimport_applicata %} (re-import forzato){% endif %}.
+    {% else %}
+    <strong>Import elaborato.</strong> Controlla la tabella sotto (colonne «Da creare» / «Già presenti»).
+    {% endif %}
+    <div class="mt-2">
+      <a href="{% url 'lista_documenti' %}?categoria=buste&amp;tipo=busta_paga" class="btn btn-sm btn-primary">
+        Vai all’archivio buste e F24
+      </a>
+    </div>
   </div>
   {% endif %}
 
   {% if risultati %}
-  <div id="esito-import-tabella" class="card border-0 shadow-sm mt-4">
+  <div id="esito-import-tabella" class="card border-0 shadow-sm mb-4">
     <div class="card-header" style="font-size:.88rem;font-weight:600;color:#1b3a5f;background:#f8f9fa;border-bottom:1px solid #e5e8ec">
       <i class="bi bi-list-check me-1"></i>Esito per file importato
     </div>
@@ -133,13 +105,26 @@
             <th class="py-2 text-center">Match</th>
             <th class="py-2 text-center">Da creare</th>
             <th class="py-2 text-center">Già presenti</th>
+            <th class="py-2 text-center" title="PDF effettivamente scritti su disco">PDF scritti</th>
             <th class="py-2 text-center">Pagine F24</th>
+            <th class="py-2 text-center">Verifica OK</th>
             <th class="py-2">Dettaglio</th>
           </tr>
         </thead>
         <tbody>
           {% for r in risultati %}
-          <tr>
+          {% if r.ok and r.buste_uniche == 0 %}
+          <tr class="table-warning">
+            <td colspan="10" class="py-3">
+              <strong>Nessuna busta estratta da «{{ r.file }}».</strong>
+              Il PDF ha {{ r.f24_pages|default:0 }} pagine F24 in anteprima ma <strong>0 pagine riconosciute come cedolino</strong>.
+              Su produzione il file risulta spesso <strong>solo immagine</strong> (scansione senza testo): in quel caso non viene creato alcun documento in
+              <code>buste_paghe/</code> e in archivio non compare nulla di nuovo.
+              Serve un PDF unico <strong>con testo selezionabile</strong> dall’ufficio paghe (export TeamSystem, non foto/scansione).
+            </td>
+          </tr>
+          {% endif %}
+          <tr class="{% if not r.ok %}table-danger{% endif %}">
             <td class="py-2 px-3">{{ r.file }}</td>
             <td class="py-2 text-center">
               {% if r.ok %}<span class="badge bg-success">OK</span>{% else %}<span class="badge bg-danger">Errore</span>{% endif %}
@@ -148,9 +133,22 @@
             <td class="py-2 text-center">{{ r.matched|default:'-' }}</td>
             <td class="py-2 text-center">{{ r.to_create|default:'-' }}</td>
             <td class="py-2 text-center">{{ r.already_present|default:'-' }}</td>
+            <td class="py-2 text-center">
+              {% if r.ok %}<strong>{{ r.docs_created|default:'0' }}</strong>{% else %}—{% endif %}
+            </td>
             <td class="py-2 text-center">{{ r.f24_pages|default:'-' }}</td>
+            <td class="py-2 text-center">
+              {% if r.ok %}{{ r.verifica_ok|default:'0' }}/{{ r.verifica_tot|default:'0' }}{% else %}—{% endif %}
+            </td>
             <td class="py-2">
-              {% if r.ok %}<span class="text-muted" style="font-size:.78rem">Report: {{ r.report }}</span>{% else %}<pre class="text-danger mb-0 small" style="white-space:pre-wrap;word-break:break-word;max-width:28rem">{{ r.errore }}</pre>{% endif %}
+              {% if r.ok %}
+              <div class="text-muted" style="font-size:.78rem">
+                Report: {{ r.report }}<br>
+                PDF sorgente: {{ r.pdf_salvato|default:'—' }}
+                {% if r.ambiguous %}<br><span class="text-warning">Ambigui in anteprima: {{ r.ambiguous }}</span>{% endif %}
+                {% if r.imp_errors %}<br><span class="text-danger">Errori import: {{ r.imp_errors }}</span>{% endif %}
+              </div>
+              {% else %}<pre class="text-danger mb-0 small" style="white-space:pre-wrap;word-break:break-word;max-width:28rem">{{ r.errore }}</pre>{% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -160,13 +158,61 @@
   </div>
   {% endif %}
 
+  {% if verifica_import %}
+  <div id="esito-verifica-import" class="card border-primary shadow-sm mb-4">
+    <div class="card-header bg-primary text-white py-2">
+      <strong><i class="bi bi-shield-check me-1"></i>Verifica archivio dopo import</strong>
+      — certezza che buste e PDF esistono
+    </div>
+    <div class="card-body">
+      <p class="small text-muted mb-2">
+        Controllo su database + file in <code>{{ storage_info.media_root }}</code>.
+        {% if verifica_riepilogo.ok %}<strong class="text-success">{{ verifica_riepilogo.ok }} buste con PDF verificato.</strong>{% endif %}
+        {% if verifica_riepilogo.ambiguo %}<span class="text-warning">{{ verifica_riepilogo.ambiguo }} ambigue.</span>{% endif %}
+        {% if verifica_riepilogo.assente %}<span class="text-danger">{{ verifica_riepilogo.assente }} assenti.</span>{% endif %}
+      </p>
+      <div class="table-responsive" style="max-height:22rem;overflow:auto">
+        <table class="table table-sm table-bordered mb-0" style="font-size:.78rem">
+          <thead class="table-light">
+            <tr>
+              <th>PDF unico</th>
+              <th>Pag.</th>
+              <th>Periodo</th>
+              <th>Dipendente</th>
+              <th>Stato</th>
+              <th>Doc #</th>
+              <th>Percorso file</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in verifica_import %}
+            <tr class="{% if v.stato == 'ok' %}table-success{% elif v.stato == 'ambiguo' or v.stato == 'senza_dipendente' %}table-warning{% else %}table-danger{% endif %}">
+              <td>{{ v.file_sorgente|truncatechars:24 }}</td>
+              <td>{{ v.pagina|default:'—' }}</td>
+              <td>{{ v.periodo }}</td>
+              <td>{% if v.dipendente %}{{ v.dipendente.cognome }} {{ v.dipendente.nome }}{% else %}—{% endif %}</td>
+              <td>
+                {% if v.stato == 'ok' %}<span class="badge bg-success">OK</span>{% elif v.stato == 'ambiguo' %}<span class="badge bg-warning text-dark">Ambiguo</span>{% else %}<span class="badge bg-danger">{{ v.stato }}</span>{% endif %}
+                <span class="text-muted d-block" style="font-size:.7rem">{{ v.messaggio }}</span>
+              </td>
+              <td>{% if v.documento_id %}<a href="{% url 'visualizza_documento' v.documento_id %}">#{{ v.documento_id }}</a>{% else %}—{% endif %}</td>
+              <td><code class="user-select-all" style="font-size:.68rem;word-break:break-all">{% if v.path_rel %}{{ v.path_rel }}{% else %}—{% endif %}</code></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {% if import_results %}
-  <div class="card border-0 shadow-sm mt-4">
+  <div class="card border-0 shadow-sm mb-4">
     <div class="card-header d-flex align-items-center justify-content-between" style="background:#f8f9fa;border-bottom:1px solid #e5e8ec">
       <span style="font-size:.88rem;font-weight:600;color:#1b3a5f">
         <i class="bi bi-clipboard-check me-1"></i>Riepilogo singole buste importate
       </span>
-      <span class="text-muted" style="font-size:.8rem">{{ import_results|length }} file analizzati</span>
+      <span class="text-muted" style="font-size:.8rem">{{ import_results|length }} righe</span>
     </div>
     <div class="table-responsive">
       <table class="table mb-0" style="font-size:.84rem">
@@ -212,7 +258,7 @@
             </td>
             <td class="py-2 text-center">
               {% if r.documento_id %}
-                <a href="{% url 'visualizza_documento' r.documento_id %}" class="btn btn-sm btn-outline-secondary">Visualizza #{{ r.documento_id }}</a>
+                <a href="{% url 'visualizza_documento' r.documento_id %}" class="btn btn-sm btn-outline-secondary">#{{ r.documento_id }}</a>
               {% else %}
                 <span class="text-muted">—</span>
               {% endif %}
@@ -224,108 +270,70 @@
     </div>
   </div>
   {% endif %}
+
+  <div class="alert alert-light border py-2 small mb-3" role="status">
+    <a href="{% url 'guida_modulo' 'documenti-compliance' %}">Guida: documenti e compliance</a>
+    · <a href="{% url 'guida_modulo' 'paghe-controlli' %}">Guida: paghe e controlli</a>
+  </div>
+
+  {% if forza_reimport_applicata %}
+  <div class="alert alert-warning border-warning mb-3" role="status" style="font-size:.85rem">
+    <strong>Re-import forzato attivo nell’ultima richiesta.</strong>
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" id="massiveUploadForm" class="gesper-multipart-upload">
+    {% csrf_token %}
+
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header d-flex align-items-center justify-content-between" style="background:#f8f9fa;border-bottom:1px solid #e5e8ec">
+        <span style="font-size:.88rem;font-weight:600;color:#1b3a5f">
+          <i class="bi bi-file-earmark-pdf me-1"></i>PDF unici mensili — {{ azienda.nome }}
+        </span>
+        <span class="text-muted" style="font-size:.8rem">PDF protetti supportati</span>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info mb-3" role="alert" style="font-size:.82rem;">
+          <div class="fw-semibold mb-1">Mensilità 13ª / 14ª</div>
+          Nel nome file includere <strong>TREDICESIMA</strong> o <strong>QUATTORDICESIMA</strong> se applicabile.
+        </div>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label" style="font-size:.82rem;font-weight:600">Seleziona uno o più PDF unici</label>
+            <input type="file" name="pdf_files" class="form-control form-control-sm" multiple accept="application/pdf,.pdf,.PDF" required>
+          </div>
+          <div class="col-12">
+            <div class="form-check border rounded px-3 py-2 bg-light">
+              <input class="form-check-input" type="checkbox" name="forza_reimport" value="1" id="forzaReimport">
+              <label class="form-check-label small" for="forzaReimport">
+                <strong>Forza re-import</strong> — sovrascrive buste già presenti per lo stesso periodo.
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <button type="submit" class="btn btn-primary px-4" id="btnStartImport">
+        <i class="bi bi-cloud-upload me-1"></i>Importa PDF selezionati
+      </button>
+      <a href="{% url 'lista_documenti' %}?tipo=busta_paga" class="btn btn-outline-secondary">Torna a Buste paga</a>
+    </div>
+    <p class="text-muted mt-2 mb-0" style="font-size:.78rem">
+      L’import può richiedere alcuni minuti: attendi il ricaricamento completo della pagina (barra di avanzamento del browser).
+    </p>
+  </form>
 </div>
+{% if errori_file %}
 <script>
-(function(){
-  const form = document.getElementById('massiveUploadForm');
-  if (!form) return;
-
-  const btn = document.getElementById('btnStartImport');
-  const wrap = document.getElementById('uploadProgressWrap');
-  const bar = document.getElementById('uploadProgressBar');
-  const pct = document.getElementById('uploadProgressPct');
-  const lbl = document.getElementById('uploadProgressLabel');
-  const hint = document.getElementById('uploadProgressHint');
-  const fileInput = form.querySelector('input[name="pdf_files"]');
-
-  let submitted = false;
-  let fakeTimer = null;
-
-  function setProgress(v){
-    const val = Math.max(0, Math.min(100, Math.round(v)));
-    bar.style.width = val + '%';
-    pct.textContent = val + '%';
-    const progressEl = bar.closest('.progress');
-    if (progressEl) progressEl.setAttribute('aria-valuenow', String(val));
-  }
-
-  function startFakeProcessing(){
-    if (fakeTimer) window.clearInterval(fakeTimer);
-    fakeTimer = window.setInterval(function(){
-      const curr = parseInt((pct.textContent || '95').replace('%',''), 10) || 95;
-      if (curr < 99) setProgress(curr + 1);
-    }, 2500);
-  }
-
-  form.addEventListener('submit', function(ev){
-    if (submitted) {
-      ev.preventDefault();
-      return;
+  (function () {
+    var el = document.getElementById('esito-import-errori');
+    if (el) {
+      el.scrollIntoView({ behavior: 'instant', block: 'start' });
+      window.location.hash = 'esito-import-errori';
     }
-
-    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-      return;
-    }
-
-    ev.preventDefault();
-    submitted = true;
-
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Importazione in corso…';
-    }
-
-    wrap.style.display = 'block';
-    setProgress(1);
-
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', window.location.href, true);
-
-    xhr.upload.addEventListener('progress', function(e){
-      if (!e.lengthComputable) return;
-      const value = (e.loaded / e.total) * 90;
-      setProgress(value);
-      lbl.textContent = 'Caricamento file in corso…';
-    });
-
-    xhr.upload.addEventListener('load', function(){
-      lbl.textContent = 'Elaborazione buste/F24 lato server…';
-      hint.textContent = 'Upload completato. Attendere il completamento dell\'importazione.';
-      setProgress(95);
-      startFakeProcessing();
-    });
-
-    xhr.onreadystatechange = function(){
-      if (xhr.readyState !== 4) return;
-      if (fakeTimer) window.clearInterval(fakeTimer);
-
-      if (xhr.status >= 200 && xhr.status < 400) {
-        setProgress(100);
-        lbl.textContent = 'Importazione completata';
-        document.open();
-        document.write(xhr.responseText);
-        document.close();
-        var errBox = document.getElementById('esito-import-errori');
-        var tbl = document.getElementById('esito-import-tabella');
-        if (errBox) {
-          errBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else if (tbl) {
-          tbl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      } else {
-        lbl.textContent = 'Errore durante importazione';
-        hint.textContent = 'Si è verificato un errore. Riprova o contatta assistenza.';
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = '<i class="bi bi-cloud-upload me-1"></i>Importa PDF selezionati';
-        }
-        submitted = false;
-      }
-    };
-
-    const data = new FormData(form);
-    xhr.send(data);
-  });
-})();
+  })();
 </script>
+{% endif %}
 {% endblock %}

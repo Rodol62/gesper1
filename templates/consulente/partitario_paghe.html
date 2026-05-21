@@ -1,119 +1,92 @@
 {% extends "base.html" %}
-{% load l10n %}
-{% load format_it_tags %}
+{% load l10n format_it_tags %}
 {% block title %}Partitario paghe{% endblock %}
 
-{% block content %}
-<div class="container-fluid" style="max-width:1100px;margin:0 auto;padding:1.5rem 1rem">
-  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-    <h2 class="mb-0" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
-      <i class="bi bi-receipt-cutoff me-2"></i>Partitario paghe mensili
-    </h2>
-    <a href="{% url 'consulente_dashboard' %}" class="btn btn-outline-secondary btn-sm">Dashboard</a>
-  </div>
+{% block extra_head %}
+{% include "consulente/_posizione_elenco_head_styles.html" %}
+{% endblock %}
 
-  <form method="get" class="card border-0 shadow-sm mb-3">
-    <div class="card-body row g-2 align-items-end">
+{% block content %}
+<div class="container-fluid px-3 mt-3 gesper-libro-page" style="max-width:1200px;margin:0 auto">
+  <header class="gesper-libro-hero">
+    <h1><i class="bi bi-receipt-cutoff me-2"></i>Partitario paghe dipendenti</h1>
+    <p class="gesper-libro-sub mb-0">{{ azienda.nome }} — scheda contabile per dipendente</p>
+    <p class="gesper-libro-lead mb-0">
+      <strong>Avere</strong>: netto busta da pagare · <strong>Dare</strong>: bonifici registrati ·
+      <strong>Saldo progressivo</strong>: residuo da pagare al dipendente.
+      <a href="{% url 'lista_buste_paga_documenti' %}" class="text-white fw-semibold">Archivio buste PDF</a> ·
+      <a href="{% url 'libro_paga_lista' %}" class="text-white fw-semibold">Libro paga (LUL)</a> è un registro separato.
+    </p>
+  </header>
+
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+
+  {% include "consulente/_partitario_form_pagamento.html" with dipendente_fisso=None dipendenti=dipendenti %}
+
+  <div class="gesper-libro-filter-card">
+    <form method="get" class="row g-2 align-items-end small">
       <div class="col-6 col-md-2">
-        <label class="form-label mb-1">Anno</label>
+        <label class="form-label text-muted mb-0">Anno</label>
         <select name="anno" class="form-select form-select-sm">
+          <option value="">Tutti gli anni</option>
           {% for a in anni %}
-            <option value="{{ a|anno_it }}" {% if a == anno %}selected{% endif %}>{{ a|anno_it }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-6 col-md-3">
-        <label class="form-label mb-1">Mese</label>
-        <select name="mese" class="form-select form-select-sm">
-          <option value="">Tutti i mesi</option>
-          {% for m_id, m_label in mesi %}
-            <option value="{{ m_id }}" {% if m_id == mese %}selected{% endif %}>{{ m_label }}</option>
+            <option value="{{ a|anno_it }}" {% if a == anno_filtro %}selected{% endif %}>{{ a|anno_it }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="col-12 col-md-4">
-        <label class="form-label mb-1">Dipendente</label>
+        <label class="form-label text-muted mb-0">Dipendente</label>
         <select name="dipendente" class="form-select form-select-sm">
           <option value="">Tutti i dipendenti</option>
           {% for d in dipendenti %}
-            <option value="{{ d.id }}" {% if dipendente_filter == d.id|stringformat:'s' %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+            <option value="{{ d.id }}" {% if dipendente_filter == d.id %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
           {% endfor %}
         </select>
       </div>
-      <div class="col-12 col-md-3 d-grid">
-        <button class="btn btn-primary btn-sm" type="submit">Filtra</button>
+      <div class="col-auto d-flex gap-1">
+        <button type="submit" class="btn btn-primary btn-sm">Filtra</button>
+        <a href="{% url 'consulente_partitario_paghe' %}" class="btn btn-outline-secondary btn-sm">Reset</a>
       </div>
-    </div>
-  </form>
+    </form>
+  </div>
 
+  {% if schede %}
+  <div class="row g-2 mb-3 small">
+    <div class="col-md-4"><span class="text-muted">Dipendenti</span> <strong>{{ riepilogo.n_dipendenti }}</strong></div>
+    <div class="col-md-4"><span class="text-muted">Tot. avere (buste)</span> <strong class="text-success">€ {{ riepilogo.tot_avere|euro_it }}</strong></div>
+    <div class="col-md-4"><span class="text-muted">Tot. dare (pagamenti)</span> <strong class="text-primary">€ {{ riepilogo.tot_dare|euro_it }}</strong></div>
+  </div>
+  {% endif %}
+
+  {% for scheda in schede %}
   <div class="card border-0 shadow-sm mb-3">
-    <div class="card-header bg-white" style="font-weight:600;color:#1b3a5f">Totali per dipendente</div>
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-sm mb-0" style="font-size:.88rem">
-          <thead>
-            <tr>
-              <th class="px-3 py-2">Dipendente</th>
-              <th class="py-2 text-end pe-3">Totale netto</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in totali_dipendente %}
-              <tr>
-                <td class="px-3 py-2">{{ r.dipendente__cognome }} {{ r.dipendente__nome }}</td>
-                <td class="py-2 text-end pe-3">{% if r.totale is not None %}€ {{ r.totale|euro_it }}{% else %}<span class="text-muted">N/D</span>{% endif %}</td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="2" class="px-3 py-3 text-muted">Nessun movimento disponibile per i filtri selezionati.</td></tr>
-            {% endfor %}
-          </tbody>
-          <tfoot>
-            <tr>
-              <th class="px-3 py-2">Totale generale</th>
-              <th class="py-2 text-end pe-3">{% if totale_generale is not None %}€ {{ totale_generale|euro_it }}{% else %}<span class="text-muted">N/D</span>{% endif %}</th>
-            </tr>
-          </tfoot>
-        </table>
+    <div class="card-header part-dip-head d-flex justify-content-between align-items-center flex-wrap gap-2 py-2{% if not forloop.first %} collapsed{% endif %}"
+         data-bs-toggle="collapse"
+         data-bs-target="#part-dip-{{ scheda.dipendente.id }}"
+         aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}">
+      <span class="fw-semibold" style="color:#1b3a5f">
+        <i class="bi bi-chevron-down part-dip-chevron me-1"></i>
+        {{ scheda.dipendente.cognome }} {{ scheda.dipendente.nome }}
+      </span>
+      <span class="small">
+        Avere € {{ scheda.tot_avere|euro_it }} · Dare € {{ scheda.tot_dare|euro_it }} ·
+        <strong>Saldo € {{ scheda.saldo_finale|euro_it }}</strong>
+        <a href="{% url 'consulente_partitario_dipendente' scheda.dipendente.id %}{% if anno_filtro %}?anno={{ anno_filtro|anno_it }}{% endif %}"
+           class="btn btn-outline-primary btn-sm ms-2 py-0" onclick="event.stopPropagation();">Scheda completa</a>
+      </span>
+    </div>
+    <div id="part-dip-{{ scheda.dipendente.id }}" class="collapse{% if forloop.first %} show{% endif %}">
+      <div class="card-body p-2">
+        {% include "consulente/_partitario_tabella_scheda.html" with scheda=scheda %}
       </div>
     </div>
   </div>
+  {% empty %}
+  <div class="alert alert-light border">Nessun dipendente o nessun movimento per i filtri selezionati. Importa le buste o registra un pagamento.</div>
+  {% endfor %}
 
-  <div class="card border-0 shadow-sm">
-    <div class="card-header bg-white" style="font-weight:600;color:#1b3a5f">Dettaglio mensile</div>
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover table-sm mb-0" style="font-size:.86rem">
-          <thead>
-            <tr>
-              <th class="px-3 py-2">Periodo</th>
-              <th class="py-2">Dipendente</th>
-              <th class="py-2">CF</th>
-              <th class="py-2 text-end">Netto</th>
-              <th class="py-2 text-center pe-3">Documento</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for m in movimenti %}
-              <tr>
-                <td class="px-3 py-2">{% if m.periodo_label %}{{ m.periodo_label }}{% else %}{{ m.mese|stringformat:'02d' }}/{{ m.anno|anno_it }}{% endif %}</td>
-                <td class="py-2">{{ m.dipendente.cognome }} {{ m.dipendente.nome }}</td>
-                <td class="py-2" style="font-family:monospace">{{ m.cf_estratto|default:"—" }}</td>
-                <td class="py-2 text-end">{% if m.importo is not None %}€ {{ m.importo|euro_it }}{% else %}<span class="text-muted">N/D</span>{% endif %}</td>
-                <td class="py-2 text-center pe-3">
-                  {% if m.documento and m.documento.file %}
-                    <a href="{% url 'visualizza_documento' m.documento.id %}" class="btn btn-outline-primary btn-sm">Apri #{{ m.documento.id }}</a>
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="5" class="px-3 py-3 text-muted">Nessun dettaglio disponibile.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+  <a href="{% url 'consulente_dashboard' %}" class="btn btn-outline-secondary btn-sm">Dashboard</a>
 </div>
 {% endblock %}

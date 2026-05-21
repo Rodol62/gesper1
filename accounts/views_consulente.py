@@ -1032,31 +1032,190 @@ def consulente_upload_cud(request):
     return redirect(target)
 
 
+def _redirect_partitario_paghe(request, dipendente_id: int | None = None):
+    q: dict[str, str] = {}
+    for key in ('anno', 'dipendente'):
+        v = (request.GET.get(key) or request.POST.get(key) or '').strip()
+        if v:
+            q[key] = v
+    if dipendente_id is not None:
+        url = reverse('consulente_partitario_dipendente', kwargs={'dipendente_id': dipendente_id})
+        if q:
+            return redirect(f'{url}?{urlencode(q)}')
+        return redirect(url)
+    if q:
+        return redirect(f"{reverse('consulente_partitario_paghe')}?{urlencode(q)}")
+    return redirect('consulente_partitario_paghe')
+
+
+def _gestisci_post_pagamento_partitario_paghe(request, azienda):
+    """Registra o elimina un pagamento (colonna Dare). Ritorna redirect se POST gestito."""
+    from datetime import datetime as dt_mod
+
+    from .consulente_registro_studio import parse_importo_form
+    from .partitario_paghe_dipendenti import elimina_pagamento_partitario, registra_pagamento_partitario
+
+    if request.method != 'POST':
+        return None
+    action = (request.POST.get('action') or '').strip()
+    if action == 'elimina_pagamento':
+        pag_id_raw = (request.POST.get('pagamento_id') or '').strip()
+        if pag_id_raw.isdigit() and elimina_pagamento_partitario(int(pag_id_raw), azienda):
+            messages.success(request, 'Pagamento rimosso dal partitario.')
+        else:
+            messages.error(request, 'Pagamento non trovato o già eliminato.')
+        dip_post = (request.POST.get('dipendente') or '').strip()
+        if dip_post.isdigit():
+            return _redirect_partitario_paghe(request, int(dip_post))
+        return _redirect_partitario_paghe(request)
+    if action != 'registra_pagamento':
+        return None
+
+    dip_raw = (request.POST.get('dipendente') or '').strip()
+    data_raw = (request.POST.get('data_pagamento') or '').strip()
+    imp_raw = (request.POST.get('importo') or '').strip()
+    desc = (request.POST.get('descrizione') or '').strip()
+    rif = (request.POST.get('riferimento_bancario') or '').strip()
+    busta_raw = (request.POST.get('movimento_busta') or '').strip()
+
+    if not dip_raw.isdigit():
+        messages.error(request, 'Selezionare il dipendente.')
+        return _redirect_partitario_paghe(request)
+    dipendente = get_object_or_404(Dipendente, pk=int(dip_raw), azienda=azienda)
+    try:
+        data_pag = dt_mod.strptime(data_raw, '%Y-%m-%d').date()
+    except ValueError:
+        messages.error(request, 'Indicare una data pagamento valida.')
+        return _redirect_partitario_paghe(request, dipendente.pk)
+    imp = parse_importo_form(imp_raw)
+    if imp is None or imp <= 0:
+        messages.error(request, 'Indicare un importo maggiore di zero.')
+        return _redirect_partitario_paghe(request, dipendente.pk)
+    busta_id = int(busta_raw) if busta_raw.isdigit() else None
+    registra_pagamento_partitario(
+        azienda=azienda,
+        dipendente=dipendente,
+        data_pagamento=data_pag,
+        importo=imp,
+        descrizione=desc,
+        riferimento_bancario=rif,
+        movimento_busta_id=busta_id,
+        utente=request.user,
+    )
+    messages.success(request, f'Pagamento di € {imp} registrato per {dipendente.cognome} {dipendente.nome}.')
+    return _redirect_partitario_paghe(request, dipendente.pk)
+
+
 @login_required
-@user_passes_test(_is_consulente)
+@user_passes_test(_is_admin_o_consulente_partitario)
 def consulente_partitario_paghe(request):
-    """Alias legacy: reindirizza il consulente alla stessa dashboard buste di admin/HR."""
-    query = {
-        'categoria': 'buste',
-        'tipo': 'busta_paga',
-        'anno': '',
-        'dipendente': '',
-    }
+    """Partitario paghe: schede contabili per dipendente (dare bonifici / avere buste / saldo)."""
+    from .partitario_paghe_dipendenti import (
+        anni_disponibili_partitario,
+        buste_scelta_collegamento,
+        riepilogo_generale_hub,
+        schede_azienda_partitario,
+    )
 
-    anno = (request.GET.get('anno') or '').strip()
-    dipendente = (request.GET.get('dipendente') or '').strip()
-    if anno:
-        query['anno'] = anno
-    if dipendente:
-        query['dipendente'] = dipendente
+    azienda = _get_azienda_partitario(request)
+    if not azienda:
+        messages.error(request, 'Seleziona l’azienda operativa (barra in alto) o associa un’azienda al consulente.')
+        return redirect('home')
 
-    return redirect(f"{reverse('lista_documenti')}?{urlencode(query)}")
+    redir = _gestisci_post_pagamento_partitario_paghe(request, azienda)
+    if redir is not None:
+        return redir
+
+    anno_raw = (request.GET.get('anno') or '').strip()
+    dip_raw = (request.GET.get('dipendente') or '').strip()
+    anni = anni_disponibili_partitario(azienda)
+    anno_filtro = int(anno_raw) if anno_raw.isdigit() else None
+    dipendente_filter = int(dip_raw) if dip_raw.isdigit() else None
+
+    dipendenti = Dipendente.objects.filter(azienda=azienda, stato='attivo').order_by('cognome', 'nome')
+    schede = schede_azienda_partitario(azienda, dipendente_id=dipendente_filter, anno=anno_filtro)
+    riepilogo = riepilogo_generale_hub(schede)
+
+    buste_collegamento: list = []
+    if dipendente_filter:
+        dip_sel = dipendenti.filter(pk=dipendente_filter).first()
+        if dip_sel:
+            buste_collegamento = buste_scelta_collegamento(dip_sel, anno=anno_filtro)
+
+    return render(
+        request,
+        'consulente/partitario_paghe.html',
+        {
+            'azienda': azienda,
+            'anni': anni,
+            'anno_filtro': anno_filtro,
+            'dipendenti': dipendenti,
+            'dipendente_filter': dipendente_filter,
+            'schede': schede,
+            'riepilogo': riepilogo,
+            'buste_collegamento': buste_collegamento,
+            'data_oggi': date.today().isoformat(),
+        },
+    )
 
 
 @login_required
-@user_passes_test(_is_consulente)
+@user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_bonifici_dipendenti(request):
+    """Alias: bonifici dipendenti = pagamenti nel partitario paghe."""
+    q = request.GET.urlencode()
+    url = reverse('consulente_partitario_paghe')
+    if q:
+        return redirect(f'{url}?{q}')
+    return redirect(url)
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
+def consulente_partitario_dipendente(request, dipendente_id: int):
+    """Scheda contabile singolo dipendente con inserimento pagamento."""
+    from .partitario_paghe_dipendenti import (
+        anni_disponibili_partitario,
+        buste_scelta_collegamento,
+        scheda_dipendente_partitario,
+    )
+
+    azienda = _get_azienda_partitario(request)
+    if not azienda:
+        messages.error(request, 'Seleziona l’azienda operativa (barra in alto) o associa un’azienda al consulente.')
+        return redirect('home')
+
+    dipendente = get_object_or_404(Dipendente, pk=dipendente_id, azienda=azienda)
+
+    redir = _gestisci_post_pagamento_partitario_paghe(request, azienda)
+    if redir is not None:
+        return redir
+
+    anno_raw = (request.GET.get('anno') or '').strip()
+    anni = anni_disponibili_partitario(azienda)
+    anno_filtro = int(anno_raw) if anno_raw.isdigit() else None
+
+    scheda = scheda_dipendente_partitario(dipendente, anno=anno_filtro)
+
+    return render(
+        request,
+        'consulente/partitario_dipendente.html',
+        {
+            'azienda': azienda,
+            'dipendente': dipendente,
+            'anni': anni,
+            'anno_filtro': anno_filtro,
+            'scheda': scheda,
+            'buste_collegamento': buste_scelta_collegamento(dipendente, anno=anno_filtro),
+            'data_oggi': date.today().isoformat(),
+        },
+    )
+
+
+@login_required
+@user_passes_test(_is_admin_o_consulente_partitario)
 def consulente_riepilogo_f24_annuale(request):
-    """Alias legacy: reindirizza il consulente alla stessa dashboard F24 di admin/HR."""
+    """Archivio F24 (stessa vista admin/HR; anche da dashboard admin)."""
     query = {
         'tipo': 'altro',
         'anno': '',

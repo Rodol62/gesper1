@@ -50,6 +50,15 @@ from .natura_busta_utils import infer_natura_busta_per_busta
 from .cedolini_tolleranze import tolleranze_cedolini_context
 from .cedolino_verifica_v4 import persisti_esito_verifica_da_riga_busta
 from .busta_acquisizione import acquisisci_busta_da_documento, acquisisci_busta_pdf_bytes
+from .buste_import_verifica import (
+    check_prerequisiti_server,
+    diagnostica_pdf_unico,
+    parse_import_paghe_stdout,
+    riepilogo_verifica,
+    storage_paths_info,
+    verifica_righe_dopo_import,
+    _safe_upload_basename,
+)
 from .imponibile_inps_da_voci import confronto_imponibile_inps_da_lettura_cedolino
 from anagrafiche.models import Azienda, Dipendente
 from accounts.gestione_database import can_gestione_database
@@ -1850,6 +1859,17 @@ def _anni_disponibili_buste_paga(azienda) -> list[int]:
 @login_required
 def lista_documenti(request):
     """Lista documenti con ACL: dipendente vede solo se stesso, consulente vede sua azienda, admin vede tutto."""
+    if request.method == 'GET' and _is_admin_hr_or_consulente(request.user):
+        _q = request.GET
+        _has_filter = bool(
+            (_q.get('categoria') or '').strip()
+            or any((v or '').strip() for v in _q.getlist('tipo'))
+            or (_q.get('anno') or '').strip()
+            or (_q.get('dipendente') or '').strip()
+        )
+        if not _has_filter:
+            return redirect(f"{reverse('lista_documenti')}?categoria=buste&tipo=busta_paga")
+
     if request.method == "POST" and _is_admin_hr_or_consulente(request.user):
         post_action = (request.POST.get("action") or "").strip()
         if post_action == "riallinea_pdf_mancanti_buste":
@@ -3269,6 +3289,55 @@ def upload_documento(request):
 
 
 @login_required
+def diagnostica_import_buste(request):
+    """Diagnostica in 3 passi sul PDF unico (senza import in DB)."""
+    if not _is_admin_hr_or_consulente(request.user):
+        return HttpResponseForbidden("Solo admin, HR o consulente.")
+
+    azienda = get_azienda_operativa(request.user, request.session) if request.user.has_ruolo('admin') else getattr(request.user, 'azienda', None)
+    if not azienda:
+        messages.error(request, "Nessuna azienda operativa selezionata.")
+        return redirect('lista_documenti')
+
+    prereq = check_prerequisiti_server()
+    storage_info = storage_paths_info()
+    risultato_diag = None
+
+    if request.method == 'POST':
+        up = request.FILES.get('pdf_file')
+        if not up:
+            messages.warning(request, 'Seleziona un PDF.')
+        else:
+            nome = getattr(up, 'name', 'upload.pdf')
+            snap = Path(settings.BASE_DIR) / 'snapshots'
+            snap.mkdir(parents=True, exist_ok=True)
+            persist = snap / f"diagnostica_{_safe_upload_basename(nome)}"
+            with persist.open('wb') as dest:
+                for chunk in up.chunks():
+                    dest.write(chunk)
+            simula_forza = str(request.POST.get('simula_forza_reimport', '')).lower() in (
+                '1', 'on', 'true', 'yes',
+            )
+            risultato_diag = diagnostica_pdf_unico(
+                persist,
+                azienda,
+                source_name=nome,
+                simula_forza_reimport=simula_forza,
+            )
+
+    return render(
+        request,
+        'documenti/diagnostica_import_buste.html',
+        {
+            'azienda': azienda,
+            'prereq': prereq,
+            'storage_info': storage_info,
+            'risultato': risultato_diag,
+        },
+    )
+
+
+@login_required
 def upload_buste_paga_massivo(request):
     """Admin/HR: import PDF unico mensile con split buste + F24 separato."""
     if not _is_admin_hr_or_consulente(request.user):
@@ -3281,8 +3350,12 @@ def upload_buste_paga_massivo(request):
 
     from datetime import datetime
 
+    prereq_server = check_prerequisiti_server()
     risultati = []
     import_results = []
+    verifica_import = []
+    verifica_riepilogo: dict[str, int] = {}
+    storage_info = storage_paths_info()
 
     if request.method == 'POST':
         uploaded_files = request.FILES.getlist('pdf_files')
@@ -3306,16 +3379,16 @@ def upload_buste_paga_massivo(request):
                 risultati.append({'file': nome, 'ok': False, 'errore': 'Formato non supportato (solo PDF).'})
                 continue
 
-            tmp_path = None
             buff_prev_err = None
             buff_imp_err = None
             try:
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
-                    for chunk in up.chunks():
-                        tmp.write(chunk)
-                    tmp_path = tmp.name
-
                 stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                safe_nome = _safe_upload_basename(nome)
+                persist_pdf = snapshots_dir / f'source_{stamp}_{idx}_{safe_nome}'
+                with persist_pdf.open('wb') as dest:
+                    for chunk in up.chunks():
+                        dest.write(chunk)
+
                 preview_out = snapshots_dir / f'preview_admin_hr_{stamp}_{idx}.json'
 
                 buff_prev = io.StringIO()
@@ -3329,7 +3402,7 @@ def upload_buste_paga_massivo(request):
                 )
                 if forza_reimport:
                     prev_kw['allow_replace'] = True
-                call_command('preview_import_paghe_pdf', tmp_path, **prev_kw)
+                call_command('preview_import_paghe_pdf', str(persist_pdf), **prev_kw)
 
                 buff_imp = io.StringIO()
                 buff_imp_err = io.StringIO()
@@ -3344,8 +3417,14 @@ def upload_buste_paga_massivo(request):
                     imp_kw['allow_overwrite'] = True
                 call_command('import_paghe_pdf', str(preview_out), **imp_kw)
 
+                imp_stats = parse_import_paghe_stdout(buff_imp.getvalue())
                 preview_data = json.loads(preview_out.read_text(encoding='utf-8'))
                 s = preview_data.get('summary', {})
+                righe_verifica = verifica_righe_dopo_import(azienda, preview_data)
+                verifica_import.extend(
+                    {**r, 'file_sorgente': nome} for r in righe_verifica
+                )
+                riep = riepilogo_verifica(righe_verifica)
                 risultati.append({
                     'file': nome,
                     'ok': True,
@@ -3353,8 +3432,16 @@ def upload_buste_paga_massivo(request):
                     'matched': s.get('matched', 0),
                     'to_create': s.get('to_create', 0),
                     'already_present': s.get('already_present', 0),
+                    'ambiguous': s.get('ambiguous', 0),
                     'f24_pages': s.get('f24_pages', 0),
+                    'docs_created': imp_stats.get('docs_created', 0),
+                    'movimenti_upsert': imp_stats.get('movimenti_upsert', 0),
+                    'imp_errors': imp_stats.get('errors', 0),
+                    'pdf_salvato': str(persist_pdf),
                     'report': str(preview_out),
+                    'verifica_ok': riep.get('ok', 0),
+                    'verifica_tot': len(righe_verifica),
+                    'imp_log': (buff_imp.getvalue() or '')[-2500:],
                 })
 
                 for row in preview_data.get('rows', []):
@@ -3448,17 +3535,32 @@ def upload_buste_paga_massivo(request):
                         err_txt = f"{err_txt}\n\n{extra[-1500:]}"
                         break
                 risultati.append({'file': nome, 'ok': False, 'errore': err_txt})
-            finally:
-                if tmp_path:
-                    try:
-                        os.unlink(tmp_path)
-                    except Exception:
-                        pass
 
+        verifica_riepilogo = riepilogo_verifica(verifica_import)
         ok_n = sum(1 for r in risultati if r.get('ok'))
         ko_n = len(risultati) - ok_n
-        if ok_n:
-            messages.success(request, f'✅ Import completato: {ok_n} file elaborati con successo.')
+        errori_file = [r for r in risultati if not r.get('ok')]
+        tot_to_create = sum(int(r.get('to_create') or 0) for r in risultati if r.get('ok'))
+        tot_already = sum(int(r.get('already_present') or 0) for r in risultati if r.get('ok'))
+        tot_docs_created = sum(int(r.get('docs_created') or 0) for r in risultati if r.get('ok'))
+        tot_matched = sum(int(r.get('matched') or 0) for r in risultati if r.get('ok'))
+        # Non usare messages.* per gli errori: i toast in base.html spariscono dopo pochi secondi.
+        # Il dettaglio resta nel pannello rosso in pagina (errori_file).
+        if ok_n and not ko_n:
+            if tot_to_create:
+                messages.success(
+                    request,
+                    f'Import completato: {tot_to_create} buste da creare su {ok_n} PDF elaborati. '
+                    f'Apri l’archivio buste per visualizzarle.',
+                )
+            elif tot_already:
+                messages.warning(
+                    request,
+                    f'Nessuna busta nuova: {tot_already} periodi già in archivio. '
+                    f'Usa «Forza re-import» per sovrascrivere, oppure apri l’archivio.',
+                )
+            else:
+                messages.success(request, f'Import completato: {ok_n} file elaborati (verifica tabella esito).')
             registra_log(
                 utente=request.user,
                 azienda=azienda,
@@ -3466,13 +3568,17 @@ def upload_buste_paga_massivo(request):
                 descrizione=f'Admin/HR ha importato {ok_n} PDF unici buste/F24',
                 request=request,
             )
-        if ko_n:
-            messages.error(
+        elif ok_n and ko_n:
+            messages.warning(
                 request,
-                f'{ko_n} file non elaborati: apri la tabella «Esito per file importato» sotto per il messaggio completo.',
+                f'Import parziale: {ok_n} file ok, {ko_n} con errore (dettaglio in pagina, sezione rossa).',
             )
-
-        errori_file = [r for r in risultati if not r.get('ok')]
+        if ok_n and tot_already and not tot_docs_created and not forza_reimport:
+            messages.warning(
+                request,
+                f'Nessun PDF aggiornato: {tot_already} buste risultano già in archivio per lo stesso periodo. '
+                f'Ripeti con «Forza re-import» attivo oppure cerca in archivio il periodo indicato in tabella (es. 01/2026).',
+            )
 
         return render(request, 'documenti/upload_buste_massivo.html', {
             'azienda': azienda,
@@ -3482,6 +3588,14 @@ def upload_buste_paga_massivo(request):
             'errori_file': errori_file,
             'ok_n': ok_n,
             'ko_n': ko_n,
+            'tot_to_create': tot_to_create,
+            'tot_already': tot_already,
+            'tot_docs_created': tot_docs_created,
+            'tot_matched': tot_matched,
+            'verifica_import': verifica_import,
+            'verifica_riepilogo': verifica_riepilogo,
+            'storage_info': storage_info,
+            'prereq_server': prereq_server,
         })
 
     return render(request, 'documenti/upload_buste_massivo.html', {
@@ -3492,6 +3606,14 @@ def upload_buste_paga_massivo(request):
         'errori_file': [],
         'ok_n': 0,
         'ko_n': 0,
+        'tot_to_create': 0,
+        'tot_already': 0,
+        'tot_docs_created': 0,
+        'tot_matched': 0,
+        'verifica_import': [],
+        'verifica_riepilogo': {},
+        'storage_info': storage_info,
+        'prereq_server': prereq_server,
     })
 
 

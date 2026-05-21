@@ -1,0 +1,57 @@
+{% load l10n format_it_tags %}
+<div class="card border-0 shadow-sm border-start border-4 border-success mb-3">
+  <div class="card-header py-2 bg-white border-bottom small fw-semibold text-secondary">
+    <i class="bi bi-cash-coin me-1"></i> Registra pagamento al dipendente (Dare)
+  </div>
+  <div class="card-body py-3">
+    <form method="post" class="row g-2 small align-items-end">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="registra_pagamento">
+      {% if anno_filtro %}<input type="hidden" name="anno" value="{{ anno_filtro|anno_it }}">{% endif %}
+      <div class="col-12 col-md-4">
+        <label class="form-label text-muted mb-0">Dipendente</label>
+        {% if dipendente_fisso %}
+          <input type="hidden" name="dipendente" value="{{ dipendente_fisso.id }}">
+          <div class="form-control form-control-sm bg-light">{{ dipendente_fisso.cognome }} {{ dipendente_fisso.nome }}</div>
+        {% else %}
+          <select name="dipendente" class="form-select form-select-sm" required>
+            <option value="">— Seleziona —</option>
+            {% for d in dipendenti %}
+              <option value="{{ d.id }}" {% if dipendente_filter == d.id %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+            {% endfor %}
+          </select>
+        {% endif %}
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Data pagamento</label>
+        <input type="date" name="data_pagamento" class="form-control form-control-sm" value="{{ data_oggi }}" required>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Importo €</label>
+        <input type="text" name="importo" class="form-control form-control-sm" placeholder="es. 1.500,00" required>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label text-muted mb-0">Descrizione / causale</label>
+        <input type="text" name="descrizione" class="form-control form-control-sm" placeholder="Bonifico stipendio …" maxlength="220">
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label text-muted mb-0">Riferimento bancario</label>
+        <input type="text" name="riferimento_bancario" class="form-control form-control-sm" placeholder="CRO, TRN…" maxlength="160">
+      </div>
+      {% if buste_collegamento %}
+      <div class="col-12 col-md-4">
+        <label class="form-label text-muted mb-0">Collega a busta (opz.)</label>
+        <select name="movimento_busta" class="form-select form-select-sm">
+          <option value="">— Nessuna —</option>
+          {% for b in buste_collegamento %}
+            <option value="{{ b.id }}">{% if b.periodo_label %}{{ b.periodo_label }}{% else %}{{ b.mese|stringformat:'02d' }}/{{ b.anno|anno_it }}{% endif %} — netto € {% if b.importo_netto %}{{ b.importo_netto|euro_it }}{% else %}{{ b.importo|euro_it }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-12 col-md-auto d-grid">
+        <button type="submit" class="btn btn-success btn-sm">Registra pagamento</button>
+      </div>
+    </form>
+  </div>
+</div>

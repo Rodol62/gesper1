@@ -27,6 +27,22 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+import os
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
+
+
+def _ensure_django() -> None:
+    """Necessario per motore v4 / password PDF quando lo script gira in subprocess."""
+    try:
+        import django
+        from django.apps import apps
+
+        if not apps.ready:
+            django.setup()
+    except Exception:
+        pass
+
 MONTHS_IT = {
     "GENNAIO": 1,
     "FEBBRAIO": 2,
@@ -191,12 +207,21 @@ def extract_amount_by_labels(text: str, label_patterns: list[str]) -> Optional[s
     amount_re = re.compile(r"([+-]?[0-9]{1,3}(?:[\s\.'\u00A0]?[0-9]{3})*,\s*[0-9]{2}|[+-]?[0-9]+,\s*[0-9]{2})")
     lines = [normalize_spaces(x) for x in (text or '').splitlines()]
 
-    def _last_amount(raw: str) -> Optional[str]:
+    def _last_amount(raw: str, *, min_plausible: Decimal = Decimal("50")) -> Optional[str]:
         matches = amount_re.findall(raw or "")
         if not matches:
             return None
-        # Sul cedolino il valore corretto è tipicamente in ultima colonna.
-        return parse_amount_ita(matches[-1])
+        # Sul cedolino il valore corretto è tipicamente in ultima colonna plausibile.
+        for raw_amt in reversed(matches):
+            val = parse_amount_ita(raw_amt)
+            if val is None:
+                continue
+            try:
+                if Decimal(val) >= min_plausible:
+                    return val
+            except Exception:
+                continue
+        return None
 
     # 1) stessa riga dell'etichetta
     for i, ln in enumerate(lines):
@@ -231,32 +256,33 @@ def extract_amount_by_labels(text: str, label_patterns: list[str]) -> Optional[s
 
 
 def extract_period(text: str) -> tuple[Optional[int], Optional[int]]:
-    # 1) Priorità a match contestuali vicino alle etichette tipiche periodo paga.
-    ctx_patterns = [
-        r"(?:MESE\s+RETRIBUITO|PERIODO\s+PAGA|COMPETENZA|RIFERIMENTO)[^\n]{0,60}?\b(0[1-9]|1[0-2])\s*/\s*(20\d{2})\b",
-        r"\b(0[1-9]|1[0-2])\s*/\s*(20\d{2})\b[^\n]{0,60}?(?:MESE\s+RETRIBUITO|PERIODO\s+PAGA|COMPETENZA|RIFERIMENTO)",
-    ]
-    up_text = text.upper()
-    for pat in ctx_patterns:
-        m = re.search(pat, up_text, re.IGNORECASE)
-        if m:
-            return int(m.group(1)), int(m.group(2))
+    """
+    Periodo retributivo della singola busta (mese/anno di riferimento cedolino).
+    Delega alla logica condivisa con archivio/ordinamento (TeamSystem: MESE RETRIBUITO).
+    """
+    try:
+        from documenti.busta_periodo_da_pdf import estrai_mese_anno_da_testo_cedolino
 
-    # 2) Fallback numerico generale: usa la ricorrenza più frequente
-    # (evita anni occasionali storici presenti in footer/intestazioni).
-    pairs = re.findall(r"\b(0[1-9]|1[0-2])\s*/\s*(20\d{2})\b", up_text)
-    if pairs:
-        freq = Counter((int(mm), int(yy)) for mm, yy in pairs)
-        (month, year), _ = max(freq.items(), key=lambda kv: (kv[1], kv[0][1], kv[0][0]))
+        mese, anno = estrai_mese_anno_da_testo_cedolino(text or "")
+        if mese and anno:
+            return mese, anno
+    except Exception:
+        pass
+
+    # Fallback legacy: MM/AAAA plausibile (esclude sottostringhe DD/MM/AAAA)
+    up_text = (text or "").upper()
+    pairs = re.findall(r"(?<!\d/)(0[1-9]|1[0-2])\s*/\s*(20\d{2})\b", up_text)
+    plausible = [(int(mm), int(yy)) for mm, yy in pairs if int(yy) >= 2015]
+    if plausible:
+        freq = Counter(plausible)
+        month, year = max(freq.items(), key=lambda kv: (kv[1], kv[0][1], kv[0][0]))[0]
         return month, year
 
-    # Fallback testuale (può essere spezzato nel PDF)
-    upper = text.upper().replace(" ", "")
-    year_match = re.search(r"\b(20\d{2})\b", text.upper())
+    year_match = re.search(r"\b(20\d{2})\b", up_text)
     year = int(year_match.group(1)) if year_match else None
     month = None
-    for m_name, m_num in MONTHS_IT.items():
-        if m_name in upper:
+    for m_name, m_num in sorted(MONTHS_IT.items(), key=lambda x: -len(x[0])):
+        if re.search(rf"\b{m_name}\b", up_text) and year and year >= 2015:
             month = m_num
             break
     return month, year
@@ -620,9 +646,11 @@ def analyze_pdf(pdf_path: Path) -> dict:
 
     for r in page_results:
         if r.kind == "BUSTA":
+            # Anno spurio (es. 01/2009 da «27/01/2009»): azzera anche il mese errato.
             if not r.period_year or r.period_year < 2015:
                 r.period_year = dominant_year
-            if not r.period_month and dominant_month:
+                r.period_month = dominant_month
+            elif not r.period_month and dominant_month:
                 r.period_month = dominant_month
         elif r.kind == "F24":
             if not r.period_year or r.period_year < 2015:
@@ -632,6 +660,20 @@ def analyze_pdf(pdf_path: Path) -> dict:
 
     buste = [r for r in page_results if r.kind == "BUSTA"]
     f24 = [r for r in page_results if r.kind == "F24"]
+
+    # Lordo/netto: motore v4 sulla singola pagina (affidabile su TeamSystem a colonne).
+    try:
+        _ensure_django()
+        from documenti.busta_importi_estrazione import lordo_netto_stringhe_per_pagina
+
+        for r in buste:
+            netto_s, lordo_s = lordo_netto_stringhe_per_pagina(pdf_path, r.page)
+            if lordo_s:
+                r.lordo_busta = lordo_s
+            if netto_s:
+                r.netto_busta = netto_s
+    except Exception:
+        pass
 
     # deduplica preliminare per CF+periodo (utile per doppie copie)
     unique_key = set()

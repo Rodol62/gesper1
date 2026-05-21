@@ -1,0 +1,74 @@
+{% load l10n format_it_tags %}
+<style>
+  .part-anno-head { cursor: pointer; user-select: none; background: #f1f5f9 !important; }
+  .part-anno-head .part-anno-chevron { transition: transform .2s ease; display: inline-block; }
+  .part-anno-head.collapsed .part-anno-chevron { transform: rotate(-90deg); }
+  tbody.part-anno-body.collapse:not(.show) { display: none !important; }
+  tbody.part-anno-body.collapse.show,
+  tbody.part-anno-body.collapsing { display: table-row-group !important; }
+  .part-dip-head { cursor: pointer; background: #e8f4fc !important; }
+  .part-dip-head .part-dip-chevron { transition: transform .2s ease; display: inline-block; }
+  .part-dip-head.collapsed .part-dip-chevron { transform: rotate(-90deg); }
+</style>
+<div class="table-responsive border rounded-3 shadow-sm overflow-hidden mb-3">
+  <table class="table table-hover mb-0 align-middle table-gesper-libro">
+    <thead>
+      <tr>
+        <th>Data / periodo</th>
+        <th>Dare — pagamento</th>
+        <th class="text-end">Importo dare</th>
+        <th>Avere — busta paga</th>
+        <th class="text-end">Importo avere</th>
+        <th class="text-end">Saldo prog.</th>
+        <th class="text-center">Doc.</th>
+      </tr>
+    </thead>
+    {% for blocco in scheda.blocchi_anno %}
+    <tbody>
+      <tr class="part-anno-head{% if not forloop.first %} collapsed{% endif %}"
+          data-bs-toggle="collapse"
+          data-bs-target="#part-anno-{{ scheda.dipendente.id }}-{{ blocco.anno }}"
+          aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}">
+        <td colspan="7" class="fw-semibold py-2">
+          <i class="bi bi-chevron-down part-anno-chevron me-1 text-secondary"></i>
+          Anno {{ blocco.anno|anno_it }}
+          <span class="text-muted fw-normal ms-2 small">
+            Avere € {{ blocco.tot_avere|euro_it }} · Dare € {{ blocco.tot_dare|euro_it }} ·
+            Saldo € {{ blocco.saldo_finale|euro_it }}
+          </span>
+        </td>
+      </tr>
+    </tbody>
+    <tbody id="part-anno-{{ scheda.dipendente.id }}-{{ blocco.anno }}"
+           class="part-anno-body collapse{% if forloop.first %} show{% endif %}">
+      {% for r in blocco.righe %}
+      <tr>
+        <td class="text-nowrap text-secondary">{{ r.data_label }}</td>
+        <td class="small">{% if r.desc_dare %}{{ r.desc_dare|truncatechars:80 }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="text-end font-monospace gesper-libro-amt text-primary">{% if r.dare %}€ {{ r.dare|euro_it }}{% else %}—{% endif %}</td>
+        <td class="small">{% if r.desc_avere %}{{ r.desc_avere }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="text-end font-monospace gesper-libro-amt text-success">{% if r.avere %}€ {{ r.avere|euro_it }}{% else %}—{% endif %}</td>
+        <td class="text-end font-monospace gesper-libro-amt {% if r.saldo > 0 %}gesper-libro-saldo-pos{% elif r.saldo < 0 %}gesper-libro-saldo-neg{% else %}gesper-libro-saldo-zero{% endif %}">€ {{ r.saldo|euro_it }}</td>
+        <td class="text-center">
+          {% if r.documento_id %}
+            <a href="{% url 'visualizza_documento' r.documento_id %}" class="btn btn-sm btn-outline-primary py-0">PDF</a>
+          {% elif r.pagamento_id %}
+            <form method="post" class="d-inline" onsubmit="return confirm('Eliminare questo pagamento dal partitario?');">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="elimina_pagamento">
+              <input type="hidden" name="pagamento_id" value="{{ r.pagamento_id }}">
+              <input type="hidden" name="dipendente" value="{{ scheda.dipendente.id }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger py-0" title="Elimina pagamento">×</button>
+            </form>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="text-muted text-center py-3">Nessun movimento nell’anno.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% empty %}
+    <tbody><tr><td colspan="7" class="text-muted text-center py-4">Nessuna busta né pagamento registrato.</td></tr></tbody>
+    {% endfor %}
+  </table>
+</div>

@@ -107,6 +107,12 @@ fi
 if [[ -z "${GESPER_SKIP_COLLECTSTATIC:-}" ]]; then
   REMOTE_SH+="; DJANGO_SETTINGS_MODULE='${DJANGO_SETTINGS}' '${REMOTE_PY}' manage.py collectstatic --noinput"
 fi
+# Rsync da macOS può lasciare uid/gid 501:80 → deploy non può creare gunicorn.sock
+REMOTE_SH+="; chown -R deploy:www-data '${REMOTE}'"
+REMOTE_SH+="; if ! command -v pdftotext >/dev/null || ! command -v tesseract >/dev/null; then"
+REMOTE_SH+="  echo 'ATTENZIONE: installare poppler+tesseract: sudo bash ${REMOTE}/deploy/install-pdf-import-deps.sh' >&2;"
+REMOTE_SH+="fi"
+REMOTE_SH+="; rm -f '${REMOTE}/gunicorn.sock'"
 REMOTE_SH+="; systemctl restart ${GESPER_SYSTEMD_UNIT}; systemctl is-active ${GESPER_SYSTEMD_UNIT}"
 
 echo "== $HOST: pip / migrate / collectstatic / restart ${GESPER_SYSTEMD_UNIT} =="

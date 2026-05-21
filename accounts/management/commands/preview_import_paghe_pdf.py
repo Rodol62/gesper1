@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import re
 import sys
@@ -61,17 +62,18 @@ def _infer_natura_busta_from_source(filename: str) -> str:
 def _python_for_subprocess(project_root: Path) -> str:
     """
     Interprete Python per ``scripts/analizza_pdf_paghe.py``.
-    Usa il venv del processo Django (Hetzner: ``venv/``, locale spesso ``.venv/``).
+    Usa il venv del progetto (Hetzner: ``venv/``, locale spesso ``.venv/``).
+
+    Non usare ``Path.resolve()`` sul binario: su molte VPS ``venv/bin/python`` è un symlink
+    verso ``/usr/bin/python3`` e resolve() perderebbe site-packages (manca pypdf → import vuoto).
     """
-    candidates = [
-        sys.executable,
-        project_root / "venv" / "bin" / "python",
-        project_root / ".venv" / "bin" / "python",
-    ]
-    for c in candidates:
-        p = Path(c) if not isinstance(c, str) else Path(c)
-        if p.is_file() and p.exists():
-            return str(p.resolve())
+    for rel in ("venv/bin/python", ".venv/bin/python"):
+        p = project_root / rel
+        if p.is_file():
+            return str(p)
+    exe = Path(sys.executable)
+    if exe.is_file():
+        return str(exe)
     return sys.executable
 
 
@@ -119,7 +121,10 @@ class Command(BaseCommand):
         if not script_path.exists():
             raise CommandError(f"Script analisi non trovato: {script_path}")
 
-        tmp_out = Path("/tmp") / f"gesper_preview_{pdf_path.stem.replace(' ', '_')}.json"
+        # Non usare /tmp: file creati da root (deploy via ssh) bloccano l'utente gunicorn (deploy).
+        tmp_dir = project_root / "snapshots" / "_tmp_analisi"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_out = tmp_dir / f"gesper_preview_{pdf_path.stem.replace(' ', '_')}.json"
         py_bin = _python_for_subprocess(project_root)
         cmd = [
             py_bin,
@@ -128,8 +133,11 @@ class Command(BaseCommand):
             "--out",
             str(tmp_out),
         ]
+        env = os.environ.copy()
+        env.setdefault("DJANGO_SETTINGS_MODULE", "settings")
+        env.setdefault("GESPER_DATA_ROOT", os.environ.get("GESPER_DATA_ROOT", ""))
         try:
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
         except FileNotFoundError as exc:
             raise CommandError(
                 f"Interprete Python non trovato per analisi PDF (provato: {py_bin}). "

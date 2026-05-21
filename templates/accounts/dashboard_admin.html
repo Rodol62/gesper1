@@ -197,11 +197,25 @@
     </div>
   </div>
   <div class="ql-card">
-    <h6>Studio / consulente</h6>
+    <h6>Partitario paghe dipendenti</h6>
     <div class="quick-links">
-      <a href="{% url 'consulente_posizione_contabile' %}"><i class="bi bi-calculator"></i> Posizione contabile consulente</a>
+      <a href="{% url 'consulente_partitario_paghe' %}"><i class="bi bi-receipt-cutoff"></i> Partitario paghe</a>
+      <a href="{% url 'consulente_bonifici_dipendenti' %}"><i class="bi bi-bank"></i> Bonifici dipendenti</a>
+      <a href="{% url 'lista_buste_paga_documenti' %}"><i class="bi bi-archive"></i> Archivio buste paga</a>
+      <a href="{% url 'consulente_riepilogo_f24_annuale' %}"><i class="bi bi-bank2"></i> Riepilogo F24 annuale</a>
     </div>
-    <p class="text-muted mb-0 mt-1" style="font-size:.58rem;line-height:1.35">Solo admin/consulente. Serve l’azienda operativa (barra in alto o profilo).</p>
+    <p class="text-muted mb-0 mt-1" style="font-size:.58rem;line-height:1.35">Libro paga (LUL): sezione <strong>Contratti &amp; paghe</strong>.</p>
+  </div>
+  <div class="ql-card">
+    <h6>Situazione contabile consulente</h6>
+    <div class="quick-links">
+      <a href="{% url 'consulente_partitario_consulente' %}"><i class="bi bi-calculator"></i> Situazione contabile consulente</a>
+      <a href="{% url 'consulente_posizione_contabile' %}"><i class="bi bi-grid"></i> Posizione contabile (hub)</a>
+      <a href="{% url 'consulente_posizione_proforma' %}"><i class="bi bi-file-earmark-pdf"></i> Proforma / parcelle</a>
+      <a href="{% url 'consulente_posizione_pagamenti' %}"><i class="bi bi-cash-stack"></i> Pagamenti (bonifici)</a>
+      <a href="{% url 'consulente_posizione_libro' %}"><i class="bi bi-journal-text"></i> Libro movimenti</a>
+    </div>
+    <p class="text-muted mb-0 mt-1" style="font-size:.58rem;line-height:1.35">Admin o consulente. Imposta l’<strong>azienda operativa</strong> (barra in alto o profilo).</p>
   </div>
   <div class="ql-card">
     <h6>Contratti &amp; paghe</h6>

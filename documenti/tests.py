@@ -325,3 +325,48 @@ class InferNaturaBustaTests(TestCase):
 			infer_natura_busta_per_busta(documento=None, report=rep, tipo_cedolino_motore="ORDINARIO"),
 			"QUATTORDICESIMA",
 		)
+
+
+class EstrazionePeriodoCedolinoTests(TestCase):
+	"""Periodo retributivo da testo cedolino (MESE RETRIBUITO TeamSystem)."""
+
+	def test_mese_retribuito_aprile_riga_successiva(self):
+		from documenti.busta_periodo_da_pdf import estrai_mese_anno_da_testo_cedolino
+
+		testo = """
+		Autorizzazione numerazione automatica n.N. 37938 del 27/01/2009
+		MESE RETRIBUITO                      COD. AZI
+		APRILE                   2026              136
+		CARDELLA MASSIMO
+		"""
+		mese, anno = estrai_mese_anno_da_testo_cedolino(testo)
+		self.assertEqual((mese, anno), (4, 2026))
+
+	def test_non_confonde_data_autorizzazione_con_periodo(self):
+		from documenti.busta_periodo_da_pdf import estrai_mese_anno_da_testo_cedolino
+
+		testo = "Autorizzazione del 27/01/2009\nMESE RETRIBUITO\nMARZO 2025\n"
+		mese, anno = estrai_mese_anno_da_testo_cedolino(testo)
+		self.assertEqual((mese, anno), (3, 2025))
+
+
+class EstrazioneImportiBustaPdfplumberTests(TestCase):
+	"""Lordo/netto sotto etichetta (mock words layout TeamSystem)."""
+
+	def test_find_below_label_lordo_netto(self):
+		from documenti.busta_importi_pdfplumber import _find_below_label
+		from decimal import Decimal
+
+		words = [
+			{"text": "TOTALE", "x0": 40, "x1": 80, "top": 500, "bottom": 510},
+			{"text": "LORDO", "x0": 82, "x1": 110, "top": 500, "bottom": 510},
+			{"text": "1.745,16", "x0": 42, "x1": 70, "top": 518, "bottom": 526},
+			{"text": "NETTO", "x0": 360, "x1": 390, "top": 620, "bottom": 628},
+			{"text": "BUSTA", "x0": 392, "x1": 420, "top": 620, "bottom": 628},
+			{"text": "0,50", "x0": 330, "x1": 350, "top": 638, "bottom": 646},
+			{"text": "1.339,00", "x0": 372, "x1": 400, "top": 638, "bottom": 646},
+		]
+		lordo = _find_below_label(words, "TOTALE LORDO", (30, 95), gap_max=18, min_val=Decimal("100"))
+		netto = _find_below_label(words, "NETTO BUSTA", (348, 425), gap_max=25, min_val=Decimal("100"))
+		self.assertEqual(lordo, Decimal("1745.16"))
+		self.assertEqual(netto, Decimal("1339.00"))

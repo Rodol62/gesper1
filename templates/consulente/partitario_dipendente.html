@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load l10n format_it_tags %}
+{% block title %}Partitario — {{ dipendente.cognome }} {{ dipendente.nome }}{% endblock %}
+
+{% block extra_head %}
+{% include "consulente/_posizione_elenco_head_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 mt-3 gesper-libro-page" style="max-width:1100px;margin:0 auto">
+  <nav aria-label="breadcrumb" class="small mb-2">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{% url 'consulente_partitario_paghe' %}">Partitario paghe</a></li>
+      <li class="breadcrumb-item active">{{ dipendente.cognome }} {{ dipendente.nome }}</li>
+    </ol>
+  </nav>
+
+  <header class="gesper-libro-hero">
+    <h1><i class="bi bi-person-vcard me-2"></i>{{ dipendente.cognome }} {{ dipendente.nome }}</h1>
+    <p class="gesper-libro-sub mb-0">Scheda contabile paghe — {{ azienda.nome }}</p>
+    {% if dipendente.codice_fiscale %}
+      <p class="gesper-libro-lead mb-0 font-monospace">{{ dipendente.codice_fiscale }}</p>
+    {% endif %}
+  </header>
+
+  {% for m in messages %}
+    <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show py-2 small">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+  {% endfor %}
+
+  {% include "consulente/_partitario_form_pagamento.html" with dipendente_fisso=dipendente dipendente_filter=dipendente.id %}
+
+  <div class="gesper-libro-filter-card mb-3">
+    <form method="get" class="row g-2 align-items-end small">
+      <div class="col-6 col-md-2">
+        <label class="form-label text-muted mb-0">Anno</label>
+        <select name="anno" class="form-select form-select-sm">
+          <option value="">Tutti gli anni</option>
+          {% for a in anni %}
+            <option value="{{ a|anno_it }}" {% if a == anno_filtro %}selected{% endif %}>{{ a|anno_it }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Filtra</button>
+        <a href="{% url 'consulente_partitario_dipendente' dipendente.id %}" class="btn btn-outline-secondary btn-sm">Tutti</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="row g-2 mb-3">
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm"><div class="card-body py-2 small">
+        <div class="text-muted">Totale avere (buste)</div>
+        <div class="fw-bold text-success">€ {{ scheda.tot_avere|euro_it }}</div>
+      </div></div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm"><div class="card-body py-2 small">
+        <div class="text-muted">Totale dare (pagamenti)</div>
+        <div class="fw-bold text-primary">€ {{ scheda.tot_dare|euro_it }}</div>
+      </div></div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm"><div class="card-body py-2 small">
+        <div class="text-muted">Saldo (residuo da pagare)</div>
+        <div class="fw-bold">€ {{ scheda.saldo_finale|euro_it }}</div>
+      </div></div>
+    </div>
+  </div>
+
+  {% include "consulente/_partitario_tabella_scheda.html" with scheda=scheda %}
+</div>
+{% endblock %}

@@ -872,6 +872,72 @@ class MovimentoImportPaghe(models.Model):
         return f"{tipo_label} {self.periodo_label or f'{self.mese:02d}/{self.anno}'} - {soggetto}"
 
 
+class PagamentoPartitarioPaghe(models.Model):
+    """
+    Pagamento/bonifico verso dipendente (colonna Dare del partitario paghe).
+    Le buste importate restano in MovimentoImportPaghe (colonna Avere).
+    """
+
+    azienda = models.ForeignKey(
+        Azienda,
+        on_delete=models.CASCADE,
+        related_name='pagamenti_partitario_paghe',
+        verbose_name='Azienda',
+    )
+    dipendente = models.ForeignKey(
+        'anagrafiche.Dipendente',
+        on_delete=models.CASCADE,
+        related_name='pagamenti_partitario_paghe',
+        verbose_name='Dipendente',
+    )
+    data_pagamento = models.DateField(verbose_name='Data pagamento')
+    descrizione = models.CharField(
+        max_length=220,
+        blank=True,
+        default='',
+        verbose_name='Descrizione / causale',
+    )
+    importo = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name='Importo pagato (dare)',
+    )
+    riferimento_bancario = models.CharField(
+        max_length=160,
+        blank=True,
+        default='',
+        verbose_name='Riferimento bancario (CRO/TRN)',
+    )
+    movimento_busta = models.ForeignKey(
+        MovimentoImportPaghe,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagamenti_partitario',
+        verbose_name='Busta collegata (opz.)',
+    )
+    registrato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagamenti_partitario_paghe_registrati',
+        verbose_name='Registrato da',
+    )
+    creato_il = models.DateTimeField(auto_now_add=True, verbose_name='Creato il')
+
+    class Meta:
+        verbose_name = 'Pagamento partitario paghe'
+        verbose_name_plural = 'Pagamenti partitario paghe'
+        ordering = ['dipendente_id', 'data_pagamento', 'id']
+        indexes = [
+            models.Index(fields=['azienda', 'dipendente', 'data_pagamento']),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.dipendente} {self.data_pagamento:%d/%m/%Y} € {self.importo}"
+
+
 class MovimentoImportPagheF24Dettaglio(models.Model):
     """Dettaglio righe imposte F24 estratte dal PDF (per sezione/codice tributo)."""
 

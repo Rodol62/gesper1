@@ -598,7 +598,7 @@ window.__GESPER_PORTAL_BASE = "{{ gesper_portal_web_base|default:'/'|escapejs }}
             {% if user.is_superuser or user|has_ruolo:'admin' or user|has_ruolo:'hr' %}
             <a href="{% url 'upload_documento' %}"><i class="bi bi-cloud-upload"></i> Carica documento (per dipendente)</a>
             {% endif %}
-            <a href="{% url 'lista_documenti' %}"><i class="bi bi-file-earmark-text"></i> Tutti i documenti</a>
+            <a href="{% url 'lista_documenti' %}?categoria=buste&amp;tipo=busta_paga"><i class="bi bi-file-earmark-text"></i> Buste paga e F24</a>
             <a href="{% url 'lista_cud_documenti' %}"><i class="bi bi-file-earmark-ruled"></i> CUD / Certificati</a>
             <a href="{% url 'lista_f24_documenti' %}"><i class="bi bi-bank"></i> F24</a>
             <a href="{% url 'libro_paga_lista' %}"><i class="bi bi-journal-richtext"></i> Libro paga</a>

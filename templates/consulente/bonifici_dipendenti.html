@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% load l10n %}
+{% load format_it_tags %}
+{% block title %}Bonifici dipendenti{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1100px;margin:0 auto;padding:1.5rem 1rem">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h2 class="mb-0" style="font-size:1.3rem;font-weight:700;color:#1b3a5f">
+      <i class="bi bi-bank me-2"></i>Bonifici dipendenti
+    </h2>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'consulente_partitario_paghe' %}" class="btn btn-outline-secondary btn-sm">Partitario paghe</a>
+      <a href="{% url 'consulente_dashboard' %}" class="btn btn-outline-secondary btn-sm">Dashboard</a>
+    </div>
+  </div>
+
+  <p class="text-muted small mb-3">
+    Bonifici in avere nel libro movimenti <strong>non</strong> collegati a proforma/parcelle del consulente.
+    Il dipendente è riconosciuto da cognome/nome in causale o riferimento bancario.
+    Per registrare nuovi bonifici usa il libro movimenti; per fatture studio usa
+    <a href="{% url 'consulente_posizione_pagamenti' %}">Pagamenti consulente</a>.
+  </p>
+
+  <form method="get" class="card border-0 shadow-sm mb-3">
+    <div class="card-body row g-2 align-items-end">
+      <div class="col-6 col-md-2">
+        <label class="form-label mb-1">Anno</label>
+        <select name="anno" class="form-select form-select-sm">
+          <option value="">Tutti</option>
+          {% for a in anni %}
+            <option value="{{ a|anno_it }}" {% if a == anno %}selected{% endif %}>{{ a|anno_it }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-5">
+        <label class="form-label mb-1">Dipendente</label>
+        <select name="dipendente" class="form-select form-select-sm">
+          <option value="">Tutti</option>
+          {% for d in dipendenti %}
+            <option value="{{ d.id }}" {% if dipendente_filter == d.id|stringformat:'s' %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-3 d-grid">
+        <button class="btn btn-primary btn-sm" type="submit">Filtra</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="row g-2 mb-3">
+    <div class="col-auto"><span class="badge bg-secondary">{{ righe|length }} bonifici</span></div>
+    <div class="col-auto"><span class="badge bg-success">{{ n_assegnati }} con dipendente</span></div>
+    {% if n_non_assegnati %}
+      <div class="col-auto"><span class="badge bg-warning text-dark">{{ n_non_assegnati }} da verificare</span></div>
+    {% endif %}
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0" style="font-size:.86rem">
+          <thead>
+            <tr>
+              <th class="px-3 py-2">Data</th>
+              <th class="py-2">Dipendente</th>
+              <th class="py-2">Causale / riferimento</th>
+              <th class="py-2 text-end">Importo</th>
+              <th class="py-2 text-center pe-3">Partitario</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in righe %}
+              <tr>
+                <td class="px-3 py-2">{% if r.bonifico.data_documento %}{{ r.bonifico.data_documento|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                <td class="py-2">
+                  {% if r.dipendente %}
+                    <a href="{% url 'consulente_partitario_dipendente' r.dipendente.id %}">{{ r.dipendente.cognome }} {{ r.dipendente.nome }}</a>
+                  {% else %}
+                    <span class="text-muted">Non riconosciuto</span>
+                  {% endif %}
+                </td>
+                <td class="py-2" style="max-width:320px">
+                  <span class="d-block text-truncate" title="{{ r.bonifico.causale_pagamento }}">{{ r.bonifico.causale_pagamento|default:r.bonifico.riferimento_pagamento|default:"—" }}</span>
+                </td>
+                <td class="py-2 text-end">€ {{ r.importo|euro_it }}</td>
+                <td class="py-2 text-center pe-3">
+                  {% if r.dipendente %}
+                    <a href="{% url 'consulente_partitario_dipendente' r.dipendente.id %}" class="btn btn-outline-primary btn-sm">Apri</a>
+                  {% else %}—{% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="px-3 py-3 text-muted">Nessun bonifico dipendente per i filtri selezionati.</td></tr>
+            {% endfor %}
+          </tbody>
+          {% if righe %}
+          <tfoot>
+            <tr>
+              <th class="px-3 py-2" colspan="3">Totale</th>
+              <th class="py-2 text-end">€ {{ totale|euro_it }}</th>
+              <th class="pe-3"></th>
+            </tr>
+          </tfoot>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

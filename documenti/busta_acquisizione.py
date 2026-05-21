@@ -108,6 +108,17 @@ def acquisisci_busta_pdf_bytes(
         )
         if bundle is not None:
             n, l = _netto_lordo_da_report(bundle.report)
+            # Totali riga A/D: pdfplumber sotto etichetta è più fedele del v4 su alcuni layout.
+            try:
+                from documenti.busta_importi_pdfplumber import estrai_lordo_netto_pdfplumber_monopagina
+
+                n_pl, l_pl = estrai_lordo_netto_pdfplumber_monopagina(raw)
+                if n_pl is not None:
+                    n = n_pl
+                if l_pl is not None:
+                    l = l_pl
+            except Exception:
+                pass
             return BustaAcquisizioneResult(
                 report=bundle.report,
                 motore="posizionale_v4",
