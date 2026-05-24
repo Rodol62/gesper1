@@ -880,30 +880,14 @@ def consulente_upload_buste_paga(request):
             except Exception:
                 return None
 
-        def _extract_importi_from_pdf(uploaded_file):
-            """Stessa pipeline di documenti (v4 pdfplumber → legacy testo)."""
-            from documenti.busta_acquisizione import acquisisci_busta_pdf_bytes
-            from documenti.buste_pdf_passwords import passwords_for_busta_pdf_read
+        def _extract_importi_da_documento_busta(doc_busta):
+            """Pipeline canonica dopo salvataggio su MEDIA_ROOT (evita file upload già consumato)."""
+            from documenti.busta_acquisizione import acquisisci_busta_da_documento
 
-            try:
-                pos = uploaded_file.tell() if hasattr(uploaded_file, 'tell') else None
-                if hasattr(uploaded_file, 'seek'):
-                    uploaded_file.seek(0)
-                raw = uploaded_file.read()
-                if hasattr(uploaded_file, 'seek') and pos is not None:
-                    uploaded_file.seek(pos)
-            except Exception:
+            res = acquisisci_busta_da_documento(doc_busta)
+            if res.errore:
                 return None, None
-
-            if not raw or len(raw) < 5 or raw[:5] != b"%PDF-":
-                return None, None
-
-            label = getattr(uploaded_file, 'name', '') or 'busta.pdf'
-            for pw in passwords_for_busta_pdf_read():
-                res = acquisisci_busta_pdf_bytes(raw, password=pw, file_label=label)
-                if res.errore is None:
-                    return res.netto, res.lordo
-            return None, None
+            return res.netto, res.lordo
 
         caricati = 0
         for dip in dipendenti:
@@ -924,7 +908,7 @@ def consulente_upload_buste_paga(request):
                     visibile_al_dipendente=True,
                 )
 
-                netto, lordo = _extract_importi_from_pdf(file_obj)
+                netto, lordo = _extract_importi_da_documento_busta(doc_busta)
                 MovimentoImportPaghe.objects.update_or_create(
                     azienda=azienda,
                     dipendente=dip,

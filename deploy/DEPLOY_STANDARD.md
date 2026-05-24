@@ -149,19 +149,24 @@ Preferire backup sulla VPS prima. Per il **codice** usare sempre `push-code`, no
 
 ## Allineamento produzione (checklist una tantum)
 
-Su VPS, in `/etc/gesper.env`:
+Su VPS, in **`/home/deploy/gesper1/.env`** (caricato da Gunicorn) **oppure** `/etc/gesper.env`:
 
 ```bash
 GESPER_DATA_ROOT=/var/www/gesper
 DJANGO_SETTINGS_MODULE=settings_production
 DJANGO_SECRET_KEY=…
+GESPER_ALLOWED_HOSTS=gesper1.plazapretoria.it
 ```
+
+**Non** impostare `GESPER_MEDIA_ROOT` se i PDF sono in `/var/www/gesper/media/` (derivato automaticamente da `GESPER_DATA_ROOT`).
+
+**Gunicorn deve leggere lo stesso env** usato da `deploy_gesper1.sh` per migrate: copiare `deploy/gesper1.service.example` in `/etc/systemd/system/gesper1.service` con `EnvironmentFile=-/home/deploy/gesper1/.env`, poi `daemon-reload` e `restart gesper1`. Senza questo, migrate vede i path giusti ma il sito in esecuzione può usare `MEDIA_ROOT=/var/www/media` e DB sotto il repo.
 
 Nginx `location /media/` → `alias /var/www/gesper/media/;` (file `deploy/nginx-gesper-vps-standalone.conf`).
 
 ```bash
 ./deploy/gesper.sh nginx-apply
-./deploy/gesper.sh verify-remote
+./deploy/gesper.sh verify-remote   # SSH sulla VPS: MEDIA_ROOT, path buste, prova acquisizione
 ```
 
 ---

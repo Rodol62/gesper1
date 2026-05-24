@@ -8,8 +8,11 @@ se il v4 non produce segnali sufficienti o solleva eccezioni.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from documenti.motore_cedolino_v4 import (
     Cedolino,
@@ -215,10 +218,23 @@ def try_busta_v4_bundle(
             or c.netto_busta > 0
         )
         if not usable:
+            logger.debug(
+                "Motore v4 senza segnali utili (file=%s, voci=%s, lordo=%s, netto=%s)",
+                file_label or "(buffer)",
+                len(c.voci),
+                c.totale_lordo,
+                c.netto_busta,
+            )
             return None
         report = cedolino_v4_a_report_gesper(c, calc, checks)
         return BustaV4Bundle(c=c, calc=calc, checks=checks, report=report)
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Motore v4 eccezione (file=%s): %s",
+            file_label or "(buffer)",
+            exc,
+            exc_info=True,
+        )
         return None
 
 

@@ -14,10 +14,13 @@ Allineamento motori: stringhe ``motore`` / costanti descritte in
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+logger = logging.getLogger(__name__)
 
 from documenti.buste_pdf_passwords import passwords_for_busta_pdf_read
 from documenti.cedolino_bridge_v4 import BustaV4Bundle, try_busta_v4_bundle
@@ -34,6 +37,7 @@ def _leggi_bytes_documento(doc: Documento) -> bytes | None:
     name = getattr(doc.file, "name", None) or ""
     if not name:
         return None
+    resolved: str | None = None
     try:
         storage = doc.file.storage
         from documenti.file_path_resolution import first_existing_relpath_for_stored_name
@@ -41,7 +45,14 @@ def _leggi_bytes_documento(doc: Documento) -> bytes | None:
         resolved = first_existing_relpath_for_stored_name(storage, name)
         with storage.open(resolved or name, "rb") as fh:
             return fh.read()
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Lettura PDF busta fallita (documento=%s, path=%s, resolved=%s): %s",
+            getattr(doc, "pk", None),
+            name,
+            resolved,
+            exc,
+        )
         return None
 
 

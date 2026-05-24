@@ -1,0 +1,36 @@
+# Esempio unit systemd per Hetzner (gesper1.plazapretoria.it).
+# Installazione:
+#   sudo cp deploy/gesper1.service.example /etc/systemd/system/gesper1.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now gesper1
+#
+# Obbligatorio: EnvironmentFile con almeno GESPER_DATA_ROOT e DJANGO_SECRET_KEY.
+# Hetzner: /home/deploy/gesper1/.env  oppure  /etc/gesper.env (stesso contenuto).
+
+[Unit]
+Description=GESPER Gunicorn (gesper1.plazapretoria.it)
+After=network.target
+
+[Service]
+User=deploy
+Group=www-data
+WorkingDirectory=/home/deploy/gesper1
+EnvironmentFile=-/home/deploy/gesper1/.env
+Environment=DJANGO_SETTINGS_MODULE=settings_production
+ExecStart=/home/deploy/gesper1/venv/bin/gunicorn wsgi:application \
+    --bind unix:/home/deploy/gesper1/gunicorn.sock \
+    --workers 3 \
+    --timeout 900 \
+    --graceful-timeout 120
+Restart=always
+RuntimeDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target
+
+# .env minimo (stesso file referenziato da EnvironmentFile):
+#   DJANGO_SETTINGS_MODULE=settings_production
+#   DJANGO_SECRET_KEY=...
+#   GESPER_ALLOWED_HOSTS=gesper1.plazapretoria.it
+#   GESPER_DATA_ROOT=/var/www/gesper
+#   GESPER_CSRF_TRUSTED_ORIGINS=https://gesper1.plazapretoria.it
+# Non impostare GESPER_MEDIA_ROOT se i file sono in /var/www/gesper/media/

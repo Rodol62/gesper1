@@ -84,7 +84,14 @@ case "$cmd" in
     exec bash "$ROOT/scripts/locale_a_produzione.sh" "${filtered[@]}"
     ;;
   verify-remote)
-    exec bash "$SCRIPT_DIR/tappa2-check-dati-vps.sh"
+    HOST="${GESPER_DEPLOY_HOST}"
+    REMOTE="${GESPER_REMOTE_PROJECT_DIR}"
+    UNIT="${GESPER_SYSTEMD_UNIT}"
+    SSH_BASE=(ssh -o ConnectTimeout=30)
+    [[ -n "${GESPER_SSH_IDENTITY:-}" ]] && SSH_BASE+=(-i "${GESPER_SSH_IDENTITY}" -o IdentitiesOnly=yes)
+    echo "== Diagnostica su ${HOST} (${REMOTE}) =="
+    REMOTE_CMD="cd $(printf %q "$REMOTE") && GESPER_REMOTE_PROJECT_DIR=$(printf %q "$REMOTE") GESPER_SYSTEMD_UNIT=$(printf %q "$UNIT") bash deploy/tappa2-check-dati-vps.sh"
+    exec "${SSH_BASE[@]}" "$HOST" "bash -lc $(printf %q "$REMOTE_CMD")"
     ;;
   nginx-apply)
     exec bash "$SCRIPT_DIR/remote-apply-nginx-gesper1.sh"
