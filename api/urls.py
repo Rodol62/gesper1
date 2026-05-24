@@ -9,6 +9,7 @@ urlpatterns = [
     path('auth/register-candidato/complete/', views.register_candidato_complete_api, name='api_register_candidato_complete'),
     path('auth/refresh/',      views.refresh_view,  name='api_refresh'),
     path('auth/portal-session/', views.portal_session_view, name='api_portal_session'),
+    path('auth/logout/',           views.logout_api_view,     name='api_logout'),
     path('auth/otp/verify/',   views.otp_verify,    name='api_otp_verify'),
     path('auth/2fa/setup/',    views.totp_setup,    name='api_2fa_setup'),
     path('auth/2fa/enable/',   views.totp_enable,   name='api_2fa_enable'),

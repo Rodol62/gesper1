@@ -43,6 +43,10 @@ LOGGING = {
 }
 # URL di login per il decoratore @login_required
 LOGIN_URL = '/accounts/login/'
+# Dopo logout (portale web / admin): torna al login PWA, non alla pagina accounts/login.
+_pwa_logout = os.environ.get('GESPER_PWA_LOGOUT_URL', '').strip()
+GESPER_PWA_LOGOUT_URL = _pwa_logout or '/gesper-app/'
+LOGOUT_REDIRECT_URL = GESPER_PWA_LOGOUT_URL
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'

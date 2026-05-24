@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from django.conf import settings
-from django.contrib.auth import authenticate, login as auth_login
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.core import signing
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -310,6 +310,18 @@ def portal_session_view(request):
         return Response({'detail': 'Account disattivato.'}, status=status.HTTP_403_FORBIDDEN)
     _b = getattr(u, "backend", settings.AUTHENTICATION_BACKENDS[0])
     auth_login(request, u, backend=_b)
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def logout_api_view(request):
+    """
+    Chiude la sessione cookie Django (portale in iframe / altra scheda).
+    La PWA azzera i JWT in locale; non reindirizza (evita fetch verso /accounts/login/).
+    """
+    if getattr(request, 'user', None) and request.user.is_authenticated:
+        auth_logout(request)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 

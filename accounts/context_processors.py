@@ -1,4 +1,4 @@
-from .gesper_paths import api_base_path, portal_web_base_path
+from .gesper_paths import api_base_path, portal_web_base_path, pwa_app_path
 from .models import ConfigurazioneSistema
 
 
@@ -20,6 +20,7 @@ def gesper_browser_paths(request):
     return {
         'gesper_portal_web_base': portal_web_base_path(request),
         'gesper_api_base': api_b,
+        'gesper_pwa_app_url': pwa_app_path(request),
     }
 
 

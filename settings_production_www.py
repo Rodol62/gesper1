@@ -25,6 +25,8 @@ MEDIA_URL = "/gesper/media/"
 
 LOGIN_URL = "/gesper/accounts/login/"
 LOGIN_REDIRECT_URL = "/gesper/accounts/profile/"
+GESPER_PWA_LOGOUT_URL = "/gesper/gesper-app/"
+LOGOUT_REDIRECT_URL = GESPER_PWA_LOGOUT_URL
 
 # Link «Visualizza sito» nell'admin (urls.py legge questo attributo)
 GESPER_ADMIN_SITE_URL = "/gesper/moduli/"

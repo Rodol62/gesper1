@@ -674,8 +674,9 @@ def logout_view(request):
             # Il logout non deve fallire per errori di logging (DB, IP proxy, ecc.)
             logger_accounts.exception('registra_log su logout non riuscita')
     logout(request)
-    # Non usare redirect('/') su www: la root è il sito Aruba; sempre pagina login GESPER.
-    return redirect('login')
+    from accounts.gesper_paths import pwa_app_path
+
+    return redirect(pwa_app_path(request))
 
 # --- VIEW CAMBIO PASSWORD ADMIN (ULTIMA DEL FILE) ---
 @login_required

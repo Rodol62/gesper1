@@ -24,3 +24,11 @@ def api_base_path() -> str:
         root = me[:-3]
         return (root + '/') if root else '/'
     return me + '/' if not me.endswith('/') else me
+
+
+def pwa_app_path(request=None) -> str:
+    """URL path della PWA dipendenti (login app), es. ``/gesper-app/`` o ``/gesper/gesper-app/``."""
+    base = portal_web_base_path(request)
+    if base == '/':
+        return '/gesper-app/'
+    return f'{base.rstrip("/")}/gesper-app/'
