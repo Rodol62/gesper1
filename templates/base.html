@@ -722,6 +722,7 @@ window.__GESPER_PORTAL_BASE = "{{ gesper_portal_web_base|default:'/'|escapejs }}
         <span class="g-user-pill"><i class="bi bi-person-fill"></i> {{ user.username }}</span>
         <form method="post" action="{% url 'logout' %}" style="margin:0"{% if gesper_pwa_embed %} target="_top"{% endif %}>
           {% csrf_token %}
+          {% if gesper_pwa_embed %}<input type="hidden" name="dest" value="pwa">{% endif %}
           <button type="submit" class="g-logout-btn"><i class="bi bi-box-arrow-right"></i> Esci</button>
         </form>
       {% else %}

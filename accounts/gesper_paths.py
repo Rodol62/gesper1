@@ -32,3 +32,24 @@ def pwa_app_path(request=None) -> str:
     if base == '/':
         return '/gesper-app/'
     return f'{base.rstrip("/")}/gesper-app/'
+
+
+def logout_landing_path(request) -> str:
+    """
+    Destinazione dopo logout dal portale web.
+
+    - Portale HR / sito: login classico ``/accounts/login/``.
+    - Uscita dalla PWA (form con ``dest=pwa`` o referer ``/gesper-app/``): login PWA.
+    """
+    if request is None:
+        return reverse('login')
+
+    dest = (request.GET.get('dest') or request.POST.get('dest') or '').strip().lower()
+    if dest == 'pwa':
+        return pwa_app_path(request)
+
+    referer = (request.META.get('HTTP_REFERER') or '')
+    if '/gesper-app' in referer:
+        return pwa_app_path(request)
+
+    return reverse('login')

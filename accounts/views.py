@@ -674,9 +674,9 @@ def logout_view(request):
             # Il logout non deve fallire per errori di logging (DB, IP proxy, ecc.)
             logger_accounts.exception('registra_log su logout non riuscita')
     logout(request)
-    from accounts.gesper_paths import pwa_app_path
+    from accounts.gesper_paths import logout_landing_path
 
-    return redirect(pwa_app_path(request))
+    return redirect(logout_landing_path(request))
 
 # --- VIEW CAMBIO PASSWORD ADMIN (ULTIMA DEL FILE) ---
 @login_required
