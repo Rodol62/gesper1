@@ -20,6 +20,43 @@ class Ruolo(models.Model):
         return self.nome
 
 
+class ConsensoGeolocalizzazioneEvento(models.Model):
+    """Storico concessioni/revoche consenso GPS presenze (accountability GDPR)."""
+
+    AZIONE_CHOICES = [
+        ('concesso', 'Consenso concesso'),
+        ('revocato', 'Consenso revocato'),
+    ]
+    FONTE_CHOICES = [
+        ('registrazione', 'Registrazione candidato'),
+        ('profilo_pwa', 'Profilo app PWA'),
+        ('profilo_web', 'Portale web'),
+        ('sistema', 'Sistema'),
+    ]
+
+    class Meta:
+        verbose_name = 'Evento consenso geolocalizzazione presenze'
+        verbose_name_plural = 'Eventi consenso geolocalizzazione presenze'
+        ordering = ['-created_at']
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='eventi_consenso_geo_presenze',
+        verbose_name='Utente',
+    )
+    azione = models.CharField(max_length=16, choices=AZIONE_CHOICES)
+    fonte = models.CharField(max_length=24, choices=FONTE_CHOICES, default='profilo_pwa')
+    versione_testo = models.CharField(max_length=32, blank=True, default='')
+    indirizzo_ip = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=500, blank=True, default='')
+    note = models.CharField(max_length=255, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data evento')
+
+    def __str__(self):
+        return f'{self.user_id} {self.azione} ({self.created_at:%Y-%m-%d %H:%M})'
+
+
 class User(AbstractUser):
     class Meta(AbstractUser.Meta):
         verbose_name = 'Utente'
@@ -126,6 +163,28 @@ class User(AbstractUser):
         default=False,
         verbose_name='Verifica e-mail al login',
         help_text='Se attivo, dopo username/password viene inviato un codice monouso via e-mail (SMTP di sistema). Richiede e-mail valorizzata sul profilo.',
+    )
+
+    geo_presenze_consenso = models.BooleanField(
+        default=False,
+        verbose_name='Consenso geolocalizzazione presenze',
+        help_text='Consenso esplicito all’uso del GPS solo per timbratura entrata/uscita.',
+    )
+    geo_presenze_consenso_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Data/ora consenso geo presenze',
+    )
+    geo_presenze_consenso_revocato_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Data/ora revoca consenso geo presenze',
+    )
+    geo_presenze_consenso_version = models.CharField(
+        max_length=32,
+        blank=True,
+        default='',
+        verbose_name='Versione testo informativa geo',
     )
 
     def genera_token_verifica(self):
@@ -539,6 +598,10 @@ class ConfigurazioneSistema(models.Model):
     smtp_port = models.PositiveIntegerField(
         default=587,
         verbose_name='Porta SMTP',
+        help_text=(
+            'Consigliata 587 (STARTTLS). Per Aruba (smtps.aruba.it) evitare 465 dal server VPS: '
+            'spesso bloccata; usare 587 con «Usa TLS» attivo.'
+        ),
     )
     smtp_use_tls = models.BooleanField(
         default=True,

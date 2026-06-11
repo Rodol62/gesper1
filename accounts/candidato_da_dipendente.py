@@ -153,6 +153,8 @@ def assicura_account_candidato_da_dipendente(dip: Dipendente) -> RisultatoAccoun
         convalidato=False,
         is_active=False,
         privacy_accettata=True,
+        geo_presenze_consenso=False,
+        geo_presenze_consenso_version='',
     )
     utente.set_password(cf)
     utente.save()
