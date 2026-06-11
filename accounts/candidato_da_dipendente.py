@@ -24,7 +24,7 @@ logger = logging.getLogger('django')
 
 @dataclass
 class RisultatoAccountCandidato:
-    utente: User | None
+    utente: User | None = None
     username: str = ''
     creato: bool = False
     errore: str = ''
