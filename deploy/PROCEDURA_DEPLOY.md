@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD033 MD036 MD029 MD022 MD031 MD060 -->
 # Procedura deploy: Hosting Linux Aruba + Cloud VPS + GESPER
 
 > **Flusso unico:** [`DEPLOY_STANDARD.md`](DEPLOY_STANDARD.md) · `./deploy/gesper.sh help` · script obsoleti: [`DEPRECATED.md`](DEPRECATED.md)
@@ -23,6 +24,7 @@ Documento di riferimento per DNS, Nginx, Certbot e pubblicazione codice/PWA.
 - [Ruoli (hosting vs VPS)](#sec-ruoli)
 - [DNS Aruba](#sec-dns)
 - [Nginx](#sec-nginx)
+- [Nginx Docker + gesper1 (VPS attuale)](#sec-nginx-docker)
 - [Certbot / TLS](#sec-certbot)
 - [PWA gesper-app](#sec-pwa)
 - [Firewall VPS](#sec-firewall)
@@ -283,6 +285,111 @@ Indice directory: `https://gesper1.plazapretoria.it/deploy-docs/`
 
 Altri utenti: `sudo htpasswd /etc/nginx/.htpasswd-gesper-deploy ALTRO_UTENTE` (senza `-c`).
 
+<a id="sec-nginx-docker"></a>
+### 3.1 Nginx Docker + **gesper1** (VPS Hetzner attuale)
+
+**Situazione reale (2026):** sulla VPS `178.105.161.77` le porte **80 e 443** sono in ascolto sul container Docker **`procedura_paghe-nginx-1`** (`/opt/payroll/procedura_paghe/docker-compose.yml`), non su nginx di sistema in `/etc/nginx/sites-enabled/gesper1`.
+
+| Hostname                                   | Backend                                              |
+| ------------------------------------------ | ---------------------------------------------------- |
+| `plazapretoria.it`, `www.plazapretoria.it` | Next.js (PM2 `:3000`)                                |
+| `pagit.plazapretoria.it`                   | Procedura paghe (container `app`)                    |
+| **`gesper1.plazapretoria.it`**             | **Gunicorn GESPER** (`gesper1.service`, socket Unix) |
+
+**Sintomo:** `https://gesper1.plazapretoria.it/` mostra il sito ristorante (Next.js / Plaza Pretoria) invece del login GESPER.
+
+**Causa:** nel file Docker `/opt/payroll/procedura_paghe/nginx/nginx.conf` manca un `server_name gesper1.plazapretoria.it`. Nginx usa il **primo blocco HTTPS** (Plaza) come default.
+
+**Non basta** `./deploy/gesper.sh push-code` né `install-nginx-gesper1-vhost-from-repo.sh`: aggiornano Django e il vhost in `/etc/nginx/`, ma **non** il nginx Docker che riceve il traffico pubblico.
+
+#### File di riferimento nel repo
+
+- Snippet da includere nel nginx Docker: **`deploy/nginx-docker-gesper1-snippet.conf`**
+- Gunicorn systemd: **`/etc/systemd/system/gesper1.service`** → `WorkingDirectory=/home/deploy/gesper1`, bind **`unix:/home/deploy/gesper1/gunicorn.sock`**
+
+#### Mount obbligatori (servizio `nginx` in docker-compose)
+
+Aggiungere sotto `volumes:` del container nginx (se assenti):
+
+```yaml
+      - /home/deploy/gesper1/gunicorn.sock:/var/run/gesper1.sock:ro
+      - /home/deploy/gesper1/staticfiles:/var/www/gesper/staticfiles:ro
+      - /var/www/gesper/media:/var/www/gesper/media:ro
+      - /var/www/gesper-app:/var/www/gesper-app:ro
+```
+
+#### TLS gesper1 nel volume Docker
+
+Certificati host Let's Encrypt → copia nel volume montato come `/etc/nginx/ssl/`:
+
+```bash
+install -m644 /etc/letsencrypt/live/gesper1.plazapretoria.it/fullchain.pem \
+  /opt/payroll/procedura_paghe/nginx/ssl/gesper1-fullchain.pem
+install -m600 /etc/letsencrypt/live/gesper1.plazapretoria.it/privkey.pem \
+  /opt/payroll/procedura_paghe/nginx/ssl/gesper1-privkey.pem
+```
+
+Ripetere dopo ogni `certbot renew` che rigenera i file gesper1 (o automatizzare con hook deploy).
+
+#### Proxy verso Gunicorn: socket Unix (non TCP)
+
+Usare **`proxy_pass http://unix:/var/run/gesper1.sock:;`** nel blocco gesper1.
+
+**Evitare** `proxy_pass http://127.0.0.1:8001` o `host.docker.internal:8001` dal container: **UFW** (`INPUT policy DROP`) blocga le connessioni dal bridge Docker verso porte non esplicitamente aperte sul host.
+
+#### 502 dopo `systemctl restart gesper1` (socket Unix obsoleto nel container)
+
+**Sintomo:** `https://gesper1.plazapretoria.it/` → **502 Bad Gateway**; Gunicorn attivo sul host ma nginx Docker non raggiunge Django.
+
+**Causa:** il volume `- /home/deploy/gesper1/gunicorn.sock:/var/run/gesper1.sock` punta all’**inode** del socket al momento del `docker compose up` / restart nginx. Ogni restart di Gunicorn **ricrea** il file socket sul host; il container resta collegato al socket **morto**.
+
+**Fix immediato:**
+
+```bash
+cd /opt/payroll/procedura_paghe && docker compose restart nginx
+```
+
+**Prevenzione (consigliata, una tantum sulla VPS):** hook systemd che riavvia nginx Docker dopo ogni avvio di `gesper1.service`:
+
+```bash
+cd /home/deploy/gesper1
+sudo bash deploy/install-gesper1-docker-nginx-hook.sh
+```
+
+File nel repo: `deploy/gesper1-reload-docker-nginx.sh`, drop-in `deploy/gesper1.service.d/docker-nginx-reload.conf`. Log: `journalctl -t gesper1-docker-nginx`.
+
+Dopo ogni `deploy_gesper1.sh` / `systemctl restart gesper1` l’hook è automatico; non serve più il restart manuale di nginx Docker.
+
+#### Applicare / ripristinare dopo `docker compose up`
+
+1. Backup: `cp -a /opt/payroll/procedura_paghe/nginx/nginx.conf{,.bak-$(date +%Y%m%d%H%M%S)}`
+2. Incollare il contenuto di `deploy/nginx-docker-gesper1-snippet.conf` in coda a `nginx.conf` (o merge manuale se già presente).
+3. Verificare i mount in `docker-compose.yml`.
+4. Riavviare:
+
+   ```bash
+   cd /opt/payroll/procedura_paghe
+   docker compose up -d nginx
+   docker exec procedura_paghe-nginx-1 nginx -t
+   docker exec procedura_paghe-nginx-1 nginx -s reload
+   systemctl is-active gesper1
+   ```
+
+5. Verifica:
+
+   ```bash
+   curl -sI https://gesper1.plazapretoria.it/
+   # Atteso: HTTP/2 302, Location: /accounts/login/
+   # NON deve comparire x-nextjs-cache né titolo "Plaza Pretoria"
+   ```
+
+#### Checklist post-incidente
+
+- [ ] `dig +short gesper1.plazapretoria.it A` → IP VPS (178.105.161.77) o Cloudflare che proxy verso quell’IP
+- [ ] `ss -tlnp | grep ':443'` → `docker-proxy` (atteso con stack attuale)
+- [ ] `grep gesper1 /opt/payroll/procedura_paghe/nginx/nginx.conf` → blocco presente
+- [ ] `curl -sI https://gesper1.plazapretoria.it/` → **302** verso login GESPER
+
 <a id="sec-certbot"></a>
 ## 4. Certbot (Let’s Encrypt)
 
@@ -389,7 +496,8 @@ L’`upstream plazapretoria_aruba_origin` in `nginx-gesper-production-split.conf
 
 ### Modalità separata (consigliata)
 
-- **`gesper1`** (e opz. **`gesper`**) → **A** verso la **VPS**; **`www` / `@`** → **hosting** WordPress. Link dal sito vetrina a `https://gesper1.plazapretoria.it/` (o `gesper.…` se mantieni quel nome).
+- **`gesper1`** (e opz. **`gesper`**) → **A** verso la **VPS**; **`www` / `@`** → **hosting** WordPress (o, sulla VPS attuale, Next.js via Docker — vedi **§3.1**). Link dal sito vetrina a `https://gesper1.plazapretoria.it/`.
+- **Attenzione VPS Hetzner con Docker:** anche con DNS corretto, se manca il vhost `gesper1` nel nginx Docker (`/opt/payroll/procedura_paghe/nginx/nginx.conf`), il sottodominio gesper1 può servire il sito ristorante. Vedi **§3.1** e `deploy/nginx-docker-gesper1-snippet.conf`.
 - Non aspettarsi `https://www…/gesper/` servito dalla VPS: se `www` punta all’hosting, risposte **403 / aruba-proxy** su quel path sono **coerenti** (GESPER non è lì).
 
 ### Split Nginx (opzionale)

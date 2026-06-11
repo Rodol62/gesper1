@@ -2,7 +2,8 @@
 
 **Host produzione:** `https://gesper1.plazapretoria.it` (SSH: `root@178.105.161.77`)  
 **Radice dati VPS:** `/var/www/gesper` → `db.sqlite3`, `media/`, `archivio/`  
-**Codice in esecuzione:** `/home/deploy/gesper1` (Gunicorn `gesper1.service`, socket locale)  
+**Codice in esecuzione:** `/home/deploy/gesper1` (Gunicorn `gesper1.service`, socket Unix)  
+**Ingresso HTTPS (80/443):** container Docker `procedura_paghe-nginx-1` — vhost gesper1 documentato in `deploy/PROCEDURA_DEPLOY.md` §3.1 e `deploy/nginx-docker-gesper1-snippet.conf`  
 **Env:** `/home/deploy/gesper1/.env` con `GESPER_DATA_ROOT=/var/www/gesper`  
 **Deploy automatico GitHub:** `/home/deploy/deploy_gesper1.sh` (copia da `deploy/deploy_gesper1.sh` nel repo: `git fetch` + `reset --hard origin/main` + migrate + restart)
 
@@ -14,7 +15,7 @@ Dettagli Nginx, TLS, migrazioni storiche: `deploy/PROCEDURA_DEPLOY.md` (appendic
 ## Principio
 
 | Cosa | Fonte di verità | Dove si lavora |
-|------|-----------------|----------------|
+| ------ | ----------------- | ---------------- |
 | **Dati** (DB, PDF buste, media) | **Produzione** | Copia in locale solo per test |
 | **Codice** (Django, template, fix acquisizione) | **Locale + Git** | Deploy verso produzione dopo test |
 | **Versionamento** | **GitHub** (`main`) | Ogni modifica utile va in commit/push prima del deploy |
@@ -43,7 +44,7 @@ Dalla root del repository:
 ```
 
 | Comando | Azione |
-|---------|--------|
+| --------- | -------- |
 | `pull-data` | Produzione → locale: DB + media (+ opzioni) |
 | `push-code` | Locale → produzione: rsync codice, pip, migrate, collectstatic, restart |
 | `push-data` | Locale → produzione: **solo dati** (eccezionale; chiede conferma) |

@@ -21,6 +21,10 @@ ExecStart=/home/deploy/gesper1/venv/bin/gunicorn wsgi:application \
     --workers 3 \
     --timeout 900 \
     --graceful-timeout 120
+# Evita 502: nginx Docker monta gunicorn.sock; dopo ogni restart Gunicorn serve
+# riavviare il container per aggiornare il mount (socket Unix = inode nuovo).
+# Installazione una tantum sulla VPS:
+#   sudo bash deploy/install-gesper1-docker-nginx-hook.sh
 Restart=always
 RuntimeDirectoryMode=0750
 
