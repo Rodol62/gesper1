@@ -40,8 +40,48 @@ def applica_schema_geo_presenze(apps, schema_editor):
 
     tabelle = set(connection.introspection.table_names())
     if 'accounts_consensogeolocalizzazioneevento' not in tabelle:
-        modello = apps.get_model('accounts', 'ConsensoGeolocalizzazioneEvento')
-        schema_editor.create_model(modello)
+        # SeparateDatabaseAndState passa a RunPython lo stato precedente:
+        # il modello esiste solo nelle state_operations, quindi apps.get_model fallisce.
+        # La classe locale riproduce i campi di questa migration e scrive la tabella giusta.
+        _crea_tabella_eventi_consenso(schema_editor)
+
+
+def _crea_tabella_eventi_consenso(schema_editor):
+    class ConsensoGeolocalizzazioneEventoSchema(models.Model):
+        user = models.ForeignKey(
+            settings.AUTH_USER_MODEL,
+            on_delete=models.CASCADE,
+            related_name='+',
+            verbose_name='Utente',
+        )
+        azione = models.CharField(
+            choices=[('concesso', 'Consenso concesso'), ('revocato', 'Consenso revocato')],
+            max_length=16,
+        )
+        fonte = models.CharField(
+            choices=[
+                ('registrazione', 'Registrazione candidato'),
+                ('profilo_pwa', 'Profilo app PWA'),
+                ('profilo_web', 'Portale web'),
+                ('sistema', 'Sistema'),
+            ],
+            default='profilo_pwa',
+            max_length=24,
+        )
+        versione_testo = models.CharField(blank=True, default='', max_length=32)
+        indirizzo_ip = models.GenericIPAddressField(blank=True, null=True)
+        user_agent = models.CharField(blank=True, default='', max_length=500)
+        note = models.CharField(blank=True, default='', max_length=255)
+        created_at = models.DateTimeField(auto_now_add=True, verbose_name='Data evento')
+
+        class Meta:
+            app_label = 'accounts_migration_0037'
+            db_table = 'accounts_consensogeolocalizzazioneevento'
+            verbose_name = 'Evento consenso geolocalizzazione presenze'
+            verbose_name_plural = 'Eventi consenso geolocalizzazione presenze'
+            ordering = ['-created_at']
+
+    schema_editor.create_model(ConsensoGeolocalizzazioneEventoSchema)
 
 
 class Migration(migrations.Migration):
